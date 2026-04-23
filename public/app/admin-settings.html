@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .settings-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px;gap:24px;overflow-x:auto}
+    .settings-tab-btn{background:none;border:none;font-size:14px;font-weight:600;color:var(--ink-600);padding:12px 0;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+    .settings-tab-btn:hover{color:var(--ink-900)}
+    .settings-tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-700)}
+
+    .settings-content{display:none}
+    .settings-content.active{display:block}
+
+    .settings-group{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:11px;
+      padding:20px;
+      margin-bottom:20px;
+      box-shadow:var(--shadow-sm);
+    }
+
+    .settings-group-title{
+      font-family:'Sora',sans-serif;
+      font-size:15px;
+      font-weight:700;
+      color:var(--ink-900);
+      margin-bottom:16px;
+    }
+
+    .settings-group-description{
+      font-size:13px;
+      color:var(--ink-600);
+      margin-bottom:16px;
+    }
+
+    .settings-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:12px 0;
+      border-bottom:1px solid var(--border);
+    }
+
+    .settings-row:last-child{border-bottom:none}
+
+    .settings-label{font-weight:600;color:var(--ink-900)}
+    .settings-input, .settings-select{
+      padding:8px 12px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      font-size:13px;
+      background:var(--surface);
+    }
+
+    .btn-save{
+      padding:10px 20px;
+      background:var(--blue-700);
+      color:#fff;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:700;
+      transition:all .15s;
+    }
+
+    .btn-save:hover{
+      background:var(--blue-800);
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-users.html">Users</a>
+      <a class="nav-link" href="admin-roles.html">Roles & Permissions</a>
+      <a class="nav-link active" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Settings</h1>
+        <p>Configure system settings and integrations</p>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="settings-tabs">
+      <button class="settings-tab-btn active" data-tab="general">General</button>
+      <button class="settings-tab-btn" data-tab="branding">Branding</button>
+      <button class="settings-tab-btn" data-tab="stripe">Stripe</button>
+      <button class="settings-tab-btn" data-tab="office-ally">Office Ally</button>
+      <button class="settings-tab-btn" data-tab="user-roles">User Roles</button>
+      <button class="settings-tab-btn" data-tab="notifications">Notifications</button>
+      <button class="settings-tab-btn" data-tab="smart-phrases">Smart Phrases</button>
+      <button class="settings-tab-btn" data-tab="service-codes">Service Codes</button>
+      <button class="settings-tab-btn" data-tab="payers">Payers</button>
+    </div>
+
+    <!-- General Settings -->
+    <div id="general" class="settings-content active">
+      <div class="settings-group">
+        <div class="settings-group-title">General Settings</div>
+        <div class="settings-row">
+          <span class="settings-label">Organization Name</span>
+          <input class="settings-input" type="text" value="THERASSISTANT" style="max-width:300px">
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Primary Phone</span>
+          <input class="settings-input" type="tel" placeholder="(000) 000-0000" style="max-width:300px">
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Support Email</span>
+          <input class="settings-input" type="email" placeholder="support@example.com" style="max-width:300px">
+        </div>
+      </div>
+      <button class="btn-save">Save Changes</button>
+    </div>
+
+    <!-- Branding Settings -->
+    <div id="branding" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Branding</div>
+        <div class="settings-group-description">Customize the appearance of your admin portal</div>
+        <div class="settings-row">
+          <span class="settings-label">Logo URL</span>
+          <input class="settings-input" type="url" placeholder="https://example.com/logo.png" style="max-width:400px">
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Primary Color</span>
+          <input class="settings-input" type="color" style="max-width:100px;height:40px;padding:2px">
+        </div>
+      </div>
+      <button class="btn-save">Save Changes</button>
+    </div>
+
+    <!-- Stripe Settings -->
+    <div id="stripe" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Stripe Integration</div>
+        <div class="settings-group-description">Configure Stripe for payment processing</div>
+        <div class="settings-row">
+          <span class="settings-label">Publishable Key</span>
+          <input class="settings-input" type="password" placeholder="pk_live_..." style="max-width:400px">
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Secret Key</span>
+          <input class="settings-input" type="password" placeholder="sk_live_..." style="max-width:400px">
+        </div>
+      </div>
+      <button class="btn-save">Save Changes</button>
+    </div>
+
+    <!-- Office Ally Settings -->
+    <div id="office-ally" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Office Ally Configuration</div>
+        <div class="settings-group-description">Configure clearinghouse settings</div>
+        <div class="settings-row">
+          <span class="settings-label">Practice ID</span>
+          <input class="settings-input" type="text" style="max-width:300px">
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">API Key</span>
+          <input class="settings-input" type="password" style="max-width:300px">
+        </div>
+      </div>
+      <button class="btn-save">Save Changes</button>
+    </div>
+
+    <!-- Other tabs -->
+    <div id="user-roles" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">User Roles & Permissions</div>
+        <p style="color:var(--ink-600);font-size:13px">Manage user roles and access permissions. <a href="admin-roles.html" style="color:var(--blue-700)">Go to Roles Manager ?</a></p>
+      </div>
+    </div>
+
+    <div id="notifications" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Notification Settings</div>
+        <div class="settings-row">
+          <span class="settings-label">Email Notifications</span>
+          <input type="checkbox" checked>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">SMS Alerts</span>
+          <input type="checkbox">
+        </div>
+      </div>
+      <button class="btn-save">Save Changes</button>
+    </div>
+
+    <div id="smart-phrases" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Smart Phrases Management</div>
+        <p style="color:var(--ink-600);font-size:13px">Create and manage smart phrases for notes and messages. <a href="admin-smart-phrases.html" style="color:var(--blue-700)">Go to Smart Phrases ?</a></p>
+      </div>
+    </div>
+
+    <div id="service-codes" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Service Code Management</div>
+        <p style="color:var(--ink-600);font-size:13px">Configure CPT and ICD-10 codes. <a href="admin-service-codes.html" style="color:var(--blue-700)">Go to Service Codes ?</a></p>
+      </div>
+    </div>
+
+    <div id="payers" class="settings-content">
+      <div class="settings-group">
+        <div class="settings-group-title">Payer Configuration</div>
+        <p style="color:var(--ink-600);font-size:13px">Manage insurance payers and billing rules. <a href="admin-payers.html" style="color:var(--blue-700)">Go to Payers ?</a></p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-settings] Auth dependencies not available - running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-settings] Init failed:', err);
+    }
+  }
+
+  document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.dataset.tab;
+      
+      document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.settings-content').forEach(c => c.classList.remove('active'));
+
+      btn.classList.add('active');
+      document.getElementById(tabName)?.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.btn-save').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Settings] Save'));
+  });
+});
+</script>
+</body>
+</html>

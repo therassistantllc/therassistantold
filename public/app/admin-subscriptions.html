@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Subscriptions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .adm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+    .adm-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .adm-stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .adm-stat.green::after{background:linear-gradient(180deg,#10b981,#059669)}
+    .adm-stat.amber::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .adm-stat-num{font-family:"Sora",sans-serif;font-size:1.8rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .adm-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    .plan-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+    .plan-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+    .plan-name{font-family:"Sora",sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900)}
+    .plan-price{font-size:1.1rem;font-weight:700;color:var(--blue-700)}
+    .plan-desc{font-size:13px;color:var(--ink-600);line-height:1.5}
+    .plan-features{list-style:none;padding:0;margin:10px 0 0;font-size:13px;color:var(--ink-700)}
+    .plan-features li{padding:3px 0}
+    .plan-features li::before{content:"? ";color:#10b981;font-weight:700}
+    .info-notice{background:#e8f2ff;border:1px solid #c3dffb;color:#0d4c8e;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    @media(max-width:800px){.adm-stats{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link active" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Subscriptions</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div>
+        <a class="btn btn-outline btn-sm" href="https://dashboard.stripe.com/subscriptions" target="_blank" rel="noopener noreferrer">Open Stripe Dashboard &#8599;</a>
+      </div>
+    </header>
+
+    <div class="info-notice">
+      &#8505; Subscription management is handled through <strong>Stripe</strong>. Individual subscriber records are managed in the Stripe dashboard. This page shows your current plan offerings and links to Stripe for billing actions.
+    </div>
+
+    <!-- --- Summary Cards -------------------------------------------- -->
+    <div class="adm-stats">
+      <div class="adm-stat green"><div class="adm-stat-num" id="statActiveSubs">?</div><div class="adm-stat-label">Active Subscriptions</div></div>
+      <div class="adm-stat amber"><div class="adm-stat-num" id="statTrialUsers">?</div><div class="adm-stat-label">Trial Users</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statCanceled">?</div><div class="adm-stat-label">Canceled Accounts</div></div>
+      <div class="adm-stat" style="--accent:#ef4444"><div class="adm-stat-num" id="statPastDue">?</div><div class="adm-stat-label">Past Due Accounts</div></div>
+    </div>
+    <div class="adm-stats">
+      <div class="adm-stat amber"><div class="adm-stat-num" id="statFailedPay">?</div><div class="adm-stat-label">Failed Payments</div></div>
+      <div class="adm-stat green"><div class="adm-stat-num" id="statMRR">?</div><div class="adm-stat-label">MRR</div></div>
+      <div class="adm-stat green"><div class="adm-stat-num" id="statARR">?</div><div class="adm-stat-label">ARR</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statARPU">?</div><div class="adm-stat-label">Avg Revenue Per User</div></div>
+    </div>
+
+    <!-- --- Subscription Table ---------------------------------------- -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm);margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:14px">Subscriber Records <span style="font-weight:400;color:var(--ink-400)">(Seed data ? connect Stripe for live data)</span></div>
+      <div class="filter-bar">
+        <input type="search" id="subSearch" placeholder="Search by user or practice&hellip;" oninput="filterSubTable()">
+        <select id="subTierFilter" onchange="filterSubTable()">
+          <option value="">All Tiers</option>
+          <option value="Trial">Trial</option>
+          <option value="Starter">Starter</option>
+          <option value="Professional">Professional</option>
+          <option value="Enterprise">Enterprise</option>
+        </select>
+        <select id="subStatusFilter" onchange="filterSubTable()">
+          <option value="">All Payment Statuses</option>
+          <option value="Current">Current</option>
+          <option value="Past Due">Past Due</option>
+          <option value="Failed">Failed</option>
+          <option value="Canceled">Canceled</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <!-- Bulk toolbar -->
+        <div id="subsBulkToolbar" style="display:none;align-items:center;gap:10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin-bottom:10px;flex-wrap:wrap">
+          <span id="subsBulkCount" style="font-size:13px;font-weight:700;color:var(--blue-700)">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="bulkSubsExport()">&#8595; Export CSV</button>
+          <button class="btn btn-outline btn-sm" style="color:#b91c1c;border-color:#fca5a5" onclick="bulkSubsCancel()">Cancel Subscriptions</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkSubsClear()">Clear</button>
+        </div>
+        <table class="data-table" id="subTable">
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="subsSelectAll" title="Select all" onchange="toggleSelectAllSubs(this)"></th>
+            <th>User</th>
+            <th>Practice</th>
+            <th>Tier</th>
+            <th>Price</th>
+            <th>Stripe Status</th>
+            <th>Renewal Date</th>
+            <th>Payment</th>
+            <th>Sessions Used</th>
+            <th>Sessions Left</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="subBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- --- Billing Portal Lookup ------------------------------------- -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm);margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:14px">Billing Portal ? Subscriber Actions</div>
+      <p style="font-size:13px;color:var(--ink-600);margin-bottom:14px">Use the Stripe billing portal to manage a specific subscriber's plan, view invoices, or cancel their subscription.</p>
+      <div class="filter-bar">
+        <input type="email" id="portalEmail" placeholder="Enter subscriber email&hellip;">
+        <button class="btn btn-primary btn-sm" onclick="openPortal()">Open Billing Portal &#8599;</button>
+        <span id="portalMsg" style="font-size:13px;font-weight:600"></span>
+      </div>
+    </div>
+
+    <!-- Plan cards -->
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:14px">Current Plan Offerings</div>
+    <div class="plan-card">
+      <div class="plan-card-top">
+        <span class="plan-name">Starter</span>
+        <span class="plan-price">$29/mo</span>
+      </div>
+      <p class="plan-desc">Ideal for solo practitioners beginning with behavioral health documentation assistance.</p>
+      <ul class="plan-features">
+        <li>10 sessions/month</li>
+        <li>H0031 &amp; H0001 coding support</li>
+        <li>Basic documentation templates</li>
+        <li>Email support</li>
+      </ul>
+    </div>
+    <div class="plan-card">
+      <div class="plan-card-top">
+        <span class="plan-name">Professional</span>
+        <span class="plan-price">$79/mo</span>
+      </div>
+      <p class="plan-desc">For active clinicians who handle moderate session volume and need full code coverage.</p>
+      <ul class="plan-features">
+        <li>50 sessions/month</li>
+        <li>Full code library (H-codes, CPT 90xxx, 96xxx)</li>
+        <li>All documentation templates</li>
+        <li>Saved reports &amp; notes</li>
+        <li>Priority support</li>
+      </ul>
+    </div>
+    <div class="plan-card">
+      <div class="plan-card-top">
+        <span class="plan-name">Practice</span>
+        <span class="plan-price">$149/mo</span>
+      </div>
+      <p class="plan-desc">For practices with multiple clinicians and high documentation volume.</p>
+      <ul class="plan-features">
+        <li>Unlimited sessions</li>
+        <li>Multi-provider support</li>
+        <li>Full code library</li>
+        <li>Admin portal access</li>
+        <li>Dedicated account manager</li>
+        <li>Custom templates on request</li>
+      </ul>
+    </div>
+  </main>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(iso){if(!iso)return'?';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+
+/* --- Seed subscriber data ----------------------------------- */
+const SEED_SUBS = [];
+
+let filteredSubs = [];
+
+const payColors = {'Current':'#059669','Past Due':'#f59e0b','Failed':'#ef4444','Canceled':'var(--ink-500)'};
+
+function renderSubTable() {
+  document.getElementById('subBody').innerHTML = filteredSubs.map((s,i) => `
+    <tr>
+      <td style="padding:10px 8px"><input type="checkbox" class="sub-bulk-check" data-idx="${i}" onchange="updateSubsBulkToolbar()"></td>
+      <td style="font-weight:600;font-size:13px">${escHtml(s.name)}</td>
+      <td style="font-size:13px">${escHtml(s.practice)}</td>
+      <td><span class="badge badge-draft" style="font-size:11px">${escHtml(s.tier)}</span></td>
+      <td style="font-weight:700;color:var(--ink-700)">${escHtml(s.price)}/mo</td>
+      <td style="font-size:12.5px;color:var(--ink-600)">${escHtml(s.stripe)}</td>
+      <td class="muted">${escHtml(s.renewal)}</td>
+      <td><span style="font-weight:700;font-size:12px;color:${payColors[s.payment]||'var(--ink-500)'}">${escHtml(s.payment)}</span></td>
+      <td style="text-align:center">${s.sessUsed}</td>
+      <td style="text-align:center">${s.sessleft}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="alert('Upgrade ? connect Stripe')">Upgrade</button>
+          <button class="btn btn-outline btn-sm" onclick="alert('Cancel ? connect Stripe')">Cancel</button>
+          <button class="btn btn-outline btn-sm" onclick="alert('Add sessions ? connect backend')">+ Sessions</button>
+          <a class="btn btn-outline btn-sm" href="https://dashboard.stripe.com/customers" target="_blank" rel="noopener">Stripe &#8599;</a>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function filterSubTable() {
+  const q   = (document.getElementById('subSearch').value||'').toLowerCase();
+  const tier = document.getElementById('subTierFilter').value;
+  const stat = document.getElementById('subStatusFilter').value;
+  filteredSubs = SEED_SUBS.filter(s => {
+    if (q && !s.name.toLowerCase().includes(q) && !s.practice.toLowerCase().includes(q)) return false;
+    if (tier && s.tier !== tier) return false;
+    if (stat && s.payment !== stat) return false;
+    return true;
+  });
+  renderSubTable();
+}
+
+function updateSubsBulkToolbar() {
+  const checked = document.querySelectorAll('.sub-bulk-check:checked');
+  const toolbar = document.getElementById('subsBulkToolbar');
+  document.getElementById('subsBulkCount').textContent = checked.length + ' selected';
+  toolbar.style.display = checked.length ? 'flex' : 'none';
+  const sa = document.getElementById('subsSelectAll');
+  if(sa) sa.indeterminate = checked.length > 0 && checked.length < document.querySelectorAll('.sub-bulk-check').length;
+}
+function toggleSelectAllSubs(cb) {
+  document.querySelectorAll('.sub-bulk-check').forEach(c => { c.checked = cb.checked; });
+  updateSubsBulkToolbar();
+}
+function bulkSubsClear() {
+  document.querySelectorAll('.sub-bulk-check').forEach(c => { c.checked = false; });
+  const sa = document.getElementById('subsSelectAll'); if(sa) sa.checked = false;
+  updateSubsBulkToolbar();
+}
+function bulkSubsExport() {
+  const idxs = Array.from(document.querySelectorAll('.sub-bulk-check:checked')).map(c=>parseInt(c.dataset.idx));
+  const sel = idxs.map(i=>filteredSubs[i]).filter(Boolean);
+  const rows=[['Name','Practice','Tier','Price','Stripe Status','Renewal','Payment','Sessions Used','Sessions Left']];
+  sel.forEach(s=>rows.push([s.name,s.practice,s.tier,s.price,s.stripe,s.renewal,s.payment,s.sessUsed,s.sessleft]));
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='subscriptions-export.csv'; a.click();
+}
+function bulkSubsCancel() {
+  const idxs = Array.from(document.querySelectorAll('.sub-bulk-check:checked')).map(c=>parseInt(c.dataset.idx));
+  if (!idxs.length) return;
+  alert('Cancel ' + idxs.length + ' subscription(s) ? connect Stripe backend to execute.');
+}
+
+async function openPortal() {
+  const email = (document.getElementById('portalEmail').value||'').trim();
+  const msg = document.getElementById('portalMsg');
+  if (!email || !email.includes('@')) { msg.style.color='#ef4444'; msg.textContent='Please enter a valid email.'; return; }
+  msg.style.color=getComputedStyle(document.documentElement).getPropertyValue('--ink-500');
+  msg.textContent='Opening portal?';
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/billing-portal', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+(session?.access_token||'')},
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.url) { window.open(data.url, '_blank', 'noopener'); msg.textContent=''; }
+    else { msg.style.color='#ef4444'; msg.textContent = data.error||'No portal URL returned.'; }
+  } catch(e) {
+    msg.style.color='#ef4444'; msg.textContent = 'Failed: '+e.message;
+  }
+}
+
+window.onload = async () => {
+  const user = await initDashboard(ADMIN_ROLES);
+  if (!user) return;
+  renderSubTable();
+};
+</script>
+</body>
+</html>

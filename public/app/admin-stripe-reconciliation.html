@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Stripe Reconciliation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* ----------------------------------------------------
+       ADMIN STRIPE RECONCILIATION - scoped styles
+    ---------------------------------------------------- */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);
+      color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+      padding:3px 10px;border-radius:999px;margin-bottom:18px}
+
+    /* -- KPI strip ------------------------------------- */
+    .rc-kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+    .rc-kpi{background:var(--surface);border-radius:12px;border:1px solid var(--border);
+      box-shadow:0 4px 12px rgba(13,53,94,.07);padding:13px 14px;position:relative;overflow:hidden}
+    .rc-kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .rc-kpi.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .rc-kpi.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .rc-kpi.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .rc-kpi.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .rc-kpi.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .rc-kpi.stripe::before{background:linear-gradient(180deg,#6366f1,#4338ca)}
+    .rc-kpi-val{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .rc-kpi.green .rc-kpi-val{color:#059669}
+    .rc-kpi.amber .rc-kpi-val{color:#b45309}
+    .rc-kpi.red .rc-kpi-val{color:#dc2626}
+    .rc-kpi.purple .rc-kpi-val{color:#6d28d9}
+    .rc-kpi.stripe .rc-kpi-val{color:#4338ca}
+    .rc-kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+    .rc-kpi-sub{font-size:10.5px;color:var(--ink-500);margin-top:2px}
+
+    /* -- Body layout ----------------------------------- */
+    .rc-body{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start}
+    .rc-main{display:flex;flex-direction:column;gap:14px}
+    .rc-aside{display:flex;flex-direction:column;gap:14px}
+
+    /* -- Widget ---------------------------------------- */
+    .rc-widget{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+      box-shadow:0 8px 20px rgba(13,53,94,.08);overflow:hidden}
+    .rc-whead{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+      justify-content:space-between;gap:8px;flex-wrap:wrap}
+    .rc-wtitle{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:var(--ink-900);
+      display:flex;align-items:center;gap:7px}
+    .rc-wicon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      font-size:.8rem;flex-shrink:0;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);color:var(--blue-900)}
+    .rc-wicon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .rc-wicon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .rc-wicon.red{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .rc-wicon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#5b21b6}
+    .rc-wicon.stripe{background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca}
+    .rc-wactions{display:flex;gap:6px;flex-wrap:wrap}
+
+    /* -- Filter bar ------------------------------------ */
+    .rc-filter{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+    .rc-filter input,.rc-filter select{padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;
+      font-size:12px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none}
+    .rc-filter input{flex:1;min-width:160px}
+    .rc-filter input:focus,.rc-filter select:focus{border-color:var(--blue-500)}
+
+    /* -- Reconciliation table -------------------------- */
+    .rc-table-wrap{overflow-x:auto}
+    .rc-table{width:100%;border-collapse:collapse}
+    .rc-table thead th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+      color:var(--ink-500);padding:9px 11px;background:var(--surface-soft);border-bottom:1px solid var(--border);
+      text-align:left;white-space:nowrap}
+    .rc-table tbody td{padding:9px 11px;font-size:12.5px;color:var(--ink-700);
+      border-bottom:1px solid var(--border);vertical-align:middle}
+    .rc-table tbody tr:last-child td{border-bottom:none}
+    .rc-table tbody tr:hover td{background:#f7fbff}
+
+    /* match status */
+    .rc-match{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px}
+    .rc-match.matched{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
+    .rc-match.unmatched{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .rc-match.partial{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .rc-match.pending{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+    .rc-match.dispute{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+
+    /* -- Payout rows ----------------------------------- */
+    .payout-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border)}
+    .payout-row:last-child{border-bottom:none}
+    .payout-row:hover{background:#f7fbff}
+    .payout-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca}
+    .payout-info{flex:1;min-width:0}
+    .payout-id{font-size:11px;font-weight:700;color:var(--blue-700)}
+    .payout-desc{font-size:12.5px;color:var(--ink-700);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .payout-right{text-align:right;flex-shrink:0}
+    .payout-amount{font-family:'Sora',sans-serif;font-size:13.5px;font-weight:700;color:#059669}
+    .payout-meta{font-size:10.5px;color:var(--ink-500)}
+
+    /* -- Dispute / chargeback rows --------------------- */
+    .disp-row{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .disp-row:last-child{border-bottom:none}
+    .disp-row:hover{background:#f7fbff}
+    .disp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+    .disp-dot.red{background:#dc2626}
+    .disp-dot.amber{background:#f59e0b}
+    .disp-info{flex:1;min-width:0}
+    .disp-title{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .disp-sub{font-size:11px;color:var(--ink-500);margin-top:2px}
+    .disp-amount{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#dc2626;flex-shrink:0}
+
+    /* -- Clinician reconciliation rows ----------------- */
+    .clin-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+    .clin-row:last-child{border-bottom:none}
+    .clin-row:hover{background:#f7fbff}
+    .clin-avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);
+      display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--blue-900);flex-shrink:0}
+    .clin-name{font-size:13px;font-weight:700;color:var(--ink-900);flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .clin-stat{text-align:right;flex-shrink:0}
+    .clin-amount{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#059669}
+    .clin-sub{font-size:10.5px;color:var(--ink-500)}
+
+    /* -- Tabs ------------------------------------------ */
+    .rc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 12px;flex-wrap:wrap}
+    .rc-tab{border:none;background:none;padding:9px 12px;font-size:12.5px;font-weight:600;color:var(--ink-500);
+      cursor:pointer;border-bottom:2.5px solid transparent;font-family:inherit;transition:color .14s;white-space:nowrap}
+    .rc-tab:hover{color:var(--ink-900)}
+    .rc-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .rc-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;
+      border-radius:99px;font-size:10px;font-weight:800;padding:0 3px;margin-left:4px;background:#dbeafe;color:#1e40af}
+    .rc-tab.active .rc-tab-count{background:var(--blue-600);color:#fff}
+    .rc-tab-pane{display:none}
+    .rc-tab-pane.active{display:block}
+
+    /* -- Buttons --------------------------------------- */
+    .btn-rc{border:1.5px solid var(--border);border-radius:7px;padding:5px 11px;font-size:12px;font-weight:700;
+      cursor:pointer;font-family:inherit;background:var(--surface);color:var(--ink-700);transition:border-color .14s;white-space:nowrap}
+    .btn-rc:hover{border-color:var(--blue-500);color:var(--blue-700);background:#eaf3fd}
+    .btn-rc.primary{background:var(--blue-700);color:#fff;border-color:var(--blue-700)}
+    .btn-rc.primary:hover{background:var(--blue-800);border-color:var(--blue-800)}
+    .btn-rc.stripe{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;border-color:#4f46e5}
+    .btn-rc.stripe:hover{opacity:.88}
+
+    /* -- Summary HZ bars ------------------------------- */
+    .hz-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .hz-lbl{font-size:11.5px;color:var(--ink-700);width:110px;flex-shrink:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .hz-track{flex:1;height:7px;background:#eef4fb;border-radius:99px}
+    .hz-fill{height:100%;border-radius:99px}
+    .hz-val{font-size:11.5px;font-weight:700;color:var(--ink-900);width:56px;text-align:right;flex-shrink:0}
+
+    /* -- Mini chart ------------------------------------ */
+    .mini-chart{display:flex;align-items:flex-end;gap:4px;height:80px;padding:10px 14px 0}
+    .mini-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1}
+    .mini-bar{width:100%;border-radius:3px 3px 0 0;min-height:3px;transition:height .4s}
+    .mini-bar.collected{background:var(--blue-500)}
+    .mini-bar.owed{background:#fde68a}
+    .mini-bar.failed{background:#fca5a5}
+    .mini-xlabel{font-size:9.5px;color:var(--ink-500);margin-top:4px;text-align:center;white-space:nowrap}
+
+    /* -- Notification logic box ------------------------ */
+    .notif-logic-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+    .notif-logic-row:last-child{border-bottom:none}
+    .notif-logic-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0}
+    .notif-logic-icon.red{background:#fee2e2;color:#b91c1c}
+    .notif-logic-icon.amber{background:#fef3c7;color:#92400e}
+    .notif-logic-icon.green{background:#d1fae5;color:#065f46}
+    .notif-logic-icon.blue{background:#dbeafe;color:#1e40af}
+    .notif-logic-icon.purple{background:#ede9fe;color:#5b21b6}
+    .notif-logic-body{flex:1}
+    .notif-logic-title{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .notif-logic-sub{font-size:11px;color:var(--ink-500);margin-top:2px;line-height:1.4}
+    .notif-logic-channel{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+    .notif-ch{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface-soft);border:1px solid var(--border);color:var(--ink-600,var(--ink-700))}
+
+    /* Toast */
+    .rc-toast{position:fixed;bottom:24px;right:24px;background:var(--ink-900);color:#fff;border-radius:10px;
+      padding:12px 18px;font-size:13px;font-weight:600;z-index:9999;display:none;
+      box-shadow:0 12px 28px rgba(0,0,0,.25);max-width:320px}
+    .rc-toast.show{display:block}
+    .rc-toast.success{background:#065f46;border:1px solid #a7f3d0}
+
+    @media(max-width:1100px){.rc-kpi-strip{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:900px){.rc-body{grid-template-columns:1fr}}
+    @media(max-width:600px){.rc-kpi-strip{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link active" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:18px">
+      <div>
+        <h2 style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;margin:0 0 3px">Stripe Reconciliation</h2>
+        <p style="font-size:12.5px;color:var(--ink-500);margin:0">Cross-reference Stripe payouts with platform payment records</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-rc" type="button" onclick="syncStripe()">? Sync Stripe</button>
+        <button class="btn-rc" type="button" onclick="exportRecon()">Export CSV ?</button>
+        <button class="btn-rc stripe" type="button" onclick="openStripeDash()">Open Stripe Dashboard ?</button>
+      </div>
+    </header>
+
+    <!-- -- KPI Strip ------------------------------------ -->
+    <div class="rc-kpi-strip">
+      <div class="rc-kpi blue">
+        <div class="rc-kpi-val" id="kpiGross">$0</div>
+        <div class="rc-kpi-lbl">Gross Volume</div>
+        <div class="rc-kpi-sub">This month</div>
+      </div>
+      <div class="rc-kpi green">
+        <div class="rc-kpi-val" id="kpiPayouts">$0</div>
+        <div class="rc-kpi-lbl">Payouts Sent</div>
+        <div class="rc-kpi-sub">To clinicians</div>
+      </div>
+      <div class="rc-kpi amber">
+        <div class="rc-kpi-val" id="kpiProcessing">$0</div>
+        <div class="rc-kpi-lbl">In Transit</div>
+        <div class="rc-kpi-sub">Awaiting deposit</div>
+      </div>
+      <div class="rc-kpi red">
+        <div class="rc-kpi-val" id="kpiDisputes">0</div>
+        <div class="rc-kpi-lbl">Disputes</div>
+        <div class="rc-kpi-sub">Open chargebacks</div>
+      </div>
+      <div class="rc-kpi purple">
+        <div class="rc-kpi-val" id="kpiUnmatched">0</div>
+        <div class="rc-kpi-lbl">Unmatched</div>
+        <div class="rc-kpi-sub">Needs review</div>
+      </div>
+      <div class="rc-kpi stripe">
+        <div class="rc-kpi-val" id="kpiFees">$0</div>
+        <div class="rc-kpi-lbl">Stripe Fees</div>
+        <div class="rc-kpi-sub">Platform total</div>
+      </div>
+    </div>
+
+    <!-- -- Body ---------------------------------------- -->
+    <div class="rc-body">
+      <!-- Main column -->
+      <div class="rc-main">
+
+        <!-- Reconciliation table -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon stripe">?</div>Payment Reconciliation</div>
+            <div class="rc-wactions">
+              <button class="btn-rc" type="button" onclick="resolveSelected()">Resolve Selected</button>
+              <button class="btn-rc" type="button" onclick="flagSelected()">Flag</button>
+            </div>
+          </div>
+          <div class="rc-tabs">
+            <button class="rc-tab active" type="button" onclick="switchRcTab(this,'rcAll')">All <span class="rc-tab-count" id="rcCntAll">0</span></button>
+            <button class="rc-tab" type="button" onclick="switchRcTab(this,'rcUnmatched')">Unmatched <span class="rc-tab-count" id="rcCntUnmatched">0</span></button>
+            <button class="rc-tab" type="button" onclick="switchRcTab(this,'rcDisputes')">Disputes <span class="rc-tab-count" id="rcCntDisputes">0</span></button>
+            <button class="rc-tab" type="button" onclick="switchRcTab(this,'rcRefunds')">Refunds <span class="rc-tab-count" id="rcCntRefunds">0</span></button>
+            <button class="rc-tab" type="button" onclick="switchRcTab(this,'rcPayouts')">Payouts <span class="rc-tab-count" id="rcCntPayouts">0</span></button>
+          </div>
+          <div class="rc-filter">
+            <input type="text" id="rcSearch" placeholder="Search clinician, intent ID, patient..." oninput="filterRecon()">
+            <select id="rcDateRange" onchange="filterRecon()">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="all">All time</option>
+            </select>
+            <select id="rcClinicianFilter" onchange="filterRecon()">
+              <option value="">All clinicians</option>
+              <option>Dr. Avery S.</option>
+              <option>Dr. Jordan M.</option>
+              <option>Dr. Taylor B.</option>
+            </select>
+          </div>
+
+          <div id="rcAll" class="rc-tab-pane active">
+            <div class="rc-table-wrap">
+              <table class="rc-table" id="reconTable">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="margin:0"></th>
+                    <th>Date</th>
+                    <th>Stripe Intent ID</th>
+                    <th>Clinician</th>
+                    <th>Patient</th>
+                    <th>Stripe Amt</th>
+                    <th>Platform Amt</th>
+                    <th>Fee</th>
+                    <th>Net</th>
+                    <th>Match</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="reconTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="rcUnmatched" class="rc-tab-pane"></div>
+          <div id="rcDisputes" class="rc-tab-pane"></div>
+          <div id="rcRefunds" class="rc-tab-pane"></div>
+          <div id="rcPayouts" class="rc-tab-pane"></div>
+        </div>
+
+        <!-- Notification Logic Reference -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon purple">??</div>Notification Logic</div>
+            <button class="btn-rc" type="button" onclick="openNotifSettings()">Configure</button>
+          </div>
+          <div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon red">??</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Payment Failed / Card Declined</div>
+                <div class="notif-logic-sub">Triggered immediately on Stripe <code>payment_intent.payment_failed</code> webhook. Retries up to 3x.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Clinician email</span>
+                  <span class="notif-ch">?? Clinician in-app</span>
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Patient SMS</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon amber">?</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Auto-Pay Upcoming Reminder</div>
+                <div class="notif-logic-sub">Sent 3 days before scheduled plan installment or auto-pay date.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Patient SMS</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon green">?</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Payment Collected - Receipt</div>
+                <div class="notif-logic-sub">Triggered on <code>payment_intent.succeeded</code>. Receipt PDF generated and delivered.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Patient SMS</span>
+                  <span class="notif-ch">?? Patient portal</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon blue">??</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Invoice / Statement Sent</div>
+                <div class="notif-logic-sub">Delivered with Stripe-hosted payment link. Reminder at 7 days, escalation at 30 days.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Patient SMS</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon red">??</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Overdue Balance - Escalation</div>
+                <div class="notif-logic-sub">Triggered at 7, 15, 30, and 60 days past due. Creates billing alert for clinician review.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Patient SMS</span>
+                  <span class="notif-ch">?? Billing alert</span>
+                  <span class="notif-ch">?? Clinician in-app</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon purple">?</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Refund Issued</div>
+                <div class="notif-logic-sub">Triggered on <code>charge.refunded</code>. Confirmation sent to patient, internal log for clinician.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Patient email</span>
+                  <span class="notif-ch">?? Clinician in-app</span>
+                  <span class="notif-ch">?? Audit log</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon red">??</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Dispute / Chargeback Opened</div>
+                <div class="notif-logic-sub">Immediate alert on <code>charge.dispute.created</code>. Evidence window tracked (7 days default).</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Admin email</span>
+                  <span class="notif-ch">?? Clinician email</span>
+                  <span class="notif-ch">?? Admin in-app</span>
+                  <span class="notif-ch">?? High-priority alert</span>
+                </div>
+              </div>
+            </div>
+            <div class="notif-logic-row">
+              <div class="notif-logic-icon green">?</div>
+              <div class="notif-logic-body">
+                <div class="notif-logic-title">Payout Deposited</div>
+                <div class="notif-logic-sub">On <code>payout.paid</code>, clinician notified of net deposit amount and settlement date.</div>
+                <div class="notif-logic-channel">
+                  <span class="notif-ch">?? Clinician email</span>
+                  <span class="notif-ch">?? Clinician in-app</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /rc-main -->
+
+      <!-- Aside column -->
+      <div class="rc-aside">
+
+        <!-- Payouts summary -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon green">??</div>Recent Payouts</div>
+            <button class="btn-rc" type="button" onclick="viewAllPayouts()">All Payouts</button>
+          </div>
+          <div id="payoutsList">
+            <div class="payout-row">
+              <div class="payout-icon">??</div>
+              <div class="payout-info">
+                <div class="payout-id">po_3QxAb2Rk91</div>
+                <div class="payout-desc">Dr. Avery S. - Apr 4, 2026</div>
+              </div>
+              <div class="payout-right">
+                <div class="payout-amount">$1,240.00</div>
+                <div class="payout-meta">Deposited - 2 days ago</div>
+              </div>
+            </div>
+            <div class="payout-row">
+              <div class="payout-icon">??</div>
+              <div class="payout-info">
+                <div class="payout-id">po_3QwBc8Lm44</div>
+                <div class="payout-desc">Dr. Jordan M. - Apr 3, 2026</div>
+              </div>
+              <div class="payout-right">
+                <div class="payout-amount">$860.00</div>
+                <div class="payout-meta">Deposited - 3 days ago</div>
+              </div>
+            </div>
+            <div class="payout-row">
+              <div class="payout-icon">??</div>
+              <div class="payout-info">
+                <div class="payout-id">po_3QvZd1Rp22</div>
+                <div class="payout-desc">Dr. Taylor B. - Apr 2, 2026</div>
+              </div>
+              <div class="payout-right">
+                <div class="payout-amount">$540.00</div>
+                <div class="payout-meta">In transit</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open Disputes -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon red">??</div>Open Disputes</div>
+            <span style="font-size:11px;color:#dc2626;font-weight:700" id="disputeDeadline">1 response due in 5d</span>
+          </div>
+          <div>
+            <div class="disp-row">
+              <div class="disp-dot red"></div>
+              <div class="disp-info">
+                <div class="disp-title">Chargeback - Sarah M.</div>
+                <div class="disp-sub">pi_3QxA1R - $150 - Due Apr 11, 2026 - Inquiry</div>
+              </div>
+              <div class="disp-amount">$150</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clinician breakdown -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon">??</div>By Clinician (MTD)</div>
+          </div>
+          <div style="padding:12px 14px">
+            <div class="hz-row">
+              <div class="hz-lbl">Dr. Avery S.</div>
+              <div class="hz-track"><div class="hz-fill" style="width:82%;background:var(--blue-500)"></div></div>
+              <div class="hz-val">$3,280</div>
+            </div>
+            <div class="hz-row">
+              <div class="hz-lbl">Dr. Jordan M.</div>
+              <div class="hz-track"><div class="hz-fill" style="width:60%;background:var(--blue-500)"></div></div>
+              <div class="hz-val">$2,400</div>
+            </div>
+            <div class="hz-row">
+              <div class="hz-lbl">Dr. Taylor B.</div>
+              <div class="hz-track"><div class="hz-fill" style="width:38%;background:var(--blue-500)"></div></div>
+              <div class="hz-val">$1,520</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Volume chart -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon">??</div>7-Day Volume</div>
+          </div>
+          <div class="mini-chart" id="miniChart"></div>
+          <div style="display:flex;justify-content:center;gap:14px;padding:8px 14px 12px;font-size:11px;color:var(--ink-500)">
+            <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--blue-500);margin-right:4px"></span>Collected</span>
+            <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fde68a;margin-right:4px"></span>Outstanding</span>
+            <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fca5a5;margin-right:4px"></span>Failed</span>
+          </div>
+        </div>
+
+        <!-- Permissions reference -->
+        <div class="rc-widget">
+          <div class="rc-whead">
+            <div class="rc-wtitle"><div class="rc-wicon purple">??</div>Permission Matrix</div>
+          </div>
+          <div style="padding:10px 14px">
+            <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:4px 6px;color:var(--ink-500);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Action</th>
+                  <th style="padding:4px 6px;color:var(--ink-500);font-size:10px;text-transform:uppercase;text-align:center">Admin</th>
+                  <th style="padding:4px 6px;color:var(--ink-500);font-size:10px;text-transform:uppercase;text-align:center">Clinician</th>
+                  <th style="padding:4px 6px;color:var(--ink-500);font-size:10px;text-transform:uppercase;text-align:center">Patient</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Collect payment</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Issue refund</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">--</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Create payment plan</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">Portal only</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">View payment history</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">Own patients</td><td style="text-align:center;border-bottom:1px solid var(--border)">Own only</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Generate superbill</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">Download only</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Stripe reconciliation</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">--</td><td style="text-align:center;border-bottom:1px solid var(--border)">--</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700);border-bottom:1px solid var(--border)">Dispute management</td><td style="text-align:center;border-bottom:1px solid var(--border)">?</td><td style="text-align:center;border-bottom:1px solid var(--border)">--</td><td style="text-align:center;border-bottom:1px solid var(--border)">--</td></tr>
+                <tr><td style="padding:5px 6px;color:var(--ink-700)">Connect Stripe acct</td><td style="text-align:center">? (platform)</td><td style="text-align:center">? (Express)</td><td style="text-align:center">--</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /rc-aside -->
+    </div>
+  </main>
+</div><!-- /dashboard-shell -->
+
+<div class="rc-toast" id="rcToast"></div>
+
+<script>
+/* -- Seed demo data ----------------------------------- */
+const RECON_DATA = [
+  {id:'pi_3Qx001A',date:'2026-04-05',clinician:'Dr. Avery S.',patient:'Alex B.',stripeAmt:30,platformAmt:30,fee:1.17,net:28.83,match:'matched'},
+  {id:'pi_3Qx002B',date:'2026-04-05',clinician:'Dr. Jordan M.',patient:'Sam K.',stripeAmt:45,platformAmt:45,fee:1.61,net:43.39,match:'matched'},
+  {id:'pi_3Qx003C',date:'2026-04-04',clinician:'Dr. Taylor B.',patient:'Dana R.',stripeAmt:320,platformAmt:0,fee:9.58,net:310.42,match:'unmatched'},
+  {id:'pi_3Qx004D',date:'2026-04-03',clinician:'Dr. Avery S.',patient:'Maria C.',stripeAmt:50,platformAmt:50,fee:1.75,net:48.25,match:'matched'},
+  {id:'pi_3Qx005E',date:'2026-04-02',clinician:'Dr. Jordan M.',patient:'James T.',stripeAmt:45,platformAmt:45,fee:1.61,net:43.39,match:'declined_no_charge'},
+  {id:'pi_3QxA1R',date:'2026-03-28',clinician:'Dr. Avery S.',patient:'Sarah M.',stripeAmt:150,platformAmt:150,fee:4.65,net:145.35,match:'dispute'},
+  {id:'pi_3Qx007G',date:'2026-03-26',clinician:'Dr. Taylor B.',patient:'Tom W.',stripeAmt:100,platformAmt:100,fee:3.20,net:96.80,match:'matched'},
+  {id:'pi_3Qx008H',date:'2026-03-20',clinician:'Dr. Avery S.',patient:'Alex B.',stripeAmt:200,platformAmt:200,fee:6.10,net:193.90,match:'matched'},
+];
+
+let activeRcTab = 'rcAll';
+
+function initRecon(){
+  renderRecon(RECON_DATA);
+  updateRcKPIs();
+  renderMiniChart();
+}
+
+function renderRecon(rows){
+  const matchFilter={rcAll:null,rcUnmatched:'unmatched',rcDisputes:'dispute',rcRefunds:'refund',rcPayouts:'payout'};
+  const search=(document.getElementById('rcSearch').value||'').toLowerCase();
+  const clin=document.getElementById('rcClinicianFilter').value;
+  const filter=matchFilter[activeRcTab];
+  let filtered=rows.filter(r=>{
+    const mMatch=!filter||(r.match===filter);
+    const sMatch=!search||r.id.toLowerCase().includes(search)||r.patient.toLowerCase().includes(search)||r.clinician.toLowerCase().includes(search);
+    const cMatch=!clin||r.clinician===clin;
+    return mMatch&&sMatch&&cMatch;
+  });
+  const tbody=document.getElementById('reconTableBody');
+  tbody.innerHTML=filtered.map(r=>`
+    <tr>
+      <td><input type="checkbox" class="rc-row-cb" style="margin:0"></td>
+      <td>${fmtD(r.date)}</td>
+      <td style="font-size:11px;font-family:monospace;color:var(--blue-700)">${r.id}</td>
+      <td>${r.clinician}</td>
+      <td style="font-weight:600;color:var(--ink-900)">${r.patient}</td>
+      <td style="font-family:'Sora',sans-serif;font-weight:700">$${r.stripeAmt.toFixed(2)}</td>
+      <td style="font-family:'Sora',sans-serif;color:${r.platformAmt===r.stripeAmt?'#059669':'#b45309'}">${r.platformAmt?'$'+r.platformAmt.toFixed(2):'--'}</td>
+      <td style="color:var(--ink-500)">$${r.fee.toFixed(2)}</td>
+      <td style="font-family:'Sora',sans-serif;font-weight:700;color:#059669">$${r.net.toFixed(2)}</td>
+      <td>${matchBadge(r.match)}</td>
+      <td>
+        ${r.match==='unmatched'?`<button class="btn-rc" style="font-size:11px;padding:3px 8px" onclick="manualMatch('${r.id}')">Match</button>`:''}
+        ${r.match==='dispute'?`<button class="btn-rc" style="font-size:11px;padding:3px 8px;border-color:#fca5a5;color:#b91c1c" onclick="respondDispute('${r.id}')">Respond</button>`:''}
+        <button class="btn-rc" style="font-size:11px;padding:3px 8px" onclick="viewTransaction('${r.id}')">View</button>
+      </td>
+    </tr>
+  `).join('');
+  updateRcTabCounts(rows);
+}
+
+function matchBadge(m){
+  const map={matched:'matched',unmatched:'unmatched',dispute:'dispute',partial:'partial',pending:'pending'};
+  const labels={matched:'? Matched',unmatched:'Unmatched',dispute:'?? Dispute',partial:'Partial',pending:'Pending',declined_no_charge:'N/A - Declined'};
+  const cls=map[m]||'pending';
+  return `<span class="rc-match ${cls}">${labels[m]||m}</span>`;
+}
+function fmtD(d){const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+
+function updateRcTabCounts(rows){
+  document.getElementById('rcCntAll').textContent=rows.length;
+  document.getElementById('rcCntUnmatched').textContent=rows.filter(r=>r.match==='unmatched').length;
+  document.getElementById('rcCntDisputes').textContent=rows.filter(r=>r.match==='dispute').length;
+  document.getElementById('rcCntRefunds').textContent=0;
+  document.getElementById('rcCntPayouts').textContent=3;
+}
+
+function updateRcKPIs(){
+  const gross=RECON_DATA.reduce((a,r)=>a+r.stripeAmt,0);
+  const fees=RECON_DATA.reduce((a,r)=>a+r.fee,0);
+  document.getElementById('kpiGross').textContent='$'+gross.toFixed(0);
+  document.getElementById('kpiPayouts').textContent='$2,640';
+  document.getElementById('kpiProcessing').textContent='$540';
+  document.getElementById('kpiDisputes').textContent='1';
+  document.getElementById('kpiUnmatched').textContent=RECON_DATA.filter(r=>r.match==='unmatched').length;
+  document.getElementById('kpiFees').textContent='$'+fees.toFixed(0);
+}
+
+function renderMiniChart(){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const collected=[280,420,180,540,310,95,0];
+  const outstanding=[120,80,200,60,180,120,0];
+  const failed=[0,0,45,0,0,0,0];
+  const maxVal=Math.max(...collected,...outstanding,...failed,1);
+  const html=days.map((d,i)=>`
+    <div class="mini-bar-wrap">
+      <div class="mini-bar collected" style="height:${(collected[i]/maxVal*72)}px"></div>
+      <div class="mini-xlabel">${d}</div>
+    </div>
+  `).join('');
+  document.getElementById('miniChart').innerHTML=html;
+}
+
+function switchRcTab(btn, tabId){
+  document.querySelectorAll('.rc-tabs .rc-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.rc-tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  activeRcTab=tabId;
+  document.getElementById('rcAll').classList.add('active');
+  filterRecon();
+}
+function filterRecon(){ renderRecon(RECON_DATA); }
+function toggleSelectAll(cb){ document.querySelectorAll('.rc-row-cb').forEach(c=>c.checked=cb.checked); }
+
+function syncStripe(){
+  showRcToast('Syncing with Stripe API...','');
+  setTimeout(()=>{ showRcToast('? Stripe sync complete - 8 records updated','success'); },1800);
+}
+function exportRecon(){ showRcToast('Preparing reconciliation CSV...',''); }
+function openStripeDash(){ showRcToast('Opening Stripe Express dashboard...',''); }
+function viewAllPayouts(){ showRcToast('Loading payout history...',''); }
+function resolveSelected(){ showRcToast('Resolving selected items...',''); }
+function flagSelected(){ showRcToast('Flagged for review',''); }
+function manualMatch(id){ showRcToast('Opening match dialog for '+id+'--',''); }
+function respondDispute(id){ showRcToast('Opening dispute response for '+id+'--',''); }
+function viewTransaction(id){ showRcToast('Loading transaction '+id+'--',''); }
+function openNotifSettings(){ showRcToast('Opening notification settings...',''); }
+
+function showRcToast(msg, type){
+  const t=document.getElementById('rcToast');
+  t.textContent=msg;
+  t.className='rc-toast show '+(type||'');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+document.getElementById('logoutBtn').addEventListener('click',function(){
+  localStorage.removeItem('therassistant_session');
+  window.location.href='login.html';
+});
+
+document.addEventListener('DOMContentLoaded',initRecon);
+window.addEventListener('load',initRecon);
+</script>
+</body>
+</html>

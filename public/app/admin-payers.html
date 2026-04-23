@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Payers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .payer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .payer-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:8px}
+    .payer-name{font-weight:700;font-size:14px;color:var(--ink-900)}
+    .payer-info{font-size:12px;color:var(--ink-600)}
+    .payer-actions{display:flex;gap:8px;margin-top:8px}
+    .payer-actions a{color:var(--blue-700);text-decoration:none;font-size:12px;font-weight:600;cursor:pointer}
+
+    .page-controls{display:flex;gap:12px;margin-bottom:24px}
+    .btn-primary{padding:10px 20px;background:var(--blue-700);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+    .btn-primary:hover{background:var(--blue-800)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-users.html">Users</a>
+      <a class="nav-link" href="admin-roles.html">Roles & Permissions</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Insurance Payers</h1>
+        <p>Manage insurance providers and billing configurations</p>
+      </div>
+    </header>
+
+    <div class="page-controls">
+      <button class="btn-primary">+ Add Payer</button>
+    </div>
+
+    <div class="payer-grid">
+      <div class="payer-card">
+        <div class="payer-name">Blue Cross Blue Shield</div>
+        <div class="payer-info">Plan ID: 12345</div>
+        <div class="payer-info">Network: In-Network</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+
+      <div class="payer-card">
+        <div class="payer-name">United Healthcare</div>
+        <div class="payer-info">Plan ID: 67890</div>
+        <div class="payer-info">Network: In-Network</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+
+      <div class="payer-card">
+        <div class="payer-name">Aetna</div>
+        <div class="payer-info">Plan ID: 24680</div>
+        <div class="payer-info">Network: In-Network</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+
+      <div class="payer-card">
+        <div class="payer-name">Cigna</div>
+        <div class="payer-info">Plan ID: 13579</div>
+        <div class="payer-info">Network: Out-of-Network</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+
+      <div class="payer-card">
+        <div class="payer-name">Medicare</div>
+        <div class="payer-info">Plan ID: MEDICARE</div>
+        <div class="payer-info">Network: Government</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+
+      <div class="payer-card">
+        <div class="payer-name">Medicaid</div>
+        <div class="payer-info">Plan ID: MEDICAID</div>
+        <div class="payer-info">Network: Government</div>
+        <div class="payer-actions">
+          <a href="#">Configure</a>
+          <a href="#">View Rules</a>
+          <a href="#">Delete</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-payers] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-payers] Init failed:', err);
+    }
+  }
+});
+</script>
+</body>
+</html>

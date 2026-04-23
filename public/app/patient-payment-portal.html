@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT &mdash; Patient Payment Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+    /* ════════════════════════════════════════════════════
+       PATIENT PAYMENT PORTAL — scoped styles
+    ════════════════════════════════════════════════════ */
+    body{background:radial-gradient(circle at 20% -5%,#f0f7ff 0%,#dcecff 38%,#f6fbff 100%)}
+
+    .pp-shell{max-width:820px;margin:0 auto;padding:32px 16px 60px}
+
+    /* ── Header ─────────────────────────────────────── */
+    .pp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;gap:12px;flex-wrap:wrap}
+    .pp-logo{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--blue-900);letter-spacing:-.01em}
+    .pp-secure-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+      color:#065f46;background:#d1fae5;border:1px solid #a7f3d0;padding:3px 11px;border-radius:99px}
+
+    /* ── Hero balance ────────────────────────────────── */
+    .pp-balance-hero{background:linear-gradient(135deg,var(--blue-900),var(--blue-700));border-radius:20px;
+      padding:28px 30px;margin-bottom:20px;color:#fff;position:relative;overflow:hidden}
+    .pp-balance-hero::before{content:'';position:absolute;right:-40px;top:-40px;width:240px;height:240px;
+      border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none}
+    .pp-balance-hero::after{content:'';position:absolute;right:80px;bottom:-60px;width:160px;height:160px;
+      border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+    .pp-balance-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-bottom:6px}
+    .pp-balance-amount{font-family:'Sora',sans-serif;font-size:2.8rem;font-weight:700;line-height:1;margin-bottom:4px}
+    .pp-balance-sub{font-size:13px;opacity:.75;margin-bottom:22px}
+    .pp-balance-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn-pp-primary{background:#fff;color:var(--blue-900);border:none;border-radius:10px;padding:11px 22px;
+      font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;
+      transition:opacity .14s,transform .12s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+    .btn-pp-primary:hover{opacity:.88;transform:translateY(-1px)}
+    .btn-pp-ghost{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);
+      border-radius:10px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;
+      transition:background .14s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+    .btn-pp-ghost:hover{background:rgba(255,255,255,.22)}
+
+    /* ── KPI row ─────────────────────────────────────── */
+    .pp-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+    .pp-kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+      box-shadow:0 4px 12px rgba(13,53,94,.07)}
+    .pp-kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:4px}
+    .pp-kpi-val{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900)}
+    .pp-kpi-val.owed{color:#b45309}
+    .pp-kpi-val.paid{color:#059669}
+    .pp-kpi-val.overdue{color:#dc2626}
+
+    /* ── Card ─────────────────────────────────────────── */
+    .pp-card{background:#fff;border:1px solid var(--border);border-radius:16px;
+      box-shadow:0 8px 20px rgba(13,53,94,.08);overflow:hidden;margin-bottom:16px}
+    .pp-card-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+      justify-content:space-between;gap:8px}
+    .pp-card-title{font-family:'Sora',sans-serif;font-size:13.5px;font-weight:700;color:var(--ink-900);
+      display:flex;align-items:center;gap:7px}
+    .pp-card-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      font-size:.8rem;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);color:var(--blue-900)}
+    .pp-card-icon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .pp-card-icon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .pp-card-icon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#5b21b6}
+    .pp-card-link{font-size:12px;font-weight:700;color:var(--blue-700);cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
+    .pp-card-link:hover{text-decoration:underline}
+
+    /* ── Invoice / statement rows ────────────────────── */
+    .pp-inv-row{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);transition:background .12s}
+    .pp-inv-row:last-child{border-bottom:none}
+    .pp-inv-row:hover{background:#f7fbff}
+    .pp-inv-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+      font-size:.95rem;flex-shrink:0;background:#f0f7ff}
+    .pp-inv-info{flex:1;min-width:0}
+    .pp-inv-id{font-size:11.5px;font-weight:700;color:var(--blue-700)}
+    .pp-inv-desc{font-size:13px;font-weight:600;color:var(--ink-900)}
+    .pp-inv-meta{font-size:11px;color:var(--ink-500);margin-top:2px}
+    .pp-inv-right{text-align:right;flex-shrink:0}
+    .pp-inv-amount{font-family:'Sora',sans-serif;font-size:14px;font-weight:700}
+    .pp-inv-amount.owed{color:#b45309}
+    .pp-inv-amount.paid{color:#059669}
+    .pp-inv-amount.overdue{color:#dc2626}
+    .pp-inv-actions{display:flex;gap:6px;margin-top:5px;justify-content:flex-end}
+
+    /* ── Payment method row ──────────────────────────── */
+    .pp-pm-row{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);position:relative}
+    .pp-pm-row:last-child{border-bottom:none}
+    .pp-pm-brand{width:42px;height:28px;border-radius:6px;background:linear-gradient(135deg,#1a1f71,#2b3593);
+      display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:900;color:#fff;letter-spacing:.04em;flex-shrink:0}
+    .pp-pm-brand.mc{background:linear-gradient(135deg,#eb001b,#f79e1b)}
+    .pp-pm-brand.amex{background:linear-gradient(135deg,#007bc1,#00aeef)}
+    .pp-pm-info{flex:1}
+    .pp-pm-num{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .pp-pm-meta{font-size:11px;color:var(--ink-500)}
+    .pp-pm-default{font-size:9.5px;font-weight:700;background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;
+      padding:1px 7px;border-radius:99px;position:absolute;top:8px;right:14px}
+
+    /* ── Plan progress ───────────────────────────────── */
+    .pp-plan-row{padding:14px 18px;border-bottom:1px solid var(--border)}
+    .pp-plan-row:last-child{border-bottom:none}
+    .pp-plan-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+    .pp-plan-desc{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .pp-plan-status{font-size:10.5px;font-weight:700}
+    .pp-plan-progress{height:7px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:6px}
+    .pp-plan-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#10b981,#34d399)}
+    .pp-plan-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-500)}
+
+    /* ── Payment history ─────────────────────────────── */
+    .pp-hist-row{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border)}
+    .pp-hist-row:last-child{border-bottom:none}
+    .pp-hist-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      font-size:.8rem;flex-shrink:0}
+    .pp-hist-icon.paid{background:#d1fae5;color:#065f46}
+    .pp-hist-icon.failed{background:#fee2e2;color:#b91c1c}
+    .pp-hist-icon.refunded{background:#ede9fe;color:#5b21b6}
+    .pp-hist-info{flex:1;min-width:0}
+    .pp-hist-desc{font-size:13px;font-weight:600;color:var(--ink-900)}
+    .pp-hist-meta{font-size:11px;color:var(--ink-500);margin-top:2px}
+    .pp-hist-right{text-align:right;flex-shrink:0}
+    .pp-hist-amount{font-family:'Sora',sans-serif;font-size:13.5px;font-weight:700}
+    .pp-hist-amount.paid{color:#059669}
+    .pp-hist-amount.failed{color:#dc2626}
+    .pp-hist-amount.refunded{color:#6d28d9}
+
+    /* ── Badges ──────────────────────────────────────── */
+    .pp-badge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px}
+    .pp-badge.paid{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
+    .pp-badge.due{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .pp-badge.overdue{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .pp-badge.plan{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+    .pp-badge.autopay{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
+
+    /* ── Collect modal ───────────────────────────────── */
+    .pp-modal-bg{display:none;position:fixed;inset:0;background:rgba(10,30,60,.5);z-index:9100;
+      align-items:center;justify-content:center;padding:16px}
+    .pp-modal-bg.open{display:flex}
+    .pp-modal{background:#fff;border-radius:20px;width:min(480px,100%);max-height:90vh;overflow-y:auto;
+      box-shadow:0 32px 80px rgba(10,30,60,.3)}
+    .pp-modal-hdr{padding:22px 24px 16px;border-bottom:1px solid var(--border)}
+    .pp-modal-hdr h3{font-family:'Sora',sans-serif;font-size:16px;font-weight:700;margin:0 0 3px}
+    .pp-modal-hdr p{font-size:12.5px;color:var(--ink-500);margin:0}
+    .pp-modal-body{padding:18px 24px}
+    .pp-modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px}
+    .pp-modal-footer .btn{flex:1;text-align:center;justify-content:center}
+
+    .pp-field{margin-bottom:14px}
+    .pp-field label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-700);margin-bottom:5px;
+      text-transform:uppercase;letter-spacing:.04em}
+    .pp-field input,.pp-field select{width:100%;padding:10px 12px;border:1.5px solid var(--border);
+      border-radius:9px;font-size:13px;font-family:inherit;color:var(--ink-900);background:#fafcff;
+      outline:none;box-sizing:border-box}
+    .pp-field input:focus,.pp-field select:focus{border-color:var(--blue-500);background:#fff}
+    .pp-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .pp-field-hint{font-size:11px;color:var(--ink-500);margin-top:4px}
+
+    .stripe-secure-box{border:1.5px solid var(--border);border-radius:9px;padding:12px;
+      background:#fafcff;font-size:13px;color:var(--ink-500);display:flex;align-items:center;gap:8px}
+    .stripe-secure-box.active{border-color:var(--blue-500);background:#fff}
+
+    .pp-summary-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;color:var(--ink-700)}
+    .pp-summary-row.total{font-weight:700;font-size:14.5px;border-top:1px solid var(--border);padding-top:10px;margin-top:5px;color:var(--ink-900)}
+    .pp-divider{height:1px;background:var(--border);margin:14px 0}
+
+    /* ── Toast ───────────────────────────────────────── */
+    .pp-toast{position:fixed;bottom:24px;right:24px;background:var(--ink-900);color:#fff;border-radius:10px;
+      padding:12px 18px;font-size:13px;font-weight:600;z-index:9999;display:none;
+      box-shadow:0 12px 28px rgba(0,0,0,.25);max-width:320px}
+    .pp-toast.show{display:block}
+    .pp-toast.success{background:#065f46;border:1px solid #a7f3d0}
+    .pp-toast.error{background:#b91c1c;border:1px solid #fca5a5}
+
+    /* ── Failed alert banner ─────────────────────────── */
+    .pp-alert-banner{background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:14px 18px;
+      margin-bottom:14px;display:flex;align-items:flex-start;gap:12px}
+    .pp-alert-banner-icon{font-size:1.2rem;flex-shrink:0;margin-top:1px}
+    .pp-alert-banner-body{flex:1}
+    .pp-alert-banner-title{font-size:13px;font-weight:700;color:#b91c1c;margin-bottom:3px}
+    .pp-alert-banner-sub{font-size:12px;color:#7f1d1d}
+    .pp-alert-banner-action{margin-left:auto;flex-shrink:0}
+
+    /* ── Superbill / docs section ────────────────────── */
+    .pp-doc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 14px;flex-wrap:wrap}
+    .pp-doc-tab{border:none;background:none;padding:9px 12px;font-size:12.5px;font-weight:600;color:var(--ink-500);
+      cursor:pointer;border-bottom:2.5px solid transparent;font-family:inherit;transition:color .14s;white-space:nowrap}
+    .pp-doc-tab:hover{color:var(--ink-900)}
+    .pp-doc-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .pp-doc-pane{display:none}
+    .pp-doc-pane.active{display:block}
+
+    /* ── Auto-pay toggle ─────────────────────────────── */
+    .pp-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+      border-bottom:1px solid var(--border);gap:10px}
+    .pp-toggle-row:last-child{border-bottom:none}
+    .pp-toggle-label{font-size:13px;font-weight:600;color:var(--ink-900)}
+    .pp-toggle-sub{font-size:11px;color:var(--ink-500);margin-top:1px}
+    .pp-toggle{position:relative;display:inline-block;width:40px;height:22px}
+    .pp-toggle input{opacity:0;width:0;height:0}
+    .pp-toggle-slider{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:22px;transition:.2s}
+    .pp-toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;
+      background:#fff;border-radius:50%;transition:.2s}
+    .pp-toggle input:checked+.pp-toggle-slider{background:#10b981}
+    .pp-toggle input:checked+.pp-toggle-slider::before{transform:translateX(18px)}
+
+    @media(max-width:600px){
+      .pp-kpi-row{grid-template-columns:repeat(2,1fr)}
+      .pp-balance-amount{font-size:2rem}
+      .pp-field-row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+
+<body>
+<div class="pp-shell">
+
+  <!-- ── Header ──────────────────────────────────────── -->
+  <div class="pp-header">
+    <div class="pp-logo">THERASSISTANT</div>
+    <div class="pp-secure-badge">🔒 Secured by Stripe</div>
+  </div>
+
+  <!-- ── Failed payment alert (shown when applicable) ── -->
+  <div class="pp-alert-banner" id="failedPaymentBanner" style="display:none">
+    <div class="pp-alert-banner-icon">⚠️</div>
+    <div class="pp-alert-banner-body">
+      <div class="pp-alert-banner-title">Your payment was declined</div>
+      <div class="pp-alert-banner-sub" id="failedPaymentBannerMsg">A recent payment could not be processed. Please update your payment method to avoid service interruption.</div>
+    </div>
+    <div class="pp-alert-banner-action">
+      <button class="btn-pp-primary" type="button" style="background:var(--blue-700);color:#fff;padding:8px 16px;font-size:12.5px" onclick="openPayModal('balance')">Update &amp; Pay</button>
+    </div>
+  </div>
+
+  <!-- ── Balance Hero ─────────────────────────────────── -->
+  <div class="pp-balance-hero">
+    <div class="pp-balance-label">Current Balance Due</div>
+    <div class="pp-balance-amount" id="heroBalance">$245.00</div>
+    <div class="pp-balance-sub" id="heroBalanceSub">Includes $120 overdue balance + $125 recent charge</div>
+    <div class="pp-balance-actions">
+      <button class="btn-pp-primary" type="button" onclick="openPayModal('balance')">💳 Pay Now</button>
+      <button class="btn-pp-ghost" type="button" onclick="openPayModal('plan')">📅 Set Up Payment Plan</button>
+      <button class="btn-pp-ghost" type="button" onclick="document.getElementById('docsSection').scrollIntoView({behavior:'smooth'})">📄 View Statements</button>
+    </div>
+  </div>
+
+  <!-- ── KPI row ──────────────────────────────────────── -->
+  <div class="pp-kpi-row">
+    <div class="pp-kpi">
+      <div class="pp-kpi-lbl">Balance Due</div>
+      <div class="pp-kpi-val owed">$245</div>
+    </div>
+    <div class="pp-kpi">
+      <div class="pp-kpi-lbl">Overdue</div>
+      <div class="pp-kpi-val overdue">$120</div>
+    </div>
+    <div class="pp-kpi">
+      <div class="pp-kpi-lbl">Paid YTD</div>
+      <div class="pp-kpi-val paid">$780</div>
+    </div>
+    <div class="pp-kpi">
+      <div class="pp-kpi-lbl">Plan Active</div>
+      <div class="pp-kpi-val" style="font-size:1rem;padding-top:4px">$50/mo · 4 of 8</div>
+    </div>
+  </div>
+
+  <!-- ── Auto-Pay Settings ────────────────────────────── -->
+  <div class="pp-card">
+    <div class="pp-card-hdr">
+      <div class="pp-card-title"><div class="pp-card-icon green">⚡</div>Auto-Pay &amp; Payment Methods</div>
+      <button class="pp-card-link" type="button" onclick="openAddCardModal()">+ Add card</button>
+    </div>
+
+    <!-- Saved cards -->
+    <div id="savedCardsList">
+      <div class="pp-pm-row">
+        <div class="pp-pm-brand">VISA</div>
+        <div class="pp-pm-info">
+          <div class="pp-pm-num">•••• •••• •••• 4242</div>
+          <div class="pp-pm-meta">Exp 12/27 · Visa</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="pp-badge autopay">Auto-Pay On</span>
+          <button onclick="toggleAutoPay(this)" style="background:none;border:1.5px solid #fca5a5;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;color:#b91c1c;cursor:pointer;font-family:inherit">Turn Off</button>
+        </div>
+        <div class="pp-pm-default">Default</div>
+      </div>
+      <div class="pp-pm-row">
+        <div class="pp-pm-brand mc">MC</div>
+        <div class="pp-pm-info">
+          <div class="pp-pm-num">•••• •••• •••• 8821</div>
+          <div class="pp-pm-meta">Exp 03/26 · Mastercard · Expired</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="pp-badge overdue">Expired</span>
+          <button onclick="removeCard(this)" style="background:none;border:1.5px solid #fca5a5;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;color:#b91c1c;cursor:pointer;font-family:inherit">Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-pay toggles -->
+    <div style="border-top:1px solid var(--border)">
+      <div class="pp-toggle-row">
+        <div>
+          <div class="pp-toggle-label">Auto-pay future invoices</div>
+          <div class="pp-toggle-sub">Automatically charge saved card when a new invoice is issued</div>
+        </div>
+        <label class="pp-toggle"><input type="checkbox" checked onchange="onAutoPayToggle(this,'invoices')"><span class="pp-toggle-slider"></span></label>
+      </div>
+      <div class="pp-toggle-row">
+        <div>
+          <div class="pp-toggle-label">Auto-pay plan installments</div>
+          <div class="pp-toggle-sub">Charge card automatically on each plan due date</div>
+        </div>
+        <label class="pp-toggle"><input type="checkbox" checked onchange="onAutoPayToggle(this,'plan')"><span class="pp-toggle-slider"></span></label>
+      </div>
+      <div class="pp-toggle-row">
+        <div>
+          <div class="pp-toggle-label">Email &amp; SMS receipts</div>
+          <div class="pp-toggle-sub">Receive a receipt for every processed payment</div>
+        </div>
+        <label class="pp-toggle"><input type="checkbox" checked onchange="onReceiptToggle(this)"><span class="pp-toggle-slider"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Active Payment Plan ──────────────────────────── -->
+  <div class="pp-card">
+    <div class="pp-card-hdr">
+      <div class="pp-card-title"><div class="pp-card-icon">📅</div>Active Payment Plan</div>
+      <button class="pp-card-link" type="button" onclick="viewPlanDetails()">View details</button>
+    </div>
+    <div class="pp-plan-row">
+      <div class="pp-plan-top">
+        <div class="pp-plan-desc">Balance of $400 — 8 monthly installments</div>
+        <span class="pp-badge plan">Active</span>
+      </div>
+      <div class="pp-plan-progress"><div class="pp-plan-fill" style="width:50%"></div></div>
+      <div class="pp-plan-meta">
+        <span>4 of 8 paid ($200)</span>
+        <span>$200 remaining · Next: May 1, 2026</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Invoices / Documents ─────────────────────────── -->
+  <div class="pp-card" id="docsSection">
+    <div class="pp-card-hdr">
+      <div class="pp-card-title"><div class="pp-card-icon purple">📄</div>Documents</div>
+    </div>
+    <div class="pp-doc-tabs">
+      <button class="pp-doc-tab active" type="button" onclick="switchDocTab(this,'ppInvoices')">Invoices</button>
+      <button class="pp-doc-tab" type="button" onclick="switchDocTab(this,'ppSuperbills')">Superbills</button>
+      <button class="pp-doc-tab" type="button" onclick="switchDocTab(this,'ppStatements')">Statements</button>
+      <button class="pp-doc-tab" type="button" onclick="switchDocTab(this,'ppReceipts')">Receipts</button>
+    </div>
+
+    <!-- Invoices -->
+    <div id="ppInvoices" class="pp-doc-pane active">
+      <div class="pp-inv-row">
+        <div class="pp-inv-icon">📄</div>
+        <div class="pp-inv-info">
+          <div class="pp-inv-id">INV-0042</div>
+          <div class="pp-inv-desc">Session charge — Apr 1, 2026</div>
+          <div class="pp-inv-meta">Due Apr 15, 2026 · Individual Therapy</div>
+        </div>
+        <div class="pp-inv-right">
+          <div class="pp-inv-amount overdue">$120.00</div>
+          <div class="pp-inv-actions">
+            <span class="pp-badge overdue">Overdue</span>
+            <button class="btn-pp-primary" style="padding:6px 14px;font-size:12px" onclick="openPayModal('invoice','INV-0042',120)">Pay Now</button>
+          </div>
+        </div>
+      </div>
+      <div class="pp-inv-row">
+        <div class="pp-inv-icon">📄</div>
+        <div class="pp-inv-info">
+          <div class="pp-inv-id">INV-0041</div>
+          <div class="pp-inv-desc">Session charge — Mar 28, 2026</div>
+          <div class="pp-inv-meta">Due Apr 12, 2026 · Individual Therapy</div>
+        </div>
+        <div class="pp-inv-right">
+          <div class="pp-inv-amount owed">$125.00</div>
+          <div class="pp-inv-actions">
+            <span class="pp-badge due">Due</span>
+            <button class="btn-pp-primary" style="padding:6px 14px;font-size:12px" onclick="openPayModal('invoice','INV-0041',125)">Pay Now</button>
+          </div>
+        </div>
+      </div>
+      <div class="pp-inv-row">
+        <div class="pp-inv-icon">📄</div>
+        <div class="pp-inv-info">
+          <div class="pp-inv-id">INV-0040</div>
+          <div class="pp-inv-desc">Session charge — Mar 20, 2026</div>
+          <div class="pp-inv-meta">Paid Mar 22, 2026 · Visa **** 4242</div>
+        </div>
+        <div class="pp-inv-right">
+          <div class="pp-inv-amount paid">$200.00</div>
+          <div class="pp-inv-actions">
+            <span class="pp-badge paid">Paid</span>
+            <button style="background:none;border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:700;color:var(--ink-700);cursor:pointer;font-family:inherit" onclick="downloadInvoice('INV-0040')">PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Superbills -->
+    <div id="ppSuperbills" class="pp-doc-pane">
+      <div class="pp-inv-row">
+        <div class="pp-inv-icon">🧾</div>
+        <div class="pp-inv-info">
+          <div class="pp-inv-id">SB-0018</div>
+          <div class="pp-inv-desc">Superbill — March 2026</div>
+          <div class="pp-inv-meta">Jan – Mar 2026 · 90837 · F32.1 · NPI 1234567890</div>
+        </div>
+        <div class="pp-inv-right">
+          <div class="pp-inv-amount paid">$360.00</div>
+          <div class="pp-inv-actions">
+            <span class="pp-badge paid">Generated</span>
+            <button style="background:none;border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:700;color:var(--ink-700);cursor:pointer;font-family:inherit" onclick="downloadDoc('SB-0018')">Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statements -->
+    <div id="ppStatements" class="pp-doc-pane">
+      <div class="pp-inv-row">
+        <div class="pp-inv-icon">📊</div>
+        <div class="pp-inv-info">
+          <div class="pp-inv-id">STMT-0009</div>
+          <div class="pp-inv-desc">Account Statement — April 2026</div>
+          <div class="pp-inv-meta">Apr 1 – Apr 6, 2026 · Balance due: $245</div>
+        </div>
+        <div class="pp-inv-right">
+          <div class="pp-inv-amount overdue">$245.00</div>
+          <div class="pp-inv-actions">
+            <button class="btn-pp-primary" style="padding:6px 14px;font-size:12px" onclick="openPayModal('statement','STMT-0009',245)">Pay Balance</button>
+            <button style="background:none;border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:700;color:var(--ink-700);cursor:pointer;font-family:inherit" onclick="downloadDoc('STMT-0009')">PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receipts -->
+    <div id="ppReceipts" class="pp-doc-pane">
+      <div class="pp-hist-row">
+        <div class="pp-hist-icon paid">✓</div>
+        <div class="pp-hist-info">
+          <div class="pp-hist-desc">Auto-pay — Plan installment #4</div>
+          <div class="pp-hist-meta">Apr 1, 2026 · Visa **** 4242 · REC-0100</div>
+        </div>
+        <div class="pp-hist-right">
+          <div class="pp-hist-amount paid">$50.00</div>
+          <button style="background:none;border:none;font-size:11.5px;font-weight:700;color:var(--blue-700);cursor:pointer;font-family:inherit" onclick="downloadDoc('REC-0100')">Receipt ↓</button>
+        </div>
+      </div>
+      <div class="pp-hist-row">
+        <div class="pp-hist-icon paid">✓</div>
+        <div class="pp-hist-info">
+          <div class="pp-hist-desc">Copay — Mar 26 session</div>
+          <div class="pp-hist-meta">Mar 26, 2026 · Visa **** 4242 · REC-0099</div>
+        </div>
+        <div class="pp-hist-right">
+          <div class="pp-hist-amount paid">$30.00</div>
+          <button style="background:none;border:none;font-size:11.5px;font-weight:700;color:var(--blue-700);cursor:pointer;font-family:inherit" onclick="downloadDoc('REC-0099')">Receipt ↓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Payment History ──────────────────────────────── -->
+  <div class="pp-card">
+    <div class="pp-card-hdr">
+      <div class="pp-card-title"><div class="pp-card-icon">💳</div>Payment History</div>
+    </div>
+    <div class="pp-hist-row">
+      <div class="pp-hist-icon paid">✓</div>
+      <div class="pp-hist-info">
+        <div class="pp-hist-desc">Auto-pay — Apr plan installment</div>
+        <div class="pp-hist-meta">Apr 1, 2026 · Visa **** 4242 · Auto-pay</div>
+      </div>
+      <div class="pp-hist-right">
+        <div class="pp-hist-amount paid">$50.00</div>
+      </div>
+    </div>
+    <div class="pp-hist-row">
+      <div class="pp-hist-icon failed">✕</div>
+      <div class="pp-hist-info">
+        <div class="pp-hist-desc">Plan installment #3 — Declined</div>
+        <div class="pp-hist-meta">Mar 5, 2026 · MC **** 8821 · Insufficient funds</div>
+      </div>
+      <div class="pp-hist-right">
+        <div class="pp-hist-amount failed">$50.00</div>
+      </div>
+    </div>
+    <div class="pp-hist-row">
+      <div class="pp-hist-icon refunded">↩</div>
+      <div class="pp-hist-info">
+        <div class="pp-hist-desc">Refund — Overpayment adjustment</div>
+        <div class="pp-hist-meta">Feb 20, 2026 · Returned to Visa **** 4242</div>
+      </div>
+      <div class="pp-hist-right">
+        <div class="pp-hist-amount refunded">-$30.00</div>
+      </div>
+    </div>
+    <div class="pp-hist-row">
+      <div class="pp-hist-icon paid">✓</div>
+      <div class="pp-hist-info">
+        <div class="pp-hist-desc">Session copay — Feb 15</div>
+        <div class="pp-hist-meta">Feb 15, 2026 · Visa **** 4242 · Portal</div>
+      </div>
+      <div class="pp-hist-right">
+        <div class="pp-hist-amount paid">$30.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;margin-top:24px;font-size:11.5px;color:var(--ink-500)">
+    Questions about your bill? <a href="support-request.html" style="color:var(--blue-700);font-weight:700">Contact your provider</a>
+    &nbsp;·&nbsp; Payments secured by <strong>Stripe</strong> &nbsp;·&nbsp; PCI DSS compliant
+  </div>
+</div><!-- /pp-shell -->
+
+<!-- ═══════════════════════════════════════════════════
+     PAY MODAL
+═══════════════════════════════════════════════════ -->
+<div class="pp-modal-bg" id="payModal">
+  <div class="pp-modal">
+    <div class="pp-modal-hdr">
+      <h3 id="payModalTitle">💳 Make a Payment</h3>
+      <p id="payModalSub">Complete your payment below</p>
+    </div>
+    <div class="pp-modal-body">
+      <div id="payModalContext" style="background:var(--surface-soft);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--ink-700);display:none"></div>
+
+      <div class="pp-field">
+        <label>Amount ($)</label>
+        <input type="number" id="payAmount" min="0.01" step="0.01" oninput="updatePaySummary()">
+      </div>
+
+      <div class="pp-field">
+        <label>Payment Method</label>
+        <select id="payMethod" onchange="togglePayFields()">
+          <option value="saved">Default card — Visa •••• 4242</option>
+          <option value="new_card">Add new card</option>
+          <option value="ach">Bank account (ACH)</option>
+          <option value="hsa">HSA / FSA card</option>
+        </select>
+      </div>
+
+      <div id="payNewCardSection" style="display:none">
+        <div class="pp-field">
+          <label>Card Details</label>
+          <div class="stripe-secure-box active">🔒 Stripe — Card number · Expiry · CVC</div>
+          <div class="pp-field-hint">Your card info is never stored on THERASSISTANT servers.</div>
+        </div>
+        <div class="pp-field-row">
+          <div class="pp-field">
+            <label>Name on card</label>
+            <input type="text" id="payCardName" placeholder="Full name">
+          </div>
+          <div class="pp-field" style="display:flex;flex-direction:column;justify-content:flex-end">
+            <div style="display:flex;align-items:center;gap:8px;margin-top:22px">
+              <input type="checkbox" id="paySaveCard" style="width:auto;margin:0">
+              <label for="paySaveCard" style="font-size:12px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Save for future payments</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pp-divider"></div>
+      <div class="pp-summary-row"><span>Subtotal</span><span id="paySummaryAmt">$0.00</span></div>
+      <div class="pp-summary-row total"><span>Total</span><span id="paySummaryTotal">$0.00</span></div>
+
+      <div style="margin-top:14px;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-500)">
+        🔒 Payments are processed securely by Stripe. THERASSISTANT never stores your card number.
+      </div>
+    </div>
+    <div class="pp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitPatientPayment()" id="paySubmitBtn">Pay Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     ADD CARD MODAL
+═══════════════════════════════════════════════════ -->
+<div class="pp-modal-bg" id="addCardModal">
+  <div class="pp-modal">
+    <div class="pp-modal-hdr">
+      <h3>➕ Add Payment Method</h3>
+      <p>Your card info is secured by Stripe and never stored here</p>
+    </div>
+    <div class="pp-modal-body">
+      <div class="pp-field">
+        <label>Card Details</label>
+        <div class="stripe-secure-box active">🔒 Stripe Element — Card number · Expiry · CVC</div>
+      </div>
+      <div class="pp-field">
+        <label>Name on card</label>
+        <input type="text" placeholder="Full name">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:8px 0">
+        <input type="checkbox" id="newCardDefault" style="width:auto;margin:0">
+        <label for="newCardDefault" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Set as default payment method</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="newCardAutoPay" style="width:auto;margin:0">
+        <label for="newCardAutoPay" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Enroll in auto-pay with this card</label>
+      </div>
+    </div>
+    <div class="pp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeAddCardModal()">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitAddCard()">Add Card</button>
+    </div>
+  </div>
+</div>
+
+<div class="pp-toast" id="ppToast"></div>
+
+<script>
+/* ── Pay modal helpers ──────────────────────────────── */
+let payContext = {};
+
+function openPayModal(source, docId, amount){
+  payContext = {source, docId, amount};
+  const titles = {
+    balance:'💳 Pay Balance',
+    invoice:'💳 Pay Invoice',
+    statement:'💳 Pay Statement',
+    plan:'📅 Set Up Payment Plan',
+  };
+  document.getElementById('payModalTitle').textContent = titles[source]||'💳 Make a Payment';
+  const ctx = document.getElementById('payModalContext');
+  if(docId){
+    ctx.style.display='';
+    ctx.innerHTML=`<strong>${source.charAt(0).toUpperCase()+source.slice(1)}:</strong> ${docId}${amount?` &nbsp;·&nbsp; <strong>Amount:</strong> $${parseFloat(amount).toFixed(2)}`:''}`;
+  } else { ctx.style.display='none'; }
+  if(amount){ document.getElementById('payAmount').value=parseFloat(amount).toFixed(2); }
+  updatePaySummary();
+  document.getElementById('payModal').classList.add('open');
+}
+function closePayModal(){ document.getElementById('payModal').classList.remove('open'); }
+function openAddCardModal(){ document.getElementById('addCardModal').classList.add('open'); }
+function closeAddCardModal(){ document.getElementById('addCardModal').classList.remove('open'); }
+
+function togglePayFields(){
+  const v = document.getElementById('payMethod').value;
+  document.getElementById('payNewCardSection').style.display = v==='new_card'?'':'none';
+}
+
+function updatePaySummary(){
+  const amt = parseFloat(document.getElementById('payAmount').value)||0;
+  document.getElementById('paySummaryAmt').textContent = '$'+amt.toFixed(2);
+  document.getElementById('paySummaryTotal').textContent = '$'+amt.toFixed(2);
+}
+
+function submitPatientPayment(){
+  const amount = document.getElementById('payAmount').value;
+  if(!amount||parseFloat(amount)<=0){ showPPToast('Please enter a valid amount','error'); return; }
+  const btn = document.getElementById('paySubmitBtn');
+  btn.textContent='Processing…'; btn.disabled=true;
+  /* POST /api/patient-portal/pay { amount_cents, payment_method_id, source_type, source_id } */
+  setTimeout(()=>{
+    btn.textContent='Pay Now'; btn.disabled=false;
+    closePayModal();
+    showPPToast('✓ Payment of $'+parseFloat(amount).toFixed(2)+' processed successfully!','success');
+    document.getElementById('heroBalance').textContent='$0.00';
+    document.getElementById('heroBalanceSub').textContent='No balance due — you\'re all caught up!';
+  }, 1800);
+}
+
+function submitAddCard(){
+  /* POST /api/patient-portal/payment-methods { stripe_token, set_default, auto_pay } */
+  setTimeout(()=>{ closeAddCardModal(); showPPToast('✓ Card added successfully','success'); },1000);
+}
+
+function toggleAutoPay(btn){
+  /* PATCH /api/patient-portal/payment-methods/:id/auto-pay */
+  showPPToast('Auto-pay preference updated','success');
+}
+function removeCard(btn){
+  if(!confirm('Remove this card?')) return;
+  /* DELETE /api/patient-portal/payment-methods/:id */
+  btn.closest('.pp-pm-row').remove();
+  showPPToast('Card removed','');
+}
+function onAutoPayToggle(input, type){
+  /* PATCH /api/patient-portal/auto-pay { type, enabled } */
+  showPPToast('Auto-pay '+(input.checked?'enabled':'disabled')+' for '+type,'success');
+}
+function onReceiptToggle(input){
+  /* PATCH /api/patient-portal/preferences { receipts_enabled } */
+  showPPToast('Receipt preference saved','success');
+}
+function viewPlanDetails(){ showPPToast('Opening payment plan details…',''); }
+function downloadInvoice(id){ showPPToast('Downloading '+id+' PDF…',''); }
+function downloadDoc(id){ showPPToast('Downloading '+id+' PDF…',''); }
+
+function switchDocTab(btn, tabId){
+  btn.closest('.pp-card').querySelectorAll('.pp-doc-tab').forEach(t=>t.classList.remove('active'));
+  btn.closest('.pp-card').querySelectorAll('.pp-doc-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+function showPPToast(msg, type){
+  const t=document.getElementById('ppToast');
+  t.textContent=msg;
+  t.className='pp-toast show '+(type||'');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* Close modals on backdrop click */
+document.querySelectorAll('.pp-modal-bg').forEach(bg=>{
+  bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('open'); });
+});
+
+/* Check for failed payment in session (from notification link) */
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('alert')==='failed_payment'){
+    const banner = document.getElementById('failedPaymentBanner');
+    banner.style.display='flex';
+    document.getElementById('failedPaymentBannerMsg').textContent =
+      params.get('msg')||'A recent payment could not be processed. Please update your payment method.';
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Patient Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+    /* ── Portal badge ── */
+    .pp-badge{display:inline-block;background:rgba(16,185,129,.14);border:1px solid rgba(16,185,129,.35);color:#059669;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+
+    /* ── Tab navigation ── */
+    .pp-tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:22px;flex-wrap:wrap}
+    .pp-tab{padding:9px 16px;font-size:13px;font-weight:600;color:var(--ink-500);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:6px 6px 0 0;font-family:inherit;transition:color .15s,border-color .15s;position:relative}
+    .pp-tab:hover{color:var(--ink-900);background:#f0fdf4}
+    .pp-tab.active{color:#059669;border-bottom-color:#059669}
+    .pp-count{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:800;background:#ef4444;color:#fff;margin-left:5px;vertical-align:middle}
+
+    /* ── Welcome hero ── */
+    .pp-hero{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #6ee7b7;border-radius:18px;padding:22px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .pp-hero-left h2{font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:#065f46;margin-bottom:4px}
+    .pp-hero-left p{font-size:13.5px;color:#047857;line-height:1.55}
+    .pp-hero-right{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* ── Summary cards grid ── */
+    .pp-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+    .pp-summary-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;box-shadow:var(--shadow-sm)}
+    .pp-summary-card.warn{border-left:4px solid #f59e0b}
+    .pp-summary-card.alert{border-left:4px solid #ef4444}
+    .pp-summary-card.ok{border-left:4px solid #10b981}
+    .pp-card-icon{font-size:1.4rem;margin-bottom:6px}
+    .pp-card-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .pp-card-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+    .pp-card-sub{font-size:12px;color:var(--ink-500);margin-top:3px}
+
+    /* ── Panel ── */
+    .pp-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+    .pp-panel-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-600);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .pp-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+
+    /* ── Appointment row ── */
+    .pp-appt-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+    .pp-appt-row:last-child{border-bottom:none}
+    .pp-appt-date{text-align:center;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:6px 10px;min-width:50px;flex-shrink:0}
+    .pp-appt-mo{font-size:10px;font-weight:700;text-transform:uppercase;color:#059669}
+    .pp-appt-day{font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:#065f46;line-height:1}
+    .pp-appt-info{flex:1}
+    .pp-appt-time{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .pp-appt-type{font-size:12px;color:var(--ink-500);margin-top:2px}
+    .pp-appt-badges{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+    .pp-badge-tele{background:#e0e7ff;color:#3730a3;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px}
+    .pp-badge-office{background:#dbeafe;color:#1e40af;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px}
+    .pp-badge-confirmed{background:#d1fae5;color:#065f46;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px}
+    .pp-badge-pending{background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px}
+
+    /* ── Quick action buttons ── */
+    .pp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+    .pp-action-btn{display:flex;align-items:center;gap:7px;padding:9px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:13px;font-weight:600;color:var(--ink-700);cursor:pointer;font-family:inherit;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s}
+    .pp-action-btn:hover{border-color:#10b981;box-shadow:0 4px 12px rgba(16,185,129,.15);color:#065f46}
+    .pp-action-btn .pp-action-icon{font-size:1rem}
+
+    /* ── Intake form cards ── */
+    .intake-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .intake-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow-sm);display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+    .intake-card:hover{border-color:#10b981;box-shadow:0 6px 18px rgba(16,185,129,.12)}
+    .intake-status-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+    .intake-status-icon.complete{background:#d1fae5;color:#059669}
+    .intake-status-icon.pending{background:#fef3c7;color:#d97706}
+    .intake-status-icon.required{background:#fee2e2;color:#dc2626}
+    .intake-card-title{font-size:13px;font-weight:700;color:var(--ink-900);margin-bottom:3px}
+    .intake-card-desc{font-size:12px;color:var(--ink-500);line-height:1.45}
+    .intake-card-status{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:5px;text-transform:uppercase;letter-spacing:.04em}
+    .status-complete{background:#d1fae5;color:#065f46}
+    .status-pending{background:#fef3c7;color:#92400e}
+    .status-required{background:#fee2e2;color:#991b1b}
+
+    /* ── Messages ── */
+    .msg-compose{display:flex;gap:8px;margin-bottom:16px}
+    .msg-compose input,.msg-compose textarea{border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink-900)}
+    .msg-thread-list{display:flex;flex-direction:column;gap:1px}
+    .msg-thread-row{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:10px;cursor:pointer;transition:background .12s;border:1px solid transparent}
+    .msg-thread-row:hover{background:#f0fdf4;border-color:#d1fae5}
+    .msg-thread-row.unread{background:#ecfdf5;border-color:#a7f3d0}
+    .msg-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#3c90d1,#1a5f98);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+    .msg-thread-info{flex:1;min-width:0}
+    .msg-thread-from{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .msg-thread-subject{font-size:12.5px;color:var(--ink-700);margin-top:1px}
+    .msg-thread-preview{font-size:11.5px;color:var(--ink-500);margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .msg-thread-time{font-size:11px;color:var(--ink-400);white-space:nowrap;margin-top:2px}
+    .msg-unread-dot{width:8px;height:8px;border-radius:50%;background:#059669;flex-shrink:0;margin-top:6px}
+
+    /* ── Message compose modal ── */
+    .pp-compose-modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.4);z-index:1000;display:none;align-items:center;justify-content:center}
+    .pp-compose-modal-backdrop.open{display:flex}
+    .pp-compose-modal{background:#fff;border-radius:16px;padding:24px;width:min(560px,95vw);box-shadow:var(--shadow-lg)}
+    .pp-compose-modal h3{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:16px}
+    .pp-form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+    .pp-form-group label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .pp-form-group input,.pp-form-group select,.pp-form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink-900)}
+    .pp-form-group textarea{resize:vertical;min-height:100px}
+    .pp-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+    /* ── Statement table ── */
+    .stmt-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+    .stmt-kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow-sm);text-align:center}
+    .stmt-kpi-val{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900)}
+    .stmt-kpi-val.owed{color:#b45309}
+    .stmt-kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+    .stmt-table{width:100%;border-collapse:collapse;font-size:13px}
+    .stmt-table th{background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left}
+    .stmt-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--ink-900);vertical-align:middle}
+    .stmt-table tr:hover td{background:#f7fbff}
+    .stmt-status-paid{background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+    .stmt-status-due{background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+    .stmt-status-overdue{background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+
+    /* ── Payment form ── */
+    .pp-payment-card{background:linear-gradient(135deg,#065f46,#0d9488);border-radius:16px;padding:24px 28px;margin-bottom:20px;color:#fff}
+    .pp-payment-card h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:4px}
+    .pp-payment-card p{font-size:13px;color:rgba(255,255,255,.8)}
+    .pp-payment-amt{font-family:'Sora',sans-serif;font-size:2.5rem;font-weight:700;color:#fff;margin:12px 0 4px}
+    .pp-payment-form{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--shadow-sm)}
+    .pp-card-input-group{display:flex;gap:8px;margin-bottom:14px}
+    .pp-card-number-wrap{position:relative;flex:1}
+    .pp-card-number-wrap input{width:100%;padding:10px 12px 10px 38px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface)}
+    .pp-card-lead-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:1.1rem;pointer-events:none}
+
+    /* ── Appointment request ── */
+    .pp-appt-form{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--shadow-sm);margin-bottom:18px}
+    .pp-appt-form h3{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:16px}
+    .pp-slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+    .pp-slot{padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;text-align:center;cursor:pointer;color:var(--ink-700);transition:border-color .12s,background .12s}
+    .pp-slot:hover{border-color:#10b981;background:#f0fdf4;color:#065f46}
+    .pp-slot.selected{border-color:#059669;background:#d1fae5;color:#065f46}
+    .pp-slot.taken{background:#f3f4f6;color:#9ca3af;cursor:not-allowed}
+
+    /* ── Telehealth ── */
+    .thl-session-card{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #6ee7b7;border-radius:16px;padding:20px 24px;margin-bottom:14px}
+    .thl-session-card h3{font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:#065f46;margin-bottom:4px}
+    .thl-session-card p{font-size:13px;color:#047857;margin-bottom:12px}
+    .thl-session-meta{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+    .thl-meta-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#047857;font-weight:600}
+    .thl-checklist{display:flex;flex-direction:column;gap:7px}
+    .thl-check-item{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-700)}
+    .thl-check-item span.ok{color:#059669}
+    .thl-check-item span.action{color:#d97706;font-weight:600}
+
+    @media(max-width:840px){
+      .pp-summary-grid,.pp-two-col,.intake-grid,.pp-slot-grid,.stmt-summary{grid-template-columns:1fr 1fr}
+      .pp-form-row{grid-template-columns:1fr}
+    }
+    @media(max-width:580px){
+      .pp-summary-grid,.stmt-summary{grid-template-columns:1fr}
+      .pp-slot-grid{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ═══ PATIENT SIDEBAR ═══ -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="pp-badge">Patient Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="patient-portal.html#home" onclick="switchTab('home',null);return false">My Dashboard</a>
+      <a class="nav-link" href="patient-portal.html#intake" onclick="switchTab('intake',null);return false">Intake Forms</a>
+      <a class="nav-link" href="patient-portal.html#messages" onclick="switchTab('messages',null);return false">Secure Messages</a>
+      <a class="nav-link" href="patient-portal.html#statements" onclick="switchTab('statements',null);return false">My Statements</a>
+      <a class="nav-link" href="patient-portal.html#payment" onclick="switchTab('payment',null);return false">Pay My Bill</a>
+      <a class="nav-link" href="patient-portal.html#appointment" onclick="switchTab('appointment',null);return false">Request Appointment</a>
+      <a class="nav-link" href="patient-portal.html#telehealth" onclick="switchTab('telehealth',null);return false">Telehealth</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+    <div style="padding:0 16px;margin-top:auto;padding-bottom:16px">
+      <div style="font-size:11px;color:var(--ink-400);line-height:1.6;border-top:1px solid var(--border);padding-top:14px">
+        <strong style="color:var(--ink-500)">HIPAA Notice:</strong> This portal is encrypted and secure. Do not share your login credentials.
+        <br><br><a href="mailto:support@therassistant.com" style="color:var(--blue-600);font-weight:600">Need help?</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main class="dashboard-main">
+
+    <!-- Header -->
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>My Patient Portal</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:700;color:var(--ink-500)">Welcome, <span id="welcomeName" style="color:var(--ink-900)"></span></span>
+        <button class="pp-action-btn" style="font-size:12px;padding:6px 12px" onclick="switchTab('messages',null)">&#9993; Messages <span class="pp-count" id="headerMsgCount">2</span></button>
+      </div>
+    </header>
+
+    <!-- ── Tab bar ── -->
+    <div class="pp-tabs" id="ppTabBar">
+      <button class="pp-tab active" onclick="switchTab('home',this)">&#127968; My Dashboard</button>
+      <button class="pp-tab" onclick="switchTab('intake',this)">&#128203; Intake Forms</button>
+      <button class="pp-tab" onclick="switchTab('messages',this)">&#9993; Messages <span class="pp-count" id="tabMsgCount">2</span></button>
+      <button class="pp-tab" onclick="switchTab('statements',this)">&#128196; Statements</button>
+      <button class="pp-tab" onclick="switchTab('payment',this)">&#128179; Pay My Bill</button>
+      <button class="pp-tab" onclick="switchTab('appointment',this)">&#128197; Request Appointment</button>
+      <button class="pp-tab" onclick="switchTab('telehealth',this)">&#127897; Telehealth</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: HOME / DASHBOARD
+    ══════════════════════════════════════════════ -->
+    <div id="tab-home" class="pp-pane">
+
+      <!-- Welcome hero -->
+      <div class="pp-hero">
+        <div class="pp-hero-left">
+          <h2>Welcome back, <span id="heroName">there</span>!</h2>
+          <p>Your next appointment is <strong>Tuesday, April 14, 2026 at 2:30 PM</strong> with Dr. Maria Santos.<br>You have 2 unread messages and a balance due of <strong>$45.00</strong>.</p>
+        </div>
+        <div class="pp-hero-right">
+          <button class="pp-action-btn" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;font-size:13px;padding:9px 16px;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:700" onclick="switchTab('telehealth',null)">&#127897; Join Telehealth</button>
+          <button class="pp-action-btn" onclick="switchTab('payment',null)">&#128179; Pay $45.00</button>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="pp-summary-grid">
+        <div class="pp-summary-card warn" onclick="switchTab('appointment',null)" style="cursor:pointer">
+          <div class="pp-card-icon">&#128197;</div>
+          <div class="pp-card-num">Apr 14</div>
+          <div class="pp-card-label">Next Appointment</div>
+          <div class="pp-card-sub">2:30 PM · Telehealth · Dr. Santos</div>
+        </div>
+        <div class="pp-summary-card alert" onclick="switchTab('messages',null)" style="cursor:pointer">
+          <div class="pp-card-icon">&#9993;</div>
+          <div class="pp-card-num">2</div>
+          <div class="pp-card-label">Unread Messages</div>
+          <div class="pp-card-sub">Tap to view your inbox</div>
+        </div>
+        <div class="pp-summary-card ok">
+          <div class="pp-card-icon">&#128179;</div>
+          <div class="pp-card-num" style="color:#b45309">$45</div>
+          <div class="pp-card-label">Balance Due</div>
+          <div class="pp-card-sub">Copay — due by Apr 20</div>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="pp-actions">
+        <button class="pp-action-btn" onclick="switchTab('messages',null)"><span class="pp-action-icon">&#9993;</span>Send Message</button>
+        <button class="pp-action-btn" onclick="switchTab('appointment',null)"><span class="pp-action-icon">&#128197;</span>Request Appointment</button>
+        <button class="pp-action-btn" onclick="openComposeModal()"><span class="pp-action-icon">&#128393;</span>Message Provider</button>
+        <button class="pp-action-btn" onclick="switchTab('intake',null)"><span class="pp-action-icon">&#128203;</span>Complete Intake Forms</button>
+        <button class="pp-action-btn" onclick="switchTab('statements',null)"><span class="pp-action-icon">&#128196;</span>View Statement</button>
+      </div>
+
+      <div class="pp-two-col">
+        <!-- Upcoming appointments -->
+        <div class="pp-panel">
+          <div class="pp-panel-title">Upcoming Appointments <a href="javascript:void(0)" onclick="switchTab('appointment',null)" style="font-size:12px;font-weight:600;color:var(--blue-700);text-decoration:none">+ Request</a></div>
+          <div class="pp-appt-row">
+            <div class="pp-appt-date"><div class="pp-appt-mo">APR</div><div class="pp-appt-day">14</div></div>
+            <div class="pp-appt-info">
+              <div class="pp-appt-time">2:30 PM — Dr. Maria Santos, LCSW</div>
+              <div class="pp-appt-type">Individual Therapy (50 min)</div>
+              <div class="pp-appt-badges">
+                <span class="pp-badge-tele">Telehealth</span>
+                <span class="pp-badge-confirmed">Confirmed</span>
+              </div>
+            </div>
+            <button style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="switchTab('telehealth',null)">Join &#8594;</button>
+          </div>
+          <div class="pp-appt-row">
+            <div class="pp-appt-date"><div class="pp-appt-mo">APR</div><div class="pp-appt-day">28</div></div>
+            <div class="pp-appt-info">
+              <div class="pp-appt-time">11:00 AM — Dr. Maria Santos, LCSW</div>
+              <div class="pp-appt-type">Individual Therapy (50 min)</div>
+              <div class="pp-appt-badges">
+                <span class="pp-badge-office">In-Office</span>
+                <span class="pp-badge-confirmed">Confirmed</span>
+              </div>
+            </div>
+          </div>
+          <div class="pp-appt-row" style="border-bottom:none">
+            <div class="pp-appt-date" style="background:#fef3c7;border-color:#fcd34d"><div class="pp-appt-mo" style="color:#d97706">MAY</div><div class="pp-appt-day" style="color:#92400e">12</div></div>
+            <div class="pp-appt-info">
+              <div class="pp-appt-time">3:15 PM — Dr. Maria Santos, LCSW</div>
+              <div class="pp-appt-type">Individual Therapy (50 min)</div>
+              <div class="pp-appt-badges">
+                <span class="pp-badge-tele">Telehealth</span>
+                <span class="pp-badge-pending">Pending Confirmation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent messages -->
+        <div class="pp-panel">
+          <div class="pp-panel-title">Recent Messages <button onclick="openComposeModal()" style="font-size:12px;font-weight:600;color:var(--blue-700);border:none;background:none;cursor:pointer;font-family:inherit">+ Compose</button></div>
+          <div class="msg-thread-list">
+            <div class="msg-thread-row unread" onclick="switchTab('messages',null)">
+              <div class="msg-avatar">MS</div>
+              <div class="msg-thread-info">
+                <div class="msg-thread-from">Dr. Maria Santos</div>
+                <div class="msg-thread-subject">Re: Session notes &amp; homework</div>
+                <div class="msg-thread-preview">Hi! Following up on our session — please review the coping skills worksheet before our next…</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                <div class="msg-thread-time">Apr 5</div>
+                <div class="msg-unread-dot"></div>
+              </div>
+            </div>
+            <div class="msg-thread-row unread" onclick="switchTab('messages',null)">
+              <div class="msg-avatar" style="background:linear-gradient(135deg,#059669,#047857)">TA</div>
+              <div class="msg-thread-info">
+                <div class="msg-thread-from">THERASSISTANT Team</div>
+                <div class="msg-thread-subject">Your upcoming telehealth appointment</div>
+                <div class="msg-thread-preview">Your telehealth session is scheduled for April 14 at 2:30 PM. Please test your camera and…</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                <div class="msg-thread-time">Apr 4</div>
+                <div class="msg-unread-dot"></div>
+              </div>
+            </div>
+            <div class="msg-thread-row" onclick="switchTab('messages',null)">
+              <div class="msg-avatar" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">SC</div>
+              <div class="msg-thread-info">
+                <div class="msg-thread-from">Scheduling</div>
+                <div class="msg-thread-subject">Appointment confirmed — Apr 28</div>
+                <div class="msg-thread-preview">Your in-office appointment on April 28 at 11:00 AM has been confirmed. See you then!</div>
+              </div>
+              <div class="msg-thread-time" style="align-self:flex-start">Apr 2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-home -->
+
+    <!-- ══════════════════════════════════════════════
+         TAB: INTAKE FORMS
+    ══════════════════════════════════════════════ -->
+    <div id="tab-intake" class="pp-pane" style="display:none">
+      <div class="pp-panel" style="margin-bottom:18px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fcd34d">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.2rem">&#9888;&#65039;</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#92400e">2 forms required before your next appointment (April 14)</div>
+            <div style="font-size:12px;color:#b45309;margin-top:2px">Please complete your HIPAA Authorization and Insurance Information before April 12.</div>
+          </div>
+        </div>
+      </div>
+      <div class="intake-grid" id="intakeForms">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: SECURE MESSAGES
+    ══════════════════════════════════════════════ -->
+    <div id="tab-messages" class="pp-pane" style="display:none">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+        <button style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="openComposeModal()">&#9993; Compose Message</button>
+      </div>
+      <div class="pp-two-col">
+        <div class="pp-panel" style="padding:0;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Inbox</div>
+          <div class="msg-thread-list" id="msgInbox">
+            <!-- populated by JS -->
+          </div>
+        </div>
+        <div class="pp-panel" id="msgThreadView">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--ink-400);font-size:13px">
+            <span style="font-size:2rem;margin-bottom:8px">&#9993;</span>
+            <span>Select a message to read</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: STATEMENTS
+    ══════════════════════════════════════════════ -->
+    <div id="tab-statements" class="pp-pane" style="display:none">
+      <div class="stmt-summary">
+        <div class="stmt-kpi"><div class="stmt-kpi-val owed">$45.00</div><div class="stmt-kpi-label">Current Balance Due</div></div>
+        <div class="stmt-kpi"><div class="stmt-kpi-val">$1,240.00</div><div class="stmt-kpi-label">Total Billed YTD</div></div>
+        <div class="stmt-kpi"><div class="stmt-kpi-val" style="color:#059669">$1,195.00</div><div class="stmt-kpi-label">Insurance Paid YTD</div></div>
+      </div>
+      <div class="pp-panel">
+        <div class="pp-panel-title">Payment &amp; Statement History</div>
+        <div style="overflow-x:auto">
+          <table class="stmt-table" id="stmtTable">
+            <thead><tr>
+              <th>Date of Service</th><th>Provider</th><th>Service</th><th>Billed</th><th>Insurance Paid</th><th>Your Responsibility</th><th>Status</th>
+            </tr></thead>
+            <tbody id="stmtBody">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="pp-action-btn" style="font-size:12px" onclick="downloadStatement()">&#8595; Download PDF Statement</button>
+          <button class="pp-action-btn" style="font-size:12px" onclick="switchTab('payment',null)">&#128179; Pay Balance Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: PAY MY BILL
+    ══════════════════════════════════════════════ -->
+    <div id="tab-payment" class="pp-pane" style="display:none">
+      <div style="max-width:560px">
+        <div class="pp-payment-card">
+          <h3>Current Balance Due</h3>
+          <p>Account: Jamie R. · DOB: 06/12/1991 · Provider: Dr. Maria Santos</p>
+          <div class="pp-payment-amt">$45.00</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.75)">Copay for session on March 31, 2026 · Due by April 20, 2026</div>
+        </div>
+        <div class="pp-payment-form">
+          <h3 style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:18px">Make a Payment</h3>
+          <div class="pp-form-group">
+            <label>Payment Amount</label>
+            <input type="number" id="payAmount" value="45.00" min="1" step="0.01" style="font-size:1.1rem;font-weight:700" placeholder="$0.00">
+          </div>
+          <div class="pp-form-group">
+            <label>Card Number</label>
+            <div class="pp-card-number-wrap">
+              <span class="pp-card-lead-icon">&#128179;</span>
+              <input type="text" id="cardNumber" placeholder="4242 4242 4242 4242" maxlength="19" oninput="formatCard(this)">
+            </div>
+          </div>
+          <div class="pp-form-row">
+            <div class="pp-form-group">
+              <label>Expiration Date</label>
+              <input type="text" id="cardExp" placeholder="MM / YY" maxlength="7">
+            </div>
+            <div class="pp-form-group">
+              <label>CVV</label>
+              <input type="text" id="cardCvv" placeholder="123" maxlength="4">
+            </div>
+          </div>
+          <div class="pp-form-group">
+            <label>Name on Card</label>
+            <input type="text" id="cardName" placeholder="Jamie Rivera">
+          </div>
+          <div class="pp-form-group">
+            <label>Billing ZIP Code</label>
+            <input type="text" id="cardZip" placeholder="80203" maxlength="5">
+          </div>
+          <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:12px;color:#065f46;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+            <span style="font-size:.9rem">&#128274;</span>
+            <span>Payments are processed securely via Stripe. Your card details are never stored on our servers.</span>
+          </div>
+          <button onclick="submitPayment()" style="width:100%;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Pay $<span id="payBtnAmt">45.00</span> Securely</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-400);text-align:center;margin-top:12px">
+          Having trouble? <a href="mailto:billing@therassistant.com" style="color:var(--blue-600);font-weight:700">Contact Billing</a> or call (720) 555-0192
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: REQUEST APPOINTMENT
+    ══════════════════════════════════════════════ -->
+    <div id="tab-appointment" class="pp-pane" style="display:none">
+      <div class="pp-two-col" style="align-items:start">
+        <div class="pp-appt-form">
+          <h3>Request a New Appointment</h3>
+          <div class="pp-form-group">
+            <label>Service Type</label>
+            <select id="apptService">
+              <option value="">Select service type&hellip;</option>
+              <option>Individual Therapy — 50 min</option>
+              <option>Individual Therapy — 80 min</option>
+              <option>Medication Management — 20 min</option>
+              <option>Psychiatric Evaluation — 60 min</option>
+              <option>Substance Use Counseling — 50 min</option>
+              <option>Crisis / Urgent Appointment</option>
+            </select>
+          </div>
+          <div class="pp-form-group">
+            <label>Preferred Provider</label>
+            <select id="apptProvider">
+              <option>Dr. Maria Santos, LCSW (my current provider)</option>
+              <option>Any available provider</option>
+              <option>Dr. Amara Osei, PMHNP</option>
+            </select>
+          </div>
+          <div class="pp-form-row">
+            <div class="pp-form-group">
+              <label>Preferred Date</label>
+              <input type="date" id="apptDate" min="2026-04-07">
+            </div>
+            <div class="pp-form-group">
+              <label>Session Format</label>
+              <select id="apptFormat">
+                <option value="telehealth">Telehealth (Video)</option>
+                <option value="office">In-Office</option>
+                <option value="either">No Preference</option>
+              </select>
+            </div>
+          </div>
+          <div class="pp-form-group">
+            <label>Preferred Time Range</label>
+            <div class="pp-slot-grid" id="apptTimeSlots">
+              <div class="pp-slot" onclick="selectSlot(this)">Morning<br><span style="font-size:10px">8–12 PM</span></div>
+              <div class="pp-slot" onclick="selectSlot(this)">Midday<br><span style="font-size:10px">12–2 PM</span></div>
+              <div class="pp-slot" onclick="selectSlot(this)">Afternoon<br><span style="font-size:10px">2–5 PM</span></div>
+              <div class="pp-slot" onclick="selectSlot(this)">Evening<br><span style="font-size:10px">5–8 PM</span></div>
+            </div>
+          </div>
+          <div class="pp-form-group">
+            <label>Reason for Appointment (optional)</label>
+            <textarea id="apptReason" rows="3" placeholder="Brief description of what you'd like to discuss or any concerns…"></textarea>
+          </div>
+          <div class="pp-form-group">
+            <label>Do you have a crisis or safety concern?</label>
+            <select id="apptCrisis">
+              <option value="no">No — routine appointment</option>
+              <option value="yes">Yes — I need urgent support</option>
+            </select>
+          </div>
+          <div id="crisisAlert" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#991b1b">
+            <strong>If you are in immediate danger, please call 988 (Suicide &amp; Crisis Lifeline) or 911.</strong><br>
+            Our team will contact you within 1 business hour. For urgent needs, please call (720) 555-0101.
+          </div>
+          <button onclick="submitApptRequest()" style="width:100%;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">&#128197; Submit Request</button>
+        </div>
+
+        <div>
+          <div class="pp-panel">
+            <div class="pp-panel-title">Upcoming Confirmed Appointments</div>
+            <div class="pp-appt-row">
+              <div class="pp-appt-date"><div class="pp-appt-mo">APR</div><div class="pp-appt-day">14</div></div>
+              <div class="pp-appt-info">
+                <div class="pp-appt-time">2:30 PM · Telehealth</div>
+                <div class="pp-appt-type">Dr. Maria Santos · Individual Therapy</div>
+              </div>
+            </div>
+            <div class="pp-appt-row" style="border-bottom:none">
+              <div class="pp-appt-date"><div class="pp-appt-mo">APR</div><div class="pp-appt-day">28</div></div>
+              <div class="pp-appt-info">
+                <div class="pp-appt-time">11:00 AM · In-Office</div>
+                <div class="pp-appt-type">Dr. Maria Santos · Individual Therapy</div>
+              </div>
+            </div>
+          </div>
+          <div class="pp-panel" style="margin-top: 0">
+            <div class="pp-panel-title" style="margin-top: 0">Appointment Policies</div>
+            <div style="font-size:12.5px;color:var(--ink-600);line-height:1.7">
+              <p style="margin-bottom:8px">&#9679; <strong>Cancellation:</strong> Please cancel at least 24 hours in advance to avoid a late-cancel fee.</p>
+              <p style="margin-bottom:8px">&#9679; <strong>Response Time:</strong> Appointment requests are typically confirmed within 1 business day.</p>
+              <p style="margin-bottom:8px">&#9679; <strong>Telehealth:</strong> A secure video link will be sent to your email 30 minutes before your session.</p>
+              <p>&#9679; <strong>Crisis:</strong> If you are in crisis, do not wait — call <strong>988</strong> or go to your nearest emergency room.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         TAB: TELEHEALTH
+    ══════════════════════════════════════════════ -->
+    <div id="tab-telehealth" class="pp-pane" style="display:none">
+
+      <!-- Upcoming session -->
+      <div class="thl-session-card">
+        <h3>&#127897; Next Telehealth Session</h3>
+        <p>Your upcoming video appointment with Dr. Maria Santos</p>
+        <div class="thl-session-meta">
+          <div class="thl-meta-item">&#128197; <strong>Tuesday, April 14, 2026</strong></div>
+          <div class="thl-meta-item">&#128336; <strong>2:30 PM MDT (50 min)</strong></div>
+          <div class="thl-meta-item">&#128100; <strong>Dr. Maria Santos, LCSW</strong></div>
+          <div class="thl-meta-item">&#128274; <strong>HIPAA-secure video</strong></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="launchTelehealth()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:10px;padding:11px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">&#9654;&#65039; Join Session Now</button>
+          <button style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-700);font-family:inherit" onclick="testDevice()">&#128269; Test Camera / Mic</button>
+        </div>
+      </div>
+
+      <div class="pp-two-col">
+        <!-- Tech checklist -->
+        <div class="pp-panel">
+          <div class="pp-panel-title">Before You Join</div>
+          <div class="thl-checklist">
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Test your camera and microphone</div>
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Use a private, quiet space</div>
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Strong internet connection recommended</div>
+            <div class="thl-check-item"><span class="action">&#10007;</span> <span>Join 2–3 minutes early to connect</span></div>
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Have headphones ready for better audio</div>
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Close unnecessary apps / tabs</div>
+            <div class="thl-check-item"><span class="ok">&#10003;</span> Have your insurance card available if needed</div>
+          </div>
+          <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:12px;color:#065f46;margin-top:14px">
+            <strong>Technical support:</strong> If you have trouble joining, call (720) 555-0101 before your session time. Backup phone session available if video fails.
+          </div>
+        </div>
+
+        <!-- Past telehealth sessions -->
+        <div class="pp-panel">
+          <div class="pp-panel-title">Past Telehealth Sessions</div>
+          <div class="stmt-table" style="font-size:12.5px">
+            <table class="stmt-table">
+              <thead><tr><th>Date</th><th>Provider</th><th>Duration</th><th>Type</th></tr></thead>
+              <tbody>
+                <tr><td>Mar 31, 2026</td><td>Dr. Santos</td><td>50 min</td><td>Telehealth</td></tr>
+                <tr><td>Mar 17, 2026</td><td>Dr. Santos</td><td>50 min</td><td>Telehealth</td></tr>
+                <tr><td>Mar 3, 2026</td><td>Dr. Santos</td><td>50 min</td><td>In-Office</td></tr>
+                <tr><td>Feb 18, 2026</td><td>Dr. Santos</td><td>50 min</td><td>Telehealth</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telehealth platform info -->
+      <div class="pp-panel">
+        <div class="pp-panel-title">Telehealth Platform Information</div>
+        <div class="pp-two-col" style="margin-bottom:0">
+          <div style="font-size:13px;color:var(--ink-600);line-height:1.7">
+            <p style="margin-bottom:8px"><strong>Platform:</strong> THERASSISTANT SecureVideo (HIPAA-compliant, end-to-end encrypted)</p>
+            <p style="margin-bottom:8px"><strong>Supported browsers:</strong> Chrome, Firefox, Edge, Safari (latest versions)</p>
+            <p style="margin-bottom:8px"><strong>Mobile:</strong> Works on iPhone and Android — no app download required</p>
+            <p><strong>Consent:</strong> By joining, you consent to the telehealth session as described in your treatment consent form.</p>
+          </div>
+          <div style="font-size:13px;color:var(--ink-600);line-height:1.7">
+            <p style="margin-bottom:8px"><strong>Privacy:</strong> Sessions are not recorded. Video data is not stored.</p>
+            <p style="margin-bottom:8px"><strong>Insurance:</strong> CO Medicaid and most commercial plans cover telehealth at the same rate as in-office.</p>
+            <p style="margin-bottom:8px"><strong>Cancellation:</strong> Cancel 24 hours in advance to avoid a fee. Call (720) 555-0101.</p>
+            <p><strong>Crisis:</strong> If you are in crisis during a session, your provider will assist. For emergencies, dial 911.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-telehealth -->
+
+  </main>
+</div><!-- /dashboard-shell -->
+
+<!-- ═══ COMPOSE MESSAGE MODAL ═══ -->
+<div class="pp-compose-modal-backdrop" id="composeModal" onclick="closeComposeModal(event)">
+  <div class="pp-compose-modal">
+    <h3>&#9993; New Secure Message</h3>
+    <div class="pp-form-group">
+      <label>To</label>
+      <select>
+        <option>Dr. Maria Santos, LCSW (My Therapist)</option>
+        <option>Scheduling Team</option>
+        <option>Billing Department</option>
+        <option>General Inquiry</option>
+      </select>
+    </div>
+    <div class="pp-form-group">
+      <label>Subject</label>
+      <input type="text" id="composeSubject" placeholder="Message subject…">
+    </div>
+    <div class="pp-form-group">
+      <label>Message</label>
+      <textarea id="composeBody" placeholder="Write your message here. Do not include emergency information — call 911 or 988 in a crisis."></textarea>
+    </div>
+    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#065f46;margin-bottom:16px">
+      &#128274; This message is encrypted and HIPAA-secure. Your provider typically responds within 1–2 business days.
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeComposeModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-700);background:var(--surface);cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="sendMessage()" style="padding:8px 20px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Send Message</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Data ──────────────────────────────────────────────────────────────── */
+const INTAKE_FORMS = [
+  { id:'f1', title:'New Patient Intake', desc:'Demographic information, emergency contact, and reason for seeking services.', status:'complete', icon:'&#128203;' },
+  { id:'f2', title:'Consent for Treatment', desc:'Authorization to provide behavioral health services.', status:'complete', icon:'&#128221;' },
+  { id:'f3', title:'HIPAA Privacy Notice', desc:'Acknowledgment of your privacy rights under HIPAA.', status:'required', icon:'&#128274;' },
+  { id:'f4', title:'Insurance &amp; Billing Information', desc:'Insurance carrier, member ID, and billing preferences.', status:'required', icon:'&#128179;' },
+  { id:'f5', title:'Release of Information', desc:'Optional: authorize sharing records with other providers.', status:'pending', icon:'&#128196;' },
+  { id:'f6', title:'PHQ-9 Depression Screener', desc:'9-item validated screening tool for depression severity.', status:'pending', icon:'&#128203;' },
+  { id:'f7', title:'GAD-7 Anxiety Screener', desc:'7-item validated screening tool for anxiety severity.', status:'complete', icon:'&#128203;' },
+  { id:'f8', title:'DAST-10 Substance Use Screen', desc:'10-item screening tool for drug use related problems.', status:'pending', icon:'&#128196;' },
+];
+
+const MESSAGES = [
+  { id:'m1', from:'Dr. Maria Santos', initials:'MS', color:'#3c90d1', subject:'Re: Session notes & homework', preview:'Hi! Following up on our session — please review the coping skills worksheet…', time:'Apr 5', unread:true,
+    body:`Hi! I wanted to follow up on our last session. I've attached a coping skills worksheet that I'd like you to review before our next appointment on April 14.\n\nRemember the breathing techniques we practiced — try them for 5 minutes each morning this week.\n\nSee you soon!\n— Dr. Santos` },
+  { id:'m2', from:'THERASSISTANT Team', initials:'TA', color:'#059669', subject:'Your upcoming telehealth appointment', preview:'Your telehealth session is scheduled for April 14 at 2:30 PM…', time:'Apr 4', unread:true,
+    body:`Hello!\n\nThis is a reminder that your telehealth appointment is scheduled for:\n\n📅 Tuesday, April 14, 2026\n🕑 2:30 PM MDT\n📹 Video Session with Dr. Maria Santos\n\nPlease test your camera and microphone at least 15 minutes before your session. You'll receive a secure video link to your email 30 minutes before your session.\n\nIf you need to cancel, please do so at least 24 hours in advance.\n\n— The THERASSISTANT Team` },
+  { id:'m3', from:'Scheduling', initials:'SC', color:'#8b5cf6', subject:'Appointment confirmed — Apr 28', preview:'Your in-office appointment on April 28 at 11:00 AM has been confirmed…', time:'Apr 2', unread:false,
+    body:`Hello,\n\nYour in-office appointment has been confirmed:\n\n📅 Monday, April 28, 2026\n🕑 11:00 AM MDT\n🏢 In-Office · 1234 Colfax Ave Suite 200, Denver CO 80203\n👤 Dr. Maria Santos, LCSW\n\nPlease arrive 5–10 minutes early. Bring your insurance card.\n\n— Scheduling Team` },
+];
+
+const STATEMENTS = [
+  { date:'Mar 31, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'due' },
+  { date:'Mar 17, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'paid' },
+  { date:'Mar 3, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'paid' },
+  { date:'Feb 18, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'paid' },
+  { date:'Feb 4, 2026', provider:'Dr. Maria Santos', service:'Psychiatric Eval (90791)', billed:'$320.00', insured:'$275.00', patient:'$45.00', status:'paid' },
+  { date:'Jan 21, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'paid' },
+  { date:'Jan 7, 2026', provider:'Dr. Maria Santos', service:'Individual Therapy (H0004)', billed:'$155.00', insured:'$110.00', patient:'$45.00', status:'paid' },
+];
+
+/* ── Tab navigation ─────────────────────────────────────────────────────── */
+const TABS = ['home','intake','messages','statements','payment','appointment','telehealth'];
+let activeTab = 'home';
+
+function switchTab(tab, btn) {
+  TABS.forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('.pp-tab').forEach(b => b.classList.remove('active'));
+  if (btn) {
+    btn.classList.add('active');
+  } else {
+    // find correct button and activate
+    const allBtns = document.querySelectorAll('.pp-tab');
+    allBtns.forEach(b => { if (b.textContent.toLowerCase().includes(tab.replace('appointment','request').replace('telehealth','telehealth').replace('messages','message').replace('statements','statement').replace('payment','pay').replace('intake','intake').replace('home','dashboard'))) b.classList.add('active'); });
+  }
+  activeTab = tab;
+  // Render tab content on demand
+  if (tab === 'intake') renderIntakeForms();
+  if (tab === 'messages') renderMessageInbox();
+  if (tab === 'statements') renderStatements();
+}
+
+/* ── Intake forms render ───────────────────────────────────────────────── */
+function renderIntakeForms() {
+  const el = document.getElementById('intakeForms');
+  if (!el) return;
+  const statusIcon = { complete:'&#10003;', pending:'&#9679;', required:'&#9888;&#65039;' };
+  const statusLabel = { complete:'Completed', pending:'Pending', required:'Required' };
+  const statusCls = { complete:'status-complete', pending:'status-pending', required:'status-required' };
+  const iconCls = { complete:'complete', pending:'pending', required:'required' };
+  el.innerHTML = INTAKE_FORMS.map(f => `
+    <div class="intake-card" onclick="openForm('${f.id}')">
+      <div class="intake-status-icon ${iconCls[f.status]}">${statusIcon[f.status]}</div>
+      <div>
+        <div class="intake-card-title">${f.title}</div>
+        <div class="intake-card-desc">${f.desc}</div>
+        <span class="intake-card-status ${statusCls[f.status]}">${statusLabel[f.status]}</span>
+      </div>
+    </div>`).join('');
+}
+
+function openForm(id) {
+  const f = INTAKE_FORMS.find(x => x.id === id);
+  if (!f) return;
+  const status = f.status === 'complete' ? 'already completed' : 'ready to complete';
+  alert(`Opening form: "${f.title}"\n\nStatus: ${status.toUpperCase()}\n\nIn production, this would open an embedded form powered by your EHR intake system.`);
+}
+
+/* ── Message inbox render ──────────────────────────────────────────────── */
+function renderMessageInbox() {
+  const el = document.getElementById('msgInbox');
+  if (!el) return;
+  el.innerHTML = MESSAGES.map(m => `
+    <div class="msg-thread-row ${m.unread ? 'unread' : ''}" onclick="openThread('${m.id}')">
+      <div class="msg-avatar" style="background:linear-gradient(135deg,${m.color},${m.color}cc)">${m.initials}</div>
+      <div class="msg-thread-info">
+        <div class="msg-thread-from">${m.from}</div>
+        <div class="msg-thread-subject">${m.subject}</div>
+        <div class="msg-thread-preview">${m.preview}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="msg-thread-time">${m.time}</div>
+        ${m.unread ? '<div class="msg-unread-dot"></div>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+function openThread(id) {
+  const m = MESSAGES.find(x => x.id === id);
+  if (!m) return;
+  m.unread = false;
+  updateMsgBadge();
+  document.getElementById('msgThreadView').innerHTML = `
+    <div style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--ink-900)">${m.subject}</div>
+      <div style="font-size:12px;color:var(--ink-500);margin-top:3px">From: ${m.from} &nbsp;·&nbsp; ${m.time}</div>
+    </div>
+    <div style="font-size:13px;color:var(--ink-700);line-height:1.7;white-space:pre-line">${m.body}</div>
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-500);margin-bottom:8px">Reply</div>
+      <textarea id="replyBody" rows="3" placeholder="Type your reply…" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+      <button onclick="sendReply('${m.id}')" style="margin-top:8px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Send Reply</button>
+    </div>`;
+  renderMessageInbox();
+}
+
+function sendReply(id) {
+  const body = document.getElementById('replyBody');
+  if (!body || !body.value.trim()) { alert('Please write a reply first.'); return; }
+  alert('Message sent! Your provider will receive a notification and typically responds within 1–2 business days.');
+  body.value = '';
+}
+
+function updateMsgBadge() {
+  const unread = MESSAGES.filter(m => m.unread).length;
+  const b1 = document.getElementById('tabMsgCount');
+  const b2 = document.getElementById('headerMsgCount');
+  if (b1) { b1.textContent = unread; b1.style.display = unread ? '' : 'none'; }
+  if (b2) { b2.textContent = unread; b2.style.display = unread ? '' : 'none'; }
+}
+
+/* ── Statement render ──────────────────────────────────────────────────── */
+function renderStatements() {
+  const el = document.getElementById('stmtBody');
+  if (!el) return;
+  const statusMap = { paid:'<span class="stmt-status-paid">Paid</span>', due:'<span class="stmt-status-due">Due</span>', overdue:'<span class="stmt-status-overdue">Overdue</span>' };
+  el.innerHTML = STATEMENTS.map(s => `
+    <tr>
+      <td>${s.date}</td>
+      <td>${s.provider}</td>
+      <td>${s.service}</td>
+      <td>${s.billed}</td>
+      <td style="color:#059669;font-weight:600">${s.insured}</td>
+      <td style="font-weight:700;color:${s.status==='paid'?'#059669':'#b45309'}">${s.patient}</td>
+      <td>${statusMap[s.status] || ''}</td>
+    </tr>`).join('');
+}
+
+function downloadStatement() {
+  alert('In production, this would generate and download a PDF statement. Your statement would include all services, insurance adjustments, and payments.');
+}
+
+/* ── Payment ────────────────────────────────────────────────────────────── */
+function formatCard(input) {
+  let val = input.value.replace(/\D/g,'').substring(0,16);
+  input.value = val.replace(/(.{4})/g,'$1 ').trim();
+}
+
+document.addEventListener('input', function(e) {
+  if (e.target.id === 'payAmount') {
+    const btn = document.getElementById('payBtnAmt');
+    if (btn) btn.textContent = parseFloat(e.target.value || 0).toFixed(2);
+  }
+});
+
+function submitPayment() {
+  const amt = document.getElementById('payAmount')?.value;
+  const card = document.getElementById('cardNumber')?.value.replace(/\s/g,'');
+  const exp = document.getElementById('cardExp')?.value;
+  const cvv = document.getElementById('cardCvv')?.value;
+  const name = document.getElementById('cardName')?.value;
+  if (!amt || !card || !exp || !cvv || !name) {
+    alert('Please fill in all payment fields.');
+    return;
+  }
+  if (card.length < 15) { alert('Please enter a valid card number.'); return; }
+  alert(`Payment of $${parseFloat(amt).toFixed(2)} submitted successfully!\n\nA receipt will be sent to your email. Your remaining balance will be updated within 1 business day.\n\n(Stripe payment integration required for live processing.)`);
+}
+
+/* ── Appointment ─────────────────────────────────────────────────────────── */
+function selectSlot(el) {
+  document.querySelectorAll('.pp-slot').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'apptCrisis') {
+    const alert = document.getElementById('crisisAlert');
+    if (alert) alert.style.display = e.target.value === 'yes' ? 'block' : 'none';
+  }
+});
+
+function submitApptRequest() {
+  const service = document.getElementById('apptService')?.value;
+  const date = document.getElementById('apptDate')?.value;
+  if (!service) { alert('Please select a service type.'); return; }
+  const selectedSlot = document.querySelector('.pp-slot.selected');
+  alert(`Appointment request submitted!\n\nService: ${service}\nDate: ${date || 'Flexible'}\nTime Preference: ${selectedSlot ? selectedSlot.textContent.trim() : 'Any'}\n\nYour care team will confirm within 1 business day. You'll receive an email confirmation.`);
+}
+
+/* ── Telehealth ─────────────────────────────────────────────────────────── */
+function launchTelehealth() {
+  const confirmed = confirm('You are about to join your telehealth session with Dr. Maria Santos.\n\nTuesday, April 14, 2026 at 2:30 PM MDT\n\nMake sure your camera and microphone are working. Ready to join?');
+  if (confirmed) {
+    alert('In production, this would open a HIPAA-secure video session via the integrated telehealth platform.\n\nConnection: Encrypted · Session: Not Recorded · HIPAA-Compliant');
+  }
+}
+
+function testDevice() {
+  alert('Device test: In production, this would run a camera/microphone diagnostic and check your internet speed for video compatibility.');
+}
+
+/* ── Compose modal ──────────────────────────────────────────────────────── */
+function openComposeModal() { document.getElementById('composeModal').classList.add('open'); }
+function closeComposeModal(e) {
+  if (e && e.target !== document.getElementById('composeModal')) return;
+  document.getElementById('composeModal').classList.remove('open');
+}
+function sendMessage() {
+  const subj = document.getElementById('composeSubject')?.value.trim();
+  const body = document.getElementById('composeBody')?.value.trim();
+  if (!subj || !body) { alert('Please fill in the subject and message.'); return; }
+  alert('Message sent securely! Your provider will respond within 1–2 business days.');
+  document.getElementById('composeModal').classList.remove('open');
+  document.getElementById('composeSubject').value = '';
+  document.getElementById('composeBody').value = '';
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────── */
+window.onload = async function () {
+  const user = await initDashboard(PATIENT_ROLES);
+  if (!user) return;
+
+  // Display name
+  const email = user.email || 'patient@email.com';
+  const firstName = (user.user_metadata?.preferred_name || email.split('@')[0].split('.')[0]);
+  const display = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const heroNameEl = document.getElementById('heroName');
+  if (heroNameEl) heroNameEl.textContent = display;
+
+  // Initial tab renders
+  renderIntakeForms();
+  updateMsgBadge();
+};
+</script>
+</body>
+</html>

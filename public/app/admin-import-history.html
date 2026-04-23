@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Import History</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+    .summary-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+    .summary-label{font-size:12px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.06em}
+    .summary-value{margin-top:8px;font-family:"Sora",sans-serif;font-size:28px;font-weight:700;color:var(--ink-900)}
+    .summary-note{margin-top:6px;font-size:12px;color:var(--ink-500)}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+    .toolbar .field{display:flex;flex-direction:column;gap:5px;min-width:160px}
+    .toolbar label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .toolbar input,.toolbar select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface);outline:none}
+    .split-layout{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr);gap:18px;align-items:start}
+    .panel-shell{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);overflow:hidden}
+    .panel-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .panel-title{font-family:"Sora",sans-serif;font-size:15px;font-weight:700;color:var(--ink-900)}
+    .source-row{display:flex;gap:8px;flex-wrap:wrap}
+    .source-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--ink-600);background:var(--surface-soft)}
+    .source-chip.active{background:rgba(37,99,235,.08);border-color:rgba(37,99,235,.18);color:#1d4ed8}
+    .history-table{width:100%;border-collapse:collapse}
+    .history-table th,.history-table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12.5px;text-align:left;vertical-align:top}
+    .history-table th{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);background:var(--surface-soft)}
+    .history-row{cursor:pointer}
+    .history-row:hover{background:#f8fbff}
+    .history-row.selected{background:rgba(37,99,235,.06)}
+    .file-title{font-weight:700;color:var(--ink-900)}
+    .file-sub{margin-top:4px;font-size:11.5px;color:var(--ink-500)}
+    .metric-pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--surface-soft);font-size:11px;font-weight:700;color:var(--ink-600)}
+    .status-pill{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid transparent}
+    .status-complete{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+    .status-processing{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe}
+    .status-partial{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .status-error{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+    .status-archived{background:#e2e8f0;color:#475569;border-color:#cbd5e1}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .detail-body{padding:18px 18px 20px}
+    .detail-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .detail-name{font-family:"Sora",sans-serif;font-size:18px;font-weight:700;color:var(--ink-900);margin:0 0 6px}
+    .detail-copy{margin:0 0 16px;color:var(--ink-600);line-height:1.5}
+    .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-bottom:16px}
+    .detail-stat{padding:12px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}
+    .detail-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .detail-stat-value{margin-top:5px;font-size:16px;font-weight:700;color:var(--ink-900)}
+    .detail-list{display:grid;gap:10px}
+    .detail-line{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .detail-line:last-child{border-bottom:none}
+    .detail-line span:first-child{font-size:12px;font-weight:700;color:var(--ink-500)}
+    .detail-line span:last-child{font-size:12.5px;color:var(--ink-900);text-align:right}
+    .empty-state{padding:38px 20px;text-align:center;color:var(--ink-500)}
+    @media (max-width:1080px){
+      .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .split-layout{grid-template-columns:1fr}
+    }
+    @media (max-width:640px){
+      .summary-grid,.detail-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-patient-imports.html">Patient Imports</a>
+      <a class="nav-link" href="admin-simplepractice-imports.html">SimplePractice Imports</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link active" href="admin-import-history.html">Import History</a>
+      <a class="nav-link" href="admin-import-mapping.html">Import Mapping</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Import History</h1>
+        <p>Unified view of patient, SimplePractice, and ERA import activity.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-outline btn-sm" href="admin-patient-imports.html">Patient Imports</a>
+        <a class="btn btn-outline btn-sm" href="admin-simplepractice-imports.html">SimplePractice</a>
+        <a class="btn btn-blue btn-sm" href="admin-era-imports.html">ERA Imports</a>
+      </div>
+    </header>
+
+    <section class="summary-grid">
+      <div class="summary-card"><div class="summary-label">Import Jobs</div><div class="summary-value" id="sumJobs">0</div><div class="summary-note">Across all connected import modules</div></div>
+      <div class="summary-card"><div class="summary-label">Records Seen</div><div class="summary-value" id="sumRecords">0</div><div class="summary-note">Rows, claims, and line items captured</div></div>
+      <div class="summary-card"><div class="summary-label">Failures / Errors</div><div class="summary-value" id="sumFailures">0</div><div class="summary-note">Failed rows plus ERA parse errors</div></div>
+      <div class="summary-card"><div class="summary-label">Exceptions</div><div class="summary-value" id="sumExceptions">0</div><div class="summary-note">Duplicates, unmatched claims, and alerts</div></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="field" style="flex:1 1 280px"><label for="searchInput">Search</label><input id="searchInput" type="search" placeholder="File name, payer, import type, staff"></div>
+      <div class="field"><label for="sourceFilter">Source</label><select id="sourceFilter"><option value="">All sources</option><option value="patient">Patient Imports</option><option value="simplepractice">SimplePractice</option><option value="era">ERA Imports</option></select></div>
+      <div class="field"><label for="statusFilter">Status</label><select id="statusFilter"><option value="">All statuses</option><option value="Complete">Complete</option><option value="Partial">Partial</option><option value="Processing">Processing</option><option value="Error">Error</option><option value="Archived">Archived</option></select></div>
+      <div class="field"><label for="typeFilter">Type</label><select id="typeFilter"><option value="">All types</option></select></div>
+    </section>
+
+    <section class="split-layout">
+      <div class="panel-shell">
+        <div class="panel-head"><div class="panel-title">Combined Import Log</div><div class="source-row" id="sourceSummary"></div></div>
+        <div style="overflow:auto">
+          <table class="history-table">
+            <thead><tr><th>Import</th><th>Source</th><th>Date</th><th>Records</th><th>Success</th><th>Failures</th><th>Exceptions</th><th>Status</th><th>Workspace</th></tr></thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="tableEmpty" style="display:none">No imports match the current filters.</div>
+      </div>
+
+      <aside class="panel-shell">
+        <div class="panel-head"><div class="panel-title">Import Details</div></div>
+        <div class="detail-body" id="detailBody"><p class="detail-copy">Select an import run to inspect metrics and jump back to the source workspace.</p></div>
+      </aside>
+    </section>
+  </main>
+</div>
+
+<script>
+const ADMIN_ROLES = ["admin","billing_staff","super_admin"];
+const STORAGE = { patient: "docusistant_patient_imports_v1", simplepractice: "docusistant_sp_imports_v1", era: "docusistant_era_imports_v1" };
+const SOURCE_META = {
+  patient: { label: "Patient Imports", href: "admin-patient-imports.html" },
+  simplepractice: { label: "SimplePractice", href: "admin-simplepractice-imports.html" },
+  era: { label: "ERA Imports", href: "admin-era-imports.html" }
+};
+
+let selectedImportId = null;
+
+function readJson(key){ try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch (err) { console.warn("[admin-import-history] Failed to parse", key, err); return []; } }
+function escHtml(value){ return String(value == null ? "" : value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function formatNumber(value){ return (Number(value) || 0).toLocaleString(); }
+function formatDate(value){ if(!value) return "-"; var date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+function formatCurrency(value){ return "$" + (Number(value) || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function normalizeImports(){
+  var patientRows = readJson(STORAGE.patient).map(function(item){
+    return { id:item.id, source:"patient", sourceLabel:SOURCE_META.patient.label, workspaceHref:SOURCE_META.patient.href, name:item.file || "Patient import", type:item.type || "Patient List", date:item.date || "", total:Number(item.total)||0, success:Number(item.success)||0, failed:Number(item.failed)||0, exceptions:Number(item.dupes)||0, exceptionLabel:"Duplicates", alerts:Number(item.alerts)||0, status:item.status || "Complete", by:item.by || "admin", detailLines:[["Created patients",formatNumber(item.created)],["Updated patients",formatNumber(item.updated)],["Duplicate matches",formatNumber(item.dupes)],["Billing alerts",formatNumber(item.alerts)]] };
+  });
+  var simplepracticeRows = readJson(STORAGE.simplepractice).map(function(item){
+    return { id:item.id, source:"simplepractice", sourceLabel:SOURCE_META.simplepractice.label, workspaceHref:SOURCE_META.simplepractice.href, name:item.name || "SimplePractice import", type:item.type || "Imported file", date:item.date || "", total:Number(item.total)||0, success:Number(item.success)||0, failed:Number(item.failed)||0, exceptions:Number(item.dupes)||0, exceptionLabel:"Duplicates", alerts:Number(item.alerts)||0, status:item.status || "Complete", by:item.by || "admin", detailLines:[["Source system",item.source || "SimplePractice"],["Duplicate matches",formatNumber(item.dupes)],["Billing alerts",formatNumber(item.alerts)],["Imported by",item.by || "admin"]] };
+  });
+  var eraRows = readJson(STORAGE.era).map(function(item){
+    return { id:item.id, source:"era", sourceLabel:SOURCE_META.era.label, workspaceHref:SOURCE_META.era.href, name:item.file_name || "ERA file", type:"ERA 835", date:item.payment_date || item.imported_at || "", total:Number(item.total_claims)||0, success:Number(item.matched_claims)||0, failed:Number(item.parse_errors)||0, exceptions:Number(item.unmatched_claims)||0, exceptionLabel:"Unmatched", alerts:Number(item.denial_count)||0, status:item.status || "Complete", by:item.imported_by || "system", detailLines:[["Payer",item.payer_name || "-"],["Total payment",formatCurrency(item.total_payment)],["Denied claims",formatNumber(item.denial_count)],["Parse errors",formatNumber(item.parse_errors)]] };
+  });
+  return patientRows.concat(simplepracticeRows, eraRows).sort(function(a,b){ return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime(); });
+}
+
+function statusClass(status){
+  var normalized = String(status || "").toLowerCase();
+  if(normalized === "complete") return "status-complete";
+  if(normalized === "partial") return "status-partial";
+  if(normalized === "processing") return "status-processing";
+  if(normalized === "error") return "status-error";
+  if(normalized === "archived") return "status-archived";
+  return "status-processing";
+}
+
+function currentFilters(){ return { search:document.getElementById("searchInput").value.trim().toLowerCase(), source:document.getElementById("sourceFilter").value, status:document.getElementById("statusFilter").value, type:document.getElementById("typeFilter").value }; }
+function filterRows(rows){
+  var filters = currentFilters();
+  return rows.filter(function(row){
+    if(filters.source && row.source !== filters.source) return false;
+    if(filters.status && row.status !== filters.status) return false;
+    if(filters.type && row.type !== filters.type) return false;
+    if(!filters.search) return true;
+    var haystack = [row.name,row.type,row.sourceLabel,row.by].join(" ").toLowerCase();
+    return haystack.indexOf(filters.search) !== -1;
+  });
+}
+
+function populateTypeFilter(rows, preset){
+  var types = Array.from(new Set(rows.map(function(row){ return row.type; }))).sort();
+  var select = document.getElementById("typeFilter");
+  select.innerHTML = '<option value="">All types</option>' + types.map(function(type){ return '<option value="' + escHtml(type) + '">' + escHtml(type) + "</option>"; }).join("");
+  if(preset && types.indexOf(preset) !== -1) select.value = preset;
+}
+
+function renderSummary(rows){
+  var jobs = rows.length;
+  var records = rows.reduce(function(sum,row){ return sum + row.total; },0);
+  var failures = rows.reduce(function(sum,row){ return sum + row.failed; },0);
+  var exceptions = rows.reduce(function(sum,row){ return sum + row.exceptions + row.alerts; },0);
+  document.getElementById("sumJobs").textContent = formatNumber(jobs);
+  document.getElementById("sumRecords").textContent = formatNumber(records);
+  document.getElementById("sumFailures").textContent = formatNumber(failures);
+  document.getElementById("sumExceptions").textContent = formatNumber(exceptions);
+
+  var counts = rows.reduce(function(acc,row){ acc[row.source] = (acc[row.source] || 0) + 1; return acc; }, {});
+  var activeSource = document.getElementById("sourceFilter").value;
+  document.getElementById("sourceSummary").innerHTML = Object.keys(SOURCE_META).map(function(key){
+    return '<span class="source-chip' + (activeSource === key ? " active" : "") + '">' + escHtml(SOURCE_META[key].label) + ": " + formatNumber(counts[key] || 0) + "</span>";
+  }).join("");
+}
+
+function buildDetailStat(label, value){
+  return '<div class="detail-stat"><div class="detail-stat-label">' + escHtml(label) + '</div><div class="detail-stat-value">' + escHtml(value) + "</div></div>";
+}
+
+function renderTable(rows){
+  var body = document.getElementById("historyTableBody");
+  var empty = document.getElementById("tableEmpty");
+  if(!rows.length){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  body.innerHTML = rows.map(function(row){
+    return '<tr class="history-row' + (row.id === selectedImportId ? " selected" : "") + '" data-import-id="' + escHtml(row.id) + '">'
+      + '<td><div class="file-title">' + escHtml(row.name) + '</div><div class="file-sub">' + escHtml(row.type) + "</div></td>"
+      + "<td>" + escHtml(row.sourceLabel) + "</td>"
+      + "<td>" + escHtml(formatDate(row.date)) + "</td>"
+      + '<td><span class="metric-pill">' + formatNumber(row.total) + "</span></td>"
+      + "<td>" + formatNumber(row.success) + "</td>"
+      + "<td>" + formatNumber(row.failed) + "</td>"
+      + "<td>" + formatNumber(row.exceptions) + " " + escHtml(row.exceptionLabel.toLowerCase()) + "</td>"
+      + '<td><span class="status-pill ' + statusClass(row.status) + '">' + escHtml(row.status) + "</span></td>"
+      + '<td><a href="' + escHtml(row.workspaceHref) + '" style="color:var(--blue-600);font-weight:700;text-decoration:none">Open</a></td>'
+      + "</tr>";
+  }).join("");
+  document.querySelectorAll(".history-row").forEach(function(rowEl){
+    rowEl.addEventListener("click", function(){ selectedImportId = rowEl.dataset.importId; renderTable(rows); renderDetail(rows); });
+  });
+}
+
+function renderDetail(rows){
+  var detail = document.getElementById("detailBody");
+  var selected = rows.find(function(row){ return row.id === selectedImportId; }) || rows[0];
+  if(!selected){ detail.innerHTML = '<p class="detail-copy">No imports match the current filters.</p>'; return; }
+  selectedImportId = selected.id;
+  detail.innerHTML = '<div class="detail-meta"><span class="source-chip active">' + escHtml(selected.sourceLabel) + '</span><span class="status-pill ' + statusClass(selected.status) + '">' + escHtml(selected.status) + "</span></div>"
+    + '<h2 class="detail-name">' + escHtml(selected.name) + "</h2>"
+    + '<p class="detail-copy">Saved on ' + escHtml(formatDate(selected.date)) + " by " + escHtml(selected.by || "system") + ".</p>"
+    + '<div class="detail-grid">'
+    + buildDetailStat("Records", formatNumber(selected.total))
+    + buildDetailStat("Successful", formatNumber(selected.success))
+    + buildDetailStat("Failures", formatNumber(selected.failed))
+    + buildDetailStat(selected.exceptionLabel, formatNumber(selected.exceptions))
+    + "</div>"
+    + '<div class="actions" style="margin-bottom:16px"><a class="btn btn-blue btn-sm" href="' + escHtml(selected.workspaceHref) + '">Open Source Workspace</a></div>'
+    + '<div class="detail-list">' + selected.detailLines.map(function(line){ return '<div class="detail-line"><span>' + escHtml(line[0]) + '</span><span>' + escHtml(line[1]) + "</span></div>"; }).join("") + "</div>";
+}
+
+function renderPage(){
+  var rows = normalizeImports();
+  renderSummary(rows);
+  var filtered = filterRows(rows);
+  renderTable(filtered);
+  renderDetail(filtered);
+}
+
+async function initPage(){
+  try { if(typeof initDashboard === "function") await initDashboard(ADMIN_ROLES); } catch (err) { console.error("[admin-import-history] init failed", err); }
+  var params = new URLSearchParams(window.location.search);
+  selectedImportId = params.get("id") || null;
+  populateTypeFilter(normalizeImports(), params.get("type") || "");
+  var sourcePreset = params.get("source") || "";
+  if(sourcePreset && SOURCE_META[sourcePreset]) document.getElementById("sourceFilter").value = sourcePreset;
+  ["searchInput","sourceFilter","statusFilter","typeFilter"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", renderPage);
+    document.getElementById(id).addEventListener("change", renderPage);
+  });
+  var logoutBtn = document.getElementById("logoutBtn");
+  if(logoutBtn && typeof logout === "function") logoutBtn.addEventListener("click", function(){ logout(); });
+  renderPage();
+}
+
+document.addEventListener("DOMContentLoaded", initPage);
+</script>
+</body>
+</html>

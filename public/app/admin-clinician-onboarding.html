@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Clinician Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+  .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+  .module-shell{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-sm);padding:20px;min-height:70vh}
+  .module-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .module-title{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--ink-900);margin:0}
+  .module-sub{font-size:13px;color:var(--ink-500);margin:4px 0 0}
+  .runtime-note{border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:12px;padding:12px 14px;font-size:12.5px;margin-bottom:14px}
+  .mount{border:1px dashed var(--border);border-radius:12px;min-height:420px;background:#f8fafc;overflow:hidden}
+  .fallback{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:18px;gap:10px;height:100%}
+  .fallback h3{margin:0;font-size:16px;color:var(--ink-900)}
+  .fallback p{margin:0;font-size:13px;color:var(--ink-600)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:16px">
+      <div>
+        <h1>Clinician Onboarding Flow</h1>
+        <p>Separate from client onboarding. Use this module for credentialing, readiness, and monitoring.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-outline btn-sm" href="admin-clients.html?tab=onboarding">Back to Clients</a>
+        <a class="btn btn-outline btn-sm" href="admin-add-client.html">Open Client Onboarding</a>
+      </div>
+    </header>
+
+    <section class="module-shell">
+      <div class="module-head">
+        <div>
+          <h2 class="module-title">Clinician Onboarding Module</h2>
+          <p class="module-sub">Route target: therassistant_clinician_onboarding_module_react_scaffold.jsx</p>
+        </div>
+        <div class="actions">
+          <a class="btn btn-outline btn-sm" href="admin-credentialing.html">Open Credentialing</a>
+        </div>
+      </div>
+
+      <div class="runtime-note" id="runtimeNote">Loading clinician onboarding bundle...</div>
+
+      <div class="mount" id="reactMount"></div>
+
+      <div class="fallback" id="fallbackPanel" style="display:none;margin-top:12px;border:1px dashed var(--border);border-radius:12px;background:#fff">
+        <h3>Bundle missing or failed to load</h3>
+        <p>Run npm run build:clinician-onboarding from public/app to generate onboarding/dist/clinician-onboarding.bundle.js.</p>
+        <div class="actions">
+          <a class="btn btn-outline btn-sm" href="admin-credentialing.html">Continue in Credentialing</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var note = document.getElementById('runtimeNote');
+    var fallback = document.getElementById('fallbackPanel');
+    window.addEventListener('error', function (event) {
+      if (String(event.filename || '').indexOf('clinician-onboarding.bundle.js') !== -1) {
+        note.textContent = 'Clinician onboarding bundle failed to load.';
+        fallback.style.display = 'flex';
+      }
+    });
+
+    setTimeout(function () {
+      if (!document.getElementById('reactMount').children.length) {
+        note.textContent = 'Clinician onboarding bundle did not mount. Build the bundle and refresh.';
+        fallback.style.display = 'flex';
+      } else {
+        note.textContent = 'Clinician onboarding flow loaded.';
+        note.style.borderColor = '#86efac';
+        note.style.background = '#ecfdf5';
+        note.style.color = '#166534';
+      }
+    }, 600);
+  }());
+</script>
+<script src="onboarding/dist/clinician-onboarding.bundle.js"></script>
+</body>
+</html>

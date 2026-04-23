@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Batch Eligibility</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    /* -- Admin badge ---------------------------------------- */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+
+    /* -- ST98 pill ------------------------------------------ */
+    .st98-pill{
+      display:inline-flex;align-items:center;gap:6px;
+      background:linear-gradient(135deg,#1e40af,#2563eb);
+      color:#fff;border-radius:999px;padding:4px 12px;
+      font-size:11px;font-weight:800;letter-spacing:.06em;
+      box-shadow:0 2px 8px rgba(37,99,235,.3);
+    }
+    .st98-pill .dot{width:6px;height:6px;border-radius:50%;background:#93c5fd}
+
+    /* -- Toolbar -------------------------------------------- */
+    .elig-toolbar{
+      display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+      margin-bottom:16px;
+    }
+    .elig-toolbar h1{
+      font-family:'Sora',sans-serif;font-size:1.25rem;margin:0;
+    }
+    .toolbar-right{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center}
+
+    /* -- Tab bar -------------------------------------------- */
+    .tab-bar{
+      display:flex;gap:2px;background:var(--surface);
+      border:1px solid var(--border);border-radius:10px;
+      padding:3px;margin-bottom:14px;width:fit-content;
+    }
+    .tab-btn{
+      padding:7px 16px;border:none;background:none;cursor:pointer;
+      font-size:13px;font-weight:700;color:var(--ink-500);
+      border-radius:7px;font-family:inherit;transition:all .15s;
+    }
+    .tab-btn.active{background:var(--blue-600);color:#fff}
+    .tab-btn:not(.active):hover{background:var(--surface-soft,#f8fafc);color:var(--ink-700)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    /* -- Stats strip ---------------------------------------- */
+    .stats-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .stat-chip{
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:10px;padding:9px 14px;display:flex;
+      align-items:center;gap:8px;box-shadow:var(--shadow-sm);
+      flex:1;min-width:110px;
+    }
+    .stat-chip-num{font-family:'Sora',sans-serif;font-size:1.15rem;font-weight:700;line-height:1}
+    .stat-chip-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .sc-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+    /* -- Filter bar ---------------------------------------- */
+    .filter-bar{
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+      margin-bottom:12px;padding:10px 12px;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:12px;
+    }
+    .filter-bar label{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em}
+    .filter-select,.filter-input{
+      border:1.5px solid var(--border);border-radius:8px;
+      padding:5px 10px;font-size:13px;font-family:inherit;
+      background:var(--surface);color:var(--ink-900);outline:none;
+    }
+    .filter-select:focus,.filter-input:focus{border-color:var(--blue-500)}
+    .filter-input{width:200px}
+
+    /* -- Pending table ------------------------------------- */
+    .date-group-hdr{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:8px 14px;background:var(--surface-soft,#f8fafc);
+      border:1px solid var(--border);border-radius:10px;
+      margin-bottom:6px;margin-top:10px;
+    }
+    .date-group-hdr:first-child{margin-top:0}
+    .date-group-title{
+      font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+      color:var(--ink-900);display:flex;align-items:center;gap:8px;
+    }
+    .dg-count{
+      background:var(--blue-600);color:#fff;border-radius:99px;
+      font-size:10px;font-weight:800;padding:1px 7px;
+    }
+    .dg-actions{display:flex;gap:6px;align-items:center}
+
+    .elig-table{
+      width:100%;border-collapse:collapse;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:12px;overflow:hidden;
+      box-shadow:var(--shadow-sm);margin-bottom:8px;
+    }
+    .elig-table th{
+      font-size:10.5px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.05em;color:var(--ink-500);padding:8px 12px;
+      border-bottom:1px solid var(--border);background:var(--surface-soft,#f8fafc);
+      text-align:left;white-space:nowrap;
+    }
+    .elig-table th.cb-col{width:36px;text-align:center}
+    .elig-table td{
+      padding:10px 12px;border-bottom:1px solid var(--border);
+      font-size:13px;vertical-align:middle;
+    }
+    .elig-table tr:last-child td{border-bottom:none}
+    .elig-table tr.checking td{background:rgba(37,99,235,.04)}
+    .elig-table tr.result-active td{background:rgba(5,150,105,.04)}
+    .elig-table tr.result-inactive td{background:rgba(220,38,38,.04)}
+    .elig-table tr.result-pending td{background:rgba(217,119,6,.04)}
+    .elig-table tr.result-error td{background:rgba(220,38,38,.04)}
+
+    .elig-table input[type=checkbox]{
+      width:15px;height:15px;cursor:pointer;accent-color:var(--blue-600);
+    }
+
+    .patient-cell{display:flex;align-items:center;gap:8px}
+    .pt-avatar{
+      width:28px;height:28px;border-radius:50%;
+      background:linear-gradient(135deg,var(--blue-500),var(--blue-700));
+      color:#fff;font-size:10px;font-weight:700;
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;text-transform:uppercase;
+    }
+    .pt-name{font-weight:700;color:var(--ink-900)}
+    .pt-payer{font-size:11.5px;color:var(--ink-500)}
+
+    /* -- Coverage status badges ---------------------------- */
+    .cov-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      padding:3px 9px;border-radius:999px;font-size:11px;
+      font-weight:700;border:1px solid transparent;white-space:nowrap;
+    }
+    .cov-dot{width:6px;height:6px;border-radius:50%}
+    .cov-active   {background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+    .cov-active .cov-dot  {background:#059669}
+    .cov-inactive {background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .cov-inactive .cov-dot{background:#dc2626}
+    .cov-pending  {background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .cov-pending .cov-dot {background:#f59e0b}
+    .cov-unknown  {background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .cov-unknown .cov-dot {background:#94a3b8}
+    .cov-error    {background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .cov-error .cov-dot   {background:#dc2626}
+    .cov-checking {background:#dbeafe;color:#1e40af;border-color:#bfdbfe;animation:pulse .8s ease-in-out infinite}
+
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+    /* -- PA / Referral flags ------------------------------- */
+    .flag-chip{
+      display:inline-flex;align-items:center;gap:3px;
+      padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;
+    }
+    .flag-pa  {background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+    .flag-ref {background:#e0f2fe;color:#0c4a6e;border:1px solid #bae6fd}
+    .flag-none{color:var(--ink-400);font-size:11px}
+
+    /* -- Batch history table ------------------------------- */
+    .batch-table{
+      width:100%;border-collapse:collapse;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm);
+    }
+    .batch-table th{
+      font-size:10.5px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.05em;color:var(--ink-500);padding:9px 14px;
+      border-bottom:1px solid var(--border);background:var(--surface-soft,#f8fafc);
+      text-align:left;
+    }
+    .batch-table td{
+      padding:11px 14px;border-bottom:1px solid var(--border);
+      font-size:13px;vertical-align:middle;
+    }
+    .batch-table tr:last-child td{border-bottom:none}
+    .batch-table tr:hover td{background:rgba(37,99,235,.03)}
+
+    .batch-status{
+      display:inline-flex;align-items:center;gap:5px;
+      padding:3px 10px;border-radius:999px;font-size:11px;
+      font-weight:700;border:1px solid transparent;
+    }
+    .bs-complete  {background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+    .bs-processing{background:#dbeafe;color:#1e40af;border-color:#bfdbfe;animation:pulse .8s ease-in-out infinite}
+    .bs-partial   {background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .bs-error     {background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .bs-pending   {background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+
+    .count-pill{
+      display:inline-flex;align-items:center;justify-content:center;
+      min-width:22px;height:20px;border-radius:99px;font-size:11px;
+      font-weight:800;padding:0 5px;
+    }
+    .cp-green {background:#d1fae5;color:#065f46}
+    .cp-red   {background:#fef2f2;color:#991b1b}
+    .cp-amber {background:#fef3c7;color:#92400e}
+    .cp-gray  {background:#f1f5f9;color:#475569}
+
+    /* -- Report modal -------------------------------------- */
+    .modal-backdrop{
+      position:fixed;inset:0;background:rgba(11,44,77,.5);
+      z-index:1200;display:flex;align-items:center;
+      justify-content:center;padding:16px;
+    }
+    .modal-box{
+      background:#fff;border-radius:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.22);
+      width:min(820px,100%);max-height:90vh;
+      display:flex;flex-direction:column;overflow:hidden;
+    }
+    .modal-head{
+      padding:20px 24px 14px;border-bottom:1px solid var(--border);
+      display:flex;align-items:flex-start;justify-content:space-between;
+      flex-shrink:0;
+    }
+    .modal-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900)}
+    .modal-subtitle{font-size:12px;color:var(--ink-500);margin-top:3px}
+    .modal-close{
+      width:28px;height:28px;border:none;
+      background:var(--surface-soft,#f8fafc);border-radius:7px;
+      cursor:pointer;font-size:15px;display:flex;align-items:center;
+      justify-content:center;color:var(--ink-500);flex-shrink:0;
+    }
+    .modal-body{padding:18px 24px;overflow-y:auto;flex:1}
+    .modal-foot{
+      padding:12px 24px 18px;border-top:1px solid var(--border);
+      display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;
+    }
+    .report-summary{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+      gap:8px;margin-bottom:16px;
+    }
+    .rs-cell{
+      background:var(--surface-soft,#f8fafc);border:1px solid var(--border);
+      border-radius:10px;padding:10px 12px;text-align:center;
+    }
+    .rs-num{font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;line-height:1}
+    .rs-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-top:3px}
+
+    /* -- Run batch progress bar ---------------------------- */
+    .progress-wrap{
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:12px;padding:14px 16px;margin-bottom:14px;
+      display:none;
+    }
+    .progress-wrap.active{display:block}
+    .progress-label{font-size:12.5px;font-weight:700;color:var(--ink-700);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+    .progress-bar-track{background:#e5e7eb;border-radius:99px;height:8px;overflow:hidden}
+    .progress-bar-fill{height:100%;background:linear-gradient(90deg,#2563eb,#10b981);border-radius:99px;transition:width .3s ease;width:0%}
+    .progress-patient{font-size:11.5px;color:var(--ink-500);margin-top:6px}
+
+    /* -- Empty states --------------------------------------- */
+    .empty-state{
+      text-align:center;padding:50px 20px;color:var(--ink-500);
+    }
+    .empty-state .icon{font-size:40px;margin-bottom:10px}
+    .empty-state p{font-size:13.5px;max-width:300px;margin:0 auto;line-height:1.6}
+
+    /* -- Toast ----------------------------------------------*/
+    .toast{
+      position:fixed;bottom:22px;right:22px;
+      background:#0b2c4d;color:#fff;border-radius:10px;
+      padding:10px 18px;font-size:13px;font-weight:700;
+      box-shadow:0 4px 16px rgba(0,0,0,.22);
+      z-index:9000;opacity:0;transition:opacity .2s;pointer-events:none;
+      max-width:380px;
+    }
+    .toast.show{opacity:1}
+
+    @media(max-width:900px){
+      .elig-table th:nth-child(5),
+      .elig-table td:nth-child(5),
+      .elig-table th:nth-child(8),
+      .elig-table td:nth-child(8){display:none}
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- Sidebar -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link active" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <h1>Batch Eligibility Verification</h1>
+          <p class="dashboard-subtitle">Pre-visit eligibility checks - Colorado Medicaid Behavioral Health</p>
+        </div>
+        <span class="st98-pill">
+          <span class="dot"></span>
+          SERVICE TYPE 98 - BEHAVIORAL HEALTH ONLY
+        </span>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="elig-toolbar">
+      <div>
+        <div style="font-size:12px;color:var(--ink-500);margin-top:2px">
+          All checks use X12 270/271 - Service Type Code <strong>98</strong> (Mental Health / BH)
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-outline btn-sm" onclick="refreshView()">&#8635; Refresh</button>
+        <button class="btn btn-primary btn-sm" id="runAllBtn" onclick="runBatchAll()">
+          &#9889; Run Pre-Visit Batch (All)
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip" id="statsStrip">
+      <div class="stat-chip"><div class="sc-dot" style="background:#2563eb"></div><div><div class="stat-chip-num" style="color:#2563eb" id="statTotal">--</div><div class="stat-chip-lbl">Upcoming Appts</div></div></div>
+      <div class="stat-chip"><div class="sc-dot" style="background:#94a3b8"></div><div><div class="stat-chip-num" style="color:#94a3b8" id="statUnverified">--</div><div class="stat-chip-lbl">Not Verified</div></div></div>
+      <div class="stat-chip"><div class="sc-dot" style="background:#059669"></div><div><div class="stat-chip-num" style="color:#059669" id="statActive">--</div><div class="stat-chip-lbl">Active</div></div></div>
+      <div class="stat-chip"><div class="sc-dot" style="background:#dc2626"></div><div><div class="stat-chip-num" style="color:#dc2626" id="statInactive">--</div><div class="stat-chip-lbl">Inactive</div></div></div>
+      <div class="stat-chip"><div class="sc-dot" style="background:#d97706"></div><div><div class="stat-chip-num" style="color:#d97706" id="statAction">--</div><div class="stat-chip-lbl">Action Required</div></div></div>
+    </div>
+
+    <!-- Progress bar (shown during batch run) -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Running eligibility checks...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-patient" id="progressPatient">Initializing...</div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('pending',this)">Pending Verification</button>
+      <button class="tab-btn" onclick="switchTab('history',this)">Batch History</button>
+      <button class="tab-btn" onclick="switchTab('reports',this)">Reports</button>
+    </div>
+
+    <!-- -- Tab: Pending -- -->
+    <div class="tab-panel active" id="tab-pending">
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <label>Payer</label>
+        <select class="filter-select" id="filterPayer" onchange="renderPending()">
+          <option value="">All Payers</option>
+        </select>
+        <label>Status</label>
+        <select class="filter-select" id="filterStatus" onchange="renderPending()">
+          <option value="">All Statuses</option>
+          <option value="Not Verified">Not Verified</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+          <option value="Pending">Pending</option>
+          <option value="Error">Error</option>
+        </select>
+        <label>Days ahead</label>
+        <select class="filter-select" id="filterDays" onchange="renderPending()">
+          <option value="1">Today only</option>
+          <option value="3">Next 3 days</option>
+          <option value="7" selected>Next 7 days</option>
+          <option value="14">Next 14 days</option>
+          <option value="30">Next 30 days</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="selectAll(true)">Select All</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectAll(false)">Deselect All</button>
+        <button class="btn btn-primary btn-sm" id="runSelectedBtn"
+          onclick="runBatchSelected()" style="margin-left:auto">
+          &#9889; Check Selected
+        </button>
+      </div>
+
+      <div id="pendingList">
+        <div class="empty-state"><div class="icon">&#128203;</div><p>Loading appointments...</p></div>
+      </div>
+    </div>
+
+    <!-- -- Tab: Batch History -- -->
+    <div class="tab-panel" id="tab-history">
+      <div id="historyContent">
+        <div class="empty-state"><div class="icon">&#128203;</div><p>No batch runs yet.</p></div>
+      </div>
+    </div>
+
+    <!-- -- Tab: Reports -- -->
+    <div class="tab-panel" id="tab-reports">
+      <div id="reportsContent">
+        <div class="empty-state"><div class="icon">&#128196;</div><p>No reports generated yet.</p></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Report Detail Modal -->
+<div class="modal-backdrop" id="reportModal" style="display:none"
+     onclick="if(event.target===this)closeReport()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="reportModalTitle">Eligibility Report</div>
+        <div class="modal-subtitle" id="reportModalSubtitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeReport()">&#10005;</button>
+    </div>
+    <div class="modal-body" id="reportModalBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeReport()">Close</button>
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#8681; Export CSV</button>
+      <button class="btn btn-primary btn-sm" onclick="closeReport()">&#10003; Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* -- Storage keys ------------------------------------------------------------ */
+const SCHED_KEY        = 'therassistant_appts_v1';
+const ELIG_BATCH_KEY   = 'therassistant_elig_batches_v1';
+const ELIG_CHECK_KEY   = 'therassistant_elig_checks_v1';
+const ELIG_REPORT_KEY  = 'therassistant_elig_reports_v1';
+
+/* -- Service type constant --------------------------------------------------- */
+const SERVICE_TYPE_CODE = '98';
+const SERVICE_TYPE_NAME = 'Mental Health';
+
+/* -- Patient profiles (mirrors agenda.html) --------------------------------- */
+const PATIENT_PROFILES = {
+  'Maria Alvarez':    { payer:'Colorado Medicaid',          ins_status:'Active',   copay:0,   deductible:0,    deductible_met:0,   balance:0,   ins_balance:0,   alerts:['Missing prior auth renewal'],                prior_auth_required:true,  referral_required:false },
+  'Tyler Cruz':       { payer:'Colorado Access',            ins_status:'Pending',  copay:10,  deductible:500,  deductible_met:120, balance:0,   ins_balance:0,   alerts:['Eligibility not verified'],                   prior_auth_required:false, referral_required:false },
+  'Linda Patterson':  { payer:'Aetna Better Health',        ins_status:'Active',   copay:20,  deductible:1000, deductible_met:750, balance:45,  ins_balance:0,   alerts:[],                                             prior_auth_required:false, referral_required:false },
+  'Diane Okonkwo':    { payer:'United BH',                  ins_status:'Active',   copay:30,  deductible:2000, deductible_met:1800,balance:120, ins_balance:90,  alerts:['Balance over 60 days','Copay not collected'],  prior_auth_required:true,  referral_required:false },
+  'Marcus Webb':      { payer:'Self-Pay',                   ins_status:'Inactive', copay:75,  deductible:0,    deductible_met:0,   balance:250, ins_balance:0,   alerts:['No insurance on file'],                       prior_auth_required:false, referral_required:false },
+  'Rosa Guerrero':    { payer:'Rocky Mountain Health Plans',ins_status:'Active',   copay:15,  deductible:500,  deductible_met:500, balance:0,   ins_balance:0,   alerts:[],                                             prior_auth_required:false, referral_required:false },
+  'Samuel Torres':    { payer:'Colorado Medicaid',          ins_status:'Active',   copay:0,   deductible:0,    deductible_met:0,   balance:0,   ins_balance:0,   alerts:[],                                             prior_auth_required:false, referral_required:false },
+  'Angela Kim':       { payer:'Beacon Health Options',      ins_status:'Active',   copay:25,  deductible:1500, deductible_met:900, balance:85,  ins_balance:130, alerts:['Claim denied - modifier','Auth expires in 3 days'], prior_auth_required:true,referral_required:false },
+  'Brandon Flores':   { payer:'Colorado Medicaid',          ins_status:'Unknown',  copay:0,   deductible:0,    deductible_met:0,   balance:0,   ins_balance:0,   alerts:['Eligibility unknown'],                        prior_auth_required:false, referral_required:false },
+  'Catherine Murphy': { payer:'Aetna Better Health',        ins_status:'Active',   copay:20,  deductible:1000, deductible_met:200, balance:0,   ins_balance:0,   alerts:[],                                             prior_auth_required:false, referral_required:false },
+  'Devon Jackson':    { payer:'Colorado Medicaid',          ins_status:'Active',   copay:0,   deductible:0,    deductible_met:0,   balance:0,   ins_balance:0,   alerts:[],                                             prior_auth_required:false, referral_required:false },
+  'Elena Vasquez':    { payer:'Self-Pay',                   ins_status:'Inactive', copay:80,  deductible:0,    deductible_met:0,   balance:400, ins_balance:0,   alerts:['No insurance on file','Balance over 90 days'], prior_auth_required:false, referral_required:false },
+};
+
+/* -- State ------------------------------------------------------------------- */
+let _batchRunning   = false;
+let _openReportId   = null;
+let _batchCounter   = null;
+let _reportCounter  = null;
+
+/* -- Helpers ----------------------------------------------------------------- */
+function load(k)    { try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch { return []; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function esc(s)     { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt$(n)    { return n == null ? '--' : '$'+Number(n).toFixed(2); }
+function isoToday() { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function isoFromNow(days) {
+  const d=new Date(); d.setDate(d.getDate()+days);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+function fmtDateFull(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+}
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const [h,m]=hhmm.split(':').map(Number);
+  return ((h%12)||12)+':'+String(m).padStart(2,'0')+(h>=12?' PM':' AM');
+}
+function initials(n) {
+  if (!n) return '?';
+  const p=n.trim().split(/\s+/);
+  return ((p[0]?.[0]||'')+(p[p.length-1]?.[0]||'')).toUpperCase();
+}
+function uid() { return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2,7); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function toast(msg) {
+  const el=document.getElementById('toast');
+  if (!el) return;
+  el.textContent=msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 3200);
+}
+
+function nextBatchNum() {
+  const batches = load(ELIG_BATCH_KEY);
+  const year = new Date().getFullYear();
+  const existing = batches
+    .filter(b => b.batch_number && b.batch_number.startsWith('ELB-'+year+'-'))
+    .map(b => parseInt(b.batch_number.split('-')[2]||'0'))
+    .filter(n => !isNaN(n));
+  const next = existing.length ? Math.max(...existing) + 1 : 1;
+  return 'ELB-' + year + '-' + String(next).padStart(3,'0');
+}
+function nextReportNum() {
+  const rpts = load(ELIG_REPORT_KEY);
+  const year = new Date().getFullYear();
+  const existing = rpts
+    .filter(r => r.report_number && r.report_number.startsWith('ELR-'+year+'-'))
+    .map(r => parseInt(r.report_number.split('-')[2]||'0'))
+    .filter(n => !isNaN(n));
+  const next = existing.length ? Math.max(...existing) + 1 : 1;
+  return 'ELR-' + year + '-' + String(next).padStart(3,'0');
+}
+
+/* -- Seed appointments if none exist ---------------------------------------- */
+function seedIfEmpty() {
+  if (load(SCHED_KEY).length) return;
+  const today = isoToday();
+  const d = new Date();
+  function dd(n){ const r=new Date(d); r.setDate(r.getDate()+n); return r.getFullYear()+'-'+String(r.getMonth()+1).padStart(2,'0')+'-'+String(r.getDate()).padStart(2,'0'); }
+  save(SCHED_KEY, [
+    {id:'A-001',patient:'Maria Alvarez',   date:today,  time:'09:00',duration:50,type:'Individual Therapy',status:'Confirmed'},
+    {id:'A-002',patient:'Tyler Cruz',      date:today,  time:'10:00',duration:60,type:'Assessment',        status:'Scheduled'},
+    {id:'A-003',patient:'Linda Patterson', date:today,  time:'13:00',duration:50,type:'Telehealth',        status:'Confirmed'},
+    {id:'A-004',patient:'Diane Okonkwo',   date:today,  time:'14:30',duration:50,type:'Individual Therapy',status:'Scheduled'},
+    {id:'A-005',patient:'Marcus Webb',     date:today,  time:'15:30',duration:30,type:'Check-In',          status:'No-Show'},
+    {id:'A-006',patient:'Rosa Guerrero',   date:dd(1),  time:'09:00',duration:50,type:'Individual Therapy',status:'Scheduled'},
+    {id:'A-007',patient:'Samuel Torres',   date:dd(1),  time:'11:00',duration:50,type:'Telehealth',        status:'Scheduled'},
+    {id:'A-008',patient:'Angela Kim',      date:dd(2),  time:'10:00',duration:90,type:'Group Therapy',     status:'Scheduled'},
+    {id:'A-009',patient:'Brandon Flores',  date:dd(2),  time:'14:00',duration:50,type:'Individual Therapy',status:'Cancelled'},
+    {id:'A-010',patient:'Catherine Murphy',date:dd(3),  time:'09:30',duration:50,type:'Assessment',        status:'Scheduled'},
+    {id:'A-011',patient:'Devon Jackson',   date:dd(4),  time:'15:00',duration:50,type:'Individual Therapy',status:'Scheduled'},
+    {id:'A-012',patient:'Elena Vasquez',   date:dd(5),  time:'10:30',duration:50,type:'Individual Therapy',status:'Confirmed'},
+  ]);
+}
+
+/* -- Active appointment filter ----------------------------------------------- */
+// Exclude cancelled/no-show; include only upcoming (within filter window)
+function getEligibleAppts() {
+  const days   = parseInt(document.getElementById('filterDays')?.value || '7');
+  const cutoff = isoFromNow(days);
+  const today  = isoToday();
+  return load(SCHED_KEY).filter(a =>
+    a.date >= today &&
+    a.date <= cutoff &&
+    !['Cancelled','No-Show'].includes(a.status)
+  ).sort((a,b)=>a.date===b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date));
+}
+
+/* -- Get last eligibility check for a patient ------------------------------- */
+function getLastCheck(patientName) {
+  const checks = load(ELIG_CHECK_KEY);
+  return checks
+    .filter(c => c.patient === patientName)
+    .sort((a,b) => b.checked_at.localeCompare(a.checked_at))[0] || null;
+}
+
+/* -- Derive check status from profile --------------------------------------- */
+function profileToCovStatus(insStatus) {
+  const map = { Active:'Active', Inactive:'Inactive', Pending:'Pending', Unknown:'Pending' };
+  return map[insStatus] || 'Not Found';
+}
+
+/* -- Coverage badge HTML ----------------------------------------------------- */
+function covBadge(status) {
+  const cls = {
+    Active:'cov-active', Inactive:'cov-inactive', Pending:'cov-pending',
+    'Not Found':'cov-unknown', Error:'cov-error', 'Not Verified':'cov-unknown',
+    Unknown:'cov-unknown',
+  }[status] || 'cov-unknown';
+  return `<span class="cov-badge ${cls}"><span class="cov-dot"></span>${esc(status)}</span>`;
+}
+function checkingBadge() {
+  return `<span class="cov-badge cov-checking"><span class="cov-dot"></span>Checking...</span>`;
+}
+
+/* -- Build payer dropdown from upcoming appts ------------------------------- */
+function populatePayerFilter() {
+  const appts   = load(SCHED_KEY).filter(a=>!['Cancelled','No-Show'].includes(a.status));
+  const payers  = [...new Set(appts.map(a=>{const p=PATIENT_PROFILES[a.patient]; return p?p.payer:'Unknown';}))].sort();
+  const sel     = document.getElementById('filterPayer');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Payers</option>' +
+    payers.map(p=>`<option value="${esc(p)}" ${cur===p?'selected':''}>${esc(p)}</option>`).join('');
+}
+
+/* -- Update stats strip ------------------------------------------------------ */
+function updateStats() {
+  const appts = getEligibleAppts();
+  let unverified=0, active=0, inactive=0, action=0;
+  appts.forEach(a => {
+    const last = getLastCheck(a.patient);
+    if (!last) { unverified++; }
+    else if (last.status==='Active') { active++; }
+    else if (last.status==='Inactive') { inactive++; action++; }
+    else { unverified++; }
+    const p = PATIENT_PROFILES[a.patient];
+    if (p && (p.prior_auth_required || p.ins_status==='Inactive' || p.ins_status==='Unknown')) action++;
+  });
+  document.getElementById('statTotal').textContent      = appts.length;
+  document.getElementById('statUnverified').textContent = unverified;
+  document.getElementById('statActive').textContent     = active;
+  document.getElementById('statInactive').textContent   = inactive;
+  document.getElementById('statAction').textContent     = action;
+}
+
+/* -- Render pending tab ------------------------------------------------------ */
+function renderPending() {
+  const appts        = getEligibleAppts();
+  const filterPayer  = document.getElementById('filterPayer')?.value  || '';
+  const filterStatus = document.getElementById('filterStatus')?.value || '';
+
+  const filtered = appts.filter(a => {
+    const p = PATIENT_PROFILES[a.patient] || {};
+    if (filterPayer && p.payer !== filterPayer) return false;
+    if (filterStatus) {
+      const last = getLastCheck(a.patient);
+      const status = last ? last.status : 'Not Verified';
+      if (status !== filterStatus) return false;
+    }
+    return true;
+  });
+
+  updateStats();
+  populatePayerFilter();
+
+  const container = document.getElementById('pendingList');
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">&#9989;</div><p>No appointments pending verification in this window.</p></div>`;
+    return;
+  }
+
+  // Group by date
+  const byDate = {};
+  filtered.forEach(a => { (byDate[a.date] = byDate[a.date]||[]).push(a); });
+
+  let html = '';
+  Object.keys(byDate).sort().forEach(date => {
+    const group = byDate[date];
+    const isToday = date === isoToday();
+    const patersInGroup = [...new Set(group.map(a=>PATIENT_PROFILES[a.patient]?.payer||'Unknown'))].sort();
+    html += `
+      <div class="date-group-hdr">
+        <div class="date-group-title">
+          ${isToday ? '&#128197; <span style="color:var(--blue-700)">Today - </span>' : '&#128197; '}
+          ${fmtDateFull(date)}
+          <span class="dg-count">${group.length}</span>
+        </div>
+        <div class="dg-actions">
+          <span style="font-size:11px;color:var(--ink-500)">${patersInGroup.join(' - ')}</span>
+          <button class="btn btn-outline btn-sm" onclick="runBatchDate('${date}')">
+            &#9889; Check ${isToday?'Today':'This Day'}
+          </button>
+        </div>
+      </div>
+      <table class="elig-table">
+        <thead>
+          <tr>
+            <th class="cb-col"><input type="checkbox" id="chk-all-${date}"
+              onchange="toggleDateGroup('${date}',this.checked)"></th>
+            <th>Patient / Payer</th>
+            <th>Appt</th>
+            <th>Service Type</th>
+            <th>Coverage Status</th>
+            <th>Copay</th>
+            <th>Deductible Rem.</th>
+            <th>PA Required</th>
+            <th>Last Checked</th>
+          </tr>
+        </thead>
+        <tbody id="group-${date}">
+          ${group.map(a => buildPendingRow(a)).join('')}
+        </tbody>
+      </table>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+function buildPendingRow(a) {
+  const p        = PATIENT_PROFILES[a.patient] || {};
+  const last     = getLastCheck(a.patient);
+  const status   = last ? last.status : 'Not Verified';
+  const deductRem = (p.deductible != null && p.deductible_met != null)
+    ? Math.max(0, p.deductible - p.deductible_met) : null;
+  return `<tr id="row-${esc(a.id)}"
+      class="${status==='Active'?'result-active':status==='Inactive'?'result-inactive':''}">
+    <td class="cb-col">
+      <input type="checkbox" class="appt-check" data-id="${esc(a.id)}" data-date="${esc(a.date)}">
+    </td>
+    <td>
+      <div class="patient-cell">
+        <div class="pt-avatar">${esc(initials(a.patient))}</div>
+        <div>
+          <div class="pt-name">${esc(a.patient)}</div>
+          <div class="pt-payer">${esc(p.payer||'Unknown')}</div>
+        </div>
+      </div>
+    </td>
+    <td>
+      <div style="font-weight:700;font-size:13px">${fmtTime(a.time)}</div>
+      <div style="font-size:11.5px;color:var(--ink-500)">${esc(a.type)}</div>
+    </td>
+    <td>
+      <span class="st98-pill" style="font-size:10px;padding:3px 9px">
+        <span class="dot"></span>98 - ${SERVICE_TYPE_NAME}
+      </span>
+    </td>
+    <td id="cov-${esc(a.id)}">${covBadge(status)}</td>
+    <td style="font-weight:700">${p.copay != null ? fmt$(p.copay) : '--'}</td>
+    <td style="font-weight:700;color:${deductRem>0?'#b45309':deductRem===0?'#059669':'inherit'}">${deductRem != null ? fmt$(deductRem) : '--'}</td>
+    <td id="pa-${esc(a.id)}">
+      ${p.prior_auth_required ? '<span class="flag-chip flag-pa">PA Required</span>' :
+        p.referral_required   ? '<span class="flag-chip flag-ref">Referral</span>'  :
+        '<span class="flag-none">--</span>'}
+    </td>
+    <td style="font-size:11.5px;color:var(--ink-500);">${last ? fmtDate(last.checked_at.slice(0,10)) : '<span style="color:#94a3b8">Never</span>'}</td>
+  </tr>`;
+}
+
+/* -- Select helpers ----------------------------------------------------------- */
+function selectAll(val) {
+  document.querySelectorAll('.appt-check').forEach(cb => cb.checked = val);
+}
+function toggleDateGroup(date, val) {
+  document.querySelectorAll(`.appt-check[data-date="${date}"]`).forEach(cb => cb.checked = val);
+}
+function getSelected() {
+  return [...document.querySelectorAll('.appt-check:checked')].map(cb => cb.dataset.id);
+}
+
+/* -- Core batch check engine ------------------------------------------------- */
+async function runBatch(apptIds, label) {
+  if (_batchRunning) { toast('A batch run is already in progress. Please wait.'); return; }
+
+  const appts = load(SCHED_KEY).filter(a => apptIds.includes(a.id));
+  if (!appts.length) { toast('No appointments selected.'); return; }
+
+  _batchRunning = true;
+  document.getElementById('runAllBtn').disabled      = true;
+  document.getElementById('runSelectedBtn').disabled = true;
+
+  // Create batch record
+  const batchNum   = nextBatchNum();
+  const batchId    = uid();
+  const batch = {
+    id:            batchId,
+    batch_number:  batchNum,
+    label:         label || ('Pre-Visit - ' + new Date().toLocaleDateString()),
+    service_type_code:  SERVICE_TYPE_CODE,
+    service_type_name:  SERVICE_TYPE_NAME,
+    total_patients: appts.length,
+    checked_count:  0,
+    active_count:   0,
+    inactive_count: 0,
+    pending_count:  0,
+    error_count:    0,
+    not_found_count:0,
+    status:        'Processing',
+    started_at:    new Date().toISOString(),
+    completed_at:  null,
+    triggered_by:  'billing_staff',
+  };
+  const batches = load(ELIG_BATCH_KEY);
+  batches.push(batch);
+  save(ELIG_BATCH_KEY, batches);
+
+  // Show progress bar
+  const wrap   = document.getElementById('progressWrap');
+  const fill   = document.getElementById('progressFill');
+  const lbl    = document.getElementById('progressLabel');
+  const pct    = document.getElementById('progressPct');
+  const pat    = document.getElementById('progressPatient');
+  wrap.classList.add('active');
+
+  const checks = load(ELIG_CHECK_KEY);
+  const results = [];
+
+  for (let i = 0; i < appts.length; i++) {
+    const a = appts[i];
+    const progress = Math.round(((i) / appts.length) * 100);
+    fill.style.width = progress + '%';
+    pct.textContent  = progress + '%';
+    lbl.textContent  = `Checking ${i+1} of ${appts.length} - Service Type ${SERVICE_TYPE_CODE} (${SERVICE_TYPE_NAME})`;
+    pat.textContent  = `Querying: ${a.patient} - ${PATIENT_PROFILES[a.patient]?.payer || 'Unknown Payer'}`;
+
+    // Animate the row
+    const row  = document.getElementById('row-'+a.id);
+    const cell = document.getElementById('cov-'+a.id);
+    if (row)  row.classList.add('checking');
+    if (cell) cell.innerHTML = checkingBadge();
+
+    // Simulate network delay (150-350ms per patient)
+    await sleep(150 + Math.random() * 200);
+
+    // Determine result from profile
+    const prof   = PATIENT_PROFILES[a.patient] || {};
+    let covStatus = profileToCovStatus(prof.ins_status || 'Unknown');
+
+    // Tiny random variance to simulate real-world edge cases
+    const rand = Math.random();
+    if (covStatus === 'Active'   && rand < 0.04) covStatus = 'Pending';  // 4% edge
+    if (covStatus === 'Pending'  && rand < 0.15) covStatus = 'Inactive'; // 15% resolve as inactive
+
+    // Create check record
+    const checkRecord = {
+      id:                 uid(),
+      batch_id:           batchId,
+      patient:            a.patient,
+      appt_id:            a.id,
+      appt_date:          a.date,
+      payer:              prof.payer || 'Unknown',
+      member_id:          prof.member_id || '',
+      service_type_code:  SERVICE_TYPE_CODE,
+      service_type_name:  SERVICE_TYPE_NAME,
+      status:             covStatus,
+      copay:              prof.copay,
+      deductible_individual: prof.deductible,
+      deductible_met:     prof.deductible_met,
+      prior_auth_required: prof.prior_auth_required || false,
+      referral_required:  prof.referral_required || false,
+      action_required:    covStatus !== 'Active' || prof.prior_auth_required,
+      action_type:        covStatus === 'Inactive' ? 'Contact Patient'
+                          : covStatus === 'Pending' ? 'Verify Eligibility'
+                          : prof.prior_auth_required ? 'Obtain Prior Auth'
+                          : null,
+      checked_at:         new Date().toISOString(),
+      raw_response:       {
+        isa_control: '0000' + String(i).padStart(5,'0'),
+        service_type: SERVICE_TYPE_CODE,
+        payer_name: prof.payer || 'Unknown',
+        member_id: prof.member_id || '',
+        coverage_status: covStatus,
+        plan_begin: '2026-01-01',
+        plan_end: '2026-12-31',
+        copay: prof.copay,
+        deductible: prof.deductible,
+        deductible_met: prof.deductible_met,
+        simulated: true,
+      }
+    };
+    checks.push(checkRecord);
+    results.push(checkRecord);
+
+    // Update batch counters
+    if (covStatus === 'Active')    batch.active_count++;
+    else if (covStatus === 'Inactive') batch.inactive_count++;
+    else if (covStatus === 'Pending')  batch.pending_count++;
+    else                               batch.not_found_count++;
+    batch.checked_count++;
+
+    // Update the row live
+    if (row)  row.className = `result-${covStatus.toLowerCase().replace(' ','')}`;
+    if (cell) cell.innerHTML = covBadge(covStatus);
+
+    // Update last-checked cell (9th column)
+    const tds = row?.querySelectorAll('td');
+    if (tds && tds[8]) tds[8].innerHTML = '<span style="color:var(--ink-600);font-size:11.5px">Just now</span>';
+  }
+
+  // Save checks
+  save(ELIG_CHECK_KEY, checks);
+
+  // Finalize batch
+  batch.status       = 'Complete';
+  batch.completed_at = new Date().toISOString();
+  const bList = load(ELIG_BATCH_KEY).filter(b => b.id !== batchId);
+  bList.push(batch);
+  save(ELIG_BATCH_KEY, bList);
+
+  // Generate report
+  const reportNum = nextReportNum();
+  const report = {
+    id:               uid(),
+    report_number:    reportNum,
+    batch_id:         batchId,
+    batch_number:     batchNum,
+    payer:            [...new Set(results.map(r=>r.payer))].join(' / ') || 'Multiple',
+    report_type:      'Pre-Visit',
+    service_type_code: SERVICE_TYPE_CODE,
+    total_checked:    batch.total_patients,
+    active_count:     batch.active_count,
+    inactive_count:   batch.inactive_count,
+    pending_count:    batch.pending_count,
+    error_count:      batch.error_count,
+    not_found_count:  batch.not_found_count,
+    action_required_count: results.filter(r=>r.action_required).length,
+    pa_required_count: results.filter(r=>r.prior_auth_required).length,
+    status:           'Ready',
+    generated_at:     new Date().toISOString(),
+    items:            results,
+  };
+  const rList = load(ELIG_REPORT_KEY);
+  rList.push(report);
+  save(ELIG_REPORT_KEY, rList);
+
+  // Finish UI
+  fill.style.width = '100%';
+  pct.textContent  = '100%';
+  lbl.textContent  = `Complete - ${batch.active_count} Active - ${batch.inactive_count} Inactive - ${batch.pending_count} Pending`;
+  pat.textContent  = `Report generated: ${reportNum}`;
+
+  await sleep(1200);
+  wrap.classList.remove('active');
+
+  _batchRunning = false;
+  document.getElementById('runAllBtn').disabled      = false;
+  document.getElementById('runSelectedBtn').disabled = false;
+
+  updateStats();
+
+  const actionCount = results.filter(r=>r.action_required).length;
+  toast(`${batchNum} complete - ${batch.active_count} Active, ${batch.inactive_count} Inactive${actionCount ? ', '+actionCount+' require action' : ''}. Report: ${reportNum}`);
+
+  renderHistory();
+  renderReports();
+}
+
+function runBatchAll() {
+  const appts = getEligibleAppts();
+  runBatch(appts.map(a=>a.id), 'Pre-Visit Batch - All Upcoming');
+}
+function runBatchSelected() {
+  const ids = getSelected();
+  if (!ids.length) { toast('Select at least one appointment to check.'); return; }
+  runBatch(ids, 'Manual Selection');
+}
+function runBatchDate(date) {
+  const appts = getEligibleAppts().filter(a=>a.date===date);
+  runBatch(appts.map(a=>a.id), 'Pre-Visit - ' + fmtDate(date));
+}
+
+/* -- Render history tab ------------------------------------------------------ */
+function renderHistory() {
+  const batches = load(ELIG_BATCH_KEY).slice().reverse();
+  const el = document.getElementById('historyContent');
+
+  if (!batches.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">&#128203;</div><p>No batch runs yet. Click "Run Pre-Visit Batch" to start.</p></div>`;
+    return;
+  }
+
+  const stMap = {
+    Complete:'bs-complete', Processing:'bs-processing',
+    Partial:'bs-partial', Error:'bs-error', Pending:'bs-pending',
+  };
+
+  el.innerHTML = `
+    <table class="batch-table">
+      <thead>
+        <tr>
+          <th>Batch ID</th>
+          <th>Label</th>
+          <th>Service Type</th>
+          <th>Total</th>
+          <th>Active</th>
+          <th>Inactive</th>
+          <th>Pending</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${batches.map(b => `
+          <tr>
+            <td><strong style="color:var(--blue-700)">${esc(b.batch_number)}</strong></td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.label||'--')}</td>
+            <td><span class="st98-pill" style="font-size:10px;padding:3px 9px"><span class="dot"></span>${esc(b.service_type_code)} - ${esc(b.service_type_name)}</span></td>
+            <td style="font-weight:700">${b.total_patients}</td>
+            <td><span class="count-pill cp-green">${b.active_count||0}</span></td>
+            <td><span class="count-pill cp-red">${b.inactive_count||0}</span></td>
+            <td><span class="count-pill cp-amber">${b.pending_count||0}</span></td>
+            <td><span class="batch-status ${stMap[b.status]||'bs-pending'}">${esc(b.status)}</span></td>
+            <td style="font-size:11.5px;color:var(--ink-500)">${b.started_at ? new Date(b.started_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '--'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="openReportForBatch('${esc(b.id)}')">View Report</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+/* -- Render reports tab ------------------------------------------------------ */
+function renderReports() {
+  const rpts = load(ELIG_REPORT_KEY).slice().reverse();
+  const el   = document.getElementById('reportsContent');
+  if (!rpts.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">&#128196;</div><p>No reports generated yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <table class="batch-table">
+      <thead>
+        <tr>
+          <th>Report #</th>
+          <th>Type</th>
+          <th>Payer</th>
+          <th>Total</th>
+          <th>Active</th>
+          <th>Inactive</th>
+          <th>Action Req.</th>
+          <th>PA Required</th>
+          <th>Generated</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rpts.map(r => `
+          <tr>
+            <td><strong style="color:var(--blue-700)">${esc(r.report_number)}</strong></td>
+            <td><span style="background:#e0f2fe;color:#0c4a6e;border:1px solid #bae6fd;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">${esc(r.report_type||'Ad-hoc')}</span></td>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.payer||'--')}</td>
+            <td style="font-weight:700">${r.total_checked}</td>
+            <td><span class="count-pill cp-green">${r.active_count||0}</span></td>
+            <td><span class="count-pill cp-red">${r.inactive_count||0}</span></td>
+            <td><span class="count-pill ${(r.action_required_count||0)>0?'cp-amber':'cp-gray'}">${r.action_required_count||0}</span></td>
+            <td><span class="count-pill ${(r.pa_required_count||0)>0?'cp-amber':'cp-gray'}">${r.pa_required_count||0}</span></td>
+            <td style="font-size:11.5px;color:var(--ink-500)">${r.generated_at ? new Date(r.generated_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '--'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="openReport('${esc(r.id)}')">View</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+/* -- Report modal ------------------------------------------------------------ */
+function openReportForBatch(batchId) {
+  const rpt = load(ELIG_REPORT_KEY).find(r => r.batch_id === batchId);
+  if (!rpt) { toast('Report not yet generated for this batch.'); return; }
+  openReport(rpt.id);
+}
+
+function openReport(reportId) {
+  const rpt = load(ELIG_REPORT_KEY).find(r => r.id === reportId);
+  if (!rpt) { toast('Report not found.'); return; }
+  _openReportId = reportId;
+
+  // Mark viewed
+  const rList = load(ELIG_REPORT_KEY);
+  const idx   = rList.findIndex(r => r.id === reportId);
+  if (idx >= 0 && rList[idx].status === 'Ready') {
+    rList[idx].status   = 'Viewed';
+    rList[idx].viewed_at = new Date().toISOString();
+    save(ELIG_REPORT_KEY, rList);
+  }
+
+  document.getElementById('reportModalTitle').textContent   = rpt.report_number;
+  document.getElementById('reportModalSubtitle').textContent =
+    `${rpt.report_type} - Service Type ${SERVICE_TYPE_CODE} (${SERVICE_TYPE_NAME}) - Generated ${new Date(rpt.generated_at).toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}`;
+
+  const actionItems = (rpt.items||[]).filter(i=>i.action_required);
+
+  document.getElementById('reportModalBody').innerHTML = `
+    <!-- Summary -->
+    <div class="report-summary">
+      <div class="rs-cell"><div class="rs-num">${rpt.total_checked}</div><div class="rs-lbl">Total Checked</div></div>
+      <div class="rs-cell" style="border-color:#a7f3d0"><div class="rs-num" style="color:#059669">${rpt.active_count||0}</div><div class="rs-lbl">Active</div></div>
+      <div class="rs-cell" style="border-color:#fecaca"><div class="rs-num" style="color:#dc2626">${rpt.inactive_count||0}</div><div class="rs-lbl">Inactive</div></div>
+      <div class="rs-cell" style="border-color:#fde68a"><div class="rs-num" style="color:#b45309">${rpt.pending_count||0}</div><div class="rs-lbl">Pending</div></div>
+      <div class="rs-cell" style="border-color:#fde68a"><div class="rs-num" style="color:#b45309">${rpt.action_required_count||0}</div><div class="rs-lbl">Action Req.</div></div>
+      <div class="rs-cell" style="border-color:#c4b5fd"><div class="rs-num" style="color:#7c3aed">${rpt.pa_required_count||0}</div><div class="rs-lbl">PA Required</div></div>
+    </div>
+
+    ${actionItems.length ? `
+    <div style="font-family:'Sora',sans-serif;font-size:12px;font-weight:700;color:#991b1b;margin-bottom:8px;padding:8px 12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
+      &#9888; ${actionItems.length} patient${actionItems.length!==1?'s require':'requires'} action before the appointment
+    </div>` : `
+    <div style="color:#059669;font-size:12.5px;font-weight:700;margin-bottom:8px;padding:8px 12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+      &#10003; All patients verified - no action required
+    </div>`}
+
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead>
+        <tr style="background:var(--surface-soft,#f8fafc)">
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">Patient</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">Payer</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">DOS</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">Coverage</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">Copay</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">PA</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:10.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(rpt.items||[]).map(item => `
+          <tr style="${item.action_required?'background:rgba(254,242,242,.5)':''}">
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border)">${esc(item.patient)}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border);font-size:11.5px">${esc(item.payer)}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border);font-size:11.5px">${fmtDate(item.appt_date)}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border)">${covBadge(item.status)}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border)">${fmt$(item.copay)}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border)">
+              ${item.prior_auth_required?'<span class="flag-chip flag-pa">Required</span>':'<span class="flag-none">--</span>'}
+            </td>
+            <td style="padding:9px 10px;border-bottom:1px solid var(--border);font-size:11.5px">
+              ${item.action_type?`<span style="color:#b45309;font-weight:700">&#9888; ${esc(item.action_type)}</span>`:'<span style="color:#059669">&#10003; None</span>'}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('reportModal').style.display = 'flex';
+}
+
+function closeReport() { document.getElementById('reportModal').style.display = 'none'; }
+
+function exportCSV() {
+  const rpt = load(ELIG_REPORT_KEY).find(r => r.id === _openReportId);
+  if (!rpt) return;
+  const rows = [
+    ['Patient','Payer','Appt Date','Service Type','Coverage Status','Copay','Deductible Rem.','PA Required','Referral Required','Action Required','Action Type'],
+    ...(rpt.items||[]).map(i => [
+      i.patient, i.payer, i.appt_date,
+      `${i.service_type_code} - ${i.service_type_name}`,
+      i.status,
+      i.copay != null ? i.copay.toFixed(2) : '',
+      (i.deductible_individual != null && i.deductible_met != null)
+        ? Math.max(0, i.deductible_individual - i.deductible_met).toFixed(2) : '',
+      i.prior_auth_required ? 'Yes' : 'No',
+      i.referral_required   ? 'Yes' : 'No',
+      i.action_required     ? 'Yes' : 'No',
+      i.action_type || '',
+    ])
+  ];
+  const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = rpt.report_number + '.csv';
+  a.click();
+  toast('CSV exported: ' + rpt.report_number + '.csv');
+  // Mark exported
+  const rList = load(ELIG_REPORT_KEY);
+  const idx   = rList.findIndex(r => r.id === _openReportId);
+  if (idx >= 0) { rList[idx].status = 'Exported'; rList[idx].exported_at = new Date().toISOString(); }
+  save(ELIG_REPORT_KEY, rList);
+}
+
+/* -- Tab switching ----------------------------------------------------------- */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name==='history') renderHistory();
+  if (name==='reports') renderReports();
+}
+
+function refreshView() { renderPending(); toast('View refreshed.'); }
+
+/* -- Boot -------------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof initDashboard === 'function') {
+    initDashboard(['admin','billing_staff','billing_specialist','supervisor','super_admin']);
+  }
+  if (typeof initLogout === 'function') initLogout();
+  seedIfEmpty();
+  populatePayerFilter();
+  renderPending();
+  updateStats();
+});
+</script>
+</body>
+</html>

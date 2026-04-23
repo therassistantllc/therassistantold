@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; SimplePractice Imports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* Admin badge */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .stat-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .stat-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .stat-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .stat-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .stat-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.55rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    /* Tabs */
+    .tab-nav{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+    .tab-btn{padding:8px 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--ink-500);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;border-radius:6px 6px 0 0}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-600);background:rgba(60,144,209,.06)}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    /* Drop zone */
+    .drop-zone{border:2px dashed var(--blue-500);border-radius:16px;background:rgba(60,144,209,.04);padding:44px 32px;text-align:center;cursor:pointer;transition:background .2s,border-color .2s;margin-bottom:16px}
+    .drop-zone.drag-over{background:rgba(60,144,209,.12);border-color:var(--blue-700)}
+    .drop-zone-icon{font-size:3rem;margin-bottom:12px;opacity:.55}
+    .drop-zone h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin-bottom:6px}
+    .drop-zone p{font-size:13px;color:var(--ink-500);margin-bottom:14px}
+    .drop-zone-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .ext-badge{background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700}
+    /* Queue */
+    .upload-queue{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+    .queue-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .queue-item:last-child{border-bottom:none}
+    .queue-name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+    .queue-size{color:var(--ink-500);font-size:11.5px;flex-shrink:0}
+    .queue-type{color:var(--ink-500);font-size:11.5px;flex-shrink:0;min-width:150px}
+    .queue-status{flex-shrink:0}
+    .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;width:90px;flex-shrink:0}
+    .progress-fill{height:100%;background:var(--blue-600);transition:width .4s}
+    /* Filter */
+    .filter-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .filter-row input,.filter-row select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-row input{flex:1;min-width:180px}
+    .filter-row input:focus,.filter-row select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    /* Table */
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .data-table{width:100%;border-collapse:collapse}
+    .data-table th{background:var(--surface-soft);border-bottom:1px solid var(--border);padding:9px 12px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);white-space:nowrap;text-align:left}
+    .data-table td{padding:11px 12px;font-size:12.5px;border-bottom:1px solid var(--border);vertical-align:middle}
+    .data-table tbody tr:last-child td{border-bottom:none}
+    .data-table tbody tr:hover{background:rgba(60,144,209,.03)}
+    /* Status */
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+    .st-complete{background:#def7ee;color:#065f46;border-color:#a7f3d0}
+    .st-processing{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+    .st-partial{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .st-error{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+    .st-pending{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .st-archived{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .st-mapping{background:#fef9c3;color:#854d0e;border-color:#fef08a}
+    /* Type grid */
+    .type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:8px}
+    .type-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+    .type-card:hover{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .type-card.selected{border-color:var(--blue-600);background:rgba(60,144,209,.05);box-shadow:0 0 0 3px rgba(60,144,209,.15)}
+    .type-card-icon{font-size:1.6rem;margin-bottom:7px;display:block}
+    .type-card-name{font-size:13px;font-weight:700;color:var(--ink-900);margin-bottom:3px}
+    .type-card-desc{font-size:11.5px;color:var(--ink-500)}
+    /* Content card */
+    .cc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+    .cc-title{font-family:'Sora',sans-serif;font-size:.97rem;font-weight:700;color:var(--ink-900);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    /* Import hero */
+    .import-hero{background:linear-gradient(135deg,#1e3a8a 0%,var(--blue-600) 50%,#0ea5e9 100%);border-radius:16px;padding:22px 26px;color:#fff;margin-bottom:20px;display:flex;align-items:center;gap:20px}
+    .import-hero-icon{width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0}
+    .import-hero h2{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;margin-bottom:4px}
+    .import-hero p{font-size:13px;opacity:.85;margin:0}
+    /* Import type badge */
+    .it-badge{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.05em;text-transform:uppercase}
+    /* Wizard */
+    .wizard-steps{display:flex;gap:0;margin-bottom:24px}
+    .wizard-step{flex:1;text-align:center;padding:10px 6px;font-size:12px;font-weight:600;color:var(--ink-500);position:relative}
+    .wizard-step::after{content:'';position:absolute;top:50%;right:0;width:100%;height:2px;background:var(--border);z-index:0;transform:translateY(-50%)}
+    .wizard-step:last-child::after{display:none}
+    .wizard-step .step-num{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--surface);color:var(--ink-500);font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-bottom:4px;position:relative;z-index:1}
+    .wizard-step.active .step-num{border-color:var(--blue-600);background:var(--blue-600);color:#fff}
+    .wizard-step.done .step-num{border-color:#10b981;background:#10b981;color:#fff}
+    .wizard-step.active{color:var(--blue-700)}
+    .wizard-step.done{color:#059669}
+    /* Template list */
+    .tmpl-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .tmpl-row:last-child{border-bottom:none}
+    .tmpl-name{flex:1;font-weight:600}
+    .tmpl-meta{color:var(--ink-500);font-size:12px}
+    /* Nav section label */
+    .nav-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-400,#94a3b8);padding:10px 14px 3px;margin-top:4px}
+    /* Warning panel */
+    .warn-panel{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#92400e}
+    .warn-panel ul{margin:6px 0 0 18px;padding:0}
+    .warn-panel li{margin-bottom:3px}
+    @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link active" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>SimplePractice Imports</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue btn-sm" onclick="startUpload()">&#8679; Import CSV / ZIP</button>
+        <a href="admin-import-history.html" class="btn btn-outline btn-sm">Import History</a>
+        <a href="admin-import-mapping.html" class="btn btn-outline btn-sm">Mapping Templates</a>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <div class="import-hero">
+      <div class="import-hero-icon">&#128190;</div>
+      <div>
+        <div style="margin-bottom:6px"><span class="it-badge">SimplePractice</span></div>
+        <h2>CSV &amp; Data Imports</h2>
+        <p>Import patient lists, claims, payments, appointments, balances, and billing data from SimplePractice exports. Data flows automatically into dashboards, AR tracking, and Billing Alerts.</p>
+      </div>
+    </div>
+
+    <!-- KPI Stats -->
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-num" id="st-total">0</div><div class="stat-lbl">Total Imports</div></div>
+      <div class="stat-card green"><div class="stat-num" id="st-records">0</div><div class="stat-lbl">Records Imported</div></div>
+      <div class="stat-card amber"><div class="stat-num" id="st-dupes">0</div><div class="stat-lbl">Duplicates Found</div></div>
+      <div class="stat-card red"><div class="stat-num" id="st-failed">0</div><div class="stat-lbl">Failed Rows</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="st-alerts">0</div><div class="stat-lbl">Alerts Created</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="openTab('upload')">&#8679; Upload New Import</button>
+      <button class="tab-btn" onclick="openTab('active')">Active Queue</button>
+      <button class="tab-btn" onclick="openTab('templates')">Import Templates</button>
+      <button class="tab-btn" onclick="openTab('types')">Supported Types</button>
+    </div>
+
+    <!-- UPLOAD TAB -->
+    <div class="tab-panel active" id="tab-upload">
+
+      <!-- Wizard steps -->
+      <div class="cc">
+        <div class="wizard-steps" id="wizardSteps">
+          <div class="wizard-step active" id="ws1"><div class="step-num">1</div><div>Upload</div></div>
+          <div class="wizard-step" id="ws2"><div class="step-num">2</div><div>Select Type</div></div>
+          <div class="wizard-step" id="ws3"><div class="step-num">3</div><div>Map Fields</div></div>
+          <div class="wizard-step" id="ws4"><div class="step-num">4</div><div>Preview</div></div>
+          <div class="wizard-step" id="ws5"><div class="step-num">5</div><div>Import</div></div>
+        </div>
+
+        <!-- Step 1: Drop zone -->
+        <div id="step1">
+          <div class="drop-zone" id="dropZone" onclick="fileInput.click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+            <div class="drop-zone-icon">&#128228;</div>
+            <h3>Drop SimplePractice exports here</h3>
+            <p>Supports single CSV files, multiple CSVs, or a ZIP of all exports.<br>Column headers are detected automatically.</p>
+            <div class="drop-zone-badges">
+              <span class="ext-badge">.CSV</span>
+              <span class="ext-badge">.ZIP</span>
+              <span class="ext-badge">.TXT</span>
+              <span class="ext-badge">Multiple Files</span>
+            </div>
+          </div>
+          <input type="file" id="fileInput" multiple accept=".csv,.zip,.txt" style="display:none" onchange="handleFiles(this.files)">
+
+          <div style="display:flex;gap:10px;margin-bottom:8px">
+            <button class="btn btn-blue" onclick="fileInput.click()">&#8679; Browse Files</button>
+            <span style="font-size:12.5px;color:var(--ink-500);align-self:center">or drag &amp; drop above &mdash; ZIP files with multiple CSVs are extracted automatically</span>
+          </div>
+
+          <div class="upload-queue" id="uploadQueue" style="display:none">
+            <div class="cc-title" style="margin-bottom:10px">&#128203; Files Ready</div>
+            <div id="queueList"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn btn-blue" onclick="proceedToTypeSelect()">Continue &rarr; Select Import Type</button>
+              <button class="btn btn-outline" onclick="clearQueue()">Clear All</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Select type -->
+        <div id="step2" style="display:none">
+          <div class="cc-title">Select Import Type</div>
+          <p style="font-size:13px;color:var(--ink-500);margin-bottom:14px">Choose the type of data in your CSV file. If THERASSISTANT detects a match from your column headers, it will be pre-selected.</p>
+          <div id="autoDetectBanner" style="display:none" class="warn-panel" style="background:#f0fdf4;border-color:#a7f3d0;color:#065f46">
+            &#9989; <strong>Auto-detected:</strong> <span id="autoDetectType"></span> ? based on column headers. Adjust if needed.
+          </div>
+          <div class="type-grid" id="typeGrid"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-blue" onclick="proceedToMapping()">Continue &rarr; Map Fields</button>
+            <button class="btn btn-outline" onclick="backToUpload()">&#8592; Back</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Map fields (link to mapping page) -->
+        <div id="step3" style="display:none">
+          <div class="cc-title">Map CSV Columns to THERASSISTANT Fields</div>
+          <p style="font-size:13px;color:var(--ink-500);margin-bottom:14px">Review and confirm column mappings. Auto-matched fields are highlighted. Use the full mapping editor for advanced options.</p>
+          <div id="quickMapTable"></div>
+          <div class="warn-panel" id="mapWarnings" style="display:none">
+            <strong>&#9888; Mapping Warnings</strong>
+            <ul id="mapWarningList"></ul>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-blue" onclick="proceedToPreview()">Continue &rarr; Preview Records</button>
+            <a id="fullMappingLink" href="admin-import-mapping.html" class="btn btn-outline">Open Full Mapping Editor</a>
+            <button class="btn btn-outline" onclick="goToStep(2)">&#8592; Back</button>
+          </div>
+        </div>
+
+        <!-- Step 4: Preview -->
+        <div id="step4" style="display:none">
+          <div class="cc-title">Preview &mdash; First 10 Rows</div>
+          <div id="previewStats" style="display:flex;gap:18px;margin-bottom:12px;font-size:13px"></div>
+          <div class="table-wrap" style="overflow-x:auto;margin-bottom:14px">
+            <table class="data-table" id="previewTable" style="min-width:600px"></table>
+          </div>
+          <div id="previewDupes" style="display:none" class="warn-panel">
+            <strong>&#9888; Potential Duplicates Detected</strong>
+            <ul id="previewDupeList"></ul>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-blue" id="confirmImportBtn" onclick="runImport()">&#10003; Confirm &amp; Import All Rows</button>
+            <button class="btn btn-outline" onclick="goToStep(3)">&#8592; Back</button>
+            <button class="btn btn-outline" onclick="exportFailedRows()">Download Failed Preview Rows</button>
+          </div>
+        </div>
+
+        <!-- Step 5: Results -->
+        <div id="step5" style="display:none">
+          <div style="text-align:center;padding:30px 0 20px">
+            <div style="font-size:3rem;margin-bottom:12px" id="resultIcon">&#9989;</div>
+            <div style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--ink-900);margin-bottom:6px" id="resultTitle">Import Complete</div>
+            <div style="font-size:13px;color:var(--ink-500);margin-bottom:20px" id="resultSubtitle"></div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap" id="resultStats"></div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+            <a href="admin-import-history.html" class="btn btn-blue">View Import History</a>
+            <button class="btn btn-outline" onclick="startNewImport()">Import Another File</button>
+            <button class="btn btn-outline" id="downloadFailedBtn" onclick="downloadFailed()" style="display:none">Download Failed Rows</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE QUEUE TAB -->
+    <div class="tab-panel" id="tab-active">
+      <div class="filter-panel">
+        <div class="filter-row">
+          <input type="text" placeholder="Search imports..." id="qSearch" oninput="renderQueue()">
+          <select id="qTypeFilter" onchange="renderQueue()">
+            <option value="">All Types</option>
+            <option>Patient List</option><option>Appointment List</option><option>Claim List</option>
+            <option>Payment History</option><option>Outstanding Balances</option><option>Insurance Information</option>
+          </select>
+          <select id="qStatusFilter" onchange="renderQueue()">
+            <option value="">All Statuses</option>
+            <option>Processing</option><option>Mapping Required</option><option>Preview Ready</option>
+            <option>Complete</option><option>Error</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-shell">
+        <table class="data-table" style="width:100%">
+          <thead><tr>
+            <th>File Name</th><th>Type</th><th>Uploaded</th><th>Rows</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="activeQueueBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TEMPLATES TAB -->
+    <div class="tab-panel" id="tab-templates">
+      <div class="cc">
+        <div class="cc-title" style="justify-content:space-between">
+          <span>&#128190; Saved Mapping Templates</span>
+          <button class="btn btn-blue btn-sm" onclick="createTemplate()">+ New Template</button>
+        </div>
+        <p style="font-size:13px;color:var(--ink-500);margin-bottom:16px">Save field mapping configurations so they can be reused on future imports of the same type.</p>
+        <div id="templateList"></div>
+      </div>
+    </div>
+
+    <!-- SUPPORTED TYPES TAB -->
+    <div class="tab-panel" id="tab-types">
+      <div class="cc">
+        <div class="cc-title">Supported SimplePractice Export Types</div>
+        <p style="font-size:13px;color:var(--ink-500);margin-bottom:16px">THERASSISTANT supports all standard SimplePractice CSV exports. For each type, expected column headers are listed along with the THERASSISTANT destination.</p>
+        <div id="typesGuide"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal overlay -->
+<div id="modalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999;align-items:center;justify-content:center">
+  <div id="modalBox" style="background:var(--surface);border-radius:18px;padding:28px 30px;width:min(540px,96vw);box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative">
+    <button onclick="closeModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500)">&times;</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+const ADMIN_ROLES = ['admin','billing_staff','super_admin'];
+document.addEventListener('DOMContentLoaded', async () => {
+  await initDashboard(ADMIN_ROLES);
+  loadStats();
+  renderActiveQueue();
+  renderTemplates();
+  renderTypesGuide();
+  seedDemoImports();
+});
+document.getElementById('logoutBtn').addEventListener('click', () => logout());
+
+/* -- Storage --------------------------------------- */
+const SP_KEY = 'docusistant_sp_imports_v1';
+const TMPL_KEY = 'docusistant_import_templates_v1';
+
+function getImports(){ try{ return JSON.parse(localStorage.getItem(SP_KEY)||'[]'); }catch{ return []; } }
+function saveImports(d){ localStorage.setItem(SP_KEY, JSON.stringify(d)); }
+function getTemplates(){ try{ return JSON.parse(localStorage.getItem(TMPL_KEY)||'[]'); }catch{ return []; } }
+function saveTemplates(d){ localStorage.setItem(TMPL_KEY, JSON.stringify(d)); }
+
+/* -- Demo seed ------------------------------------- */
+function seedDemoImports(){
+  if(getImports().length) return;
+  const demos = [
+    { id:'IMP-001', name:'patients_export_2024.csv', type:'Patient List', source:'SimplePractice', date:'2024-11-15', by:'admin@docusistant.com', total:312, success:308, failed:2, dupes:8, status:'Complete', alerts:5 },
+    { id:'IMP-002', name:'appointments_2024_q4.csv', type:'Appointment List', source:'SimplePractice', date:'2024-11-15', by:'admin@docusistant.com', total:1840, success:1840, failed:0, dupes:24, status:'Complete', alerts:0 },
+    { id:'IMP-003', name:'claims_oct_nov_2024.csv', type:'Claim List', source:'SimplePractice', date:'2024-12-01', by:'billing@docusistant.com', total:487, success:481, failed:6, dupes:12, status:'Complete', alerts:18 },
+    { id:'IMP-004', name:'payments_q4_2024.csv', type:'Payment History', source:'SimplePractice', date:'2024-12-10', by:'billing@docusistant.com', total:623, success:623, failed:0, dupes:3, status:'Complete', alerts:2 },
+    { id:'IMP-005', name:'outstanding_balances_jan25.csv', type:'Outstanding Balances', source:'SimplePractice', date:'2025-01-08', by:'admin@docusistant.com', total:94, success:91, failed:3, dupes:0, status:'Complete', alerts:12 },
+    { id:'IMP-006', name:'insurance_info_batch.csv', type:'Insurance Information', source:'SimplePractice', date:'2025-01-12', by:'billing@docusistant.com', total:285, success:283, failed:2, dupes:19, status:'Complete', alerts:4 },
+  ];
+  saveImports(demos);
+}
+
+/* -- Stats ----------------------------------------- */
+function loadStats(){
+  const imports = getImports();
+  let records=0, dupes=0, failed=0, alerts=0;
+  imports.forEach(i=>{ records+=i.success||0; dupes+=i.dupes||0; failed+=i.failed||0; alerts+=i.alerts||0; });
+  document.getElementById('st-total').textContent = imports.length;
+  document.getElementById('st-records').textContent = records.toLocaleString();
+  document.getElementById('st-dupes').textContent = dupes.toLocaleString();
+  document.getElementById('st-failed').textContent = failed.toLocaleString();
+  document.getElementById('st-alerts').textContent = alerts.toLocaleString();
+}
+
+/* -- Tabs ------------------------------------------ */
+function openTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  document.querySelectorAll('.tab-btn')[['upload','active','templates','types'].indexOf(id)].classList.add('active');
+}
+
+/* -- File handling --------------------------------- */
+let currentFiles = [], currentType = null, parsedCSV = null;
+
+function onDragOver(e){ e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function onDragLeave(){ document.getElementById('dropZone').classList.remove('drag-over'); }
+function onDrop(e){ e.preventDefault(); document.getElementById('dropZone').classList.remove('drag-over'); handleFiles(e.dataTransfer.files); }
+
+function handleFiles(files){
+  currentFiles = Array.from(files);
+  if(!currentFiles.length) return;
+  const q = document.getElementById('uploadQueue');
+  const list = document.getElementById('queueList');
+  q.style.display = 'block';
+  list.innerHTML = currentFiles.map((f,i) => `
+    <div class="queue-item">
+      <span style="font-size:1.1rem">&#128196;</span>
+      <span class="queue-name">${escHtml(f.name)}</span>
+      <span class="queue-size">${formatBytes(f.size)}</span>
+      <span class="queue-type" id="qtype-${i}"><em style="color:var(--ink-400)">Detecting type...</em></span>
+      <span class="badge st-pending" id="qs-${i}">Ready</span>
+      <button onclick="removeFile(${i})" style="background:none;border:none;cursor:pointer;color:var(--ink-400);font-size:1rem">&times;</button>
+    </div>`).join('');
+  // Detect types from filenames
+  currentFiles.forEach((f,i) => {
+    const detected = detectTypeFromFilename(f.name);
+    const el = document.getElementById('qtype-'+i);
+    if(el) el.textContent = detected || 'Unknown ? select type manually';
+  });
+}
+
+function detectTypeFromFilename(name){
+  name = name.toLowerCase();
+  if(name.includes('patient')) return 'Patient List';
+  if(name.includes('appoint')) return 'Appointment List';
+  if(name.includes('claim')) return 'Claim List';
+  if(name.includes('payment')) return 'Payment History';
+  if(name.includes('balance') || name.includes('outstanding')) return 'Outstanding Balances';
+  if(name.includes('insurance') || name.includes('eligib')) return 'Insurance Information';
+  if(name.includes('invoice')) return 'Invoices';
+  if(name.includes('superbill')) return 'Superbills';
+  if(name.includes('credit') && name.includes('fail')) return 'Credit Card Failures';
+  if(name.includes('billing')) return 'Billing Reports';
+  if(name.includes('revenue')) return 'Revenue Reports';
+  if(name.includes('adjustment')) return 'Adjustment Reports';
+  if(name.includes('copay')) return 'Copay Reports';
+  if(name.includes('aging') || name.includes('ar')) return 'AR Aging Reports';
+  if(name.includes('clinician')) return 'Clinician List';
+  if(name.includes('practice')) return 'Practice List';
+  return null;
+}
+
+function removeFile(i){
+  currentFiles.splice(i,1);
+  if(!currentFiles.length){ document.getElementById('uploadQueue').style.display='none'; }
+  else handleFiles(currentFiles); // rebuild
+}
+function clearQueue(){ currentFiles=[]; document.getElementById('uploadQueue').style.display='none'; }
+function startUpload(){ document.getElementById('fileInput').click(); }
+
+/* -- Import Types ---------------------------------- */
+const IMPORT_TYPES = [
+  { icon:'&#128100;', name:'Patient List', desc:'Demographics, insurance, clinician, balance info', fields:['first_name','last_name','dob','gender','email','phone','address','insurance_company','member_id','subscriber_id','group_number','clinician','outstanding_balance','copay','deductible'] },
+  { icon:'&#128197;', name:'Appointment List', desc:'Scheduled and historical appointments', fields:['patient_name','clinician','dos','appointment_type','status','duration','location'] },
+  { icon:'&#128203;', name:'Insurance Information', desc:'Insurance carrier, member IDs, coverage details', fields:['patient_name','insurance_company','member_id','subscriber_id','group_number','plan_type','effective_date','deductible','copay','coinsurance'] },
+  { icon:'&#129534;', name:'Claim List', desc:'Claims with CPT codes, payer, billed/paid amounts', fields:['claim_number','patient_name','dos','cpt_code','diagnosis_code','payer','status','billed_amount','allowed_amount','paid_amount','adjustment_amount','denial_reason','clinician'] },
+  { icon:'&#128181;', name:'Payment History', desc:'Insurance and patient payments', fields:['payment_date','payment_type','payer','check_number','eft_number','payment_amount','claim_number','dos','clinician','patient_name'] },
+  { icon:'&#128200;', name:'Outstanding Balances', desc:'Patient and insurance outstanding balances', fields:['patient_name','outstanding_balance','patient_portion','insurance_portion','days_outstanding','last_statement_date','clinician','collection_status'] },
+  { icon:'&#129534;', name:'Invoices', desc:'Invoice records and payment status', fields:['invoice_number','patient_name','invoice_date','due_date','amount','status','clinician'] },
+  { icon:'&#128196;', name:'Superbills', desc:'Superbill records with codes and diagnoses', fields:['patient_name','dos','cpt_codes','diagnosis_codes','clinician','billed_amount','patient_payment'] },
+  { icon:'&#128184;', name:'Credit Card Failures', desc:'Failed credit card charges and retry status', fields:['patient_name','charge_date','amount','card_last4','reason','retry_count','clinician'] },
+  { icon:'&#128203;', name:'Appointment Status History', desc:'Status changes for all appointments', fields:['patient_name','dos','appointment_id','old_status','new_status','changed_by','changed_at'] },
+  { icon:'&#128196;', name:'Billing Reports', desc:'Aggregated billing data exports', fields:['period','total_billed','total_collected','adjustments','write_offs','clinician'] },
+  { icon:'&#128200;', name:'Revenue Reports', desc:'Revenue by payer, clinician, and period', fields:['period','payer','clinician','revenue','claims','avg_payment'] },
+  { icon:'&#9989;', name:'Insurance Eligibility Results', desc:'Benefit verification results', fields:['patient_name','insurance_company','member_id','eligibility_date','status','copay','deductible','coinsurance','notes'] },
+  { icon:'&#128201;', name:'Adjustment Reports', desc:'Write-offs, contractual adjustments, admin adjustments', fields:['claim_number','patient_name','dos','adjustment_type','adjustment_amount','carc_code','clinician'] },
+  { icon:'&#128181;', name:'Copay Reports', desc:'Copay collection history', fields:['patient_name','dos','copay_amount','collected','outstanding','clinician'] },
+  { icon:'&#128200;', name:'AR Aging Reports', desc:'Accounts receivable aging buckets (0-30, 31-60, 61-90, 90+)', fields:['patient_name','payer','current','30_days','60_days','90_days','over_90','total_ar','clinician'] },
+  { icon:'&#128101;', name:'Clinician List', desc:'Provider roster and credentials', fields:['first_name','last_name','npi','license','specialty','email','clinician_id','active'] },
+  { icon:'&#127968;', name:'Practice List', desc:'Practice locations and settings', fields:['practice_name','address','npi','tax_id','phone','email','active'] },
+];
+
+function proceedToTypeSelect(){
+  if(!currentFiles.length){ showToast('Please add at least one file.'); return; }
+  goToStep(2);
+  renderTypeGrid();
+  // Try to auto-detect from first file
+  const detected = detectTypeFromFilename(currentFiles[0].name);
+  if(detected){
+    const banner = document.getElementById('autoDetectBanner');
+    const typeEl = document.getElementById('autoDetectType');
+    banner.style.display = 'block';
+    typeEl.textContent = detected;
+    currentType = detected;
+    // Pre-select card
+    setTimeout(() => {
+      document.querySelectorAll('.type-card').forEach(c => {
+        if(c.dataset.name === detected) c.classList.add('selected');
+      });
+    }, 50);
+  }
+}
+
+function renderTypeGrid(){
+  document.getElementById('typeGrid').innerHTML = IMPORT_TYPES.map(t => `
+    <div class="type-card${currentType===t.name?' selected':''}" data-name="${escHtml(t.name)}" onclick="selectType('${escHtml(t.name)}', this)">
+      <span class="type-card-icon">${t.icon}</span>
+      <div class="type-card-name">${escHtml(t.name)}</div>
+      <div class="type-card-desc">${escHtml(t.desc)}</div>
+    </div>`).join('');
+}
+
+function selectType(name, el){
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  currentType = name;
+}
+
+function proceedToMapping(){
+  if(!currentType){ showToast('Please select an import type.'); return; }
+  goToStep(3);
+  renderQuickMap();
+}
+
+function renderQuickMap(){
+  const typeObj = IMPORT_TYPES.find(t => t.name === currentType);
+  if(!typeObj){ return; }
+  const required = typeObj.fields.slice(0,3);
+  const rows = typeObj.fields.map((f,i) => `
+    <tr>
+      <td><code style="font-size:12px;color:var(--blue-700)">${f}</code>${required.includes(f)?'<span style="color:#ef4444;margin-left:4px">*</span>':''}</td>
+      <td>
+        <select style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit">
+          <option value="">? Ignore this column ?</option>
+          <option value="${f}" selected>${escHtml(fieldLabel(f))}</option>
+          ${typeObj.fields.filter(ff=>ff!==f).map(ff=>`<option value="${ff}">${escHtml(fieldLabel(ff))}</option>`).join('')}
+        </select>
+      </td>
+      <td style="font-size:12px;color:var(--ink-500)">${required.includes(f)?'<span style="color:#ef4444">Required</span>':'Optional'}</td>
+    </tr>`).join('');
+  document.getElementById('quickMapTable').innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="data-table" style="width:100%">
+      <thead><tr>
+        <th>CSV Column / Field</th>
+        <th>Map to THERASSISTANT Field</th>
+        <th>Status</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  // Check warnings
+  renderMapWarnings(required);
+}
+
+function renderMapWarnings(required){
+  const warns = [];
+  if(currentType === 'Patient List'){
+    warns.push('Ensure "patient_name" or "first_name"/"last_name" columns are mapped.');
+    warns.push('DOB is required for duplicate detection.');
+  }
+  if(currentType === 'Claim List') warns.push('Claim Number is required for duplicate detection.');
+  if(currentType === 'Payment History') warns.push('Payment Date and Amount are required fields.');
+  if(warns.length){
+    document.getElementById('mapWarnings').style.display='block';
+    document.getElementById('mapWarningList').innerHTML = warns.map(w=>`<li>${w}</li>`).join('');
+  }
+}
+
+function proceedToPreview(){
+  goToStep(4);
+  renderPreview();
+}
+
+function renderPreview(){
+  const typeObj = IMPORT_TYPES.find(t => t.name === currentType);
+  const fields = typeObj ? typeObj.fields.slice(0,6) : [];
+  // Generate mock preview rows
+  const previewData = generateMockRows(currentType, 10);
+  document.getElementById('previewStats').innerHTML = `
+    <div style="background:var(--surface-soft);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12.5px"><span style="font-weight:700;color:var(--ink-900)">${previewData.length} of ${currentFiles.reduce((a,f)=>a+(f.size>1000?Math.round(f.size/60):20),0)}</span> rows shown</div>
+    <div style="background:#def7ee;border:1px solid #a7f3d0;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#065f46"><strong>0</strong> duplicates detected</div>
+    <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#1e40af"><strong>0</strong> validation errors</div>`;
+  const headers = fields.map(f => `<th>${escHtml(fieldLabel(f))}</th>`).join('');
+  const rows = previewData.map(row => `<tr>${fields.map(f=>`<td>${escHtml(String(row[f]||''))}</td>`).join('')}</tr>`).join('');
+  document.getElementById('previewTable').innerHTML = `<thead><tr>${headers}</tr></thead><tbody>${rows}</tbody>`;
+}
+
+function generateMockRows(type, n){
+  const names = [['Alice','Johnson'],['Brian','Martinez'],['Carol','Smith'],['David','Lee'],['Emily','Brown'],['Frank','Garcia'],['Grace','Wilson'],['Henry','Davis'],['Irene','Anderson'],['James','Taylor']];
+  const payers = ['Colorado Medicaid','Aetna','United','Cigna','BCBS Colorado'];
+  const codes = ['H0031','H0032','90837','90837','90847','90791'];
+  const rows = [];
+  for(let i=0;i<n;i++){
+    const nm = names[i % names.length];
+    const base = { patient_name: nm[0]+' '+nm[1], first_name: nm[0], last_name: nm[1], dob: `${1970+i}-${String((i%12)+1).padStart(2,'0')}-15`, email: nm[0].toLowerCase()+'@example.com', phone:'(303) 555-'+String(1000+i), clinician:'Dr. Patel', dos: '2024-'+String((i%12)+1).padStart(2,'0')+'-10', payer: payers[i%payers.length], claim_number: 'CLM-2024-'+String(1000+i), billed_amount: '$'+(180+i*5)+'.00', paid_amount: '$'+(150+i*4)+'.00', payment_amount: '$'+(150+i*4)+'.00', outstanding_balance: '$'+(30+i*3)+'.00', cpt_code: codes[i%codes.length], status:'Active', payment_date:'2024-11-'+String((i%28)+1).padStart(2,'0'), insurance_company: payers[i%payers.length], member_id:'MBR-'+String(10000+i), adjustment_amount:'$20.00' };
+    rows.push(base);
+  }
+  return rows;
+}
+
+function runImport(){
+  const btn = document.getElementById('confirmImportBtn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  // Simulate import
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += 20;
+    if(progress >= 100){
+      clearInterval(interval);
+      finishImport();
+    }
+  }, 300);
+}
+
+function finishImport(){
+  const totalRows = currentFiles.reduce((a,f) => a + (f.size > 1000 ? Math.round(f.size/60) : 20), 0);
+  const failed = Math.floor(totalRows * 0.01);
+  const dupes = Math.floor(totalRows * 0.04);
+  const success = totalRows - failed - dupes;
+  const alertCount = currentType === 'Claim List' ? Math.floor(success * 0.08) :
+                     currentType === 'Outstanding Balances' ? Math.floor(success * 0.12) :
+                     currentType === 'Payment History' ? Math.floor(success * 0.02) : 0;
+
+  // Save to storage
+  const imp = { id:'IMP-'+Date.now(), name:currentFiles[0].name, type:currentType, source:'SimplePractice', date:new Date().toISOString().split('T')[0], by:'admin', total:totalRows, success, failed, dupes, status:'Complete', alerts:alertCount };
+  const all = getImports(); all.unshift(imp); saveImports(all);
+
+  // Auto billing alerts
+  if(alertCount > 0) autoCreateAlerts(imp);
+
+  goToStep(5);
+  document.getElementById('resultIcon').textContent = failed > 0 ? '&#9888;' : '&#9989;';
+  document.getElementById('resultTitle').textContent = failed > 0 ? 'Import Complete with Warnings' : 'Import Successful';
+  document.getElementById('resultSubtitle').textContent = `${currentType} ? ${currentFiles[0].name}`;
+  document.getElementById('resultStats').innerHTML = `
+    <div class="stat-card green" style="padding:10px 16px;flex:1;min-width:100px"><div class="stat-num">${success.toLocaleString()}</div><div class="stat-lbl">Imported</div></div>
+    <div class="stat-card amber" style="padding:10px 16px;flex:1;min-width:100px"><div class="stat-num">${dupes.toLocaleString()}</div><div class="stat-lbl">Duplicates</div></div>
+    <div class="stat-card red" style="padding:10px 16px;flex:1;min-width:100px"><div class="stat-num">${failed.toLocaleString()}</div><div class="stat-lbl">Failed</div></div>
+    <div class="stat-card purple" style="padding:10px 16px;flex:1;min-width:100px"><div class="stat-num">${alertCount.toLocaleString()}</div><div class="stat-lbl">Alerts Created</div></div>`;
+  if(failed>0) document.getElementById('downloadFailedBtn').style.display='inline-flex';
+  loadStats();
+}
+
+function autoCreateAlerts(imp){
+  const ALERTS_KEY = 'docusistant_billing_alerts_v1';
+  let alerts = []; try{ alerts = JSON.parse(localStorage.getItem(ALERTS_KEY)||'[]'); }catch{}
+  const reasons = imp.type === 'Claim List' ? ['Denied Claim','Missing Subscriber Info','Timely Filing Risk'] :
+                  imp.type === 'Outstanding Balances' ? ['Overdue AR','Large Patient Balance','Collection Risk'] :
+                  imp.type === 'Payment History' ? ['Recoupment Detected'] : ['Import Billing Alert'];
+  for(let i=0;i<Math.min(imp.alerts, 3);i++){
+    alerts.unshift({ id:'BA-IMP-'+Date.now()+i, alert_type: reasons[i%reasons.length], source:'CSV Import: '+imp.name, date: new Date().toISOString().split('T')[0], status:'Open', priority:'Medium' });
+  }
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts));
+}
+
+function startNewImport(){ currentFiles=[]; currentType=null; parsedCSV=null; document.getElementById('uploadQueue').style.display='none'; goToStep(1); }
+
+/* -- Wizard navigation ----------------------------- */
+function goToStep(n){
+  for(let i=1;i<=5;i++){
+    const s = document.getElementById('step'+i);
+    const ws = document.getElementById('ws'+i);
+    if(s) s.style.display = i===n ? 'block' : 'none';
+    if(ws){
+      ws.classList.toggle('active', i===n);
+      ws.classList.toggle('done', i<n);
+    }
+  }
+}
+function backToUpload(){ goToStep(1); }
+
+/* -- Active Queue ---------------------------------- */
+function renderActiveQueue(){
+  const imports = getImports();
+  let html = '';
+  imports.slice(0,8).forEach(imp => {
+    html += `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px"><span style="font-size:1.1rem">&#128196;</span><span style="font-weight:600">${escHtml(imp.name)}</span></div></td>
+      <td>${escHtml(imp.type)}</td>
+      <td style="color:var(--ink-500)">${imp.date}</td>
+      <td>${(imp.total||0).toLocaleString()}</td>
+      <td><span class="badge st-complete">&#10003; ${escHtml(imp.status)}</span></td>
+      <td><a href="admin-import-history.html?id=${imp.id}" style="color:var(--blue-600);font-size:12.5px;font-weight:600">View Details</a></td>
+    </tr>`;
+  });
+  document.getElementById('activeQueueBody').innerHTML = html || `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--ink-400)">No recent imports</td></tr>`;
+}
+
+function renderQueue(){ renderActiveQueue(); }
+
+/* -- Templates ------------------------------------- */
+function renderTemplates(){
+  const templates = getTemplates();
+  if(!templates.length){
+    document.getElementById('templateList').innerHTML = `<div style="text-align:center;padding:30px;color:var(--ink-400)">No mapping templates saved yet. Templates are created during the import mapping step.</div>`;
+    return;
+  }
+  document.getElementById('templateList').innerHTML = templates.map(t => `
+    <div class="tmpl-row">
+      <span style="font-size:1.1rem">&#128190;</span>
+      <span class="tmpl-name">${escHtml(t.name)}</span>
+      <span class="tmpl-meta">${escHtml(t.type)} &mdash; ${t.fields||0} fields mapped</span>
+      <span class="tmpl-meta">${t.date}</span>
+      <button class="btn btn-outline btn-sm" onclick="useTemplate('${t.id}')">Use</button>
+      <button class="btn btn-outline btn-sm" onclick="deleteTemplate('${t.id}')">Delete</button>
+    </div>`).join('');
+}
+
+function createTemplate(){
+  showModal(`<div style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:14px">&#128190; New Mapping Template</div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:5px">Template Name</label>
+      <input id="tmplName" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;box-sizing:border-box" placeholder="e.g. Patient List Standard">
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:5px">Import Type</label>
+      <select id="tmplType" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface)">
+        ${IMPORT_TYPES.map(t=>`<option>${escHtml(t.name)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn btn-blue" onclick="saveNewTemplate()">Save Template</button>`);
+}
+
+function saveNewTemplate(){
+  const name = document.getElementById('tmplName').value.trim();
+  const type = document.getElementById('tmplType').value;
+  if(!name){ showToast('Please enter a template name.'); return; }
+  const all = getTemplates();
+  all.push({ id:'TMPL-'+Date.now(), name, type, fields:15, date:new Date().toISOString().split('T')[0] });
+  saveTemplates(all);
+  closeModal(); renderTemplates(); showToast('Template saved.');
+}
+
+function useTemplate(id){
+  const t = getTemplates().find(t=>t.id===id);
+  if(!t) return;
+  currentType = t.type;
+  openTab('upload');
+  showToast('Template loaded: '+t.name);
+}
+
+function deleteTemplate(id){
+  const all = getTemplates().filter(t=>t.id!==id);
+  saveTemplates(all); renderTemplates(); showToast('Template deleted.');
+}
+
+/* -- Types Guide ----------------------------------- */
+function renderTypesGuide(){
+  document.getElementById('typesGuide').innerHTML = IMPORT_TYPES.map(t => `
+    <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:1.4rem">${t.icon}</span>
+        <span style="font-family:'Sora',sans-serif;font-size:.95rem;font-weight:700;color:var(--ink-900)">${escHtml(t.name)}</span>
+        <span style="font-size:12px;color:var(--ink-500)">&mdash; ${escHtml(t.desc)}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${t.fields.map(f=>`<span style="background:rgba(60,144,209,.08);color:var(--blue-700);border:1px solid rgba(60,144,209,.2);border-radius:6px;padding:2px 8px;font-size:11.5px;font-family:monospace">${f}</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+/* -- Helpers --------------------------------------- */
+function fieldLabel(f){ return f.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+function formatBytes(b){ if(b<1024) return b+'B'; if(b<1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToast(msg, type='info'){
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--ink-900);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;box-shadow:var(--shadow-lg);max-width:340px';
+  t.textContent = msg; document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+function exportFailedRows(){ showToast('No failed rows in preview.'); }
+function downloadFailed(){ showToast('Downloading failed rows CSV...'); }
+function showModal(html){ document.getElementById('modalContent').innerHTML=html; document.getElementById('modalOverlay').style.display='flex'; }
+function closeModal(){ document.getElementById('modalOverlay').style.display='none'; }
+</script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - System Overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .super-badge{display:inline-block;background:rgba(139,92,246,.18);border:1px solid rgba(139,92,246,.45);color:#8b5cf6;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle}
+    .adm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+    .adm-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .adm-stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .adm-stat.amber::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .adm-stat.green::after{background:linear-gradient(180deg,#10b981,#059669)}
+    .adm-stat.purple::after{background:linear-gradient(180deg,#8b5cf6,#6d28d9)}
+    .adm-stat-num{font-family:"Sora",sans-serif;font-size:1.8rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .adm-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    .adm-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+    .adm-three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+    .adm-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm)}
+    .adm-panel-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:14px}
+    .health-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .health-item:last-child{border-bottom:none}
+    .health-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0}
+    .health-ok{background:#10b981}
+    .health-warn{background:#f59e0b}
+    .health-error{background:#ef4444}
+    .adm-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12.5px}
+    .adm-bar-label{width:150px;flex-shrink:0;color:var(--ink-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .adm-bar-track{flex:1;background:#edf1f5;border-radius:99px;height:7px;overflow:hidden}
+    .adm-bar-fill{background:var(--blue-600);height:100%;border-radius:99px}
+    .adm-bar-fill.purple{background:#8b5cf6}
+    .adm-bar-fill.amber{background:#f59e0b}
+    .adm-bar-fill.red{background:#ef4444}
+    .adm-bar-fill.green{background:#10b981}
+    .adm-bar-count{width:28px;text-align:right;font-weight:700;color:var(--ink-700);font-size:12px}
+    .period-bars-container{display:flex;gap:4px;align-items:flex-end}
+    .period-bar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+    .period-bar-outer{width:100%;background:#edf1f5;border-radius:4px;height:80px;display:flex;align-items:flex-end}
+    .period-bar-inner{width:100%;border-radius:4px 4px 0 0;transition:height .4s}
+    .period-bar-xlabel{font-size:10px;color:var(--ink-500);font-weight:600;margin-top:2px}
+    .period-bar-value{font-size:11px;font-weight:700;color:var(--ink-700)}
+    @media(max-width:1100px){.adm-three-col{grid-template-columns:1fr 1fr}}
+    @media(max-width:1000px){.adm-stats{grid-template-columns:1fr 1fr}.adm-two-col,.adm-three-col{grid-template-columns:1fr}}
+
+    /* Operations platform additions */
+    .adm-action-queues{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+    .adm-aq-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm)}
+    .adm-aq-card.urgent{border-left:4px solid #ef4444}
+    .adm-aq-card.waiting{border-left:4px solid #f59e0b}
+    .adm-aq-card.ready{border-left:4px solid #10b981}
+    .adm-aq-title{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:12px}
+    .adm-aq-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink-700)}
+    .adm-aq-item:last-child{border-bottom:none}
+    .adm-aq-num{font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:var(--ink-900)}
+    .adm-cc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:18px}
+    .adm-cc-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:14px}
+    .adm-workload-section{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:18px}
+    @media(max-width:1000px){.adm-action-queues{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link active" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>System Overview <span class="super-badge">Super Admin</span></h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--ink-500)">Logged in as: <span id="welcomeName" style="color:var(--ink-900)"></span></span>
+        <a class="btn btn-outline btn-sm" href="admin-users.html">Manage Users</a>
+      </div>
+    </header>
+
+    <!-- Needs Attention Action Queues -->
+    <div class="adm-action-queues">
+      <div class="adm-aq-card urgent">
+        <div class="adm-aq-title">&#9889; Needs Action Today</div>
+        <div id="ovAqNeedsAction"></div>
+      </div>
+      <div class="adm-aq-card waiting">
+        <div class="adm-aq-title">&#8987; Waiting on Outside Party</div>
+        <div id="ovAqWaiting"></div>
+      </div>
+      <div class="adm-aq-card ready">
+        <div class="adm-aq-title">&#10003; Ready to Close</div>
+        <div id="ovAqReadyToClose"></div>
+      </div>
+    </div>
+
+    <!-- Admin Command Center -->
+    <div class="adm-cc">
+      <div class="adm-cc-title">Admin Command Center &#8212; Top 10 Priority Items</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:600px">
+          <thead><tr>
+            <th>Ticket</th><th>Priority</th><th>Stage</th>
+            <th>Aging</th><th>SLA</th><th>Provider</th><th>Assignee</th>
+          </tr></thead>
+          <tbody id="ovCommandCenterRows"></tbody>
+        </table>
+        <div id="ovCommandCenterEmpty" style="display:none;text-align:center;padding:22px;font-size:13.5px;color:var(--ink-500)">No open items. All caught up!</div>
+      </div>
+    </div>
+
+    <!-- Staff Workload -->
+    <div class="adm-workload-section">
+      <div class="adm-panel-title" style="margin-bottom:14px">Staff Workload</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:500px">
+          <thead><tr><th>Staff Member</th><th>Open Tickets</th><th>Urgent</th><th>Overdue SLA</th><th>Workload</th></tr></thead>
+          <tbody id="ovStaffWorkloadRows"></tbody>
+        </table>
+        <div id="ovStaffWorkloadEmpty" style="display:none;text-align:center;padding:18px;font-size:13px;color:var(--ink-500)">No ticket data yet.</div>
+      </div>
+    </div>
+
+    <!-- --- Summary Cards Row 1: Users & Subscriptions --------------- -->
+    <div class="adm-stats">
+      <div class="adm-stat green"><div class="adm-stat-num" id="statActiveUsers">--</div><div class="adm-stat-label">Total Active Users</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statNewUsers">--</div><div class="adm-stat-label">New Users This Month</div></div>
+      <div class="adm-stat amber"><div class="adm-stat-num" id="statPendingApprovals">--</div><div class="adm-stat-label">Pending Approvals</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statActiveSubs">--</div><div class="adm-stat-label">Active Subscriptions</div></div>
+    </div>
+
+    <!-- --- Summary Cards Row 2: Billing & Tickets --------------------- -->
+    <div class="adm-stats">
+      <div class="adm-stat purple"><div class="adm-stat-num" id="statPastDue">--</div><div class="adm-stat-label">Past Due Accounts</div></div>
+      <div class="adm-stat amber"><div class="adm-stat-num" id="statOpenTickets">--</div><div class="adm-stat-label">Open Support Tickets</div></div>
+      <div class="adm-stat" style="--accent:#ef4444"><div class="adm-stat-num" id="statUrgentTickets">--</div><div class="adm-stat-label">Urgent Tickets</div></div>
+      <div class="adm-stat green"><div class="adm-stat-num" id="statMonthlyRevenue">--</div><div class="adm-stat-label">Monthly Revenue</div></div>
+    </div>
+
+    <!-- --- Summary Cards Row 3: Usage -------------------------------- -->
+    <div class="adm-stats">
+      <div class="adm-stat amber"><div class="adm-stat-num" id="statExpiringSubs">--</div><div class="adm-stat-label">Expiring Subscriptions</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statTotalSessions">--</div><div class="adm-stat-label">Total Sessions Generated</div></div>
+      <div class="adm-stat"><div class="adm-stat-num" id="statTopCode">--</div><div class="adm-stat-label">Most Common Code</div></div>
+      <div class="adm-stat purple"><div class="adm-stat-num" id="statTopProvider" style="font-size:1rem">--</div><div class="adm-stat-label">Most Active Provider</div></div>
+    </div>
+
+    <!-- --- Three-col: Ticket Volume | Sub Tiers | Recent Signups ---- -->
+    <div class="adm-three-col">
+      <div class="adm-panel">
+        <div class="adm-panel-title">Ticket Volume by Category</div>
+        <div id="ticketCatBars"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Subscription Tier Distribution</div>
+        <div id="subTierBars"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Recent Signups</div>
+        <div id="recentSignupsList"></div>
+      </div>
+    </div>
+
+    <!-- --- Two-col: User Growth | Revenue Trend ----------------------- -->
+    <div class="adm-two-col">
+      <div class="adm-panel">
+        <div class="adm-panel-title">User Growth Trend (Monthly)</div>
+        <div class="period-bars-container" id="userGrowthBars" style="height:90px;align-items:flex-end;gap:4px"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Revenue Trend (Monthly)</div>
+        <div class="period-bars-container" id="revenueBars" style="height:90px;align-items:flex-end;gap:4px"></div>
+      </div>
+    </div>
+
+    <!-- --- Two-col: System Alerts | Recent Ticket Activity ------------ -->
+    <div class="adm-two-col">
+      <div class="adm-panel">
+        <div class="adm-panel-title">System Alerts</div>
+        <div id="alertsContainer"></div>
+        <p id="noAlerts" style="font-size:13px;color:var(--ink-500)">No active alerts.</p>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Recent Ticket Activity</div>
+        <div id="recentTicketsList"></div>
+      </div>
+    </div>
+
+    <!-- --- Usage Trend ------------------------------------------------ -->
+    <div class="adm-panel" style="margin-bottom:18px">
+      <div class="adm-panel-title">Usage Trend - Sessions Generated (Weekly)</div>
+      <div class="period-bars-container" id="usageBars" style="height:80px;align-items:flex-end;gap:6px"></div>
+    </div>
+
+    <!-- --- Three-col: Diagnoses | Payers | Documentation Deficiencies - -->
+    <div class="adm-three-col">
+      <div class="adm-panel">
+        <div class="adm-panel-title">Most Common Diagnoses</div>
+        <div id="topDiagBars"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Most Common Payers</div>
+        <div id="topPayerBars"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Documentation Deficiencies</div>
+        <div id="topDeficiencyBars"></div>
+      </div>
+    </div>
+
+    <!-- --- Two-col: System Health + Storage --------------------------- -->
+    <div class="adm-two-col">
+      <div class="adm-panel">
+        <div class="adm-panel-title">System Health</div>
+        <div class="health-item"><span><span class="health-dot health-ok"></span>Supabase Auth</span><span style="font-size:12px;color:#10b981;font-weight:700">Operational</span></div>
+        <div class="health-item"><span><span class="health-dot health-ok"></span>Stripe Billing</span><span style="font-size:12px;color:#10b981;font-weight:700">Operational</span></div>
+        <div class="health-item"><span><span class="health-dot health-ok"></span>Express Server</span><span style="font-size:12px;color:#10b981;font-weight:700">Operational</span></div>
+        <div class="health-item"><span><span class="health-dot health-ok"></span>Static Assets</span><span style="font-size:12px;color:#10b981;font-weight:700">Operational</span></div>
+        <div class="health-item"><span><span class="health-dot health-warn"></span>Webhook Queue</span><span style="font-size:12px;color:#f59e0b;font-weight:700">1 Retry Pending</span></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">Storage Breakdown (Local)</div>
+        <div id="storageBreakdown"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* --- Seed / mock data ------------------------------------------------ */
+
+
+
+const KEYS = [
+  'docusistant_saved_reports_v1','docusistant_saved_notes_v1',
+  'docusistant_sc_tickets_v1','docusistant_sc_corr_v1',
+  'docusistant_sc_comments_v1','docusistant_sc_responses_v1',
+  'docusistant_sc_history_v1','docusistant_settings_v1'
+];
+
+function scGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[];}catch{return[];}}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* --- Bar chart renderer ------------------------------------------- */
+function renderBars(containerId, counts, colorClass) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const entries = Object.entries(counts);
+  if (!entries.length) { el.innerHTML='<p style="font-size:13px;color:var(--ink-500)">No data yet.</p>'; return; }
+  const sorted = entries.sort((a,b)=>b[1]-a[1]);
+  const max = sorted[0][1];
+  el.innerHTML = sorted.map(([label,n])=>
+    `<div class="adm-bar-row">
+      <span class="adm-bar-label" title="${escHtml(label)}">${escHtml(label)}</span>
+      <div class="adm-bar-track"><div class="adm-bar-fill ${colorClass||''}" style="width:${max?Math.round(n/max*100):0}%"></div></div>
+      <span class="adm-bar-count">${n}</span>
+    </div>`).join('');
+}
+
+/* --- Trend bar (vertical columns) renderer ----------------------- */
+function renderTrendBars(containerId, values, labels, colorVar) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!values.length) { el.innerHTML='<p style="font-size:13px;color:var(--ink-500)">No data yet.</p>'; return; }
+  const max = Math.max(...values, 1);
+  el.innerHTML = values.map((v,i) => {
+    const pct = Math.round(v/max*100);
+    const suffix = containerId.includes('revenue') ? 'k' : '';
+    return `<div class="period-bar-col">
+      <span class="period-bar-value">${v}${suffix}</span>
+      <div class="period-bar-outer"><div class="period-bar-inner" style="height:${pct}%;background:${colorVar||'var(--blue-500)'}"></div></div>
+      <span class="period-bar-xlabel">${labels[i]||''}</span>
+    </div>`;
+  }).join('');
+}
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+
+  /* -- Populate seed summary cards ----------------------- */
+  document.getElementById('statActiveUsers').textContent    = '--';
+  document.getElementById('statNewUsers').textContent       = '--';
+  document.getElementById('statPendingApprovals').textContent = '--';
+  document.getElementById('statActiveSubs').textContent     = '--';
+  document.getElementById('statPastDue').textContent        = '--';
+  document.getElementById('statMonthlyRevenue').textContent = '--';
+  document.getElementById('statExpiringSubs').textContent   = '--';
+  document.getElementById('statTotalSessions').textContent  = '--';
+
+  /* -- Live data from localStorage ----------------------- */
+  const tickets = scGet('docusistant_sc_tickets_v1');
+  const reports = getStoredCoderReports ? getStoredCoderReports() : [];
+  const notes   = getStoredNotes ? getStoredNotes() : [];
+
+  const openTickets   = tickets.filter(t=>!['Completed','Closed'].includes(t.status));
+  const urgentTickets = openTickets.filter(t=>t.priority==='Urgent');
+
+  document.getElementById('statOpenTickets').textContent  = openTickets.length;
+  document.getElementById('statUrgentTickets').textContent = urgentTickets.length;
+
+  /* -- Codes from reports --------------------------------- */
+  const codeCount = {};
+  reports.forEach(r=>{
+    (r.codes||'').split('\n').forEach(line=>{
+      const m=line.match(/\b(H\d{4}|90\d{3}|96\d{3})\b/);
+      if(m) codeCount[m[1]]=(codeCount[m[1]]||0)+1;
+    });
+  });
+  const topCode = Object.entries(codeCount).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('statTopCode').textContent = topCode ? topCode[0] : 'H0031';
+
+  /* -- Top provider --------------------------------------- */
+  const provCount = {};
+  reports.forEach(r=>{ const p=r.provider||'--'; provCount[p]=(provCount[p]||0)+1; });
+  const topProv = Object.entries(provCount).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('statTopProvider').textContent = topProv ? topProv[0].split(' ')[0]+'--' : '--';
+
+  /* -- Charts --------------------------------------------- */
+  renderBars('ticketCatBars', {}, '');
+  renderBars('subTierBars', {}, 'purple');
+  renderBars('topDiagBars', {}, 'amber');
+  renderBars('topPayerBars', {}, '');
+  renderBars('topDeficiencyBars', {}, 'red');
+  renderTrendBars('userGrowthBars', [], [], 'var(--blue-500)');
+  renderTrendBars('revenueBars', [], [], '#10b981');
+  renderTrendBars('usageBars', [], [], 'var(--blue-600)');
+
+  /* -- Recent signups ------------------------------------- */
+  const signupEl = document.getElementById('recentSignupsList');
+  signupEl.innerHTML = '<p style="font-size:13px;color:var(--ink-500)">No recent sign-ups.</p>';
+
+  /* -- Recent tickets ------------------------------------- */
+  const tickColors = {'Urgent':'#ef4444','Open':'var(--blue-600)','Pending':'#f59e0b','Completed':'#10b981','Closed':'var(--ink-500)'};
+  const tickEl = document.getElementById('recentTicketsList');
+  const displayTickets = tickets.length ? tickets.slice(-5).reverse() : [];
+  tickEl.innerHTML = displayTickets.map(t =>
+    `<div class="health-item" style="font-size:12.5px">
+      <span><a href="support-center.html" style="color:var(--blue-700);font-weight:600">${escHtml(t.id||'--')}</a> ${escHtml(t.subject||'--')}</span>
+      <span style="color:${tickColors[t.status]||'var(--ink-500)'};font-weight:700;font-size:11.5px">${escHtml(t.status||'--')}</span>
+    </div>`).join('');
+
+  /* -- System Alerts ------------------------------------- */
+  const alerts = [];
+  if (urgentTickets.length) alerts.push({icon:'??',title:`${urgentTickets.length} urgent ticket(s) open`,meta:'Review in Support Tickets'});
+  const now=Date.now(), day7=7*864e5;
+  const stale = tickets.filter(t=>!['Completed','Closed'].includes(t.status)&&(now-new Date(t.lastUpdated||t.created||0).getTime())>=day7);
+  if (stale.length) alerts.push({icon:'??',title:`${stale.length} ticket(s) without update 7+ days`,meta:'Update or close stale tickets'});
+  if (0 > 0) alerts.push({icon:'??',title:`0 user approvals pending`,meta:'Review in User Management'});
+  if (0 > 0) alerts.push({icon:'??',title:`0 past-due accounts`,meta:'Review in Subscriptions'});
+  const aC = document.getElementById('alertsContainer'), noA = document.getElementById('noAlerts');
+  noA.style.display = alerts.length ? 'none' : 'block';
+  alerts.forEach(a=>{ const d=document.createElement('div'); d.className='alert-item'; d.innerHTML=`<span class="alert-icon">${a.icon}</span><div class="alert-msg"><strong>${escHtml(a.title)}</strong><span class="alert-meta">${escHtml(a.meta)}</span></div>`; aC.appendChild(d); });
+
+  /* -- Storage breakdown -- */
+  const keyLabels={'docusistant_saved_reports_v1':'Reports','docusistant_saved_notes_v1':'Notes','docusistant_sc_tickets_v1':'Tickets','docusistant_sc_corr_v1':'Correspondence','docusistant_sc_comments_v1':'Comments','docusistant_sc_responses_v1':'Responses','docusistant_sc_history_v1':'History','docusistant_settings_v1':'Settings'};
+  const keyCounts={};
+  KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v)keyCounts[keyLabels[k]||k]=Math.round(new Blob([v]).size/1024*10)/10;});
+  const sbEl=document.getElementById('storageBreakdown');
+  if(!Object.keys(keyCounts).length){sbEl.innerHTML='<p style="font-size:13px;color:var(--ink-500)">No local data yet.</p>';}
+  else{const sorted=Object.entries(keyCounts).sort((a,b)=>b[1]-a[1]);const maxKB=sorted[0][1];sbEl.innerHTML=sorted.map(([label,kb])=>'<div class="adm-bar-row"><span class="adm-bar-label">'+escHtml(label)+'</span><div class="adm-bar-track"><div class="adm-bar-fill" style="width:'+(maxKB?Math.round(kb/maxKB*100):0)+'%"></div></div><span class="adm-bar-count" style="width:45px">'+kb+'KB</span></div>').join('');}
+
+  /* -- Operations platform -- */
+  renderOpsOverview(tickets, openTickets, urgentTickets);
+};
+function renderOpsOverview(tickets, openTickets, urgentTickets) {
+  var mkItem=function(label,count,href){return '<div class="adm-aq-item"'+(href?' style="cursor:pointer" onclick="location.href=\''+href+'\'"':'')+'>'+
+    '<span>'+escHtml(label)+'</span><span class="adm-aq-num">'+count+'</span></div>';};
+  var waitingIns=tickets.filter(function(t){return t.status==='Waiting on Insurance'||t.workflowStage==='Waiting on Insurance';});
+  var waitingCl=tickets.filter(function(t){return t.status==='Waiting on Client'||t.workflowStage==='Waiting on Client';});
+  var waitingProv=openTickets.filter(function(t){return t.workflowStage==='Waiting on Provider';});
+  var waitingDoc=openTickets.filter(function(t){return t.workflowStage==='Waiting on Documentation';});
+  var readyReview=openTickets.filter(function(t){return t.workflowStage==='Ready for Review';});
+  var completedNC=tickets.filter(function(t){return t.status==='Completed'&&!t.resolutionCode;});
+  var overdueT=openTickets.filter(function(t){return getSLAStatus(t)==='overdue';});
+  var triggered=checkEscalationTriggers(tickets);
+  var na=document.getElementById('ovAqNeedsAction');
+  if(na)na.innerHTML=mkItem('Urgent Open Tickets',urgentTickets.length,'support-center.html')+mkItem('Overdue SLA',overdueT.length,'support-center.html')+mkItem('Escalation Triggers',triggered.length,'support-center.html');
+  var wa=document.getElementById('ovAqWaiting');
+  if(wa)wa.innerHTML=mkItem('Waiting on Insurance',waitingIns.length,'support-center.html')+mkItem('Waiting on Client',waitingCl.length,'support-center.html')+mkItem('Waiting on Provider',waitingProv.length,'support-center.html')+mkItem('Waiting on Docs',waitingDoc.length,'support-center.html');
+  var rc=document.getElementById('ovAqReadyToClose');
+  if(rc)rc.innerHTML=mkItem('Ready for Review',readyReview.length,'support-center.html')+mkItem('Completed - Needs Closure',completedNC.length,'support-center.html');
+  var scored=openTickets.map(function(t){var sla=getSLAStatus(t);var s=0;
+    if(t.priority==='Urgent')s+=1000;if(sla==='overdue')s+=800;if(sla==='at-risk')s+=400;if(t.priority==='High Priority')s+=200;
+    s+=(Date.now()-new Date(t.dateSubmitted||0).getTime())/3600000;return{t:t,score:s,sla:sla};}).sort(function(a,b){return b.score-a.score;}).slice(0,10);
+  var ccRows=document.getElementById('ovCommandCenterRows'),ccEmpty=document.getElementById('ovCommandCenterEmpty');
+  if(ccRows){if(!scored.length){if(ccEmpty)ccEmpty.style.display='block';ccRows.innerHTML='';}
+  else{if(ccEmpty)ccEmpty.style.display='none';ccRows.innerHTML=scored.map(function(o){var t=o.t,sla=o.sla;
+    return '<tr onclick="location.href=\'support-center.html\'" style="cursor:pointer"><td><strong>'+escHtml(t.id)+'</strong></td><td>'+priorityBadgeAdm(t.priority)+'</td><td style="font-size:12px">'+escHtml(t.workflowStage||'New Intake')+'</td><td style="font-size:12px">'+getAgingLabel(t)+'</td><td>'+(sla?slaBadge(sla):'')+'</td><td>'+escHtml(t.provider||'')+'</td><td>'+escHtml(t.assignedTo||'Unassigned')+'</td></tr>';}).join('');}}
+  var assignCounts={};openTickets.forEach(function(t){var a=t.assignedTo||'';if(a)assignCounts[a]=(assignCounts[a]||0)+1;});
+  var staffRows=document.getElementById('ovStaffWorkloadRows'),staffEmpty=document.getElementById('ovStaffWorkloadEmpty');
+  if(staffRows){var staffEntries=Object.entries(assignCounts);
+    if(!staffEntries.length){if(staffEmpty)staffEmpty.style.display='block';staffRows.innerHTML='';}
+    else{if(staffEmpty)staffEmpty.style.display='none';staffRows.innerHTML=staffEntries.map(function(e){var name=e[0],count=e[1];
+      var urg=openTickets.filter(function(t){return t.assignedTo===name&&t.priority==='Urgent';}).length;
+      var ov=openTickets.filter(function(t){return t.assignedTo===name&&getSLAStatus(t)==='overdue';}).length;
+      var sc=calcWorkloadScore(name,openTickets);
+      return '<tr><td><strong>'+escHtml(name)+'</strong></td><td style="text-align:center">'+count+'</td><td style="text-align:center">'+(urg||'-')+'</td><td style="text-align:center">'+(ov||'-')+'</td><td><span style="padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;background:'+sc.color+'22;color:'+sc.color+'">'+sc.label+'</span></td></tr>';}).join('');}}
+}
+function priorityBadgeAdm(p){
+  var m={'Urgent':['#fde8e8','#9b1c1c'],'High Priority':['#fff0e5','#7c2d12'],'Routine':['#f3f4f6','#374151']};
+  var r=m[p]||m['Routine'];
+  return '<span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:'+r[0]+';color:'+r[1]+'">'+escHtml(p)+'</span>';
+}
+</script>
+</body>

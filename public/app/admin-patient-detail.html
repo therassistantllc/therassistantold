@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecting - Patients</title>
+<script>
+(function(){
+  var params = new URLSearchParams(window.location.search);
+  var hash = (window.location.hash || '').toLowerCase();
+  var tab = 'demographics';
+  if (hash.indexOf('auth') > -1) tab = 'authorizations';
+  if (hash.indexOf('claim') > -1) tab = 'claims';
+  if (hash.indexOf('payment') > -1 || hash.indexOf('invoice') > -1) tab = 'payments';
+  if (hash.indexOf('note') > -1) tab = 'notes';
+  if (hash.indexOf('message') > -1 || hash.indexOf('communication') > -1) tab = 'communications';
+  var target = new URL('admin-patients.html', window.location.href);
+  target.searchParams.set('tab', tab);
+  if (params.get('id')) target.searchParams.set('id', params.get('id'));
+  window.location.replace(target.toString());
+}());
+</script>
+</head>
+<body></body>
+</html>

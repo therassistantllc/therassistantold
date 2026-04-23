@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Correspondence Repository</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .corr-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);cursor:pointer;transition:box-shadow .15s,border-color .15s}
+    .corr-card:hover{border-color:var(--blue-500);box-shadow:var(--shadow-md)}
+    .corr-card-title{font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .corr-card-meta{font-size:12px;color:var(--ink-500);display:flex;flex-direction:column;gap:2px}
+    .corr-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:6px;flex-wrap:wrap}
+    .corr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+    /* Drawer */
+    .corr-drawer-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1000;display:none;align-items:stretch;justify-content:flex-end}
+    .corr-drawer-backdrop.open{display:flex}
+    .corr-drawer{width:min(680px,100%);background:#fff;border-left:1px solid var(--border);box-shadow:0 0 60px rgba(13,53,94,.25);display:flex;flex-direction:column;overflow:hidden}
+    .corr-drawer-head{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid var(--border)}
+    .corr-drawer-body{flex:1;overflow-y:auto;padding:20px 24px}
+    .corr-drawer-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+    .field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:3px}
+    .field-val{font-size:13.5px;color:var(--ink-900);font-weight:500;margin-bottom:12px}
+    .notes-area{width:100%;min-height:80px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-family:inherit;font-size:13px;resize:vertical;outline:none}
+    .notes-area:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    @media(max-width:900px){.corr-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:600px){.corr-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link active" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Correspondence Repository</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="openNewCorr()">&#43; Upload Document</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCorrCSV()">&#8595; Export CSV</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statTotal">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Total Documents</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#f59e0b,#b45309)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statPending">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Pending Review</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#ef4444,#b91c1c)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statDenials">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Denial Letters</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#10b981,#059669)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statAppeals">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Appeals Filed</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="corrSearch" placeholder="Search by payer, provider, client, type&hellip;" oninput="renderCorr()">
+        <select id="corrTypeFilter" onchange="renderCorr()">
+          <option value="">All Document Types</option>
+          <option value="EOB">EOB</option>
+          <option value="Denial Letter">Denial Letter</option>
+          <option value="Appeal">Appeal</option>
+          <option value="Reconsideration">Reconsideration</option>
+          <option value="Recoupment Notice">Recoupment Notice</option>
+          <option value="Refund Request">Refund Request</option>
+          <option value="Credentialing Letter">Credentialing Letter</option>
+          <option value="Medical Records Request">Medical Records Request</option>
+          <option value="Prior Authorization Notice">Prior Authorization Notice</option>
+          <option value="Other">Other</option>
+        </select>
+        <select id="corrStatusFilter" onchange="renderCorr()">
+          <option value="">All Statuses</option>
+          <option value="Pending Review">Pending Review</option>
+          <option value="Reviewed">Reviewed</option>
+          <option value="Linked to Ticket">Linked to Ticket</option>
+          <option value="Needs Follow-Up">Needs Follow-Up</option>
+          <option value="Closed">Closed</option>
+        </select>
+        <select id="corrPayerFilter" onchange="renderCorr()">
+          <option value="">All Payers</option>
+          <option>Colorado Medicaid</option>
+          <option>Aetna Better Health</option>
+          <option>United BH</option>
+          <option>Anthem BCBS</option>
+          <option>CCHA</option>
+        </select>
+        <span id="corrCount" style="font-size:13px;color:var(--ink-500)"></span>
+      </div>
+      <!-- Card grid (from sc_corr localStorage + seed) -->
+      <div class="corr-grid" id="corrGrid"></div>
+      <div id="corrEmpty" style="display:none;text-align:center;padding:40px;font-size:14px;color:var(--ink-500)">No correspondence documents found.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Document Drawer -->
+<div class="corr-drawer-backdrop" id="corrDrawerBackdrop" onclick="if(event.target===this)closeDrawer()">
+  <div class="corr-drawer">
+    <div class="corr-drawer-head">
+      <div style="flex:1">
+        <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:1.05rem;color:var(--ink-900)" id="drawerDocTitle">Document</div>
+        <div style="font-size:12.5px;color:var(--ink-500)" id="drawerDocType"></div>
+      </div>
+      <button onclick="closeDrawer()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500)">&times;</button>
+    </div>
+    <div class="corr-drawer-body" id="corrDrawerBody"></div>
+    <div class="corr-drawer-footer">
+      <button class="btn btn-primary btn-sm" onclick="markReviewed()">Mark Reviewed</button>
+      <button class="btn btn-outline btn-sm" onclick="linkToTicket()">Link to Ticket</button>
+      <button class="btn btn-outline btn-sm" onclick="assignFollowUp()">Assign Follow-Up</button>
+      <button class="btn btn-outline btn-sm" onclick="createTicketFromCorr()">Create Ticket</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Download \u2014 connect file storage')">&#8595; Download</button>
+      <button class="btn btn-outline btn-sm" onclick="closeDrawer()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(iso){if(!iso)return'?';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function scGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[];}catch{return[];}}
+
+/* -- Seed correspondence documents ------------------------------- */
+const SEED_CORR = [];
+
+let allCorr = [];
+let filtCorr = [];
+let activeDocId = null;
+
+const STATUS_COLORS = {
+  'Pending Review':'#f59e0b',
+  'Reviewed':'#10b981',
+  'Linked to Ticket':'var(--blue-600)',
+  'Needs Follow-Up':'#ef4444',
+  'Closed':'var(--ink-500)'
+};
+
+const TYPE_ICONS = {
+  'EOB':'??','Denial Letter':'??','Appeal':'??','Reconsideration':'??',
+  'Recoupment Notice':'??','Refund Request':'??','Credentialing Letter':'??',
+  'Medical Records Request':'??','Prior Authorization Notice':'?','Other':'??'
+};
+
+function loadCorr() {
+  /* Merge localStorage corr + seed */
+  const stored = scGet('docusistant_sc_corr_v1');
+  allCorr = [...SEED_CORR, ...stored.map(c => ({
+    id: c.id || ('CORR-' + Date.now()),
+    title: c.fileName || c.title || 'Unnamed Document',
+    type: c.type || 'Other',
+    payer: c.payer || '?',
+    provider: c.provider || '?',
+    client: c.client || '?',
+    status: c.status || 'Pending Review',
+    uploaded: fmtDate(c.uploadedAt || c.created),
+    ticketId: c.ticketId || null
+  }))];
+
+  /* Stats */
+  document.getElementById('statTotal').textContent   = allCorr.length;
+  document.getElementById('statPending').textContent = allCorr.filter(c=>c.status==='Pending Review').length;
+  document.getElementById('statDenials').textContent = allCorr.filter(c=>c.type==='Denial Letter').length;
+  document.getElementById('statAppeals').textContent = allCorr.filter(c=>c.type==='Appeal').length;
+
+  renderCorr();
+}
+
+function renderCorr() {
+  const q     = (document.getElementById('corrSearch').value||'').toLowerCase();
+  const type  = document.getElementById('corrTypeFilter').value;
+  const stat  = document.getElementById('corrStatusFilter').value;
+  const payer = document.getElementById('corrPayerFilter').value;
+
+  filtCorr = allCorr.filter(c => {
+    if (q && !c.title.toLowerCase().includes(q) && !c.payer.toLowerCase().includes(q) && !c.provider.toLowerCase().includes(q) && !c.client.toLowerCase().includes(q)) return false;
+    if (type && c.type !== type) return false;
+    if (stat && c.status !== stat) return false;
+    if (payer && c.payer !== payer) return false;
+    return true;
+  });
+
+  document.getElementById('corrCount').textContent = `${filtCorr.length} document${filtCorr.length!==1?'s':''}`;
+  document.getElementById('corrEmpty').style.display = filtCorr.length ? 'none' : 'block';
+  document.getElementById('corrGrid').innerHTML = filtCorr.map(c =>
+    `<div class="corr-card" onclick="openDoc('${escHtml(c.id)}')">
+      <div class="corr-card-title">${TYPE_ICONS[c.type]||'??'} ${escHtml(c.title)}</div>
+      <div class="corr-card-meta">
+        <span><strong>Type:</strong> ${escHtml(c.type)}</span>
+        <span><strong>Payer:</strong> ${escHtml(c.payer)}</span>
+        <span><strong>Provider:</strong> ${escHtml(c.provider)}</span>
+        <span><strong>Client:</strong> ${escHtml(c.client)}</span>
+        ${c.ticketId ? `<span><strong>Ticket:</strong> <a href="support-center.html" style="color:var(--blue-700)">${escHtml(c.ticketId)}</a></span>` : ''}
+      </div>
+      <div class="corr-card-foot">
+        <span style="font-size:11px;font-weight:700;color:${STATUS_COLORS[c.status]||'var(--ink-500)'};text-transform:uppercase">${escHtml(c.status)}</span>
+        <span style="font-size:11.5px;color:var(--ink-500)">${escHtml(c.uploaded)}</span>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function openDoc(id) {
+  const c = allCorr.find(x => x.id === id);
+  if (!c) return;
+  activeDocId = id;
+  document.getElementById('drawerDocTitle').textContent = c.title;
+  document.getElementById('drawerDocType').textContent  = c.type;
+  document.getElementById('corrDrawerBody').innerHTML = `
+    <div class="field-label">Document Type</div><div class="field-val">${escHtml(c.type)}</div>
+    <div class="field-label">Payer</div><div class="field-val">${escHtml(c.payer)}</div>
+    <div class="field-label">Provider</div><div class="field-val">${escHtml(c.provider)}</div>
+    <div class="field-label">Client</div><div class="field-val">${escHtml(c.client)}</div>
+    <div class="field-label">Linked Ticket</div><div class="field-val">${c.ticketId ? `<a href="support-center.html" style="color:var(--blue-700)">${escHtml(c.ticketId)}</a>` : '?'}</div>
+    <div class="field-label">Date Uploaded</div><div class="field-val">${escHtml(c.uploaded)}</div>
+    <div class="field-label">Status</div><div class="field-val"><strong style="color:${STATUS_COLORS[c.status]||'var(--ink-900)'}">${escHtml(c.status)}</strong></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <div class="field-label">Internal Notes</div>
+    <textarea class="notes-area" id="docInternalNotes" placeholder="Add internal notes about this document&hellip;">${escHtml(c.notes||'')}</textarea>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    ${renderAutomationPrompt(c.type)}`;
+  document.getElementById('corrDrawerBackdrop').classList.add('open');
+}
+
+function closeDrawer() { document.getElementById('corrDrawerBackdrop').classList.remove('open'); }
+function markReviewed() { alert('Mark reviewed ? connect backend to persist status.'); }
+function linkToTicket() { alert('Link to ticket ? connect backend.'); }
+function assignFollowUp() { alert('Assign follow-up ? connect staff & notifications.'); }
+function createTicketFromCorr() { window.location.href = 'support-center.html'; }
+function openNewCorr() { alert('Upload document ? connect file storage backend.'); }
+function exportCorrCSV() {
+  const rows = [['ID','Title','Type','Payer','Provider','Client','Status','Uploaded']];
+  allCorr.forEach(c => rows.push([c.id,c.title,c.type,c.payer,c.provider,c.client,c.status,c.uploaded]));
+  const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='correspondence.csv'; a.click();
+}
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+  loadCorr();
+};
+</script>
+</body>
+</html>

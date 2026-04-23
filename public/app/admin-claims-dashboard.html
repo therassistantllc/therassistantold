@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claims Overview - Redirecting</title>
+</head>
+<body>
+<p>Redirecting to <a id="redirectLink" href="admin-claims.html?tab=overview">Claims Overview</a>...</p>
+<script>
+(function () {
+  var current = new URL(window.location.href);
+  var target = new URL("admin-claims.html", current.href);
+  current.searchParams.forEach(function (value, key) { target.searchParams.set(key, value); });
+  target.searchParams.set("tab", "overview");
+  target.hash = current.hash;
+  document.getElementById("redirectLink").href = target.toString();
+  window.location.replace(target.toString());
+}());
+</script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Integrations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .integrations-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .integration-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:20px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:12px}
+    .integration-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+    .integration-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px}
+    .integration-name{font-weight:700;font-size:15px;color:var(--ink-900);font-family:'Sora',sans-serif}
+    .integration-status{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600}
+    .status-connected{background:#d1fae5;color:#065f46}
+    .status-disconnected{background:#fecaca;color:#7f1d1d}
+    .status-error{background:#fed7aa;color:#92400e}
+
+    .integration-desc{font-size:13px;color:var(--ink-600)}
+    .integration-actions{display:flex;gap:8px}
+    .btn-link{background:none;border:none;color:var(--blue-700);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;padding:0}
+    .btn-link:hover{text-decoration:underline}
+
+    .btn-primary{padding:10px 20px;background:var(--blue-700);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+    .btn-primary:hover{background:var(--blue-800)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-users.html">Users</a>
+      <a class="nav-link" href="admin-roles.html">Roles & Permissions</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Integrations</h1>
+        <p>Connect external services and platforms to THERASSISTANT</p>
+      </div>
+    </header>
+
+    <div class="integrations-grid">
+      <!-- Office Ally -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#e0e7ff">📊</div>
+          <div>
+            <div class="integration-name">Office Ally</div>
+            <span class="integration-status status-connected">Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Clearinghouse for claims and ERA processing</div>
+        <div class="integration-actions">
+          <button class="btn-link">Configure</button>
+          <button class="btn-link">Test Connection</button>
+          <button class="btn-link">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- Stripe -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#f3e8ff">🔷</div>
+          <div>
+            <div class="integration-name">Stripe</div>
+            <span class="integration-status status-connected">Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Payment processing and billing</div>
+        <div class="integration-actions">
+          <button class="btn-link">Configure</button>
+          <button class="btn-link">View Transactions</button>
+          <button class="btn-link">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- SimplePractice -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#dbeafe">📅</div>
+          <div>
+            <div class="integration-name">SimplePractice</div>
+            <span class="integration-status status-disconnected">Not Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Practice management and scheduling sync</div>
+        <div class="integration-actions">
+          <button class="btn-link">Connect</button>
+          <button class="btn-link">View Docs</button>
+        </div>
+      </div>
+
+      <!-- Zoom -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#dbeafe">📹</div>
+          <div>
+            <div class="integration-name">Zoom</div>
+            <span class="integration-status status-connected">Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Telehealth video conferencing</div>
+        <div class="integration-actions">
+          <button class="btn-link">Configure</button>
+          <button class="btn-link">Test Connection</button>
+          <button class="btn-link">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- Google Workspace -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#fef3c7">📧</div>
+          <div>
+            <div class="integration-name">Google Workspace</div>
+            <span class="integration-status status-disconnected">Not Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Email and calendar integration</div>
+        <div class="integration-actions">
+          <button class="btn-link">Connect</button>
+          <button class="btn-link">View Docs</button>
+        </div>
+      </div>
+
+      <!-- Slack -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#e0f2fe">💬</div>
+          <div>
+            <div class="integration-name">Slack</div>
+            <span class="integration-status status-disconnected">Not Connected</span>
+          </div>
+        </div>
+        <div class="integration-desc">Team notifications and alerts</div>
+        <div class="integration-actions">
+          <button class="btn-link">Connect</button>
+          <button class="btn-link">View Docs</button>
+        </div>
+      </div>
+
+      <!-- Webhooks -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#f5f3ff">🔗</div>
+          <div>
+            <div class="integration-name">Webhooks</div>
+            <span class="integration-status status-error">6 Errors</span>
+          </div>
+        </div>
+        <div class="integration-desc">Custom webhook configurations</div>
+        <div class="integration-actions">
+          <button class="btn-link">Manage</button>
+          <button class="btn-link">View Logs</button>
+          <button class="btn-link">Setup Docs</button>
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <div class="integration-icon" style="background:#fce7f3">🔐</div>
+          <div>
+            <div class="integration-name">API Keys</div>
+            <span class="integration-status status-connected">3 Active</span>
+          </div>
+        </div>
+        <div class="integration-desc">Manage API access for developers</div>
+        <div class="integration-actions">
+          <button class="btn-link">Manage Keys</button>
+          <button class="btn-link">View Documentation</button>
+          <button class="btn-link">Activity Log</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-integrations] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-integrations] Init failed:', err);
+    }
+  }
+
+  document.querySelectorAll('.btn-link').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Integrations] Action clicked'));
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Document Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .upload-zone{
+      border:2px dashed var(--border);
+      border-radius:11px;
+      padding:32px;
+      text-align:center;
+      background:var(--surface);
+      cursor:pointer;
+      transition:all .2s;
+      margin-bottom:24px;
+    }
+
+    .upload-zone:hover{
+      border-color:var(--blue-500);
+      background:#f0f7ff;
+    }
+
+    .upload-zone.dragover{
+      background:#e0edff;
+      border-color:var(--blue-600);
+    }
+
+    .upload-icon{font-size:2.5rem;margin-bottom:12px}
+    .upload-text{font-size:14px;font-weight:600;color:var(--ink-900)}
+    .upload-sub{font-size:12px;color:var(--ink-500);margin-top:4px}
+
+    .toolbar{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:20px;
+      align-items:center;
+    }
+
+    .search-input{
+      flex:1;
+      min-width:200px;
+      padding:8px 12px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      font-size:13px;
+      background:var(--surface);
+    }
+
+    .document-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      gap:16px;
+    }
+
+    .document-card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:11px;
+      overflow:hidden;
+      box-shadow:var(--shadow-sm);
+      transition:all .2s;
+    }
+
+    .document-card:hover{
+      border-color:var(--blue-500);
+      box-shadow:var(--shadow-md);
+      transform:translateY(-2px);
+    }
+
+    .document-preview{
+      background:linear-gradient(135deg,#f0f7ff,#e0edff);
+      padding:20px;
+      text-align:center;
+      font-size:2.5rem;
+      min-height:120px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-bottom:1px solid var(--border);
+    }
+
+    .document-info{
+      padding:12px 14px;
+    }
+
+    .document-name{
+      font-size:13px;
+      font-weight:700;
+      color:var(--ink-900);
+      margin-bottom:4px;
+      word-break:break-word;
+    }
+
+    .document-meta{
+      font-size:11px;
+      color:var(--ink-500);
+      margin-bottom:8px;
+    }
+
+    .document-tags{
+      display:flex;
+      gap:4px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+
+    .tag{
+      display:inline-block;
+      padding:2px 7px;
+      background:#e0edff;
+      color:var(--blue-700);
+      border-radius:4px;
+      font-size:10px;
+      font-weight:600;
+    }
+
+    .document-actions{
+      display:flex;
+      gap:6px;
+      padding-top:10px;
+      border-top:1px solid var(--border);
+    }
+
+    .document-actions button{
+      flex:1;
+      padding:6px 8px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:var(--surface);
+      cursor:pointer;
+      font-size:11px;
+      font-weight:600;
+      color:var(--ink-700);
+      transition:all .15s;
+    }
+
+    .document-actions button:hover{
+      background:#f0f7ff;
+      border-color:var(--blue-400);
+      color:var(--blue-700);
+    }
+
+    .empty-state{
+      text-align:center;
+      padding:48px;
+      color:var(--ink-500);
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:11px;
+      grid-column:1/-1;
+    }
+
+    @media(max-width:768px){
+      .document-grid{
+        grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+      }
+      .toolbar{
+        flex-direction:column;
+      }
+      .search-input{
+        min-width:unset;
+        width:100%;
+      }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Documents</div>
+      <a class="nav-link active" href="admin-document-center.html">Document Center</a>
+      <a class="nav-link" href="admin-document-center.html?type=intake">Intake Forms</a>
+      <a class="nav-link" href="admin-document-center.html?type=treatment">Treatment Plans</a>
+      <a class="nav-link" href="admin-document-center.html?type=notes">Progress Notes</a>
+      <a class="nav-link" href="admin-document-center.html?type=superbills">Superbills</a>
+      <a class="nav-link" href="admin-document-center.html?type=statements">Statements</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Document Center</h1>
+        <p>Upload, organize, and manage client documents</p>
+      </div>
+    </header>
+
+    <!-- Drag & Drop Upload Zone -->
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-icon">📤</div>
+      <div class="upload-text">Drag documents here or click to browse</div>
+      <div class="upload-sub">Supports PDF, DOC, DOCX, images, and more</div>
+      <input type="file" id="fileInput" multiple style="display:none">
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+      <input class="search-input" type="search" id="searchInput" placeholder="Search by document name, client, tags…" style="flex:1;min-width:250px">
+      
+      <select id="typeFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)">
+        <option value="">All Types</option>
+        <option value="intake">Intake Forms</option>
+        <option value="treatment">Treatment Plans</option>
+        <option value="notes">Progress Notes</option>
+        <option value="superbills">Superbills</option>
+        <option value="statements">Statements</option>
+        <option value="other">Other</option>
+      </select>
+
+      <select id="clientFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)">
+        <option value="">All Clients</option>
+        <option value="PAT-001">John Doe</option>
+        <option value="PAT-002">Jane Smith</option>
+        <option value="PAT-003">Bob Johnson</option>
+      </select>
+
+      <input type="date" id="dateFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)">
+    </div>
+
+    <!-- Documents Grid -->
+    <div class="document-grid" id="documentsContainer">
+      <div class="empty-state">
+        <div style="font-size:2.5rem;margin-bottom:12px">📁</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink-700);margin-bottom:6px">No documents found</div>
+        <div style="font-size:12px">Upload your first document using the drag-and-drop area above</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+const SEED_DOCS = [
+  {id:1, name:'John Doe Intake Form.pdf', type:'intake', client:'PAT-001', clientName:'John Doe', date:'2026-04-10', tags:['intake','important']},
+  {id:2, name:'Jane Smith Treatment Plan.docx', type:'treatment', client:'PAT-002', clientName:'Jane Smith', date:'2026-04-09', tags:['treatment','active']},
+  {id:3, name:'Progress Note - 04-10-2026.pdf', type:'notes', client:'PAT-001', clientName:'John Doe', date:'2026-04-10', tags:['progress','session']},
+];
+
+const typeIcons = {
+  intake:'📋',
+  treatment:'📝',
+  notes:'📄',
+  superbills:'💰',
+  statements:'📊',
+  other:'📎'
+};
+
+function getFileType(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  if (['pdf'].includes(ext)) return 'pdf';
+  if (['doc','docx'].includes(ext)) return 'doc';
+  if (['jpg','jpeg','png','gif'].includes(ext)) return 'image';
+  return 'file';
+}
+
+function renderDocCard(doc) {
+  const icon = typeIcons[doc.type] || '📄';
+  
+  return `
+    <div class="document-card">
+      <div class="document-preview">${icon}</div>
+      <div class="document-info">
+        <div class="document-name">${doc.name}</div>
+        <div class="document-meta">
+          <div>${doc.clientName}</div>
+          <div>${new Date(doc.date).toLocaleDateString()}</div>
+        </div>
+        <div class="document-tags">
+          ${doc.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+        </div>
+        <div class="document-actions">
+          <button class="js-download">Download</button>
+          <button class="js-delete">Delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDocs(docs) {
+  const container = document.getElementById('documentsContainer');
+  
+  if (!docs.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div style="font-size:2.5rem;margin-bottom:12px">📁</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink-700);margin-bottom:6px">No documents found</div>
+        <div style="font-size:12px">Try adjusting your search filters</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = docs.map(renderDocCard).join('');
+  
+  container.querySelectorAll('.js-download').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Document Center] Download'));
+  });
+
+  container.querySelectorAll('.js-delete').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Document Center] Delete'));
+  });
+}
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-document-center] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-document-center] Init failed:', err);
+    }
+  }
+
+  renderDocs(SEED_DOCS);
+
+  // Drag & Drop
+  const uploadZone = document.getElementById('uploadZone');
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    console.log('[Document Center] Files dropped:', e.dataTransfer.files);
+  });
+  uploadZone.addEventListener('click', () => document.getElementById('fileInput').click());
+
+  // Search & Filter
+  document.getElementById('searchInput')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const filtered = SEED_DOCS.filter(d => 
+      d.name.toLowerCase().includes(query) ||
+      d.clientName.toLowerCase().includes(query) ||
+      d.tags.some(t => t.includes(query))
+    );
+    renderDocs(filtered);
+  });
+
+  document.getElementById('typeFilter')?.addEventListener('change', (e) => {
+    const type = e.target.value;
+    const filtered = type ? SEED_DOCS.filter(d => d.type === type) : SEED_DOCS;
+    renderDocs(filtered);
+  });
+});
+</script>
+</body>
+</html>

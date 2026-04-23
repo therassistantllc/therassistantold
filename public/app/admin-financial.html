@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Financial Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .fin-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .fin-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .fin-card-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+    .fin-card-val{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900)}
+    .fin-card-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+    .fin-card-sub{font-size:11.5px;color:var(--ink-500);margin-top:2px}
+    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+    .chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm)}
+    .chart-panel-title{font-family:'Sora',sans-serif;font-weight:700;font-size:.95rem;color:var(--ink-900);margin-bottom:14px}
+    /* Column bars */
+    .col-chart{display:flex;align-items:flex-end;gap:6px;height:120px}
+    .col-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0}
+    .col-bar{width:100%;background:var(--blue-500);border-radius:4px 4px 0 0;min-height:4px;transition:height .4s}
+    .col-bar.green{background:#10b981}
+    .col-bar.amber{background:#f59e0b}
+    .col-bar.red{background:#ef4444}
+    .col-bar.purple{background:#8b5cf6}
+    .col-xlabel{font-size:10px;color:var(--ink-500);margin-top:4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .col-val{font-size:9.5px;font-weight:700;color:var(--ink-700);margin-bottom:2px}
+    /* Horizontal bars */
+    .hz-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .hz-bar-label{font-size:12px;color:var(--ink-700);width:100px;flex-shrink:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .hz-bar-outer{flex:1;background:#eef4fb;border-radius:999px;height:9px}
+    .hz-bar-inner{height:100%;border-radius:999px;background:var(--blue-500)}
+    .hz-bar-value{font-size:12px;font-weight:700;color:var(--ink-900);width:52px;text-align:right;flex-shrink:0}
+    @media(max-width:900px){.fin-summary-grid{grid-template-columns:repeat(2,1fr)}.chart-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link active" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Financial Dashboard</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="periodSelect" onchange="refreshCharts()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit">
+          <option value="7mo">Last 7 Months</option>
+          <option value="3mo">Last 3 Months</option>
+          <option value="all">All Time</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="exportFinCSV()">&#8595; Export CSV</button>
+      </div>
+    </header>
+
+    <!-- Summary Cards -->
+    <div class="fin-summary-grid">
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,var(--blue-500),var(--blue-700))"></div><div class="fin-card-val" id="fMRR">?</div><div class="fin-card-label">Monthly Recurring Revenue</div><div class="fin-card-sub">MRR</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#10b981,#059669)"></div><div class="fin-card-val" id="fARR">?</div><div class="fin-card-label">Annual Recurring Revenue</div><div class="fin-card-sub">ARR = MRR ? 12</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9)"></div><div class="fin-card-val" id="fARPU">?</div><div class="fin-card-label">Avg Revenue Per User</div><div class="fin-card-sub">ARPU</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#f59e0b,#b45309)"></div><div class="fin-card-val" id="fTrialConv">?</div><div class="fin-card-label">Trial Conversion Rate</div><div class="fin-card-sub">Trials ? Paid</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#ef4444,#b91c1c)"></div><div class="fin-card-val" id="fChurn">?</div><div class="fin-card-label">Monthly Churn Rate</div><div class="fin-card-sub">Cancellations / Active</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#f97316,#c2410c)"></div><div class="fin-card-val" id="fRefund">?</div><div class="fin-card-label">Refund Rate</div><div class="fin-card-sub">Refunds / Charges</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#ef4444,#b91c1c)"></div><div class="fin-card-val" id="fFailed">?</div><div class="fin-card-label">Failed Payments</div><div class="fin-card-sub">Past 30 days</div></div>
+      <div class="fin-card"><div class="fin-card-bar" style="background:linear-gradient(180deg,#f59e0b,#b45309)"></div><div class="fin-card-val" id="fOutstanding">?</div><div class="fin-card-label">Outstanding Invoices</div><div class="fin-card-sub">Unpaid / Past Due</div></div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="chart-grid">
+      <div class="chart-panel">
+        <div class="chart-panel-title">Revenue by Month</div>
+        <div class="col-chart" id="chartRevMonth"></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-title">Revenue by Subscription Tier</div>
+        <div id="chartRevTier"></div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="chart-grid">
+      <div class="chart-panel">
+        <div class="chart-panel-title">Churn Trend (Monthly Cancellations)</div>
+        <div class="col-chart" id="chartChurn"></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-title">Revenue by State</div>
+        <div id="chartRevState"></div>
+      </div>
+    </div>
+
+    <!-- Charts row 3 -->
+    <div class="chart-grid">
+      <div class="chart-panel">
+        <div class="chart-panel-title">Failed Payment Trend</div>
+        <div class="col-chart" id="chartFailed"></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-title">Refund Trend</div>
+        <div class="col-chart" id="chartRefund"></div>
+      </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm);margin-bottom:18px">
+      <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:.95rem;color:var(--ink-900);margin-bottom:14px">Recent Transactions</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">User</th>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Plan</th>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Amount</th>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Type</th>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Date</th>
+          <th style="background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Status</th>
+        </tr></thead>
+        <tbody id="txTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+const FIN = {
+  months:[],
+  revenue:[],
+  churn:[],
+  failed:[],
+  refunds:[],
+  tiers:{},
+  states:{}
+};
+
+const SEED_TX = [];
+
+function renderColChart(id, values, labels, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!values.length) { el.innerHTML='<p style="font-size:13px;color:var(--ink-500)">No data yet.</p>'; return; }
+  const max = Math.max(...values, 1);
+  el.innerHTML = values.map((v, i) => `
+    <div class="col-bar-wrap">
+      <div class="col-val">${typeof v === 'number' && v > 100 ? '$' + v.toLocaleString() : v}</div>
+      <div class="col-bar ${colorClass}" style="height:${Math.max(4, Math.round((v / max) * 100))}%"></div>
+      <div class="col-xlabel">${labels[i]}</div>
+    </div>`).join('');
+}
+
+function renderHzChart(id, obj, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!Object.keys(obj).length) { el.innerHTML='<p style="font-size:13px;color:var(--ink-500)">No data yet.</p>'; return; }
+  const max = Math.max(...Object.values(obj), 1);
+  el.innerHTML = Object.entries(obj).map(([k, v]) => `
+    <div class="hz-bar-row">
+      <div class="hz-bar-label" title="${k}">${k}</div>
+      <div class="hz-bar-outer"><div class="hz-bar-inner ${colorClass}" style="width:${Math.round((v/max)*100)}%"></div></div>
+      <div class="hz-bar-value">${typeof v === 'number' && v > 100 ? '$' + v.toLocaleString() : v}</div>
+    </div>`).join('');
+}
+
+function renderTxTable() {
+  const STATUS_COLORS = {Paid:'#10b981',Failed:'#ef4444',Refunded:'#f59e0b'};
+  document.getElementById('txTableBody').innerHTML = SEED_TX.map(t => `<tr>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${t.user}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${t.plan}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700">${t.amount}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${t.type}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${t.date}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;color:${STATUS_COLORS[t.status]||'var(--ink-900)'}">${t.status}</td>
+  </tr>`).join('');
+}
+
+function refreshCharts() {
+  renderColChart('chartRevMonth', FIN.revenue, FIN.months, '');
+  renderHzChart('chartRevTier', FIN.tiers, '');
+  renderColChart('chartChurn', FIN.churn, FIN.months, 'red');
+  renderHzChart('chartRevState', FIN.states, 'green');
+  renderColChart('chartFailed', FIN.failed, FIN.months, 'amber');
+  renderColChart('chartRefund', FIN.refunds, FIN.months, 'purple');
+  renderTxTable();
+}
+
+function exportFinCSV() {
+  const rows = [['Month','Revenue','Churn','Failed Payments','Refunds']];
+  FIN.months.forEach((m,i) => rows.push([m, FIN.revenue[i], FIN.churn[i], FIN.failed[i], FIN.refunds[i]]));
+  const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='financial.csv'; a.click();
+}
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+  refreshCharts();
+};
+</script>
+</body>
+</html>

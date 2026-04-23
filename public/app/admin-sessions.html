@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Session Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{background:var(--surface-soft,#f8fafc);padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+    tbody tr:last-child{border-bottom:none}
+    tbody tr:hover{background:var(--surface-soft,#f8fafc)}
+    td{padding:10px 14px;vertical-align:middle}
+    .user-cell{display:flex;align-items:center;gap:8px}
+    .user-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue-500),var(--blue-700));color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;text-transform:uppercase}
+    .user-name{font-weight:600;color:var(--ink-900)}
+    .user-email{font-size:11.5px;color:var(--ink-500)}
+    .role-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:capitalize;background:#eff6ff;color:#1e40af}
+    .role-pill.super_admin{background:#fdf2f8;color:#9d174d}
+    .role-pill.admin{background:#fefce8;color:#92400e}
+    .role-pill.billing_specialist,.role-pill.billing_staff{background:#f0fdf4;color:#166534}
+    .role-pill.supervisor{background:#faf5ff;color:#6b21a8}
+    .role-pill.clinician{background:#eff6ff;color:#1e40af}
+    .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+    .status-dot.active{background:#22c55e}
+    .status-dot.idle{background:#f59e0b}
+    .status-dot.expired{background:#d1d5db}
+    .last-seen{font-size:12px;color:var(--ink-500)}
+    .btn-revoke{background:#fde8e8;border:1px solid #fca5a5;color:#9b1c1c;border-radius:7px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
+    .btn-revoke:hover{background:#fca5a5}
+    .btn-revoke:disabled{opacity:.4;cursor:not-allowed}
+    .empty-state{text-align:center;padding:48px;color:var(--ink-500);font-size:14px}
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px}
+    .stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Sora',sans-serif;color:var(--blue-800,#1e40af);line-height:1}
+    .stat-card .stat-lbl{font-size:12px;color:var(--ink-500);margin-top:4px}
+    .error-notice{background:#fde8e8;border:1px solid #fca5a5;color:#9b1c1c;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:16px;display:none}
+    .toast{position:fixed;bottom:24px;right:24px;background:#111;color:#fff;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.25);z-index:9000;opacity:0;transition:opacity .25s;pointer-events:none}
+    .toast.show{opacity:1}
+    .pagination{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--ink-600)}
+    .pagination button{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:13px;font-family:inherit}
+    .pagination button:disabled{opacity:.4;cursor:not-allowed}
+    .ua-cell{font-size:11.5px;color:var(--ink-500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    @media(max-width:900px){.stats-row{grid-template-columns:1fr 1fr}}
+    @media(max-width:600px){.stats-row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar -------------------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link active" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- -- Main ----------------------------------------------------------- -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Session Management</h1>
+        <p id="pageSubtitle">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline btn-sm" id="revokeAllBtn" onclick="revokeAllSessions()">
+          &#9940; Revoke All Active Sessions
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="loadSessions()">&#8635; Refresh</button>
+        <a class="btn btn-outline btn-sm" href="admin-users.html">&#8592; Users</a>
+      </div>
+    </header>
+
+    <div class="error-notice" id="errorNotice"></div>
+
+    <!-- Stats row -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-val" id="stat-active">--</div><div class="stat-lbl">Active Sessions</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-idle">--</div><div class="stat-lbl">Idle (&gt;30 min)</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-users">--</div><div class="stat-lbl">Unique Users</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-today">--</div><div class="stat-lbl">Logins Today</div></div>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="sessionSearch" placeholder="Search email or IP address..." oninput="applyFilters()">
+        <select id="statusFilter" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="idle">Idle</option>
+          <option value="expired">Expired</option>
+        </select>
+        <select id="roleFilter" onchange="applyFilters()">
+          <option value="">All Roles</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="admin">Admin</option>
+          <option value="clinician">Clinician</option>
+          <option value="billing_specialist">Billing Specialist</option>
+          <option value="credentialing_specialist">Credentialing Specialist</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="front_desk">Front Desk</option>
+          <option value="patient">Patient</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table id="sessionsTable">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Logged In</th>
+              <th>Last Seen</th>
+              <th>IP Address</th>
+              <th>User Agent</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody">
+            <tr><td colspan="8" class="empty-state">Loading sessions...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const ADMIN_ROLES = ['super_admin', 'admin'];
+
+// -- Supabase (auth-guard.js already initialised supabaseClient via shared.js) -
+// Fall back to a direct init if shared.js is not loaded yet.
+const _SC = (typeof supabaseClient !== 'undefined')
+  ? supabaseClient
+  : supabase.createClient(
+      "https://kozdkixjhtbfhktpvzvk.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvemRraXhqaHRiZmhrdHB2enZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTczMzUsImV4cCI6MjA4ODMzMzMzNX0.Wun2eWG5vRdPdkb2c_lsSfTcQ9Y5jJ42kvWGYRgRBVc"
+    );
+
+// -- State ---------------------------------------------------------------------
+let _allSessions  = [];
+let _filtered     = [];
+let _page         = 1;
+const PAGE_SIZE   = 25;
+const IDLE_MS     = 30 * 60 * 1000; // 30 minutes
+const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours
+
+// -- Helpers -------------------------------------------------------------------
+function fmtRel(iso) {
+  if (!iso) return '--';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m <  1) return 'just now';
+  if (m <  60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h <  24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '--';
+  return new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function sessionStatus(s) {
+  if (s.logged_out_at) return 'expired';
+  const age  = Date.now() - new Date(s.last_seen_at).getTime();
+  if (age > IDLE_MS) return 'idle';
+  return 'active';
+}
+
+function initials(email) {
+  if (!email) return '?';
+  const parts = email.split('@')[0].split(/[._-]/);
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase().slice(0, 2);
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorNotice');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function showToast(msg, isError) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.background = isError ? '#9b1c1c' : '#111';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// -- Load sessions from Supabase -----------------------------------------------
+async function loadSessions() {
+  document.getElementById('pageSubtitle').textContent = 'Loading...';
+
+  try {
+    // Fetch user_sessions joined with user profiles for display data.
+    // user_sessions.email is not stored - we join via user_profiles or
+    // rely on stored ip_address / user_agent for identity display.
+    // Since RLS on user_sessions blocks client access for other users,
+    // this page relies on an admin service-role API or the admin role
+    // having a broader RLS policy. For now we use service_role via server.js.
+    const { data: { session } } = await _SC.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const tok = session.access_token;
+
+    // Attempt to fetch via admin API proxy (server.js /api/admin/sessions)
+    // Fall back to a direct Supabase query for orgs using permissive RLS.
+    let sessions = [];
+    try {
+      const res = await fetch('/api/admin/sessions', {
+        headers: { 'Authorization': 'Bearer ' + tok },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        sessions = json.sessions || [];
+      } else {
+        throw new Error('API ' + res.status);
+      }
+    } catch (_apiErr) {
+      // Fallback: direct query - works when admin has unrestricted RLS
+      const { data, error } = await _SC
+        .from('user_sessions')
+        .select(`
+          id, user_id, org_id, ip_address, user_agent,
+          logged_in_at, last_seen_at, logged_out_at,
+          user_profiles ( email, full_name, title ),
+          organization_members ( role )
+        `)
+        .is('logged_out_at', null)
+        .order('last_seen_at', { ascending: false })
+        .limit(500);
+
+      if (error) {
+        showError('Could not load sessions: ' + error.message);
+        document.getElementById('pageSubtitle').textContent = 'Error loading data';
+        return;
+      }
+      sessions = (data || []).map(s => ({
+        ...s,
+        email:    s.user_profiles ? s.user_profiles.email    : null,
+        name:     s.user_profiles ? s.user_profiles.full_name : null,
+        title:    s.user_profiles ? s.user_profiles.title     : null,
+        role:     s.organization_members && s.organization_members[0]
+                    ? s.organization_members[0].role
+                    : 'clinician',
+      }));
+    }
+
+    _allSessions = sessions;
+    applyFilters();
+    updateStats();
+    document.getElementById('pageSubtitle').textContent =
+      _allSessions.length + ' session record' + (_allSessions.length !== 1 ? 's' : '') + ' loaded';
+
+  } catch (err) {
+    showError('Unexpected error: ' + err.message);
+    document.getElementById('pageSubtitle').textContent = 'Error';
+  }
+}
+
+// -- Stats ---------------------------------------------------------------------
+function updateStats() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let active = 0, idle = 0, todayLogins = 0;
+  const uniqueUsers = new Set();
+
+  _allSessions.forEach(s => {
+    const st = sessionStatus(s);
+    if (st === 'active') active++;
+    if (st === 'idle')   idle++;
+    if (s.user_id) uniqueUsers.add(s.user_id);
+    if (s.logged_in_at && new Date(s.logged_in_at) >= today) todayLogins++;
+  });
+
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-idle').textContent   = idle;
+  document.getElementById('stat-users').textContent  = uniqueUsers.size;
+  document.getElementById('stat-today').textContent  = todayLogins;
+}
+
+// -- Filters -------------------------------------------------------------------
+function applyFilters() {
+  const q      = (document.getElementById('sessionSearch').value || '').toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  const role   = document.getElementById('roleFilter').value;
+
+  _filtered = _allSessions.filter(s => {
+    const st = sessionStatus(s);
+    if (status && st !== status) return false;
+    if (role   && s.role !== role) return false;
+    if (q) {
+      const hay = [(s.email || ''), (s.name || ''), (s.ip_address || '')].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  _page = 1;
+  renderTable();
+}
+
+// -- Render --------------------------------------------------------------------
+function renderTable() {
+  const tbody   = document.getElementById('sessionsBody');
+  const start   = (_page - 1) * PAGE_SIZE;
+  const slice   = _filtered.slice(start, start + PAGE_SIZE);
+
+  if (!slice.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sessions match your filters.</td></tr>';
+    renderPagination();
+    return;
+  }
+
+  tbody.innerHTML = slice.map(s => {
+    const st    = sessionStatus(s);
+    const email = s.email || s.user_id || '--';
+    const name  = s.name  || email.split('@')[0];
+    const role  = (s.role || 'clinician').replace(/_/g, ' ');
+    const roleKey = (s.role || '').replace(/ /g, '_');
+
+    return `<tr>
+      <td>
+        <div class="user-cell">
+          <div class="user-avatar">${initials(email)}</div>
+          <div>
+            <div class="user-name">${esc(name)}</div>
+            <div class="user-email">${esc(email)}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="role-pill ${esc(roleKey)}">${esc(role)}</span></td>
+      <td>
+        <span class="status-dot ${st}"></span>
+        <span style="font-size:12px;text-transform:capitalize;">${st}</span>
+      </td>
+      <td style="white-space:nowrap;">${fmtDateTime(s.logged_in_at)}</td>
+      <td class="last-seen">${fmtRel(s.last_seen_at)}</td>
+      <td style="font-size:12px;color:var(--ink-600);">${esc(s.ip_address || '--')}</td>
+      <td class="ua-cell" title="${esc(s.user_agent || '')}">
+        ${esc(parseUA(s.user_agent))}
+      </td>
+      <td>
+        ${st !== 'expired'
+          ? `<button class="btn-revoke" onclick="revokeSession('${esc(s.id)}', this)" title="Force sign out this session">Revoke</button>`
+          : `<span style="font-size:11px;color:var(--ink-500);">Expired</span>`}
+      </td>
+    </tr>`;
+  }).join('');
+
+  renderPagination();
+}
+
+function renderPagination() {
+  const pg  = document.getElementById('pagination');
+  const total = _filtered.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) { pg.innerHTML = ''; return; }
+
+  pg.innerHTML = `
+    <span>${Math.min((_page-1)*PAGE_SIZE+1, total)}-${Math.min(_page*PAGE_SIZE, total)} of ${total}</span>
+    <button onclick="goPage(_page-1)" ${_page===1?'disabled':''}>&#8592;</button>
+    <span>Page ${_page} / ${pages}</span>
+    <button onclick="goPage(_page+1)" ${_page===pages?'disabled':''}>&#8594;</button>
+  `;
+}
+
+function goPage(n) {
+  _page = n;
+  renderTable();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// -- Parse user agent to human-readable string ---------------------------------
+function parseUA(ua) {
+  if (!ua) return '--';
+  if (/iPhone|iPad/.test(ua))   return 'iOS Safari';
+  if (/Android/.test(ua))       return 'Android';
+  if (/Chrome/.test(ua))        return 'Chrome';
+  if (/Firefox/.test(ua))       return 'Firefox';
+  if (/Safari/.test(ua))        return 'Safari';
+  if (/Edge/.test(ua))          return 'Edge';
+  return ua.slice(0, 40);
+}
+
+// -- Revoke single session -----------------------------------------------------
+async function revokeSession(sessionId, btn) {
+  if (!confirm('Force sign out this session?')) return;
+  btn.disabled = true;
+  btn.textContent = 'Revoking...';
+
+  try {
+    const { data: { session } } = await _SC.auth.getSession();
+    const tok = session && session.access_token;
+
+    // Attempt via admin API; fall back to soft-delete on user_sessions table
+    let ok = false;
+    try {
+      const res = await fetch('/api/admin/sessions/' + sessionId + '/revoke', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + tok,
+        },
+      });
+      ok = res.ok;
+    } catch (_) {}
+
+    if (!ok) {
+      // Graceful degradation: mark session as logged-out in user_sessions table
+      const { error } = await _SC
+        .from('user_sessions')
+        .update({ logged_out_at: new Date().toISOString() })
+        .eq('id', sessionId);
+      if (error) throw error;
+    }
+
+    // Update local data
+    const s = _allSessions.find(x => x.id === sessionId);
+    if (s) s.logged_out_at = new Date().toISOString();
+
+    updateStats();
+    applyFilters();
+    showToast('Session revoked.');
+
+  } catch (err) {
+    showToast('Failed to revoke: ' + err.message, true);
+    btn.disabled = false;
+    btn.textContent = 'Revoke';
+  }
+}
+
+// -- Revoke ALL active sessions (except the current admin's) ------------------
+async function revokeAllSessions() {
+  const activeCt = _allSessions.filter(s => sessionStatus(s) === 'active').length;
+  if (!confirm(`Revoke all ${activeCt} active session(s)? This will sign out everyone currently logged in.`)) return;
+
+  const btn = document.getElementById('revokeAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Revoking...';
+
+  try {
+    const { data: { session } } = await _SC.auth.getSession();
+    const tok = session && session.access_token;
+
+    let ok = false;
+    try {
+      const res = await fetch('/api/admin/sessions/revoke-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      });
+      ok = res.ok;
+    } catch (_) {}
+
+    if (!ok) {
+      // Fallback: mass-update
+      await _SC
+        .from('user_sessions')
+        .update({ logged_out_at: new Date().toISOString() })
+        .is('logged_out_at', null)
+        .neq('user_id', session.user.id);
+    }
+
+    _allSessions.forEach(s => {
+      if (s.user_id !== session.user.id && !s.logged_out_at) {
+        s.logged_out_at = new Date().toISOString();
+      }
+    });
+
+    updateStats();
+    applyFilters();
+    showToast('All active sessions revoked.');
+
+  } catch (err) {
+    showToast('Revoke-all failed: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '? Revoke All Active Sessions';
+  }
+}
+
+// -- XSS escape ---------------------------------------------------------------
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// -- Bootstrap -----------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof initDashboard === 'function') {
+    initDashboard(ADMIN_ROLES);
+  }
+  if (typeof initLogout === 'function') initLogout();
+  loadSessions();
+});
+</script>
+</body>
+</html>

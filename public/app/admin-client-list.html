@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecting - Clients</title>
+<script>
+(function(){
+  var target = new URL('admin-clients.html', window.location.href);
+  target.searchParams.set('tab', 'active-clients');
+  window.location.replace(target.toString());
+}());
+</script>
+</head>
+<body></body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecting - Patients</title>
+<script>
+(function(){
+  var target = new URL('admin-patients.html', window.location.href);
+  target.searchParams.set('tab', 'demographics');
+  window.location.replace(target.toString());
+}());
+</script>
+</head>
+<body></body>
+</html>

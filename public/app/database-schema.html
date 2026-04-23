@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Database Schema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js?v=2"></script>
+  <style>
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    .schema-main { max-width: 1300px; }
+
+    /* ── Section headers ───────────────────────────────────────── */
+    .section-eyebrow {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; margin-bottom: 5px;
+    }
+    .section-eyebrow.blue   { color: #1e5fa3; }
+    .section-eyebrow.purple { color: #5b21b6; }
+    .section-eyebrow.amber  { color: #92400e; }
+    .section-eyebrow.green  { color: #166534; }
+    .section-eyebrow.slate  { color: #334155; }
+
+    .section-title {
+      font-family: "Sora", sans-serif; font-size: 21px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 4px;
+    }
+    .section-sub {
+      font-size: 13px; color: var(--ink-500); margin-bottom: 20px; max-width: 700px;
+      line-height: 1.6;
+    }
+    .schema-section { margin-bottom: 48px; }
+
+    /* ── Domain stripe on section heading ──────────────────────── */
+    .domain-stripe {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 22px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .domain-icon {
+      width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .domain-icon.blue   { background: #dbeafe; }
+    .domain-icon.purple { background: #ede9fe; }
+    .domain-icon.amber  { background: #fef3c7; }
+    .domain-icon.green  { background: #dcfce7; }
+    .domain-icon.slate  { background: #e2e8f0; }
+
+    /* ── Table count badge ─────────────────────────────────────── */
+    .tbl-count {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 999px; font-size: 11.5px;
+      font-weight: 700; margin-left: 8px; vertical-align: middle;
+    }
+    .tbl-count.blue   { background: #eff8ff; border: 1px solid #c3dffb; color: #1e5fa3; }
+    .tbl-count.purple { background: #faf5ff; border: 1px solid #ddd6fe; color: #5b21b6; }
+    .tbl-count.amber  { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .tbl-count.green  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .tbl-count.slate  { background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; }
+
+    /* ── Schema table card ─────────────────────────────────────── */
+    .schema-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(580px, 1fr));
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+    .schema-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .schema-card-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .schema-card-header.blue   { background: #f0f7ff; }
+    .schema-card-header.purple { background: #f9f6ff; }
+    .schema-card-header.amber  { background: #fefcf0; }
+    .schema-card-header.green  { background: #f2fdf5; }
+    .schema-card-header.slate  { background: #f8fafc; }
+    .schema-card-header.teal   { background: #f0fdfb; }
+
+    .tbl-name {
+      font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700;
+      color: var(--ink-900); letter-spacing: .01em;
+    }
+    .tbl-name code {
+      font-family: 'Courier New', monospace; font-size: 14px;
+      background: none; padding: 0; color: inherit;
+    }
+    .tbl-purpose {
+      font-size: 12px; color: var(--ink-500); margin-top: 2px; line-height: 1.5;
+    }
+    .tbl-header-right {
+      margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .row-est {
+      font-size: 11px; font-weight: 700; color: var(--ink-500);
+      background: #edf1f5; border-radius: 6px; padding: 3px 8px;
+    }
+
+    /* ── Column table ──────────────────────────────────────────── */
+    .col-table-wrap { overflow-x: auto; }
+    .col-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .col-table thead tr {
+      background: #f5f8fb;
+    }
+    .col-table th {
+      padding: 8px 14px; text-align: left;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-500);
+      border-bottom: 1px solid var(--border);
+    }
+    .col-table td {
+      padding: 7px 14px; border-bottom: 1px solid #f0f4f8;
+      vertical-align: middle; color: var(--ink-700);
+    }
+    .col-table tr:last-child td { border-bottom: none; }
+    .col-table tr:hover td { background: #fafcff; }
+
+    /* column name */
+    .col-name {
+      font-family: 'Courier New', monospace; font-size: 12px;
+      font-weight: 700; color: var(--ink-900); white-space: nowrap;
+    }
+    .col-name.pk { color: #1e5fa3; }
+    .col-name.fk { color: #5b21b6; }
+
+    /* type badge */
+    .type-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 5px;
+      font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700;
+      white-space: nowrap;
+    }
+    .type-badge.uuid   { background: #eff8ff; color: #1e5fa3; }
+    .type-badge.text   { background: #f0fdfb; color: #0d7060; }
+    .type-badge.int    { background: #fffbeb; color: #92400e; }
+    .type-badge.bool   { background: #f0fdf4; color: #166534; }
+    .type-badge.ts     { background: #faf5ff; color: #5b21b6; }
+    .type-badge.date   { background: #fff1f2; color: #9f1239; }
+    .type-badge.jsonb  { background: #fef3c7; color: #78350f; }
+    .type-badge.inet   { background: #f8fafc; color: #334155; }
+    .type-badge.int4   { background: #fffbeb; color: #92400e; }
+    .type-badge.enum   { background: #fdf2f8; color: #86198f; }
+
+    /* constraint badges */
+    .c-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cbadge {
+      display: inline-block; padding: 1px 6px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: .04em;
+      white-space: nowrap; text-transform: uppercase;
+    }
+    .cbadge.pk      { background: #1e5fa3; color: #fff; }
+    .cbadge.fk      { background: #5b21b6; color: #fff; }
+    .cbadge.uq      { background: #0d7060; color: #fff; }
+    .cbadge.nn      { background: #92400e; color: #fff; }
+    .cbadge.idx     { background: #166534; color: #fff; }
+    .cbadge.def     { background: #475569; color: #fff; }
+    .cbadge.chk     { background: #9f1239; color: #fff; }
+    .cbadge.null    { background: #e5e7eb; color: #6b7280; }
+    .cbadge.immut   { background: #1e3a5f; color: #bfdbfe; }
+
+    /* ── Card footer: FK refs + indexes ───────────────────────── */
+    .schema-card-footer {
+      padding: 12px 18px 14px;
+      border-top: 1px solid var(--border);
+      background: #fafbfc;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .schema-card-footer.full { grid-template-columns: 1fr; }
+
+    .footer-block-label {
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--ink-500); margin-bottom: 7px;
+    }
+    .fk-list, .idx-list {
+      list-style: none; margin: 0; padding: 0;
+    }
+    .fk-list li, .idx-list li {
+      display: flex; align-items: flex-start; gap: 6px;
+      font-size: 11.5px; color: var(--ink-700); padding: 3px 0;
+      line-height: 1.45;
+    }
+    .fk-list li::before {
+      content: "↗"; color: #5b21b6; flex-shrink: 0; font-size: 12px; line-height: 1.4;
+    }
+    .idx-list li::before {
+      content: "⚡"; color: #166534; flex-shrink: 0; font-size: 11px; line-height: 1.45;
+    }
+    .fk-list code, .idx-list code {
+      font-family: 'Courier New', monospace; font-size: 11px;
+      background: #edf1f5; border-radius: 3px; padding: 1px 4px;
+      color: var(--ink-900);
+    }
+
+    /* ── ER Relationship summary ───────────────────────────────── */
+    .er-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      padding: 24px 26px 22px;
+      margin-bottom: 32px;
+    }
+    .er-title {
+      font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 4px;
+    }
+    .er-sub { font-size: 12.5px; color: var(--ink-500); margin-bottom: 18px; }
+
+    .er-rel-table { width: 100%; border-collapse: collapse; }
+    .er-rel-table th {
+      padding: 8px 14px; text-align: left;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-500);
+      background: #f5f8fb; border-bottom: 1px solid var(--border);
+    }
+    .er-rel-table td {
+      padding: 8px 14px; border-bottom: 1px solid #f0f4f8;
+      font-size: 12.5px; color: var(--ink-700); vertical-align: top;
+    }
+    .er-rel-table tr:last-child td { border-bottom: none; }
+    .er-rel-table tr:hover td { background: #fafcff; }
+    .er-rel-table code {
+      font-family: 'Courier New', monospace; font-size: 11.5px;
+      background: #edf1f5; border-radius: 3px; padding: 1px 5px; color: var(--ink-900);
+    }
+    .rel-type {
+      display: inline-block; padding: 2px 8px; border-radius: 5px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .rel-type.one-many  { background: #eff8ff; color: #1e5fa3; border: 1px solid #c3dffb; }
+    .rel-type.many-many { background: #faf5ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+    .rel-type.one-one   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+
+    /* ── Intro summary bar ─────────────────────────────────────── */
+    .schema-intro {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px; margin-bottom: 28px;
+    }
+    .intro-stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+    }
+    .intro-stat::after {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+    .intro-stat.blue::after  { background: linear-gradient(180deg, #3b82f6, #1e5fa3); }
+    .intro-stat.purple::after{ background: linear-gradient(180deg, #8b5cf6, #5b21b6); }
+    .intro-stat.amber::after { background: linear-gradient(180deg, #f59e0b, #92400e); }
+    .intro-stat.green::after { background: linear-gradient(180deg, #10b981, #166534); }
+    .intro-stat-num {
+      font-family: 'Sora', sans-serif; font-size: 1.9rem; font-weight: 700;
+      color: var(--ink-900); line-height: 1;
+    }
+    .intro-stat-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--ink-500); margin-top: 5px;
+    }
+    .intro-stat-sub {
+      font-size: 11.5px; color: var(--ink-500); margin-top: 4px;
+    }
+
+    /* ── HIPAA / security callout ──────────────────────────────── */
+    .security-callout {
+      background: #fffbeb; border: 1px solid #fde68a;
+      border-left: 4px solid #f59e0b;
+      border-radius: 12px; padding: 14px 18px; margin-bottom: 28px;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .security-callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .security-callout-title {
+      font-size: 13px; font-weight: 700; color: #78350f; margin-bottom: 4px;
+    }
+    .security-callout-body { font-size: 12.5px; color: #92400e; line-height: 1.6; }
+
+    /* ── Responsive ────────────────────────────────────────────── */
+    @media (max-width: 1200px) {
+      .schema-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .schema-intro { grid-template-columns: 1fr 1fr; }
+      .schema-card-footer { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .schema-intro { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge" style="display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="admin-overview.html">Overview Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Client Database</a>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue Dashboard</a>
+      <a class="nav-link" href="admin-reports.html">Saved Reports</a>
+      <a class="nav-link" href="admin-notes.html">Saved Notes</a>
+      <a class="nav-link" href="admin-analytics.html">Usage Analytics</a>
+      <a class="nav-link" href="admin-financial.html">Financial Dashboard</a>
+      <a class="nav-link" href="admin-qa.html">QA / Review Queue</a>
+      <a class="nav-link" href="admin-code-rules.html">Code Rules</a>
+      <a class="nav-link" href="admin-content.html">Content Management</a>
+      <a class="nav-link" href="admin-staff.html">Staff Performance</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-settings.html">System Settings</a>
+      <a class="nav-link" href="platform-architecture.html">Platform Architecture</a>
+      <a class="nav-link" href="information-architecture.html">Information Architecture</a>
+      <a class="nav-link active" href="database-schema.html">Database Schema</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- ── Main content ────────────────────────────────────────── -->
+  <main class="dashboard-main schema-main">
+
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1 style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900);margin:0 0 4px">
+          Database Schema
+          <span style="font-size:12px;font-weight:600;color:var(--ink-500);font-family:'Public Sans',sans-serif;margin-left:8px">Part 1 — Auth &amp; Organization</span>
+        </h1>
+        <p style="font-size:13px;color:var(--ink-500);margin:0">
+          Canonical table definitions for identity, access control, organizational hierarchy, and platform operations.
+        </p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <a class="btn btn-outline btn-sm" href="platform-architecture.html">Platform Architecture</a>
+        <a class="btn btn-outline btn-sm" href="information-architecture.html">Info Architecture</a>
+      </div>
+    </header>
+
+    <!-- ── Summary stats ─────────────────────────────────────── -->
+    <div class="schema-intro">
+      <div class="intro-stat blue">
+        <div class="intro-stat-num">11</div>
+        <div class="intro-stat-label">Tables — Part 1</div>
+        <div class="intro-stat-sub">Auth &amp; Org structure</div>
+      </div>
+      <div class="intro-stat purple">
+        <div class="intro-stat-num">4</div>
+        <div class="intro-stat-label">Domain Groups</div>
+        <div class="intro-stat-sub">Org · Identity · Provider · Platform</div>
+      </div>
+      <div class="intro-stat amber">
+        <div class="intro-stat-num">78</div>
+        <div class="intro-stat-label">Total Columns</div>
+        <div class="intro-stat-sub">Across all 11 tables</div>
+      </div>
+      <div class="intro-stat green">
+        <div class="intro-stat-num">HIPAA</div>
+        <div class="intro-stat-label">Compliance Target</div>
+        <div class="intro-stat-sub">Audit + PHI access controls</div>
+      </div>
+    </div>
+
+    <!-- ── HIPAA security callout ────────────────────────────── -->
+    <div class="security-callout">
+      <div class="security-callout-icon">🔒</div>
+      <div>
+        <div class="security-callout-title">HIPAA &amp; Security Design Principles</div>
+        <div class="security-callout-body">
+          All tables containing PHI inherit <strong>row-level security (RLS)</strong> scoped to <code>organization_id</code>.
+          <code>login_sessions</code> stores only a <strong>hashed token</strong> — never the raw session token.
+          <code>audit_logs</code> is <strong>append-only</strong>: no UPDATE or DELETE permissions should be granted on this table.
+          Sensitive columns (SSN, DEA#, payment tokens) should be encrypted at rest via Supabase Vault or equivalent.
+          All foreign keys reference <code>uuid</code> primary keys — never expose sequential integer IDs in URLs.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DOMAIN 1 — ORGANIZATION & LOCATION                    -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="schema-section">
+      <div class="domain-stripe">
+        <div class="domain-icon blue">🏢</div>
+        <div>
+          <div class="section-eyebrow blue">Domain 1</div>
+          <div class="section-title">
+            Organization &amp; Location
+            <span class="tbl-count blue">2 tables</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-sub">
+        Multi-tenant root. Every record in the system belongs to an <code>organization_id</code>.
+        Locations represent physical offices, telehealth hubs, or school-based sites under that org.
+      </div>
+
+      <div class="schema-grid">
+
+        <!-- organizations -->
+        <div class="schema-card">
+          <div class="schema-card-header blue">
+            <div>
+              <div class="tbl-name"><code>organizations</code></div>
+              <div class="tbl-purpose">Top-level tenant. Every provider, user, patient, and claim belongs to an organization.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~500 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td>Tenant identifier</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">name</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td>Practice display name</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">slug</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>URL subdomain slug (lowercase, kebab-case)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">type</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>solo · group · practice · agency · hospital</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">tax_id</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>EIN — encrypt at rest</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">npi</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Group/org NPI (Type 2)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">address_line1</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Primary billing address</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">address_line2</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">city</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">state</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>2-letter abbreviation</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">zip</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>5 or 9 digit ZIP</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">phone</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>E.164 format</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">fax</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">email</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Billing contact email</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">logo_url</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Storage bucket URL</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">timezone</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT 'America/Denver'</span></div></td>
+                  <td>IANA timezone string</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">subscription_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ subscriptions.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Soft-delete flag</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">created_by</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span></div></td>
+                  <td>→ users.id (super admin who provisioned)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td>Update via trigger</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>subscription_id</code> → <code>subscriptions.id</code> ON DELETE SET NULL</li>
+                <li><code>created_by</code> → <code>users.id</code> ON DELETE SET NULL</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>slug</code> — unique, used for tenant resolution on every request</li>
+                <li><code>npi</code> — lookup by group NPI for credentialing checks</li>
+                <li><code>subscription_id</code> — join for billing status queries</li>
+                <li><code>is_active</code> — filter inactive orgs out of all queries</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- locations -->
+        <div class="schema-card">
+          <div class="schema-card-header blue">
+            <div>
+              <div class="tbl-name"><code>locations</code></div>
+              <div class="tbl-purpose">Physical or virtual service sites within an organization. Drives Place of Service codes on claims.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~2,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id (tenant scope)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">name</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td>"Main Office", "Telehealth", "Aurora School Site"</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">type</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>office · telehealth · home · school · community</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">npi</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Location NPI if separately credentialed</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">pos_code</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>CMS Place of Service (02=telehealth, 11=office)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">address_line1</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">address_line2</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">city</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">state</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">zip</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">phone</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">fax</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_primary</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>One primary per org (enforce via trigger)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE CASCADE</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>organization_id</code> — all location lookups are org-scoped</li>
+                <li><code>(organization_id, is_active)</code> — composite for active location dropdown</li>
+                <li><code>pos_code</code> — claim line default POS lookup</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /schema-grid -->
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DOMAIN 2 — IDENTITY & ACCESS CONTROL                  -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="schema-section">
+      <div class="domain-stripe">
+        <div class="domain-icon purple">🔑</div>
+        <div>
+          <div class="section-eyebrow purple">Domain 2</div>
+          <div class="section-title">
+            Identity &amp; Access Control
+            <span class="tbl-count purple">3 tables</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-sub">
+        User accounts, role assignments (scoped per org/location), and the permission matrix that maps roles to resource actions.
+        Designed for Supabase Auth integration — <code>users.id</code> = <code>auth.users.id</code>.
+      </div>
+
+      <div class="schema-grid">
+
+        <!-- users -->
+        <div class="schema-card">
+          <div class="schema-card-header purple">
+            <div>
+              <div class="tbl-name"><code>users</code></div>
+              <div class="tbl-purpose">Every person who can log in. Mirrors <code>auth.users</code>; stores profile and org membership only.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~10,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span></div></td>
+                  <td>Matches <code>auth.users.id</code> — no separate sequence</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">email</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Must match auth.users.email</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">first_name</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">last_name</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">phone</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>E.164 format</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id (NULL for super admins)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Soft-disable — does not delete auth.users record</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">email_verified</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>Sync from auth.users.email_confirmed_at</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">mfa_enabled</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">last_login_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Updated on each successful login</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">password_changed_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>For HIPAA password rotation policies</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">invited_by</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span></div></td>
+                  <td>→ users.id (self-referential)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">invited_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE SET NULL</li>
+                <li><code>invited_by</code> → <code>users.id</code> ON DELETE SET NULL</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>email</code> — lookup on every auth request</li>
+                <li><code>organization_id</code> — all user lists are org-scoped</li>
+                <li><code>(organization_id, is_active)</code> — composite for staff directory</li>
+                <li><code>last_login_at DESC</code> — inactive user reports</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- user_roles -->
+        <div class="schema-card">
+          <div class="schema-card-header purple">
+            <div>
+              <div class="tbl-name"><code>user_roles</code></div>
+              <div class="tbl-purpose">Assigns named roles to users, scoped per organization and optionally per location. Supports time-limited role grants.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~30,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">user_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ users.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">role</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>super_admin · admin · billing · clinician · supervisor · front_desk · read_only</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id (NULL = global for super_admin)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">location_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span></div></td>
+                  <td>→ locations.id (NULL = all locations in org)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">granted_by</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span></div></td>
+                  <td>→ users.id (who assigned this role)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">granted_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">expires_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Time-limited access (temp contractor, locum)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Soft-revoke without deleting row</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>user_id</code> → <code>users.id</code> ON DELETE CASCADE</li>
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE CASCADE</li>
+                <li><code>location_id</code> → <code>locations.id</code> ON DELETE SET NULL</li>
+                <li><code>granted_by</code> → <code>users.id</code> ON DELETE SET NULL</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>(user_id, organization_id, role)</code> — unique partial where is_active; prevents duplicate active roles</li>
+                <li><code>user_id</code> — fetch all roles for a user</li>
+                <li><code>(organization_id, role)</code> — list all users in a role within an org</li>
+                <li><code>expires_at</code> — scheduled job to deactivate expired grants</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- permissions -->
+        <div class="schema-card">
+          <div class="schema-card-header purple">
+            <div>
+              <div class="tbl-name"><code>permissions</code></div>
+              <div class="tbl-purpose">Resource-action permission matrix keyed by role. Defines what each role can do to each resource type.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~200 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">role</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Must match roles allowed in user_roles.role</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">resource</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td>patients · claims · billing · reports · settings · users · coding · documents</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">action</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>create · read · update · delete · export · approve</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">scope</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>own · organization · all (all = super_admin only)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_allowed</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span></div></td>
+                  <td>False = explicit deny (overrides allow)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer full">
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list" style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
+                <li><code>(role, resource, action)</code> — UNIQUE; the primary lookup key for every auth check</li>
+                <li><code>role</code> — list all permissions for a given role</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /schema-grid -->
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DOMAIN 3 — PROVIDER                                   -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="schema-section">
+      <div class="domain-stripe">
+        <div class="domain-icon amber">🩺</div>
+        <div>
+          <div class="section-eyebrow amber">Domain 3</div>
+          <div class="section-title">
+            Provider
+            <span class="tbl-count amber">3 tables</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-sub">
+        Clinician profiles, specialties, and supervision relationships. Each provider record links to a user account
+        and carries credentialing identifiers (NPI, license, DEA, Medicaid/Medicare IDs) used in claims.
+      </div>
+
+      <div class="schema-grid">
+
+        <!-- providers -->
+        <div class="schema-card">
+          <div class="schema-card-header amber">
+            <div>
+              <div class="tbl-name"><code>providers</code></div>
+              <div class="tbl-purpose">Credentialed clinician linked to a user account. Holds all billing and licensing identifiers.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~5,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">user_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ users.id (1-to-1)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">npi</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Individual NPI (Type 1) — 10 digits</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">taxonomy_code</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>NUCC taxonomy (e.g., 101YA0400X = LCSW)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">license_number</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>State professional license #</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">license_state</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>2-letter state code</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">license_expiry</span></td>
+                  <td><span class="type-badge date">date</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Alert trigger: 90/60/30 day warnings</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">dea_number</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Encrypt at rest — controlled substance prescribers</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">dea_expiry</span></td>
+                  <td><span class="type-badge date">date</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">medicaid_id</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Colorado Medicaid provider ID</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">medicare_id</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>PTAN / Medicare provider number</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_billing_provider</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>Appears as rendering/billing provider on claims</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_supervising</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>Can be assigned as supervisor in clinician_supervisors</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">accepts_new_patients</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span></div></td>
+                  <td>Patient-facing directory flag</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">max_weekly_hours</span></td>
+                  <td><span class="type-badge int">integer</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Scheduling cap</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>user_id</code> → <code>users.id</code> ON DELETE CASCADE</li>
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE RESTRICT</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>user_id</code> — UNIQUE; resolve provider from logged-in user</li>
+                <li><code>npi</code> — UNIQUE; claims and credentialing lookups</li>
+                <li><code>organization_id</code> — provider roster by org</li>
+                <li><code>medicaid_id</code> — Colorado Medicaid billing lookups</li>
+                <li><code>license_expiry</code> — expiry alert queries</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- provider_specialties -->
+        <div class="schema-card">
+          <div class="schema-card-header amber">
+            <div>
+              <div class="tbl-name"><code>provider_specialties</code></div>
+              <div class="tbl-purpose">One-to-many specialty tags per provider. Supports multi-taxonomy credentialing and patient matching filters.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~15,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">provider_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ providers.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">specialty</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>mental_health · substance_use · psychiatry · psychology · marriage_family · trauma · child_adolescent</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">taxonomy_code</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>NUCC taxonomy for this specialty</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_primary</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>Used as billing taxonomy on claims if set</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>provider_id</code> → <code>providers.id</code> ON DELETE CASCADE</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>provider_id</code> — list all specialties for one provider</li>
+                <li><code>specialty</code> — find all providers with a given specialty</li>
+                <li><code>(provider_id, specialty)</code> — UNIQUE; prevents duplicate tags</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- clinician_supervisors -->
+        <div class="schema-card">
+          <div class="schema-card-header amber">
+            <div>
+              <div class="tbl-name"><code>clinician_supervisors</code></div>
+              <div class="tbl-purpose">Supervision relationships between providers. Required for billing under a supervisor's NPI for provisionally licensed clinicians.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~3,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">supervisee_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ providers.id (the junior clinician)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">supervisor_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ providers.id (must have is_supervising = true)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">supervision_type</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>clinical · administrative · both</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">start_date</span></td>
+                  <td><span class="type-badge date">date</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span></div></td>
+                  <td>Used to gate claim billing validity</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">end_date</span></td>
+                  <td><span class="type-badge date">date</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>NULL = ongoing relationship</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">notes</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Supervision agreement notes</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>supervisee_id</code> → <code>providers.id</code> ON DELETE RESTRICT</li>
+                <li><code>supervisor_id</code> → <code>providers.id</code> ON DELETE RESTRICT</li>
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE RESTRICT</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes &amp; Constraints</div>
+              <ul class="idx-list">
+                <li><code>supervisee_id</code> — find current supervisor for a clinician</li>
+                <li><code>supervisor_id</code> — list supervisees under a supervisor</li>
+                <li><code>(supervisee_id, supervisor_id, organization_id)</code> — UNIQUE partial where is_active; prevents duplicate active relationships</li>
+                <li>CHECK: <code>supervisee_id &lt;&gt; supervisor_id</code> — self-supervision not allowed</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /schema-grid -->
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DOMAIN 4 — PLATFORM OPERATIONS                        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="schema-section">
+      <div class="domain-stripe">
+        <div class="domain-icon green">⚙️</div>
+        <div>
+          <div class="section-eyebrow green">Domain 4</div>
+          <div class="section-title">
+            Platform Operations
+            <span class="tbl-count green">3 tables</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-sub">
+        Subscription billing, active session tracking, and the immutable HIPAA audit trail.
+        <code>audit_logs</code> is append-only — no UPDATE or DELETE should ever be granted on this table.
+      </div>
+
+      <div class="schema-grid">
+
+        <!-- subscriptions -->
+        <div class="schema-card">
+          <div class="schema-card-header green">
+            <div>
+              <div class="tbl-name"><code>subscriptions</code></div>
+              <div class="tbl-purpose">SaaS billing plan per organization. Integrates with Stripe; controls feature flags and provider/patient caps.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~500 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id (1-to-1)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">plan</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>starter · professional · enterprise</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">status</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>trialing · active · past_due · canceled · suspended</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">billing_interval</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>monthly · annual</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">amount_cents</span></td>
+                  <td><span class="type-badge int">integer</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Locked price in cents at time of subscription</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">currency</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT 'usd'</span></div></td>
+                  <td>ISO 4217</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">stripe_customer_id</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Stripe <code>cus_…</code> ID</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">stripe_subscription_id</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Stripe <code>sub_…</code> ID — webhook key</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">current_period_start</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">current_period_end</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Alert for upcoming renewals</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">trial_start</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">trial_end</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">cancel_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Scheduled future cancellation</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">canceled_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Actual cancellation timestamp</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">max_providers</span></td>
+                  <td><span class="type-badge int">integer</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>NULL = unlimited (enterprise)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">max_patients</span></td>
+                  <td><span class="type-badge int">integer</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>NULL = unlimited</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">features</span></td>
+                  <td><span class="type-badge jsonb">jsonb</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>{ "coding": true, "era_import": true, "telehealth": false }</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">updated_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE CASCADE</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>organization_id</code> — UNIQUE; 1-to-1 with org</li>
+                <li><code>stripe_subscription_id</code> — UNIQUE; webhook event routing</li>
+                <li><code>status</code> — filter active/past_due subscriptions</li>
+                <li><code>current_period_end</code> — renewal alert queries</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- login_sessions -->
+        <div class="schema-card">
+          <div class="schema-card-header" style="background:#f0fdf4">
+            <div>
+              <div class="tbl-name"><code>login_sessions</code></div>
+              <div class="tbl-purpose">Tracks active authenticated sessions. Stores only a hashed token — never the raw value. Supports forced logout and concurrent session management.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~50,000 rows</div>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">user_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ users.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">session_token_hash</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge uq">UNIQUE</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>SHA-256 of raw token — never store plaintext</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">ip_address</span></td>
+                  <td><span class="type-badge inet">inet</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>IPv4 or IPv6 of login origin</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">user_agent</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Parsed browser/OS string</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">device_fingerprint</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Hash of device characteristics for anomaly detection</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">location_city</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>GeoIP-derived, approximate</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">location_country</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>ISO 3166 country code</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">mfa_verified</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT false</span></div></td>
+                  <td>TOTP/SMS second factor confirmed</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">is_active</span></td>
+                  <td><span class="type-badge bool">boolean</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT true</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td>Login timestamp</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">last_active_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span></div></td>
+                  <td>Updated on each authenticated request</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">expires_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>Absolute expiry — check before honoring session</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">revoked_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">revoked_reason</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>logout · timeout · admin_revoke · security_event</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>user_id</code> → <code>users.id</code> ON DELETE CASCADE</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes</div>
+              <ul class="idx-list">
+                <li><code>session_token_hash</code> — UNIQUE; every request validation lookup</li>
+                <li><code>user_id</code> — list active sessions for a user (force logout)</li>
+                <li><code>expires_at</code> — scheduled cleanup of expired sessions</li>
+                <li><code>(user_id, is_active)</code> — concurrent session count limit</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- audit_logs -->
+        <div class="schema-card">
+          <div class="schema-card-header" style="background:#f8fafc">
+            <div>
+              <div class="tbl-name"><code>audit_logs</code></div>
+              <div class="tbl-purpose">Immutable HIPAA audit trail for all PHI access and system state changes. Append-only — no UPDATE or DELETE ever.</div>
+            </div>
+            <div class="tbl-header-right">
+              <div class="row-est">~10M+ rows</div>
+              <span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:10.5px;font-weight:700;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239">APPEND ONLY</span>
+            </div>
+          </div>
+          <div class="col-table-wrap">
+            <table class="col-table">
+              <thead><tr>
+                <th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="col-name pk">id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge pk">PK</span><span class="cbadge def">gen_random_uuid()</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">organization_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ organizations.id (NULL for system events)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">user_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>→ users.id (NULL for system/scheduled jobs)</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name fk">session_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge fk">FK</span><span class="cbadge null">NULL</span></div></td>
+                  <td>→ login_sessions.id</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">action</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>create · read · update · delete · login · logout · export · approve · deny · invite</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">resource_type</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>patient · claim · user · session · settings · document · billing · report</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">resource_id</span></td>
+                  <td><span class="type-badge uuid">uuid</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span><span class="cbadge idx">INDEX</span></div></td>
+                  <td>ID of affected record</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">resource_label</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Human-readable snapshot: "Patient: Jane D. (DOB 01/01/1985)"</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">old_values</span></td>
+                  <td><span class="type-badge jsonb">jsonb</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Pre-change state (for updates). Omit PHI from billing-only audits.</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">new_values</span></td>
+                  <td><span class="type-badge jsonb">jsonb</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Post-change state</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">ip_address</span></td>
+                  <td><span class="type-badge inet">inet</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">user_agent</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">result</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge chk">CHECK</span></div></td>
+                  <td>success · failure · denied</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">failure_reason</span></td>
+                  <td><span class="type-badge text">text</span></td>
+                  <td><div class="c-badges"><span class="cbadge null">NULL</span></div></td>
+                  <td>Error message or denial cause</td>
+                </tr>
+                <tr>
+                  <td><span class="col-name">created_at</span></td>
+                  <td><span class="type-badge ts">timestamptz</span></td>
+                  <td><div class="c-badges"><span class="cbadge nn">NOT NULL</span><span class="cbadge def">DEFAULT now()</span><span class="cbadge idx">INDEX</span><span class="cbadge immut">IMMUTABLE</span></div></td>
+                  <td>Never modified after insert</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-card-footer">
+            <div>
+              <div class="footer-block-label">Foreign Key References</div>
+              <ul class="fk-list">
+                <li><code>organization_id</code> → <code>organizations.id</code> ON DELETE SET NULL</li>
+                <li><code>user_id</code> → <code>users.id</code> ON DELETE SET NULL</li>
+                <li><code>session_id</code> → <code>login_sessions.id</code> ON DELETE SET NULL</li>
+              </ul>
+            </div>
+            <div>
+              <div class="footer-block-label">Recommended Indexes (high-volume table)</div>
+              <ul class="idx-list">
+                <li><code>created_at DESC</code> — time-range audit queries (partition by month in prod)</li>
+                <li><code>(organization_id, created_at DESC)</code> — org-scoped activity feed</li>
+                <li><code>(resource_type, resource_id)</code> — "who touched this record" lookup</li>
+                <li><code>(user_id, created_at DESC)</code> — user activity report</li>
+                <li><code>action</code> — filter by login/export events for security reviews</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /schema-grid -->
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  ER RELATIONSHIP SUMMARY                               -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="er-wrap">
+      <div class="er-title">Entity Relationships — Part 1</div>
+      <div class="er-sub">How the 11 tables connect. All relationships are enforced by foreign key constraints.</div>
+      <div style="overflow-x:auto">
+        <table class="er-rel-table">
+          <thead><tr>
+            <th style="width:200px">From Table</th>
+            <th style="width:120px">Cardinality</th>
+            <th style="width:200px">To Table</th>
+            <th>Via Column</th>
+            <th>ON DELETE</th>
+            <th>Notes</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><code>organizations</code></td>
+              <td><span class="rel-type one-one">1:1</span></td>
+              <td><code>subscriptions</code></td>
+              <td><code>subscriptions.organization_id</code></td>
+              <td>CASCADE</td>
+              <td>One active subscription per org</td>
+            </tr>
+            <tr>
+              <td><code>organizations</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>locations</code></td>
+              <td><code>locations.organization_id</code></td>
+              <td>CASCADE</td>
+              <td>Org → many service sites</td>
+            </tr>
+            <tr>
+              <td><code>organizations</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>users</code></td>
+              <td><code>users.organization_id</code></td>
+              <td>SET NULL</td>
+              <td>Users can exist without an org (super admins)</td>
+            </tr>
+            <tr>
+              <td><code>organizations</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>providers</code></td>
+              <td><code>providers.organization_id</code></td>
+              <td>RESTRICT</td>
+              <td>Cannot delete an org that has active providers</td>
+            </tr>
+            <tr>
+              <td><code>users</code></td>
+              <td><span class="rel-type one-one">1:1</span></td>
+              <td><code>providers</code></td>
+              <td><code>providers.user_id</code></td>
+              <td>CASCADE</td>
+              <td>Every provider is a user; not every user is a provider</td>
+            </tr>
+            <tr>
+              <td><code>users</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>user_roles</code></td>
+              <td><code>user_roles.user_id</code></td>
+              <td>CASCADE</td>
+              <td>User can have multiple roles across orgs</td>
+            </tr>
+            <tr>
+              <td><code>users</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>login_sessions</code></td>
+              <td><code>login_sessions.user_id</code></td>
+              <td>CASCADE</td>
+              <td>Multiple concurrent sessions supported</td>
+            </tr>
+            <tr>
+              <td><code>users</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>audit_logs</code></td>
+              <td><code>audit_logs.user_id</code></td>
+              <td>SET NULL</td>
+              <td>Audit rows kept even if user deleted</td>
+            </tr>
+            <tr>
+              <td><code>providers</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>provider_specialties</code></td>
+              <td><code>provider_specialties.provider_id</code></td>
+              <td>CASCADE</td>
+              <td>Provider can have multiple specialty tags</td>
+            </tr>
+            <tr>
+              <td><code>providers</code></td>
+              <td><span class="rel-type many-many">M:N</span></td>
+              <td><code>providers</code></td>
+              <td><code>clinician_supervisors.supervisee_id / supervisor_id</code></td>
+              <td>RESTRICT</td>
+              <td>Self-referential; junction table is <code>clinician_supervisors</code></td>
+            </tr>
+            <tr>
+              <td><code>locations</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>user_roles</code></td>
+              <td><code>user_roles.location_id</code></td>
+              <td>SET NULL</td>
+              <td>Role can be scoped to one location; NULL = all locations</td>
+            </tr>
+            <tr>
+              <td><code>login_sessions</code></td>
+              <td><span class="rel-type one-many">1:N</span></td>
+              <td><code>audit_logs</code></td>
+              <td><code>audit_logs.session_id</code></td>
+              <td>SET NULL</td>
+              <td>Track which session performed each action</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  requireAuth();
+  bindLogout('logoutBtn');
+</script>
+</body>
+</html>

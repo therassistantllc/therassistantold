@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Support & Chat Module Spec</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .spec-tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px}
+    .spec-tab{padding:10px 18px;font-size:13.5px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;transition:color .15s,border-color .15s}
+    .spec-tab:hover{color:var(--blue-700)}
+    .spec-tab.active{color:var(--blue-800);border-bottom-color:var(--blue-700)}
+    .spec-view{display:none}
+    .spec-view.active{display:block}
+
+    /* Route table */
+    .route-group{margin-bottom:28px}
+    .route-group-title{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+    .route-table{width:100%;border-collapse:collapse;font-size:13px}
+    .route-table thead th{background:var(--surface-soft);padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border);white-space:nowrap}
+    .route-table tbody tr{border-bottom:1px solid var(--border)}
+    .route-table tbody tr:hover{background:#f7fbff}
+    .route-table tbody td{padding:9px 12px;color:var(--ink-900);vertical-align:top}
+    .method{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.04em;min-width:52px;text-align:center}
+    .method-get{background:#d1fae5;color:#065f46}
+    .method-post{background:#dbeafe;color:#1e40af}
+    .method-patch{background:#fef3c7;color:#92400e}
+    .method-delete{background:#fee2e2;color:#991b1b}
+    .path-code{font-family:monospace;font-size:12.5px;color:var(--blue-800);background:#eaf3fd;padding:2px 7px;border-radius:5px}
+    .role-pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;margin:1px}
+    .role-admin{background:#fef3c7;color:#92400e}
+    .role-staff{background:#dbeafe;color:#1e40af}
+    .role-clinician{background:#d1fae5;color:#065f46}
+    .role-own{background:#ede9fe;color:#5b21b6}
+
+    /* Permission matrix */
+    .perm-matrix{width:100%;border-collapse:collapse;font-size:12.5px}
+    .perm-matrix th{background:var(--surface-soft);padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border:1px solid var(--border)}
+    .perm-matrix td{padding:8px 12px;border:1px solid var(--border);vertical-align:middle}
+    .perm-matrix tr:hover td{background:#f7fbff}
+    .check{color:#059669;font-weight:800;font-size:15px}
+    .cross{color:#dc2626;font-weight:800;font-size:15px}
+    .own{color:#7c3aed;font-weight:700;font-size:12px}
+    .resource-name{font-weight:700;color:var(--ink-900)}
+
+    /* Notification spec */
+    .notif-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+    .notif-card-title{font-family:'Sora',sans-serif;font-weight:700;color:var(--ink-900);margin-bottom:10px;font-size:.95rem;display:flex;align-items:center;gap:8px}
+    .notif-trigger{font-size:13px;color:var(--ink-700);margin-bottom:6px}
+    .notif-method-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .notif-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px}
+    .nb-email{background:#dbeafe;color:#1e40af}
+    .nb-browser{background:#d1fae5;color:#065f46}
+    .nb-inapp{background:#ede9fe;color:#5b21b6}
+    .nb-supabase{background:#fef3c7;color:#92400e}
+
+    /* Escalation flow */
+    .esc-step{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+    .esc-num{width:28px;height:28px;border-radius:50%;background:var(--blue-700);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+    .esc-body{flex:1}
+    .esc-body-title{font-weight:700;color:var(--ink-900);font-size:13.5px}
+    .esc-body-sub{font-size:12.5px;color:var(--ink-500);margin-top:3px}
+
+    pre.code-block{background:#0f172a;color:#e2e8f0;padding:16px 18px;border-radius:10px;font-size:12px;font-family:monospace;overflow-x:auto;line-height:1.6;margin:10px 0}
+    pre.code-block .hl-key{color:#93c5fd}
+    pre.code-block .hl-str{color:#86efac}
+    pre.code-block .hl-num{color:#fde68a}
+    pre.code-block .hl-cmt{color:#64748b}
+  </style>
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link active" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Support &amp; Chat Module Spec</h1>
+        <p>API routes, permissions, notification logic, and escalation flow</p>
+      </div>
+    </header>
+
+    <!-- Tab Bar -->
+    <nav class="spec-tab-bar">
+      <button class="spec-tab active" onclick="switchTab('routes')">API Routes</button>
+      <button class="spec-tab" onclick="switchTab('permissions')">Permissions</button>
+      <button class="spec-tab" onclick="switchTab('notifications')">Notification Logic</button>
+      <button class="spec-tab" onclick="switchTab('escalation')">Escalation Flow</button>
+      <button class="spec-tab" onclick="switchTab('sla')">SLA Rules</button>
+    </nav>
+
+    <!-- ------------------------------------------------------
+         API ROUTES
+    ---------------------------------------------------------- -->
+    <div id="view-routes" class="spec-view active">
+
+      <div class="route-group">
+        <div class="route-group-title">??? Support Tickets</div>
+        <table class="route-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Roles</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/support_tickets</code></td><td>List / filter tickets</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Filter by status, priority, assignee, date range. Paginated.</td></tr>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/support_tickets?id=eq.{id}</code></td><td>Get single ticket</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span><span class="role-pill role-own">clinician (own)</span></td><td>Clinicians can only fetch their own submitted tickets.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/support_tickets</code></td><td>Create ticket</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span><span class="role-pill role-clinician">clinician</span></td><td>Requires: provider, category, priority, description.</td></tr>
+            <tr><td><span class="method method-patch">PATCH</span></td><td><code class="path-code">/rest/v1/support_tickets?id=eq.{id}</code></td><td>Update ticket (status, stage, assignee, etc.)</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Status change to Closed requires resolution_code.</td></tr>
+            <tr><td><span class="method method-delete">DELETE</span></td><td><code class="path-code">/rest/v1/support_tickets?id=eq.{id}</code></td><td>Delete ticket</td><td><span class="role-pill role-admin">admin</span></td><td>Admin-only. Prefer status=Archived instead.</td></tr>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/ticket_comments?ticket_id=eq.{id}</code></td><td>List comments for ticket</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>is_internal=false also visible to ticket submitter.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/ticket_comments</code></td><td>Add comment / internal note</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Set is_internal=true for private notes.</td></tr>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/ticket_history?ticket_id=eq.{id}</code></td><td>Audit history for ticket</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Append-only; updated by DB trigger.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/ticket_attachments</code></td><td>Upload attachment metadata</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span><span class="role-pill role-clinician">clinician</span></td><td>File stored in Supabase Storage <code>ticket-attachments</code> bucket.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="route-group">
+        <div class="route-group-title">?? Live Chat - Conversations</div>
+        <table class="route-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Roles</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/conversations</code></td><td>List all conversations</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Filter by status, priority, assigned_staff_id.</td></tr>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/conversations?user_id=eq.{uid}</code></td><td>Clinician gets own conversation</td><td><span class="role-pill role-own">clinician (own)</span></td><td>RLS: user_id = auth.uid()</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/conversations</code></td><td>Start new conversation (chat widget)</td><td><span class="role-pill role-clinician">clinician</span></td><td>Triggers realtime event to admin inbox.</td></tr>
+            <tr><td><span class="method method-patch">PATCH</span></td><td><code class="path-code">/rest/v1/conversations?id=eq.{id}</code></td><td>Update status, priority, assign staff, tags</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Fires realtime UPDATE event.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/messages</code></td><td>Send message</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span><span class="role-pill role-clinician">clinician</span></td><td>sender_role enforced by RLS. is_internal only writable by staff.</td></tr>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/messages?conversation_id=eq.{id}</code></td><td>Load message history</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span><span class="role-pill role-own">clinician (own conv)</span></td><td>Clinician cannot see is_internal=true messages.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/chat_internal_notes</code></td><td>Add private staff note to conversation</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Never visible to clinician; staff-only RLS.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="route-group">
+        <div class="route-group-title">?? Realtime Channels (Supabase)</div>
+        <table class="route-table">
+          <thead><tr><th>Channel</th><th>Table / Event</th><th>Used By</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code class="path-code">admin-conv-list</code></td><td>conversations - INSERT / UPDATE</td><td>admin-chat.html</td><td>Drives live conversation list refresh.</td></tr>
+            <tr><td><code class="path-code">admin-conv:{convId}</code></td><td>messages - INSERT (filter conv_id)</td><td>admin-chat.html</td><td>Per-conversation message streaming.</td></tr>
+            <tr><td><code class="path-code">docusistant:support-presence</code></td><td>Presence channel</td><td>admin-chat.html, chat-widget.js</td><td>Online/offline/idle status via Supabase Presence.</td></tr>
+            <tr><td><code class="path-code">support-tickets</code></td><td>support_tickets - INSERT / UPDATE</td><td>support-center.html (future)</td><td>Live dashboard refresh when tickets change.</td></tr>
+            <tr><td><code class="path-code">notifications:{userId}</code></td><td>notifications - INSERT</td><td>Any portal page</td><td>Push in-app pop-ups for SLA/escalation events.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="route-group">
+        <div class="route-group-title">?? Billing Alerts</div>
+        <table class="route-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Roles</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/billing_alerts</code></td><td>List alerts</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Filter by status, priority, assigned_user_id.</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/billing_alerts</code></td><td>Create alert (or ticket?BA conversion)</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>When converting from ticket: set linked_ticket_id.</td></tr>
+            <tr><td><span class="method method-patch">PATCH</span></td><td><code class="path-code">/rest/v1/billing_alerts?id=eq.{id}</code></td><td>Update alert</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Status change to Resolved sets resolved_at=now().</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="route-group">
+        <div class="route-group-title">?? Notifications</div>
+        <table class="route-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Roles</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/notifications?user_id=eq.{uid}&amp;order=created_at.desc</code></td><td>Load user notifications</td><td><span class="role-pill role-own">own user only</span></td><td>RLS: user_id = auth.uid()</td></tr>
+            <tr><td><span class="method method-patch">PATCH</span></td><td><code class="path-code">/rest/v1/notifications?id=eq.{id}</code></td><td>Mark notification read</td><td><span class="role-pill role-own">own user only</span></td><td>Set is_read=true</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/functions/v1/send-notification</code></td><td>Edge Function: send email + insert DB notification</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff (trigger)</span></td><td>Called by server-side escalation scanner.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="route-group">
+        <div class="route-group-title">?? Saved Replies</div>
+        <table class="route-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Roles</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method method-get">GET</span></td><td><code class="path-code">/rest/v1/saved_replies</code></td><td>List all global + own saved replies</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>Filter: is_global=true OR created_by=auth.uid()</td></tr>
+            <tr><td><span class="method method-post">POST</span></td><td><code class="path-code">/rest/v1/saved_replies</code></td><td>Create saved reply</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-staff">staff</span></td><td>is_global=false for personal.</td></tr>
+            <tr><td><span class="method method-patch">PATCH</span></td><td><code class="path-code">/rest/v1/saved_replies?id=eq.{id}</code></td><td>Edit saved reply</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-own">own staff (personal)</span></td><td>Global replies: admin-only edit.</td></tr>
+            <tr><td><span class="method method-delete">DELETE</span></td><td><code class="path-code">/rest/v1/saved_replies?id=eq.{id}</code></td><td>Delete saved reply</td><td><span class="role-pill role-admin">admin</span><span class="role-pill role-own">own staff (personal)</span></td><td>Admins can delete any. Staff can only delete their own personal replies.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /view-routes -->
+
+    <!-- ------------------------------------------------------
+         PERMISSIONS
+    ---------------------------------------------------------- -->
+    <div id="view-permissions" class="spec-view">
+
+      <div class="content-card" style="margin-bottom:18px;padding:16px 20px">
+        <div class="content-card-title" style="margin-bottom:4px">Role Definitions</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px">
+          <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">
+            <div style="font-weight:800;color:#92400e;font-size:12px;text-transform:uppercase;letter-spacing:.06em">admin</div>
+            <div style="font-size:12.5px;color:#78350f;margin-top:4px">Full read/write across all resources. Can delete tickets, manage saved replies, configure SLA/escalation rules, view all staff data.</div>
+          </div>
+          <div style="background:#dbeafe;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px">
+            <div style="font-weight:800;color:#1e40af;font-size:12px;text-transform:uppercase;letter-spacing:.06em">billing_specialist / support_staff</div>
+            <div style="font-size:12.5px;color:#1e3a8a;margin-top:4px">Read/write tickets and conversations assigned to them or unassigned. Cannot delete. Cannot modify SLA rules.</div>
+          </div>
+          <div style="background:#d1fae5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px">
+            <div style="font-weight:800;color:#065f46;font-size:12px;text-transform:uppercase;letter-spacing:.06em">clinician</div>
+            <div style="font-size:12.5px;color:#064e3b;margin-top:4px">Can submit tickets and send chat messages. Can read their own tickets and conversations only. Cannot see internal notes.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-card" style="padding:16px 20px">
+        <div class="content-card-title" style="margin-bottom:16px">Permission Matrix</div>
+        <div style="overflow-x:auto">
+          <table class="perm-matrix">
+            <thead>
+              <tr>
+                <th>Resource / Action</th>
+                <th>admin</th>
+                <th>billing_specialist</th>
+                <th>support_staff</th>
+                <th>clinician</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Tickets -->
+              <tr><td colspan="5" style="background:#f8fafc;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);padding:6px 12px">SUPPORT TICKETS</td></tr>
+              <tr><td class="resource-name">Create ticket</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="check">?</td></tr>
+              <tr><td class="resource-name">View all tickets</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">View own tickets</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="own">own only</td></tr>
+              <tr><td class="resource-name">Update status / priority</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Assign ticket to staff</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Add internal comment</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Add public response</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Close / resolve ticket</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Delete ticket</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Convert to Billing Alert</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Export CSV</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <!-- Chat -->
+              <tr><td colspan="5" style="background:#f8fafc;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);padding:6px 12px">LIVE CHAT</td></tr>
+              <tr><td class="resource-name">View all conversations</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Send chat message</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="own">own conv</td></tr>
+              <tr><td class="resource-name">View internal notes</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Add internal note</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Assign conversation</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Escalate conversation</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Convert chat ? ticket</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Archive conversation</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <!-- Billing Alerts -->
+              <tr><td colspan="5" style="background:#f8fafc;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);padding:6px 12px">BILLING ALERTS</td></tr>
+              <tr><td class="resource-name">View billing alerts</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Create billing alert</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Update billing alert</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <!-- Config -->
+              <tr><td colspan="5" style="background:#f8fafc;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);padding:6px 12px">CONFIGURATION</td></tr>
+              <tr><td class="resource-name">Manage saved replies (global)</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Manage saved replies (personal)</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Edit SLA rules</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Edit escalation rules</td><td class="check">?</td><td class="cross">?</td><td class="cross">?</td><td class="cross">?</td></tr>
+              <tr><td class="resource-name">Go online / offline (chat)</td><td class="check">?</td><td class="check">?</td><td class="check">?</td><td class="cross">?</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /view-permissions -->
+
+    <!-- ------------------------------------------------------
+         NOTIFICATION LOGIC
+    ---------------------------------------------------------- -->
+    <div id="view-notifications" class="spec-view">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? SLA Breach - Overdue</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> Ticket SLA deadline has passed (elapsedHours = overdueAfterHours for priority).</div>
+          <div class="notif-trigger"><strong>Scope:</strong> All open tickets. Runs every 2 minutes in browser; also via pg_cron job server-side.</div>
+          <div class="notif-trigger"><strong>De-dupe:</strong> sessionStorage key <code>sc_notif_overdue_{ticketId}</code> prevents repeat notifications per session.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+            <span class="notif-badge nb-email">Email (server)</span>
+            <span class="notif-badge nb-supabase">DB notifications table</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? SLA At Risk</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> Ticket has elapsed = 75% of its SLA window (atRiskPct = 0.75).</div>
+          <div class="notif-trigger"><strong>Scope:</strong> Urgent tickets within 18 h; High Priority within 54 h; Routine within 126 h.</div>
+          <div class="notif-trigger"><strong>De-dupe:</strong> sessionStorage key <code>sc_notif_atrisk_{ticketId}</code> per session.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">? Escalation Rule Triggered</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> <code>checkEscalationTriggers()</code> returns one or more matched rules (urgent no-update, waiting too long, payer volume, etc.).</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> Roles listed in <code>escalation_rules.notify_roles</code> for the matched rule.</div>
+          <div class="notif-trigger"><strong>De-dupe:</strong> sessionStorage key <code>sc_notif_esc_{ruleId}_{ticketId}</code>.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+            <span class="notif-badge nb-email">Email (server)</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? New Incoming Chat Message</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> Supabase Realtime INSERT on <code>messages</code> where <code>sender_role = 'clinician'</code> for an active conversation.</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> Assigned staff member. If unassigned, all online support staff.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+            <span class="notif-badge nb-supabase">Realtime Channel</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? New Support Ticket Submitted</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> INSERT on <code>support_tickets</code> by a clinician (submitted_by ? staff).</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> All admins and unassigned billing specialists. If priority=Urgent, also triggers immediate browser push.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+            <span class="notif-badge nb-email">Email (Urgent only)</span>
+            <span class="notif-badge nb-supabase">DB notifications table</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? Ticket Assigned to Me</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> UPDATE on <code>support_tickets</code> where <code>assigned_user_id</code> changes to current staff user.</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> The newly-assigned staff member.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+            <span class="notif-badge nb-email">Email</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? Clinician Comes Online</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> Supabase Presence JOIN event on <code>docusistant:support-presence</code> channel with <code>role = 'clinician'</code>.</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> All online support staff in admin-chat.html.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-inapp">In-App Bell</span>
+          </div>
+        </div>
+
+        <div class="notif-card">
+          <div class="notif-card-title">?? Ticket ? Billing Alert Converted</div>
+          <div class="notif-trigger"><strong>Trigger:</strong> Staff clicks "?? Billing Alert" in ticket drawer. Creates billing alert and links it to the ticket.</div>
+          <div class="notif-trigger"><strong>Recipients:</strong> Admin users and the assigned billing specialist.</div>
+          <div class="notif-method-row">
+            <span class="notif-badge nb-inapp">In-App Toast</span>
+            <span class="notif-badge nb-browser">Browser Push</span>
+            <span class="notif-badge nb-email">Email (if Urgent)</span>
+          </div>
+        </div>
+
+      </div><!-- /grid -->
+
+      <div class="content-card" style="margin-top:18px;padding:16px 20px">
+        <div class="content-card-title" style="margin-bottom:12px">Server-Side Notification Edge Function (pseudocode)</div>
+        <pre class="code-block">// supabase/functions/send-notification/index.ts
+<span class="hl-cmt">// Invoked by pg_cron (every 15 min) or DB trigger via HTTP</span>
+
+<span class="hl-key">export default</span> <span class="hl-key">async function</span> handler(req) {
+  <span class="hl-cmt">// 1. Load all Open tickets with SLA rules</span>
+  <span class="hl-key">const</span> tickets = <span class="hl-key">await</span> supabase.from(<span class="hl-str">'support_tickets'</span>)
+    .select(<span class="hl-str">'*, sla_rules!priority(*)'</span>)
+    .not(<span class="hl-str">'status'</span>, <span class="hl-str">'in'</span>, [<span class="hl-str">'Completed'</span>,<span class="hl-str">'Closed'</span>,<span class="hl-str">'Archived'</span>]);
+
+  <span class="hl-key">for</span> (<span class="hl-key">const</span> t <span class="hl-key">of</span> tickets.data) {
+    <span class="hl-key">const</span> rule = t.sla_rules;
+    <span class="hl-key">const</span> elapsedH = (Date.now() - <span class="hl-key">new</span> Date(t.date_submitted).getTime()) / <span class="hl-num">3600000</span>;
+    <span class="hl-key">const</span> pct = elapsedH / rule.overdue_after_hours;
+
+    <span class="hl-key">if</span> (pct >= <span class="hl-num">1</span> && !t.sla_breached_at) {
+      <span class="hl-cmt">// Mark breach and notify</span>
+      <span class="hl-key">await</span> supabase.from(<span class="hl-str">'support_tickets'</span>)
+        .update({ sla_breached_at: <span class="hl-key">new</span> Date().toISOString() })
+        .eq(<span class="hl-str">'id'</span>, t.id);
+      <span class="hl-key">await</span> notifyAdmins({
+        type: <span class="hl-str">'sla_breach'</span>,
+        title: <span class="hl-str">`SLA Overdue: ${t.id}`</span>,
+        body: <span class="hl-str">`Ticket ${t.id} (${t.priority}) has passed its SLA deadline.`</span>,
+        entity_type: <span class="hl-str">'ticket'</span>, entity_id: t.id
+      });
+    } <span class="hl-key">else if</span> (pct >= rule.at_risk_pct && !t.sla_at_risk_notified_at) {
+      <span class="hl-key">await</span> supabase.from(<span class="hl-str">'support_tickets'</span>)
+        .update({ sla_at_risk_notified_at: <span class="hl-key">new</span> Date().toISOString() })
+        .eq(<span class="hl-str">'id'</span>, t.id);
+      <span class="hl-key">await</span> notifyAssigned(t.assigned_user_id, {
+        type: <span class="hl-str">'sla_breach'</span>,
+        title: <span class="hl-str">`SLA At Risk: ${t.id}`</span>,
+        body: <span class="hl-str">`Ticket ${t.id} is approaching the SLA deadline.`</span>,
+      });
+    }
+  }
+}
+
+<span class="hl-key">async function</span> notifyAdmins(payload) {
+  <span class="hl-cmt">// Fetch all admin user_ids, insert a notifications row per user</span>
+  <span class="hl-key">const</span> admins = <span class="hl-key">await</span> supabase
+    .from(<span class="hl-str">'profiles'</span>)
+    .select(<span class="hl-str">'id'</span>)
+    .in(<span class="hl-str">'role'</span>, [<span class="hl-str">'admin'</span>, <span class="hl-str">'billing_specialist'</span>]);
+  <span class="hl-key">const</span> rows = admins.data.map(u => ({ user_id: u.id, ...payload }));
+  <span class="hl-key">await</span> supabase.from(<span class="hl-str">'notifications'</span>).insert(rows);
+  <span class="hl-cmt">// Optionally send email via Resend / Postmark</span>
+  <span class="hl-key">if</span> (payload.type === <span class="hl-str">'sla_breach'</span>) <span class="hl-key">await</span> sendEmail(admins.data, payload);
+}</pre>
+      </div>
+    </div><!-- /view-notifications -->
+
+    <!-- ------------------------------------------------------
+         ESCALATION FLOW
+    ---------------------------------------------------------- -->
+    <div id="view-escalation" class="spec-view">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+        <div class="content-card" style="padding:18px 20px">
+          <div class="content-card-title" style="margin-bottom:16px">Standard Escalation Flow</div>
+          <div class="esc-step">
+            <div class="esc-num">1</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Ticket Created</div>
+              <div class="esc-body-sub">Staff or clinician submits a support ticket. Default status = New, workflow_stage = New Intake. SLA clock starts at date_submitted.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">2</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Triage &amp; Assignment</div>
+              <div class="esc-body-sub">Admin or billing specialist picks up the ticket. Stage ? Assigned. Assigned staff notified in-app and by email.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">3</div>
+            <div class="esc-body">
+              <div class="esc-body-title">SLA At-Risk Warning (75%)</div>
+              <div class="esc-body-sub">System detects &ge; 75% of SLA elapsed. Browser push + in-app notification sent to assigned staff. sla_at_risk_notified_at set.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">4</div>
+            <div class="esc-body">
+              <div class="esc-body-title">SLA Breach (100%)</div>
+              <div class="esc-body-sub">Ticket progresses to Overdue SLA status. Notification sent to all admins. sla_breached_at stamped in DB. Ticket appears in Command Center.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">5</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Auto-Escalation Rule Match</div>
+              <div class="esc-body-sub">checkEscalationTriggers() fires. Matching rules produce escalation_item events. Admins notified. Ticket visible in Escalations tab.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">6</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Manual Escalation</div>
+              <div class="esc-body-sub">Staff clicks "Escalate" in chat or sets workflow_stage = Escalation. Status ? Escalated. Triggers CRITICAL notification to all admins.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">7</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Convert to Billing Alert</div>
+              <div class="esc-body-sub">For financial escalations, staff clicks "?? Billing Alert" in ticket drawer. Linked billing_alert created. Ticket history updated. Admin + billing specialist notified.</div>
+            </div>
+          </div>
+          <div class="esc-step">
+            <div class="esc-num">8</div>
+            <div class="esc-body">
+              <div class="esc-body-title">Resolution &amp; Closure</div>
+              <div class="esc-body-sub">Staff selects resolution code, clicks Close Ticket. Status ? Closed. workflow_stage ? Archived. closed_at stamped. Clinician notified.</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="content-card" style="padding:18px 20px;margin-bottom:14px">
+            <div class="content-card-title" style="margin-bottom:14px">Chat ? Ticket Escalation Flow</div>
+            <div class="esc-step">
+              <div class="esc-num" style="background:#0d8a66">1</div>
+              <div class="esc-body">
+                <div class="esc-body-title">Clinician Opens Chat Widget</div>
+                <div class="esc-body-sub">chat-widget.js creates a conversation record. Clinician presence tracked via Supabase channel.</div>
+              </div>
+            </div>
+            <div class="esc-step">
+              <div class="esc-num" style="background:#0d8a66">2</div>
+              <div class="esc-body">
+                <div class="esc-body-title">Staff Identifies Ticket-Worthy Issue</div>
+                <div class="esc-body-sub">Staff marks conversation as Urgent or identifies a billing/coding issue requiring formal tracking.</div>
+              </div>
+            </div>
+            <div class="esc-step">
+              <div class="esc-num" style="background:#0d8a66">3</div>
+              <div class="esc-body">
+                <div class="esc-body-title">Click "??? Ticket" Button</div>
+                <div class="esc-body-sub">convertToTicket() in admin-chat.html creates a support_ticket with the chat transcript. Conversation status ? Escalated. linked_ticket_id set.</div>
+              </div>
+            </div>
+            <div class="esc-step">
+              <div class="esc-num" style="background:#0d8a66">4</div>
+              <div class="esc-body">
+                <div class="esc-body-title">Ticket Managed in Support Center</div>
+                <div class="esc-body-sub">Full ticket workflow applies. Chat conversation remains open for follow-up messages.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="content-card" style="padding:18px 20px">
+            <div class="content-card-title" style="margin-bottom:14px">Escalation Rule Conditions</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr style="background:var(--surface-soft)">
+                <th style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Rule</th>
+                <th style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Condition</th>
+                <th style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Sev</th>
+              </tr></thead>
+              <tbody id="escRulesBody"></tbody>
+            </table>
+          </div>
+        </div><!-- /right col -->
+
+      </div>
+    </div><!-- /view-escalation -->
+
+    <!-- ------------------------------------------------------
+         SLA RULES
+    ---------------------------------------------------------- -->
+    <div id="view-sla" class="spec-view">
+      <div class="content-card" style="max-width:680px;padding:20px 24px">
+        <div class="content-card-title" style="margin-bottom:16px">SLA Rules by Priority</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface-soft)">
+              <th style="padding:9px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Priority</th>
+              <th style="padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Overdue After</th>
+              <th style="padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">At-Risk Threshold</th>
+              <th style="padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Target First Response</th>
+              <th style="padding:9px 12px;border-bottom:1px solid var(--border);text-align:left">Target Resolution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px"><span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px">Urgent</span></td>
+              <td style="padding:9px 12px;font-weight:700">24 hours</td>
+              <td style="padding:9px 12px">18 h (75%)</td>
+              <td style="padding:9px 12px">1 hour</td>
+              <td style="padding:9px 12px">24 hours</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px"><span style="background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px">High Priority</span></td>
+              <td style="padding:9px 12px;font-weight:700">72 hours (3 days)</td>
+              <td style="padding:9px 12px">54 h (75%)</td>
+              <td style="padding:9px 12px">4 hours</td>
+              <td style="padding:9px 12px">72 hours</td>
+            </tr>
+            <tr>
+              <td style="padding:9px 12px"><span style="background:#f1f5f9;color:#475569;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px">Routine</span></td>
+              <td style="padding:9px 12px;font-weight:700">168 hours (7 days)</td>
+              <td style="padding:9px 12px">126 h (75%)</td>
+              <td style="padding:9px 12px">24 hours</td>
+              <td style="padding:9px 12px">7 days</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top:20px">
+          <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:8px">How SLA is Computed</div>
+          <div style="font-size:13px;color:var(--ink-700);line-height:1.6">
+            <strong>Elapsed hours</strong> = (now - ticket.date_submitted) / 3,600,000<br>
+            <strong>SLA %</strong> = elapsed_hours / overdue_after_hours<br>
+            <strong>Under SLA</strong> = SLA% &lt; 75%<br>
+            <strong>At Risk</strong> = 75% = SLA% &lt; 100%<br>
+            <strong>Overdue</strong> = SLA% = 100%<br><br>
+            The clock <strong>stops</strong> when status changes to Completed, Closed, or Archived.<br>
+            Tickets in "Waiting on Client" or "Waiting on Insurance" status <em>do not pause</em> the SLA clock - follow up promptly.
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-sla -->
+
+  </main>
+</div>
+
+<script>
+/* Tab switching */
+function switchTab(name) {
+  document.querySelectorAll('.spec-tab').forEach((b,i) => {
+    const names = ['routes','permissions','notifications','escalation','sla'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.spec-view').forEach(v => {
+    v.classList.toggle('active', v.id === 'view-' + name);
+  });
+  if (name === 'escalation') renderEscRules();
+}
+
+/* Escalation rules table */
+const ESC_RULES = [
+  { key:'urgent_no_update_24h',   label:'Urgent ticket - no update in 24h',     condition:'priority=Urgent AND lastUpdated > 24h ago',     sev:'critical' },
+  { key:'waiting_insurance_14d',  label:'Waiting on Insurance 14+ days',         condition:'status=Waiting on Insurance AND age = 336h',     sev:'high'     },
+  { key:'waiting_client_7d',      label:'Waiting on Client 7+ days',             condition:'status=Waiting on Client AND age = 168h',        sev:'high'     },
+  { key:'failed_payment_5d',      label:'Failed Payment unresolved 5+ days',     condition:'category=Payments AND status?Closed AND age=120h',sev:'critical' },
+  { key:'payer_multiple_open',    label:'Same payer in 3+ open tickets',          condition:'insurance = X AND COUNT(open) = 3',              sev:'high'     },
+  { key:'reassigned_3x',          label:'Ticket reassigned 3+ times',            condition:'history[assigned_to changes].length = 3',       sev:'high'     },
+  { key:'qa_pending_7d',          label:'QA item pending 7+ days',               condition:'workflowStage=Ready for Review AND age = 168h',  sev:'high'     },
+];
+
+function renderEscRules() {
+  const tbody = document.getElementById('escRulesBody');
+  if (!tbody) return;
+  tbody.innerHTML = ESC_RULES.map(r => {
+    const sevBg = r.sev==='critical' ? '#fee2e2' : '#fef3c7';
+    const sevColor = r.sev==='critical' ? '#991b1b' : '#92400e';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 10px;font-weight:600;color:var(--ink-900)">${r.label}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--ink-500);font-family:monospace">${r.condition}</td>
+      <td style="padding:7px 10px"><span style="background:${sevBg};color:${sevColor};font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase">${r.sev}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+window.onload = async () => {
+  await initDashboard(ADMIN_ROLES);
+};
+</script>
+</body>
+</html>

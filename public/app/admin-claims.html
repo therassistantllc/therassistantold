@@ -1,0 +1,1662 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin — Claims</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+/* ── KPI Strip ─────────────────────────────────────────── */
+.kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:0}
+.kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+.kpi-card.teal::before{background:linear-gradient(180deg,#14b8a6,#0f766e)}
+.kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+.kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+.kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#d97706)}
+.kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#6d28d9)}
+.kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+.kpi-sub{font-size:11px;color:var(--ink-500);margin-top:2px}
+
+/* ── Module Tab Bar ────────────────────────────────────── */
+.cm-tabbar{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.cm-tab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .14s,border-color .14s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cm-tab:hover{color:var(--ink-900)}
+.cm-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.cm-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;font-size:10px;font-weight:800;background:#dbeafe;color:#1e40af}
+.cm-tab-badge-red{background:#fee2e2;color:#b91c1c}
+.cm-tab-badge-amber{background:#fef3c7;color:#92400e}
+.cm-tab-badge-purple{background:#ede9fe;color:#5b21b6}
+.cm-tab.active .cm-tab-badge{background:var(--blue-600);color:#fff}
+
+/* ── Overview Tab ──────────────────────────────────────── */
+.ov-queue-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:border-color .14s,box-shadow .14s}
+.ov-queue-card:hover{border-color:var(--blue-400);box-shadow:var(--shadow-md)}
+.ov-queue-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.ov-queue-label{font-weight:700;font-size:13.5px;color:var(--ink-900)}
+.ov-queue-count{font-family:'Sora',sans-serif;font-size:1.8rem;font-weight:700;color:var(--ink-900);line-height:1}
+.ov-queue-amt{font-size:12px;color:var(--ink-500)}
+.ov-queue-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.ov-queue-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--blue-600);font-weight:700}
+.ov-section-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-500);margin:14px 0 8px;grid-column:1/-1}
+
+/* ── Workqueue Sub-Tabs ────────────────────────────────── */
+.wq-subtabbar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:14px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm)}
+.wq-subtab{border:1px solid var(--border);background:transparent;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--ink-600);cursor:pointer;border-radius:8px;font-family:inherit;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:all .14s}
+.wq-subtab:hover{border-color:var(--blue-400);color:var(--blue-700);background:#eaf3fd}
+.wq-subtab.active{background:var(--blue-600);color:#fff;border-color:var(--blue-700)}
+.wq-sub-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 3px;border-radius:99px;font-size:10px;font-weight:800;background:rgba(255,255,255,.25);color:inherit}
+.wq-subtab:not(.active) .wq-sub-badge{background:#dbeafe;color:#1e40af}
+.wq-subtab:not(.active) .wq-sub-badge.red{background:#fee2e2;color:#b91c1c}
+.wq-subtab:not(.active) .wq-sub-badge.amber{background:#fef3c7;color:#92400e}
+
+/* ── Workqueue Split Layout ───────────────────────────── */
+.wq-split{display:grid;grid-template-columns:380px 1fr;gap:12px;min-height:460px}
+@media(max-width:960px){.wq-split{grid-template-columns:1fr}}
+.wq-list-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.wq-list-col-hdr{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;gap:7px;align-items:center;background:var(--surface-soft)}
+.wq-search{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12.5px;font-family:inherit;outline:none;background:var(--surface);color:var(--ink-900)}
+.wq-search:focus{border-color:var(--blue-500)}
+.wq-list-body{flex:1;overflow-y:auto}
+.wq-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;position:relative}
+.wq-item:hover{background:rgba(60,144,209,.04)}
+.wq-item.active{background:rgba(60,144,209,.09)}
+.wq-item-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.wq-item-body{flex:1;min-width:0}
+.wq-item-row1{display:flex;align-items:center;gap:5px;margin-bottom:2px;flex-wrap:nowrap}
+.wq-item-id{font-size:11px;font-weight:700;color:var(--blue-700);letter-spacing:.04em;flex-shrink:0}
+.wq-item-patient{font-weight:700;font-size:12.5px;color:var(--ink-900);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wq-item-age{font-size:11px;color:var(--ink-500);flex-shrink:0}
+.wq-item-desc{font-size:12px;color:var(--ink-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
+.wq-item-row3{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.wq-item-amt{font-size:12px;font-weight:700;color:var(--ink-700);margin-left:auto;flex-shrink:0}
+.wq-empty{text-align:center;padding:40px 16px;color:var(--ink-500);font-size:13px}
+
+.wq-detail-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.wq-detail-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ink-500);padding:40px 20px;text-align:center}
+.wq-detail-hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.wq-detail-id{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--blue-800);margin-bottom:3px}
+.wq-detail-patient{font-weight:700;font-size:14px;color:var(--ink-900)}
+.wq-detail-sub{font-size:12px;color:var(--ink-500);display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+.wq-detail-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.wq-detail-scroll{flex:1;overflow-y:auto;padding:14px 16px}
+.wq-det-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px}
+.wq-det-field{padding:4px 0;border-bottom:1px solid var(--border)}
+.wq-det-field:last-child{border-bottom:none}
+.wq-det-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:1px}
+.wq-det-field span{font-size:12.5px;color:var(--ink-900);font-weight:500}
+.wq-det-section{background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:10px}
+.wq-det-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.wq-action-form{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.wq-action-form label{font-size:12px;font-weight:700;color:var(--ink-700);display:block;margin-bottom:4px}
+.wq-action-form select,.wq-action-form textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:8px}
+.wq-action-form select:focus,.wq-action-form textarea:focus{border-color:var(--blue-500)}
+.wq-action-form textarea{resize:vertical;min-height:54px}
+
+/* ── Claims List Table ─────────────────────────────────── */
+.filter-panel{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:12px 16px;box-shadow:var(--shadow-sm);margin-bottom:12px}
+.filter-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.filter-hdr-left{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ink-700)}
+.filter-body{margin-top:12px}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px}
+.filter-row:last-child{margin-bottom:0}
+.filter-group{display:flex;flex-direction:column;gap:3px}
+.filter-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+.filter-input,.filter-select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none;height:34px}
+.filter-input{flex:1;min-width:180px}
+.filter-select{min-width:130px}
+.filter-input:focus,.filter-select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+.filter-toggle-btn{font-size:11px;color:var(--blue-600);font-weight:600;background:none;border:none;cursor:pointer;padding:0;font-family:inherit}
+
+.bulk-bar{position:sticky;top:0;z-index:100;background:var(--blue-800);border-radius:11px;padding:9px 14px;display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;box-shadow:var(--shadow-md)}
+.bulk-bar.active{display:flex}
+.bulk-count{font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.bulk-div{width:1px;height:18px;background:rgba(255,255,255,.3);flex-shrink:0}
+.bulk-actions{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.bulk-btn{padding:5px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;transition:background .14s;white-space:nowrap}
+.bulk-btn:hover{background:rgba(255,255,255,.22)}
+.bulk-btn.danger{border-color:rgba(248,113,113,.5);color:#fca5a5}
+.bulk-btn.danger:hover{background:rgba(220,38,38,.3)}
+.bulk-clear{margin-left:auto;flex-shrink:0;background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;cursor:pointer;line-height:1;padding:0}
+
+.table-shell{background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:14px}
+.table-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.table-count{font-size:12.5px;color:var(--ink-500);font-weight:600}
+.table-scroll{overflow-x:auto}
+.data-table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12.5px}
+.data-table th{background:#f5f9fe;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);border-bottom:1px solid var(--border)}
+.data-table th.sortable{cursor:pointer}
+.data-table th.sortable:hover{color:var(--blue-600)}
+.data-table th .si{margin-left:3px;opacity:.4;font-size:10px}
+.data-table th.sort-asc .si,.data-table th.sort-desc .si{opacity:1;color:var(--blue-600)}
+.data-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--ink-900);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:rgba(60,144,209,.03)}
+.claim-link{color:var(--blue-700);font-weight:700;text-decoration:none;cursor:pointer;background:none;border:none;font-family:inherit;font-size:inherit;padding:0}
+.claim-link:hover{text-decoration:underline}
+.cpt-pill{display:inline-block;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700;margin:0 2px 1px 0}
+.icd-pill{display:inline-block;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:4px;padding:1px 6px;font-size:11px;margin:0 2px 1px 0}
+.pager{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border);font-size:12.5px;flex-wrap:wrap;gap:8px}
+.pager-info{color:var(--ink-500)}
+.pager-btns{display:flex;gap:4px}
+.pager-btn{padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--ink-700);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .14s}
+.pager-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+.pager-btn.active{background:var(--blue-600);color:#fff;border-color:var(--blue-600)}
+.pager-btn:disabled{opacity:.4;cursor:default}
+.row-act{background:none;border:1.5px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;color:var(--blue-700);font-family:inherit}
+.row-act:hover{background:#eaf3fd;border-color:var(--blue-400)}
+
+/* ── Status Badges ─────────────────────────────────────── */
+.badge{display:inline-block;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.cs-draft{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.cs-ready{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+.cs-submitted{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.cs-accepted{background:#e0f2fe;color:#0369a1;border-color:#7dd3fc}
+.cs-in_process{background:#f0f9ff;color:#075985;border-color:#bae6fd}
+.cs-paid{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+.cs-partial{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.cs-denied{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.cs-appealed{background:#fff7ed;color:#9a3412;border-color:#fdba74}
+.cs-voided{background:#f8fafc;color:#94a3b8;border-color:#e2e8f0}
+.cs-no_response{background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff}
+.ch-pending{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.ch-transmitted{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.ch-accepted{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+.ch-rejected{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.era-pending{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.era-matched{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+.era-unmatched{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.era-posted{background:#ecfdf5;color:#047857;border-color:#6ee7b7}
+.wq-no_action{background:#f8fafc;color:#94a3b8;border-color:#e2e8f0}
+.wq-follow_up{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.wq-resubmit{background:#fff7ed;color:#9a3412;border-color:#fdba74}
+.wq-appeal{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.wq-write_off{background:#fdf2f8;color:#9d174d;border-color:#fbcfe8}
+.wq-in_queue{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+.wq-era_match{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.wq-missing_auth{background:#fff7ed;color:#9a3412;border-color:#fdba74}
+.wq-aging_90{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.wq-unmatched_pay{background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff}
+.d-open{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.d-appealed{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.d-overturned{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.d-upheld{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.d-write_off{background:#faf5ff;color:#5b21b6;border-color:#c4b5fd}
+.ap-pending{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.ap-submitted{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.ap-approved{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.ap-denied{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.ap-withdrawn{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+
+/* ── Denial Bucket Tabs ───────────────────────────────── */
+.bucket-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+.bucket-tab{padding:7px 13px;border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s;font-family:inherit}
+.bucket-tab:hover{border-color:var(--blue-500);color:var(--blue-600)}
+.bucket-tab.active{background:var(--blue-600);color:#fff;border-color:var(--blue-700)}
+.bucket-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;font-size:10.5px;font-weight:700;background:rgba(0,0,0,.1);color:inherit}
+.bucket-tab:not(.active) .bucket-badge{background:var(--blue-100);color:var(--blue-700)}
+
+/* ── Appeals Tab ──────────────────────────────────────── */
+.ap-stage{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.ap-stage-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── Claim Detail Drawer ──────────────────────────────── */
+.cm-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:800;opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(2px)}
+.cm-drawer-overlay.open{opacity:1;pointer-events:auto}
+.cm-drawer{position:fixed;right:0;top:0;bottom:0;width:min(780px,calc(100vw - 240px));background:#fff;z-index:801;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);display:flex;flex-direction:column;overflow:hidden;box-shadow:-8px 0 40px rgba(0,0,0,.18)}
+.cm-drawer.open{transform:translateX(0)}
+.cm-drawer-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;flex-shrink:0;background:var(--surface)}
+.cm-drawer-title{flex:1;min-width:0}
+.cm-drawer-id{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--blue-800)}
+.cm-drawer-patient{font-size:14px;font-weight:700;color:var(--ink-900);margin-top:2px}
+.cm-drawer-sub{font-size:12px;color:var(--ink-500);margin-top:3px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cm-drawer-actions{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.cm-drawer-close{width:32px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:1.1rem;color:var(--ink-500);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cm-drawer-close:hover{border-color:var(--blue-400);color:var(--ink-900)}
+.drawer-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:10px 18px;border-bottom:1px solid var(--border);background:var(--surface-soft);flex-shrink:0}
+.dkpi{text-align:center;padding:6px 4px}
+.dkpi-num{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--ink-900);line-height:1}
+.dkpi-num.green{color:#059669}
+.dkpi-num.red{color:#dc2626}
+.dkpi-num.amber{color:#d97706}
+.dkpi-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-top:2px}
+.drawer-tabs{display:flex;gap:1px;border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto;padding:0 18px;background:var(--surface)}
+.drawer-tab{border:none;background:none;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .14s,border-color .14s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.drawer-tab:hover{color:var(--ink-900)}
+.drawer-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.drawer-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;padding:0 3px;border-radius:99px;font-size:9px;font-weight:800;background:#dbeafe;color:#1e40af}
+.drawer-tab.active .drawer-cnt{background:var(--blue-600);color:#fff}
+.drawer-body{flex:1;overflow-y:auto;display:flex;gap:0}
+.drawer-main{flex:1;padding:16px 18px;overflow-y:auto;border-right:1px solid var(--border)}
+.drawer-sidebar{width:230px;padding:14px 16px;overflow-y:auto;flex-shrink:0}
+.drawer-panel{display:none}
+.drawer-panel.active{display:block}
+.d-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;margin-bottom:12px}
+.d-card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.d-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 14px}
+.d-field{padding:4px 0;border-bottom:1px solid var(--border)}
+.d-field:last-child{border-bottom:none}
+.d-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:1px}
+.d-field span{font-size:12.5px;color:var(--ink-900);font-weight:500;word-break:break-word}
+.d-tl{display:flex;flex-direction:column;gap:0;position:relative;padding-left:20px}
+.d-tl::before{content:'';position:absolute;left:6px;top:10px;bottom:10px;width:2px;background:var(--border)}
+.d-tl-item{display:flex;align-items:flex-start;gap:10px;padding:7px 0;position:relative}
+.d-tl-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid #fff;margin-left:-20px;margin-top:2px}
+.d-tl-dot.blue{background:var(--blue-600);box-shadow:0 0 0 2px #bfdbfe}
+.d-tl-dot.green{background:#059669;box-shadow:0 0 0 2px #a7f3d0}
+.d-tl-dot.red{background:#dc2626;box-shadow:0 0 0 2px #fca5a5}
+.d-tl-dot.amber{background:#d97706;box-shadow:0 0 0 2px #fde68a}
+.d-tl-dot.gray{background:#94a3b8;box-shadow:0 0 0 2px #e2e8f0}
+.d-tl-dot.purple{background:#7c3aed;box-shadow:0 0 0 2px #ddd6fe}
+.d-tl-body{flex:1}
+.d-tl-action{font-size:12.5px;font-weight:600;color:var(--ink-900)}
+.d-tl-meta{font-size:11px;color:var(--ink-500);margin-top:1px}
+.d-tl-note{font-size:12px;color:var(--ink-700);margin-top:3px;padding:4px 8px;background:var(--surface-soft);border-radius:5px;border-left:3px solid var(--blue-200)}
+.d-li-table{width:100%;border-collapse:collapse;font-size:12px}
+.d-li-table th{background:var(--surface-soft);padding:6px 8px;text-align:left;font-weight:700;color:var(--ink-500);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border)}
+.d-li-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--ink-900)}
+.d-li-table tr:last-child td{border-bottom:none}
+.d-li-table .num{text-align:right}
+.denial-card{background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.denial-code{font-family:monospace;font-weight:700;font-size:12.5px;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5}
+.denial-reason{font-size:13px;color:#7f1d1d;font-weight:600;margin-top:4px}
+.appeal-card{background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.dr-si-sel{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;margin-bottom:6px;cursor:pointer}
+.dr-si-sel:focus{border-color:var(--blue-500)}
+.dr-si-row{display:flex;gap:4px;align-items:flex-start;margin-bottom:5px;font-size:12.5px}
+.dr-si-row label{color:var(--ink-500);width:68px;flex-shrink:0;font-weight:600;font-size:12px}
+.dr-si-row span{color:var(--ink-900);font-weight:500}
+.dr-fi-row{font-size:12.5px;display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)}
+.dr-fi-row:last-child{border-bottom:none}
+.dr-fi-row .lbl{color:var(--ink-500);font-weight:600}
+.dr-fi-row .val{font-weight:700;color:var(--ink-900)}
+.dr-fi-row .val.green{color:#059669}
+.dr-fi-row .val.red{color:#dc2626}
+.dr-fi-row .val.amber{color:#d97706}
+
+/* ── Report Tab ───────────────────────────────────────── */
+.rpt-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.rpt-table-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:16px}
+.rpt-table-title{padding:12px 16px;font-weight:700;font-size:13.5px;color:var(--ink-900);border-bottom:1px solid var(--border)}
+.rpt-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.rpt-table th{background:var(--surface-soft);padding:8px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);border-bottom:1px solid var(--border)}
+.rpt-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--ink-900)}
+.rpt-table tr:last-child td{border-bottom:none}
+.rpt-bar-track{flex:1;background:#edf1f5;border-radius:99px;height:6px;overflow:hidden}
+.rpt-bar-fill{height:100%;border-radius:99px}
+.rpt-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.rpt-filters select,.rpt-filters input{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+
+/* ── Modals ───────────────────────────────────────────── */
+.modal-back{position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1200;display:none;align-items:center;justify-content:center}
+.modal-back.open{display:flex}
+.modal{background:#fff;border-radius:18px;box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(520px,95vw);max-height:88vh;overflow-y:auto;padding:26px 28px;position:relative}
+.modal-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin-bottom:16px}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--ink-500)}
+.modal-close:hover{color:var(--ink-900)}
+.modal-field{display:flex;flex-direction:column;gap:4px;margin-bottom:11px}
+.modal-field label{font-size:12px;font-weight:700;color:var(--ink-700)}
+.modal-field input,.modal-field select,.modal-field textarea{border:1.5px solid var(--border);border-radius:9px;padding:7px 10px;font-size:13px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;width:100%;box-sizing:border-box}
+.modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+.modal-field textarea{resize:vertical;min-height:68px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+
+/* ── Empty state ──────────────────────────────────────── */
+.empty-state{text-align:center;padding:36px 20px;color:var(--ink-500)}
+.empty-state .es-icon{font-size:2rem;margin-bottom:8px;opacity:.4}
+.empty-state p{font-size:13px;font-weight:600;margin:0}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media(max-width:1200px){.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.cm-drawer{width:100%}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <div class="admin-badge">Admin Portal</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+
+<main class="dashboard-main" id="mainContent">
+
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div>
+      <h1>Claims</h1>
+      <p>Unified claims management — overview, workqueues, denials, appeals, and reports</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline btn-sm" id="btnExportCSV">&#8595; Export CSV</button>
+      <button class="btn btn-blue btn-sm" id="btnNewClaim">&#43; New Claim</button>
+    </div>
+  </header>
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip">
+    <div class="kpi-card blue"><div class="kpi-num" id="kpiTotal">&#8212;</div><div class="kpi-lbl">Total Claims</div><div class="kpi-sub" id="kpiTotalSub"></div></div>
+    <div class="kpi-card teal"><div class="kpi-num" id="kpiSubmitted">&#8212;</div><div class="kpi-lbl">Submitted</div><div class="kpi-sub" id="kpiSubSub"></div></div>
+    <div class="kpi-card green"><div class="kpi-num" id="kpiPaid">&#8212;</div><div class="kpi-lbl">Total Paid (MTD)</div><div class="kpi-sub" id="kpiPaidSub"></div></div>
+    <div class="kpi-card red"><div class="kpi-num" id="kpiDenied">&#8212;</div><div class="kpi-lbl">Denied</div><div class="kpi-sub" id="kpiDeniedSub"></div></div>
+    <div class="kpi-card amber"><div class="kpi-num" id="kpiWQ">&#8212;</div><div class="kpi-lbl">Workqueue</div><div class="kpi-sub" id="kpiWQSub"></div></div>
+    <div class="kpi-card purple"><div class="kpi-num" id="kpiAging">&#8212;</div><div class="kpi-lbl">Aging 90+</div><div class="kpi-sub" id="kpiAgingSub"></div></div>
+  </div>
+
+  <!-- Module Tab Bar -->
+  <div class="cm-tabbar" role="tablist" aria-label="Claims module tabs">
+    <button class="cm-tab active" data-tab="overview"    role="tab" aria-selected="true">Overview</button>
+    <button class="cm-tab"        data-tab="list"        role="tab" aria-selected="false">Claims List <span class="cm-tab-badge" id="cmtb-list">0</span></button>
+    <button class="cm-tab"        data-tab="workqueues"  role="tab" aria-selected="false">Workqueues <span class="cm-tab-badge cm-tab-badge-amber" id="cmtb-wq">0</span></button>
+    <button class="cm-tab"        data-tab="denials"     role="tab" aria-selected="false">Denials <span class="cm-tab-badge cm-tab-badge-red" id="cmtb-denials">0</span></button>
+    <button class="cm-tab"        data-tab="appeals"     role="tab" aria-selected="false">Appeals <span class="cm-tab-badge cm-tab-badge-purple" id="cmtb-appeals">0</span></button>
+    <button class="cm-tab"        data-tab="reports"     role="tab" aria-selected="false">Reports</button>
+  </div>
+
+  <!-- ═══════════════════ TAB: OVERVIEW ════════════════════ -->
+  <div class="cm-panel" id="panel-overview">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px" id="ovQueueGrid"></div>
+  </div>
+
+  <!-- ═══════════════════ TAB: CLAIMS LIST ════════════════ -->
+  <div class="cm-panel" id="panel-list" style="display:none">
+    <div class="filter-panel">
+      <div class="filter-hdr" id="filterHdr">
+        <div class="filter-hdr-left">&#9776; Filters <span id="activeFilterBadge" style="display:none;background:var(--blue-600);color:#fff;border-radius:99px;font-size:10px;padding:1px 7px;font-weight:800"></span></div>
+        <button class="filter-toggle-btn" id="filterToggleBtn" aria-expanded="false">&#9660; Expand</button>
+      </div>
+      <div class="filter-body" id="filterBody" style="display:none">
+        <div class="filter-row">
+          <div class="filter-group" style="flex:1;min-width:200px">
+            <div class="filter-label">Search</div>
+            <input type="text" class="filter-input" id="fSearch" placeholder="Claim #, patient, payer&hellip;">
+          </div>
+          <div class="filter-group"><div class="filter-label">DOS From</div><input type="date" class="filter-input" id="fDosFrom" style="min-width:unset;width:140px"></div>
+          <div class="filter-group"><div class="filter-label">DOS To</div><input type="date" class="filter-input" id="fDosTo" style="min-width:unset;width:140px"></div>
+          <div class="filter-group"><div class="filter-label">Sub. From</div><input type="date" class="filter-input" id="fSubFrom" style="min-width:unset;width:140px"></div>
+          <div class="filter-group"><div class="filter-label">Sub. To</div><input type="date" class="filter-input" id="fSubTo" style="min-width:unset;width:140px"></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group"><div class="filter-label">Payer</div>
+            <select class="filter-select" id="fPayer"><option value="">All Payers</option><option>Medicaid CO</option><option>BCBS CO</option><option>Aetna</option><option>United Healthcare</option><option>Cigna</option><option>Humana</option><option>Tricare</option></select></div>
+          <div class="filter-group"><div class="filter-label">Provider</div>
+            <select class="filter-select" id="fProvider"><option value="">All Providers</option><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option></select></div>
+          <div class="filter-group"><div class="filter-label">Claim Status</div>
+            <select class="filter-select" id="fStatus"><option value="">All Statuses</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="submitted">Submitted</option><option value="accepted">Accepted</option><option value="in_process">In Process</option><option value="paid">Paid</option><option value="partial">Partial</option><option value="denied">Denied</option><option value="appealed">Appealed</option><option value="voided">Voided</option></select></div>
+          <div class="filter-group"><div class="filter-label">CH Status</div>
+            <select class="filter-select" id="fChStatus"><option value="">All</option><option value="pending">Pending</option><option value="transmitted">Transmitted</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></div>
+          <div class="filter-group"><div class="filter-label">ERA Status</div>
+            <select class="filter-select" id="fEraStatus"><option value="">All</option><option value="pending">Pending</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option><option value="posted">Posted</option></select></div>
+          <div class="filter-group"><div class="filter-label">Workqueue</div>
+            <select class="filter-select" id="fWorkqueue"><option value="">All</option><option value="no_action">No Action</option><option value="follow_up">Follow Up</option><option value="resubmit">Resubmit</option><option value="appeal">Appeal</option><option value="era_match">ERA Match</option><option value="missing_auth">Missing Auth</option><option value="aging_90">Aging 90+</option><option value="unmatched_pay">Unmatched Pay</option></select></div>
+          <div class="filter-group"><div class="filter-label">CPT</div><input type="text" class="filter-input" id="fCpt" placeholder="90837&hellip;" style="min-width:90px;width:110px"></div>
+          <div class="filter-group"><div class="filter-label">ICD-10</div><input type="text" class="filter-input" id="fIcd" placeholder="F32.1&hellip;" style="min-width:80px;width:100px"></div>
+          <div class="filter-group" style="justify-content:flex-end">
+            <div class="filter-label" style="visibility:hidden">x</div>
+            <button class="btn btn-outline btn-sm" id="btnClearFilters">Clear</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="bulk-bar" id="bulkBar">
+      <div class="bulk-count"><span id="bulkCount">0</span> selected</div>
+      <div class="bulk-div"></div>
+      <div class="bulk-actions">
+        <button class="bulk-btn" data-bulk-action="workqueue">&#9776; Workqueue</button>
+        <button class="bulk-btn" data-bulk-action="assign">&#128100; Assign</button>
+        <button class="bulk-btn" data-bulk-action="submit">&#9658; Submit to CH</button>
+        <button class="bulk-btn" data-bulk-action="appeal">&#9878; Mark Appeal</button>
+        <button class="bulk-btn" data-bulk-action="export-csv">&#8595; Export</button>
+        <button class="bulk-btn danger" data-bulk-action="void">&#128683; Void</button>
+      </div>
+      <button class="bulk-clear" id="btnBulkClear">&times;</button>
+    </div>
+    <div class="table-shell">
+      <div class="table-toolbar">
+        <div class="table-count" id="tableCount">Loading&hellip;</div>
+        <div style="display:flex;gap:6px">
+          <select id="pageSizeSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--ink-700);outline:none">
+            <option value="10">10/pg</option><option value="25" selected>25/pg</option><option value="50">50/pg</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="selectAll"></th>
+            <th class="sortable" data-col="id">Claim # <span class="si">&#8597;</span></th>
+            <th class="sortable" data-col="patient">Patient <span class="si">&#8597;</span></th>
+            <th>Provider</th>
+            <th class="sortable" data-col="dos">DOS <span class="si">&#8597;</span></th>
+            <th>Payer</th>
+            <th>CPT</th>
+            <th>ICD-10</th>
+            <th class="sortable" data-col="billed" style="text-align:right">Billed <span class="si">&#8597;</span></th>
+            <th style="text-align:right">Allowed</th>
+            <th class="sortable" data-col="paid" style="text-align:right">Paid <span class="si">&#8597;</span></th>
+            <th style="text-align:right">Pt Resp</th>
+            <th>Status</th>
+            <th class="sortable" data-col="submitted">Submitted <span class="si">&#8597;</span></th>
+            <th>CH</th>
+            <th>ERA</th>
+            <th>Workqueue</th>
+            <th style="width:70px"></th>
+          </tr></thead>
+          <tbody id="claimsBody"><tr><td colspan="18" class="empty-state"><div class="es-icon">&#128196;</div><p>Loading&hellip;</p></td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager" id="pager">
+        <div class="pager-info" id="pagerInfo"></div>
+        <div class="pager-btns" id="pagerBtns"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════ TAB: WORKQUEUES ═════════════════ -->
+  <div class="cm-panel" id="panel-workqueues" style="display:none">
+    <div class="wq-subtabbar" role="tablist" aria-label="Workqueue sub-tabs">
+      <button class="wq-subtab active" data-wq="follow_up">Follow Up <span class="wq-sub-badge amber" id="wqb-follow_up">0</span></button>
+      <button class="wq-subtab" data-wq="resubmit">Resubmit <span class="wq-sub-badge red" id="wqb-resubmit">0</span></button>
+      <button class="wq-subtab" data-wq="appeal">Appeal <span class="wq-sub-badge red" id="wqb-appeal">0</span></button>
+      <button class="wq-subtab" data-wq="era_match">ERA Match <span class="wq-sub-badge amber" id="wqb-era_match">0</span></button>
+      <button class="wq-subtab" data-wq="denials">Denials <span class="wq-sub-badge red" id="wqb-denials">0</span></button>
+      <button class="wq-subtab" data-wq="missing_auth">Missing Auth <span class="wq-sub-badge amber" id="wqb-missing_auth">0</span></button>
+      <button class="wq-subtab" data-wq="aging_90">Aging 90+ <span class="wq-sub-badge red" id="wqb-aging_90">0</span></button>
+      <button class="wq-subtab" data-wq="unmatched_pay">Unmatched Pay <span class="wq-sub-badge amber" id="wqb-unmatched_pay">0</span></button>
+    </div>
+    <div class="wq-split">
+      <div class="wq-list-col">
+        <div class="wq-list-col-hdr">
+          <input type="text" class="wq-search" id="wqSearch" placeholder="Search claims…">
+          <span id="wqListCount" style="font-size:11px;color:var(--ink-500);font-weight:700;white-space:nowrap"></span>
+        </div>
+        <div class="wq-list-body" id="wqListBody">
+          <div class="wq-empty">Select a workqueue above</div>
+        </div>
+      </div>
+      <div class="wq-detail-col" id="wqDetailCol">
+        <div class="wq-detail-empty">
+          <div style="font-size:2rem;opacity:.3">📋</div>
+          <p style="font-size:13px;font-weight:600;color:var(--ink-500)">Select a claim to view details</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: DENIALS ════════════════════ -->
+  <div class="cm-panel" id="panel-denials" style="display:none">
+    <div class="kpi-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="kpi-card red"><div class="kpi-num" id="dkpiTotal">—</div><div class="kpi-lbl">Total Denials</div><div class="kpi-sub" id="dkpiTotalSub"></div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="dkpiOpen">—</div><div class="kpi-lbl">Open</div><div class="kpi-sub"></div></div>
+      <div class="kpi-card purple"><div class="kpi-num" id="dkpiAppealed">—</div><div class="kpi-lbl">Appeals Needed</div><div class="kpi-sub"></div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="dkpiOverturned">—%</div><div class="kpi-lbl">Overturn Rate</div><div class="kpi-sub" id="dkpiOverturnSub"></div></div>
+    </div>
+    <div class="bucket-tabs" id="denialBuckets">
+      <button class="bucket-tab active" data-bucket="all">All <span class="bucket-badge" id="dbt-all">0</span></button>
+      <button class="bucket-tab" data-bucket="carc">By CARC <span class="bucket-badge" id="dbt-carc">0</span></button>
+      <button class="bucket-tab" data-bucket="rarc">By RARC <span class="bucket-badge" id="dbt-rarc">0</span></button>
+      <button class="bucket-tab" data-bucket="appeals_needed">Appeals Needed <span class="bucket-badge" id="dbt-appeals_needed">0</span></button>
+      <button class="bucket-tab" data-bucket="recoupments">Recoupments <span class="bucket-badge" id="dbt-recoupments">0</span></button>
+    </div>
+    <div id="denialTableContainer">
+      <div class="table-shell">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th>Denial ID</th><th>Claim</th><th>Patient</th><th>DOS</th><th>Payer</th>
+              <th>Code</th><th>CARC</th><th>RARC</th><th>Reason</th>
+              <th style="text-align:right">Amount</th><th>Status</th><th>Recoup?</th><th style="width:70px"></th>
+            </tr></thead>
+            <tbody id="denialBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: APPEALS ════════════════════ -->
+  <div class="cm-panel" id="panel-appeals" style="display:none">
+    <div class="kpi-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="kpi-card purple"><div class="kpi-num" id="apkpiTotal">—</div><div class="kpi-lbl">Total Appeals</div><div class="kpi-sub"></div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="apkpiOpen">—</div><div class="kpi-lbl">Pending/In Review</div><div class="kpi-sub"></div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="apkpiApproved">—</div><div class="kpi-lbl">Approved</div><div class="kpi-sub"></div></div>
+      <div class="kpi-card blue"><div class="kpi-num" id="apkpiAmt">$—</div><div class="kpi-lbl">Recovered Amount</div><div class="kpi-sub"></div></div>
+    </div>
+    <div class="table-shell">
+      <div class="table-toolbar">
+        <div class="table-count" id="apTableCount"></div>
+        <button class="btn btn-blue btn-sm" id="btnNewAppeal">+ New Appeal</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>Appeal ID</th><th>Claim</th><th>Patient</th><th>Payer</th>
+            <th>Original Denial</th><th>Filed Date</th><th>Due Date</th>
+            <th>Level</th><th>Status</th><th>Assigned</th><th style="width:70px"></th>
+          </tr></thead>
+          <tbody id="appealBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: REPORTS ════════════════════ -->
+  <div class="cm-panel" id="panel-reports" style="display:none">
+    <div class="rpt-filters">
+      <select id="rptPeriod"><option value="mtd">Month to Date</option><option value="qtd">Quarter to Date</option><option value="ytd">Year to Date</option></select>
+      <select id="rptPayer"><option value="">All Payers</option><option>Medicaid CO</option><option>BCBS CO</option><option>Aetna</option><option>United Healthcare</option><option>Cigna</option><option>Humana</option></select>
+      <select id="rptProvider"><option value="">All Providers</option><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option></select>
+    </div>
+    <div class="rpt-kpi-grid" id="rptKpiGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="rptTables">
+      <div class="rpt-table-card">
+        <div class="rpt-table-title">Claims by Status</div>
+        <table class="rpt-table"><thead><tr><th>Status</th><th>Count</th><th>Billed</th><th>Paid</th><th style="width:120px">% of Total</th></tr></thead>
+        <tbody id="rptStatusBody"></tbody></table>
+      </div>
+      <div class="rpt-table-card">
+        <div class="rpt-table-title">Claims by Payer</div>
+        <table class="rpt-table"><thead><tr><th>Payer</th><th>Count</th><th>Billed</th><th>Paid</th><th style="width:120px">AR %</th></tr></thead>
+        <tbody id="rptPayerBody"></tbody></table>
+      </div>
+    </div>
+    <div class="rpt-table-card">
+      <div class="rpt-table-title">Denial Analysis by CARC Code</div>
+      <table class="rpt-table"><thead><tr><th>CARC Code</th><th>Description</th><th>Count</th><th>Amount</th><th style="width:120px">% of Denials</th></tr></thead>
+      <tbody id="rptCarcBody"></tbody></table>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- ═══════════════ CLAIM DETAIL DRAWER ════════════════ -->
+<div class="cm-drawer-overlay" id="drawerOverlay"></div>
+<div class="cm-drawer" id="claimDrawer" role="dialog" aria-modal="true" aria-label="Claim Detail">
+
+  <div class="cm-drawer-hdr">
+    <div class="cm-drawer-title">
+      <div class="cm-drawer-id" id="drId">—</div>
+      <div class="cm-drawer-patient" id="drPatient">—</div>
+      <div class="cm-drawer-sub" id="drSub"></div>
+    </div>
+    <div class="cm-drawer-actions">
+      <button class="btn btn-outline btn-sm" id="drBtnLogDenial">Log Denial</button>
+      <button class="btn btn-outline btn-sm" id="drBtnSubmitAppeal">Submit Appeal</button>
+      <button class="btn btn-blue btn-sm" id="drBtnPostPayment">Post Payment</button>
+    </div>
+    <button class="cm-drawer-close" id="drawerClose" aria-label="Close">&#10005;</button>
+  </div>
+
+  <div class="drawer-kpis">
+    <div class="dkpi"><div class="dkpi-num" id="drKpiBilled">—</div><div class="dkpi-lbl">Billed</div></div>
+    <div class="dkpi"><div class="dkpi-num" id="drKpiAllowed">—</div><div class="dkpi-lbl">Allowed</div></div>
+    <div class="dkpi"><div class="dkpi-num green" id="drKpiPaid">—</div><div class="dkpi-lbl">Paid</div></div>
+    <div class="dkpi"><div class="dkpi-num amber" id="drKpiPtResp">—</div><div class="dkpi-lbl">Pt Resp</div></div>
+    <div class="dkpi"><div class="dkpi-num red" id="drKpiBalance">—</div><div class="dkpi-lbl">Balance</div></div>
+  </div>
+
+  <div class="drawer-tabs" role="tablist" id="drawerTabBar">
+    <button class="drawer-tab active" data-panel="overview">Overview</button>
+    <button class="drawer-tab" data-panel="lines">Line Items <span class="drawer-cnt" id="drCntLines">0</span></button>
+    <button class="drawer-tab" data-panel="payments">Payments <span class="drawer-cnt" id="drCntPay">0</span></button>
+    <button class="drawer-tab" data-panel="denials">Denials <span class="drawer-cnt" id="drCntDen">0</span></button>
+    <button class="drawer-tab" data-panel="appeals">Appeals <span class="drawer-cnt" id="drCntAp">0</span></button>
+    <button class="drawer-tab" data-panel="notes">Notes <span class="drawer-cnt" id="drCntNotes">0</span></button>
+    <button class="drawer-tab" data-panel="timeline">Timeline</button>
+  </div>
+
+  <div class="drawer-body">
+    <div class="drawer-main">
+
+      <!-- Overview Panel -->
+      <div class="drawer-panel active" id="drp-overview">
+        <div class="d-card">
+          <div class="d-card-title">Claim Information</div>
+          <div class="d-grid" id="drOverviewGrid"></div>
+        </div>
+        <div class="d-card">
+          <div class="d-card-title">Diagnosis &amp; Procedures</div>
+          <div id="drCptIcdBlock"></div>
+        </div>
+      </div>
+
+      <!-- Line Items Panel -->
+      <div class="drawer-panel" id="drp-lines">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:700;color:var(--ink-700)">Line Items</div>
+          <button class="btn btn-outline btn-sm" id="drBtnAddLine">+ Add Line</button>
+        </div>
+        <table class="d-li-table">
+          <thead><tr><th>#</th><th>CPT</th><th>Mods</th><th>ICD Ptrs</th><th>Units</th><th class="num">Billed</th><th class="num">Allowed</th><th class="num">Paid</th><th>Status</th></tr></thead>
+          <tbody id="drLinesBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Payments Panel -->
+      <div class="drawer-panel" id="drp-payments">
+        <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:10px">Payment History</div>
+        <table class="d-li-table">
+          <thead><tr><th>Date</th><th>Source</th><th>ERA/Check #</th><th>Type</th><th class="num">Amount</th><th>Notes</th></tr></thead>
+          <tbody id="drPayBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Denials Panel -->
+      <div class="drawer-panel" id="drp-denials">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:700;color:var(--ink-700)">Denial History</div>
+          <button class="btn btn-outline btn-sm" id="drBtnLogDenial2">+ Log Denial</button>
+        </div>
+        <div id="drDenialsBlock"></div>
+      </div>
+
+      <!-- Appeals Panel -->
+      <div class="drawer-panel" id="drp-appeals">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:700;color:var(--ink-700)">Appeal History</div>
+          <button class="btn btn-outline btn-sm" id="drBtnSubmitAppeal2">+ Submit Appeal</button>
+        </div>
+        <div id="drAppealsBlock"></div>
+      </div>
+
+      <!-- Notes Panel -->
+      <div class="drawer-panel" id="drp-notes">
+        <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:10px">Notes &amp; Comments</div>
+        <div id="drNotesBlock"></div>
+        <div style="margin-top:12px">
+          <textarea id="drNewNote" placeholder="Add a note…" style="width:100%;border:1.5px solid var(--border);border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:inherit;resize:vertical;min-height:64px;outline:none;box-sizing:border-box;background:var(--surface-soft)"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:6px">
+            <button class="btn btn-blue btn-sm" id="drBtnAddNote">Save Note</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Panel -->
+      <div class="drawer-panel" id="drp-timeline">
+        <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:10px">Claim Timeline</div>
+        <div class="d-tl" id="drTimelineBlock"></div>
+      </div>
+
+    </div>
+
+    <!-- Drawer Sidebar -->
+    <div class="drawer-sidebar">
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">Quick Actions</div>
+
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px">Claim Status</div>
+        <select class="dr-si-sel" id="drStatusSel">
+          <option value="draft">Draft</option><option value="ready">Ready to Submit</option>
+          <option value="submitted">Submitted</option><option value="in_process">In Process</option>
+          <option value="paid">Paid</option><option value="partial">Partial</option>
+          <option value="denied">Denied</option><option value="appealed">Appealed</option>
+          <option value="voided">Voided</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px">Workqueue</div>
+        <select class="dr-si-sel" id="drWqSel">
+          <option value="no_action">No Action</option><option value="follow_up">Follow Up</option>
+          <option value="resubmit">Resubmit</option><option value="appeal">Appeal</option>
+          <option value="era_match">ERA Match</option><option value="missing_auth">Missing Auth</option>
+          <option value="aging_90">Aging 90+</option><option value="unmatched_pay">Unmatched Pay</option>
+          <option value="write_off">Write Off</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px">Assigned To</div>
+        <select class="dr-si-sel" id="drAssignedSel">
+          <option value="">Unassigned</option>
+          <option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option>
+          <option>Dr. Priya Nair</option><option>Dr. James Liu</option>
+          <option>Billing Team</option>
+        </select>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">CH / ERA Status</div>
+        <div class="dr-si-row"><label>CH:</label><span id="drChBadge">—</span></div>
+        <div class="dr-si-row"><label>ERA:</label><span id="drEraBadge">—</span></div>
+        <div class="dr-si-row"><label>Submitted:</label><span id="drSubDate">—</span></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">Financials</div>
+        <div class="dr-fi-row"><span class="lbl">Billed</span><span class="val" id="drFiBilled">—</span></div>
+        <div class="dr-fi-row"><span class="lbl">Allowed</span><span class="val" id="drFiAllowed">—</span></div>
+        <div class="dr-fi-row"><span class="lbl">Paid</span><span class="val green" id="drFiPaid">—</span></div>
+        <div class="dr-fi-row"><span class="lbl">Adj.</span><span class="val" id="drFiAdj">—</span></div>
+        <div class="dr-fi-row"><span class="lbl">Pt Resp</span><span class="val amber" id="drFiPtResp">—</span></div>
+        <div class="dr-fi-row"><span class="lbl">Balance</span><span class="val red" id="drFiBalance">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: NEW CLAIM ═══════════════════ -->
+<div class="modal-back" id="modalNewClaim">
+  <div class="modal">
+    <button class="modal-close" data-close="modalNewClaim">&times;</button>
+    <div class="modal-title">New Claim</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Patient</label><input type="text" placeholder="Search patient…" id="ncPatient"></div>
+      <div class="modal-field"><label>DOS</label><input type="date" id="ncDos"></div>
+      <div class="modal-field"><label>Provider</label>
+        <select id="ncProvider"><option value="">Select…</option><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option></select></div>
+      <div class="modal-field"><label>Payer</label>
+        <select id="ncPayer"><option value="">Select…</option><option>Medicaid CO</option><option>BCBS CO</option><option>Aetna</option><option>United Healthcare</option><option>Cigna</option><option>Humana</option><option>Tricare</option></select></div>
+      <div class="modal-field"><label>CPT Code(s)</label><input type="text" placeholder="H0031, 90837…" id="ncCpt"></div>
+      <div class="modal-field"><label>Modifiers</label><input type="text" placeholder="HO, U4…" id="ncMods"></div>
+      <div class="modal-field"><label>ICD-10 Code(s)</label><input type="text" placeholder="F32.1, Z59.9…" id="ncIcd"></div>
+      <div class="modal-field"><label>Billed Amount ($)</label><input type="number" min="0" step="0.01" id="ncBilled"></div>
+    </div>
+    <div class="modal-field"><label>Notes</label><textarea placeholder="Optional notes…" id="ncNotes"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" data-close="modalNewClaim">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveNewClaim">Save as Draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: LOG DENIAL ══════════════════ -->
+<div class="modal-back" id="modalLogDenial">
+  <div class="modal">
+    <button class="modal-close" data-close="modalLogDenial">&times;</button>
+    <div class="modal-title">Log Denial</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>CARC Code</label><input type="text" placeholder="CO-4…" id="ldCarc"></div>
+      <div class="modal-field"><label>RARC Code</label><input type="text" placeholder="N519…" id="ldRarc"></div>
+      <div class="modal-field"><label>Denial Amount ($)</label><input type="number" min="0" step="0.01" id="ldAmount"></div>
+      <div class="modal-field"><label>Denial Date</label><input type="date" id="ldDate"></div>
+    </div>
+    <div class="modal-field"><label>Reason</label><textarea placeholder="Describe the denial reason…" id="ldReason"></textarea></div>
+    <div class="modal-field"><label>Recommended Action</label>
+      <select id="ldAction"><option value="appeal">Submit Appeal</option><option value="resubmit">Resubmit Corrected</option><option value="write_off">Write Off</option><option value="patient_resp">Bill Patient</option></select></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" data-close="modalLogDenial">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveLogDenial">Log Denial</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: SUBMIT APPEAL ═══════════════ -->
+<div class="modal-back" id="modalSubmitAppeal">
+  <div class="modal">
+    <button class="modal-close" data-close="modalSubmitAppeal">&times;</button>
+    <div class="modal-title">Submit Appeal</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Appeal Level</label>
+        <select id="saLevel"><option value="1">Level 1 — Internal</option><option value="2">Level 2 — Payer Review</option><option value="ext">External Review</option></select></div>
+      <div class="modal-field"><label>Filed Date</label><input type="date" id="saFiledDate"></div>
+      <div class="modal-field"><label>Due Date</label><input type="date" id="saDueDate"></div>
+      <div class="modal-field"><label>Assigned To</label>
+        <select id="saAssigned"><option value="">Unassigned</option><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option><option>Billing Team</option></select></div>
+    </div>
+    <div class="modal-field"><label>Supporting Documentation</label><textarea placeholder="Describe documentation attached…" id="saDocs"></textarea></div>
+    <div class="modal-field"><label>Notes</label><textarea placeholder="Appeal rationale…" id="saNotes"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" data-close="modalSubmitAppeal">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveAppeal">Submit Appeal</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: POST PAYMENT ════════════════ -->
+<div class="modal-back" id="modalPostPayment">
+  <div class="modal">
+    <button class="modal-close" data-close="modalPostPayment">&times;</button>
+    <div class="modal-title">Post Payment</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Payment Date</label><input type="date" id="ppDate"></div>
+      <div class="modal-field"><label>Payment Source</label>
+        <select id="ppSource"><option value="insurance">Insurance</option><option value="patient">Patient</option><option value="secondary">Secondary Ins.</option></select></div>
+      <div class="modal-field"><label>ERA / Check #</label><input type="text" placeholder="ERA-2026-001…" id="ppRef"></div>
+      <div class="modal-field"><label>Amount Paid ($)</label><input type="number" min="0" step="0.01" id="ppAmount"></div>
+      <div class="modal-field"><label>Adjustment ($)</label><input type="number" min="0" step="0.01" id="ppAdj"></div>
+      <div class="modal-field"><label>Patient Resp. ($)</label><input type="number" min="0" step="0.01" id="ppPtResp"></div>
+    </div>
+    <div class="modal-field"><label>Notes</label><textarea placeholder="Payment notes…" id="ppNotes"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" data-close="modalPostPayment">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSavePayment">Post Payment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════
+const MOCK_CLAIMS = [
+  {id:'CLM-00001',patient:'Marcus Johnson',  provider:'Dr. Sarah Chen',    dos:'2026-03-15',payer:'Medicaid CO',       cpt:['H0031'],        mods:['HO','U4'],   icd10:['F32.1','Z59.9'],billed:425.00,allowed:385.00,paid:385.00,pt_resp:0,    status:'paid',      submitted:'2026-03-20',ch:'accepted', era:'posted',    wq:'no_action',   has_alert:false},
+  {id:'CLM-00002',patient:'Destiny Williams',provider:'Dr. Michael Torres',dos:'2026-03-18',payer:'BCBS CO',           cpt:['90837'],        mods:[],            icd10:['F33.1'],        billed:180.00,allowed:150.00,paid:0,    pt_resp:150.00,status:'denied',    submitted:'2026-03-22',ch:'accepted', era:'matched',   wq:'appeal',      has_alert:true },
+  {id:'CLM-00003',patient:'James Rivera',    provider:'Dr. Sarah Chen',    dos:'2026-03-20',payer:'Aetna',             cpt:['H0001'],        mods:['HF'],        icd10:['F10.20','F32.1'],billed:750.00,allowed:0,    paid:0,    pt_resp:0,    status:'submitted', submitted:'2026-03-24',ch:'transmitted',era:'pending',   wq:'era_match',   has_alert:false},
+  {id:'CLM-00004',patient:'Sofia Martinez',  provider:'Dr. Priya Nair',    dos:'2026-03-10',payer:'United Healthcare',cpt:['H0031','H0032'],mods:['HO'],        icd10:['F41.1'],        billed:860.00,allowed:800.00,paid:800.00,pt_resp:0,    status:'paid',      submitted:'2026-03-15',ch:'accepted', era:'posted',    wq:'no_action',   has_alert:false},
+  {id:'CLM-00005',patient:'Elijah Thompson', provider:'Dr. James Liu',     dos:'2026-03-22',payer:'Medicaid CO',       cpt:['H0031'],        mods:['HO'],        icd10:['F31.9'],        billed:425.00,allowed:385.00,paid:0,    pt_resp:0,    status:'in_process',submitted:'2026-03-26',ch:'accepted', era:'pending',   wq:'follow_up',   has_alert:false},
+  {id:'CLM-00006',patient:'Aaliyah Brown',   provider:'Dr. Michael Torres',dos:'2026-03-05',payer:'Cigna',             cpt:['90834'],        mods:[],            icd10:['F32.0'],        billed:130.00,allowed:110.00,paid:88.00, pt_resp:22.00, status:'partial',   submitted:'2026-03-10',ch:'accepted', era:'matched',   wq:'follow_up',   has_alert:true },
+  {id:'CLM-00007',patient:'Noah Davis',      provider:'Dr. Sarah Chen',    dos:'2026-03-25',payer:'BCBS CO',           cpt:['90837'],        mods:[],            icd10:['F42.2'],        billed:180.00,allowed:0,    paid:0,    pt_resp:0,    status:'ready',     submitted:null,        ch:'pending',  era:'pending',   wq:'missing_auth',has_alert:false},
+  {id:'CLM-00008',patient:'Isabella Wilson', provider:'Dr. Priya Nair',    dos:'2026-03-12',payer:'Humana',            cpt:['H0001','H0031'],mods:['HF'],        icd10:['F11.20'],       billed:1175.00,allowed:1100.00,paid:1100.00,pt_resp:0,   status:'paid',      submitted:'2026-03-17',ch:'accepted', era:'posted',    wq:'no_action',   has_alert:false},
+  {id:'CLM-00009',patient:'Liam Garcia',     provider:'Dr. James Liu',     dos:'2026-02-28',payer:'Aetna',             cpt:['90837'],        mods:[],            icd10:['F33.0'],        billed:180.00,allowed:0,    paid:0,    pt_resp:0,    status:'denied',    submitted:'2026-03-05',ch:'accepted', era:'matched',   wq:'resubmit',    has_alert:true },
+  {id:'CLM-00010',patient:'Emma Jackson',    provider:'Dr. Michael Torres',dos:'2026-03-28',payer:'Tricare',           cpt:['H0031'],        mods:['HO'],        icd10:['F32.1'],        billed:425.00,allowed:0,    paid:0,    pt_resp:0,    status:'submitted', submitted:'2026-04-01',ch:'transmitted',era:'pending',   wq:'no_action',   has_alert:false},
+  {id:'CLM-00011',patient:'Olivia Harris',   provider:'Dr. Sarah Chen',    dos:'2026-02-15',payer:'Medicaid CO',       cpt:['H0001'],        mods:['HF'],        icd10:['F10.20'],       billed:750.00,allowed:700.00,paid:680.00,pt_resp:0,    status:'paid',      submitted:'2026-02-20',ch:'accepted', era:'unmatched', wq:'era_match',   has_alert:false},
+  {id:'CLM-00012',patient:'William Lee',     provider:'Dr. Priya Nair',    dos:'2026-03-18',payer:'United Healthcare',cpt:['90837','90834'],mods:[],            icd10:['F33.1','Z87.891'],billed:310.00,allowed:0,   paid:0,    pt_resp:0,    status:'appealed',  submitted:'2026-03-23',ch:'accepted', era:'unmatched', wq:'appeal',      has_alert:true },
+  {id:'CLM-00013',patient:'Ava Robinson',    provider:'Dr. James Liu',     dos:'2026-03-08',payer:'BCBS CO',           cpt:['H0032'],        mods:['HO'],        icd10:['F41.1','F33.0'],billed:620.00,allowed:0,    paid:0,    pt_resp:0,    status:'denied',    submitted:'2026-03-13',ch:'accepted', era:'matched',   wq:'appeal',      has_alert:true },
+  {id:'CLM-00014',patient:'Ethan Clark',     provider:'Dr. Michael Torres',dos:'2026-04-01',payer:'Cigna',             cpt:['90837'],        mods:[],            icd10:['F32.1'],        billed:180.00,allowed:0,    paid:0,    pt_resp:0,    status:'draft',     submitted:null,        ch:'pending',  era:'pending',   wq:'no_action',   has_alert:false},
+  {id:'CLM-00015',patient:'Mia Lewis',       provider:'Dr. Priya Nair',    dos:'2026-03-30',payer:'Aetna',             cpt:['H0031'],        mods:['HO'],        icd10:['F32.9'],        billed:425.00,allowed:400.00,paid:385.00,pt_resp:15.00, status:'paid',      submitted:'2026-04-03',ch:'accepted', era:'unmatched', wq:'unmatched_pay',has_alert:false}
+];
+
+const MOCK_DENIALS = [
+  {id:'DEN-00001',claim:'CLM-00002',patient:'Destiny Williams', dos:'2026-03-18',payer:'BCBS CO',          code:'90837',carc:'CO-4', rarc:'N519',reason:'Procedure code inconsistent with modifier',     amount:180.00,status:'open',      recoupment:false},
+  {id:'DEN-00002',claim:'CLM-00009',patient:'Liam Garcia',      dos:'2026-02-28',payer:'Aetna',            code:'90837',carc:'CO-16',rarc:'N130',reason:'Claim lacks information or submission errors',   amount:180.00,status:'appealed',  recoupment:false},
+  {id:'DEN-00003',claim:'CLM-00013',patient:'Ava Robinson',     dos:'2026-03-08',payer:'BCBS CO',          code:'H0032',carc:'CO-50',rarc:'N130',reason:'Non-covered service — not medically necessary',   amount:620.00,status:'open',      recoupment:false},
+  {id:'DEN-00004',claim:'CLM-00006',patient:'Aaliyah Brown',    dos:'2026-03-05',payer:'Cigna',            code:'90834',carc:'PR-1', rarc:null,  reason:'Deductible amount',                             amount:42.00, status:'upheld',    recoupment:false},
+  {id:'DEN-00005',claim:'CLM-00012',patient:'William Lee',      dos:'2026-03-18',payer:'United Healthcare',code:'90837',carc:'CO-97',rarc:'M80', reason:'Payment adjusted — benefit included in per diem',amount:310.00,status:'open',      recoupment:true },
+  {id:'DEN-00006',claim:'CLM-00002',patient:'Destiny Williams', dos:'2026-03-10',payer:'BCBS CO',          code:'90837',carc:'CO-4', rarc:'N519',reason:'Missing HO modifier on 90837',                  amount:180.00,status:'overturned',recoupment:false},
+  {id:'DEN-00007',claim:'CLM-00009',patient:'Liam Garcia',      dos:'2026-03-01',payer:'Aetna',            code:'90837',carc:'CO-16',rarc:'N95', reason:'Rendering provider NPI absent from claim',      amount:180.00,status:'open',      recoupment:false},
+  {id:'DEN-00008',claim:'CLM-00003',patient:'James Rivera',     dos:'2026-02-15',payer:'Aetna',            code:'H0001',carc:'CO-50',rarc:'N130',reason:'Services not covered under current plan year',  amount:750.00,status:'appealed',  recoupment:false},
+  {id:'DEN-00009',claim:'CLM-00013',patient:'Ava Robinson',     dos:'2026-02-20',payer:'BCBS CO',          code:'H0032',carc:'CO-97',rarc:'M80', reason:'Bundled into per-diem rate',                    amount:620.00,status:'open',      recoupment:true },
+  {id:'DEN-00010',claim:'CLM-00005',patient:'Elijah Thompson',  dos:'2026-01-30',payer:'Medicaid CO',      code:'H0031',carc:'CO-16',rarc:'N519',reason:'Service dates overlap — concurrent service',    amount:425.00,status:'write_off', recoupment:false}
+];
+
+const MOCK_APPEALS = [
+  {id:'AP-00001',claim:'CLM-00002',patient:'Destiny Williams', payer:'BCBS CO',           denial:'DEN-00001',filed:'2026-04-01',due:'2026-04-29',level:'Level 1',status:'submitted',   assigned:'Billing Team',  amount:180.00},
+  {id:'AP-00002',claim:'CLM-00009',patient:'Liam Garcia',      payer:'Aetna',             denial:'DEN-00002',filed:'2026-03-28',due:'2026-04-25',level:'Level 1',status:'under_review',assigned:'Dr. James Liu', amount:180.00},
+  {id:'AP-00003',claim:'CLM-00013',patient:'Ava Robinson',     payer:'BCBS CO',           denial:'DEN-00003',filed:'2026-04-05',due:'2026-05-03',level:'Level 2',status:'pending',     assigned:'Billing Team',  amount:620.00},
+  {id:'AP-00004',claim:'CLM-00012',patient:'William Lee',      payer:'United Healthcare', denial:'DEN-00005',filed:'2026-04-08',due:'2026-05-06',level:'Level 1',status:'submitted',   assigned:'Dr. Priya Nair',amount:310.00},
+  {id:'AP-00005',claim:'CLM-00002',patient:'Destiny Williams', payer:'BCBS CO',           denial:'DEN-00006',filed:'2026-03-15',due:'2026-04-12',level:'Level 1',status:'approved',    assigned:'Billing Team',  amount:180.00}
+];
+
+// ── State ─────────────────────────────────────────────────────
+const S = {
+  tab:'overview', wqTab:'follow_up', denialBucket:'all',
+  drawerClaimId:null, drawerTab:'overview',
+  page:1, pageSize:25, sort:{col:'dos',dir:'desc'},
+  selected:new Set(), filterOpen:false
+};
+
+// ── Helpers ───────────────────────────────────────────────────
+const $id = id => document.getElementById(id);
+const fmt$ = v => (v != null && v !== undefined) ? '$'+Number(v).toFixed(2) : '—';
+const fmtDate = d => d ? d.slice(5).replace('-','/') + '/' + d.slice(2,4) : '—';
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function badge(cls, txt){ return '<span class="badge '+cls+'">'+esc(txt)+'</span>'; }
+const STATUS_LBL = {draft:'Draft',ready:'Ready',submitted:'Submitted',accepted:'Accepted',in_process:'In Process',paid:'Paid',partial:'Partial',denied:'Denied',appealed:'Appealed',voided:'Voided',no_response:'No Response'};
+const WQ_LBL = {no_action:'No Action',follow_up:'Follow Up',resubmit:'Resubmit',appeal:'Appeal',era_match:'ERA Match',missing_auth:'Missing Auth',aging_90:'Aging 90+',unmatched_pay:'Unmatched Pay',write_off:'Write Off',in_queue:'In Queue'};
+const CH_LBL  = {pending:'Pending',transmitted:'Transmitted',accepted:'Accepted',rejected:'Rejected'};
+const ERA_LBL = {pending:'Pending',matched:'Matched',unmatched:'Unmatched',posted:'Posted'};
+const AP_LBL  = {pending:'Pending',submitted:'Submitted',under_review:'Under Review',approved:'Approved',denied:'Denied',withdrawn:'Withdrawn'};
+function sBadge(s){ return badge('cs-'+(s||'draft'), STATUS_LBL[s]||s); }
+function chBadge(s){ return badge('ch-'+(s||'pending'), CH_LBL[s]||s); }
+function erBadge(s){ return badge('era-'+(s||'pending'), ERA_LBL[s]||s); }
+function wBadge(w){ return badge('wq-'+(w||'no_action'), WQ_LBL[w]||w); }
+function dBadge(s){ const m={open:'Open',appealed:'Appealed',overturned:'Overturned',upheld:'Upheld',write_off:'Write Off'}; return badge('d-'+(s||'open'), m[s]||s); }
+function apBadge(s){ return badge('ap-'+(s||'pending'), AP_LBL[s]||s); }
+function cptPills(arr){ return (arr||[]).map(c=>'<span class="cpt-pill">'+esc(c)+'</span>').join(''); }
+function icdPills(arr){ return (arr||[]).map(c=>'<span class="icd-pill">'+esc(c)+'</span>').join(''); }
+
+// wq filter logic per sub-tab
+function wqFilter(c, wqId){
+  switch(wqId){
+    case 'follow_up':    return c.wq === 'follow_up';
+    case 'resubmit':     return c.wq === 'resubmit';
+    case 'appeal':       return c.wq === 'appeal';
+    case 'era_match':    return c.wq === 'era_match' || (c.era === 'unmatched' && c.wq !== 'unmatched_pay');
+    case 'denials':      return c.status === 'denied';
+    case 'missing_auth': return c.wq === 'missing_auth';
+    case 'aging_90':     return c.wq === 'aging_90';
+    case 'unmatched_pay':return c.wq === 'unmatched_pay';
+    default: return false;
+  }
+}
+
+// ── KPI Strip ─────────────────────────────────────────────────
+function initKPIs(){
+  const total = MOCK_CLAIMS.length;
+  const submitted = MOCK_CLAIMS.filter(c=>['submitted','accepted','in_process'].includes(c.status)).length;
+  const paidAmt = MOCK_CLAIMS.reduce((s,c)=>s+(c.paid||0),0);
+  const denied = MOCK_CLAIMS.filter(c=>c.status==='denied').length;
+  const wq = MOCK_CLAIMS.filter(c=>c.wq!=='no_action'&&c.wq!=='in_queue').length;
+  const aging = MOCK_CLAIMS.filter(c=>c.wq==='aging_90').length;
+  $id('kpiTotal').textContent = total;
+  $id('kpiTotalSub').textContent = MOCK_CLAIMS.filter(c=>c.status==='paid').length+' paid';
+  $id('kpiSubmitted').textContent = submitted;
+  $id('kpiSubSub').textContent = MOCK_CLAIMS.filter(c=>c.status==='accepted').length+' accepted';
+  $id('kpiPaid').textContent = '$'+paidAmt.toLocaleString('en-US',{minimumFractionDigits:0});
+  $id('kpiPaidSub').textContent = 'across '+MOCK_CLAIMS.filter(c=>c.paid).length+' claims';
+  $id('kpiDenied').textContent = denied;
+  $id('kpiDeniedSub').textContent = MOCK_CLAIMS.filter(c=>c.status==='appealed').length+' appealing';
+  $id('kpiWQ').textContent = wq;
+  $id('kpiWQSub').textContent = MOCK_CLAIMS.filter(c=>c.wq==='appeal').length+' appeals';
+  $id('kpiAging').textContent = aging;
+  $id('kpiAgingSub').textContent = aging > 0 ? 'needs attention' : '0 today';
+}
+
+// ── Tab Badge Counts ──────────────────────────────────────────
+function initTabBadges(){
+  $id('cmtb-list').textContent = MOCK_CLAIMS.length;
+  $id('cmtb-wq').textContent = MOCK_CLAIMS.filter(c=>c.wq!=='no_action').length;
+  $id('cmtb-denials').textContent = MOCK_DENIALS.filter(d=>d.status==='open').length;
+  $id('cmtb-appeals').textContent = MOCK_APPEALS.filter(a=>['pending','submitted','under_review'].includes(a.status)).length;
+  // wq sub-tab badges
+  ['follow_up','resubmit','appeal','era_match','denials','missing_auth','aging_90','unmatched_pay'].forEach(wqId=>{
+    const el = $id('wqb-'+wqId);
+    if(el) el.textContent = MOCK_CLAIMS.filter(c=>wqFilter(c,wqId)).length;
+  });
+  // denial bucket badges
+  const dn = MOCK_DENIALS;
+  $id('dbt-all').textContent = dn.length;
+  $id('dbt-carc').textContent = [...new Set(dn.map(d=>d.carc))].length;
+  $id('dbt-rarc').textContent = [...new Set(dn.filter(d=>d.rarc).map(d=>d.rarc))].length;
+  $id('dbt-appeals_needed').textContent = dn.filter(d=>d.status==='open').length;
+  $id('dbt-recoupments').textContent = dn.filter(d=>d.recoupment).length;
+}
+
+// ── Tab Switching ─────────────────────────────────────────────
+function switchTab(tab){
+  S.tab = tab;
+  document.querySelectorAll('.cm-tab').forEach(btn=>{
+    const active = btn.dataset.tab === tab;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active);
+  });
+  document.querySelectorAll('.cm-panel').forEach(p=> p.style.display = 'none');
+  const panel = $id('panel-'+tab);
+  if(panel) panel.style.display = '';
+  // render on demand
+  if(tab==='overview') renderOverview();
+  if(tab==='list'){ensureFilterSetup(); renderClaimsList();}
+  if(tab==='workqueues') switchWqTab(S.wqTab);
+  if(tab==='denials') renderDenials(S.denialBucket);
+  if(tab==='appeals') renderAppeals();
+  if(tab==='reports') renderReports();
+  // update URL
+  const u = new URL(location.href);
+  u.searchParams.set('tab', tab);
+  history.replaceState(null,'',u);
+}
+
+// ── Overview Tab ──────────────────────────────────────────────
+const OV_QUEUES = [
+  {id:'follow_up', label:'Follow Up',   icon:'🕐', color:'#f59e0b', section:'action'},
+  {id:'resubmit',  label:'Resubmit',    icon:'🔄',  color:'#ef4444', section:'action'},
+  {id:'appeal',    label:'Appeal',      icon:'⚖',  color:'#dc2626', section:'action'},
+  {id:'era_match', label:'ERA Match',   icon:'🔗', color:'#d97706', section:'action'},
+  {id:'denials',   label:'Denials',     icon:'🚫', color:'#b91c1c', section:'metrics'},
+  {id:'missing_auth',label:'Missing Auth',icon:'🔒',color:'#9a3412', section:'action'},
+  {id:'aging_90',  label:'Aging 90+',   icon:'📅', color:'#7c3aed', section:'metrics'},
+  {id:'unmatched_pay',label:'Unmatched Pay',icon:'💰',color:'#0369a1',section:'action'}
+];
+function renderOverview(){
+  const grid = $id('ovQueueGrid');
+  let html = '';
+  OV_QUEUES.forEach(q=>{
+    const claims = MOCK_CLAIMS.filter(c=>wqFilter(c,q.id));
+    const amt = claims.reduce((s,c)=>s+((c.billed||0)-(c.paid||0)),0);
+    html += `<div class="ov-queue-card" data-wq="${q.id}">
+      <div class="ov-queue-hdr">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:1.2rem">${q.icon}</div>
+          <div class="ov-queue-label">${esc(q.label)}</div>
+        </div>
+        <span class="ov-queue-badge" style="background:${q.color}22;color:${q.color};border:1px solid ${q.color}44">${claims.length} claim${claims.length!==1?'s':''}</span>
+      </div>
+      <div class="ov-queue-count">${claims.length}</div>
+      <div class="ov-queue-amt">Billed balance: ${fmt$(amt)}</div>
+      <div class="ov-queue-footer">
+        <span>View queue</span>
+        <span>&#8594;</span>
+      </div>
+    </div>`;
+  });
+  grid.innerHTML = html;
+}
+
+// ── Claims List Tab ───────────────────────────────────────────
+let filterSetup = false;
+function ensureFilterSetup(){
+  if(filterSetup) return;
+  filterSetup = true;
+  // Filter toggle
+  $id('filterHdr').addEventListener('click', ()=>{
+    S.filterOpen = !S.filterOpen;
+    $id('filterBody').style.display = S.filterOpen ? '' : 'none';
+    $id('filterToggleBtn').textContent = S.filterOpen ? '▲ Collapse' : '▼ Expand';
+    $id('filterToggleBtn').setAttribute('aria-expanded', S.filterOpen);
+  });
+  // Filter inputs
+  ['fSearch','fDosFrom','fDosTo','fSubFrom','fSubTo','fPayer','fProvider','fStatus','fChStatus','fEraStatus','fWorkqueue','fCpt','fIcd'].forEach(id=>{
+    const el = $id(id);
+    if(el) el.addEventListener('input', ()=>{ S.page=1; renderClaimsList(); });
+  });
+  // Sort headers
+  document.querySelectorAll('.data-table th.sortable').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const col = th.dataset.col;
+      if(S.sort.col===col){ S.sort.dir = S.sort.dir==='asc'?'desc':'asc'; }
+      else { S.sort={col,dir:'asc'}; }
+      S.page=1;
+      renderClaimsList();
+    });
+  });
+  // Select all
+  $id('selectAll').addEventListener('change', e=>{
+    const filtered = filterClaims();
+    if(e.target.checked){ filtered.forEach(c=>S.selected.add(c.id)); }
+    else { S.selected.clear(); }
+    renderClaimsList();
+    updateBulkBar();
+  });
+  // Clear filters
+  $id('btnClearFilters').addEventListener('click', ()=>{
+    ['fSearch','fCpt','fIcd'].forEach(id=>{ const el=$id(id); if(el) el.value=''; });
+    ['fDosFrom','fDosTo','fSubFrom','fSubTo','fPayer','fProvider','fStatus','fChStatus','fEraStatus','fWorkqueue'].forEach(id=>{ const el=$id(id); if(el) el.value=''; });
+    S.page=1; renderClaimsList();
+  });
+  // Page size
+  $id('pageSizeSelect').addEventListener('change', e=>{ S.pageSize=+e.target.value; S.page=1; renderClaimsList(); });
+  // Bulk clear
+  $id('btnBulkClear').addEventListener('click', ()=>{ S.selected.clear(); renderClaimsList(); updateBulkBar(); });
+}
+
+function filterClaims(){
+  const fSearch = ($id('fSearch')||{}).value?.toLowerCase()||'';
+  const fDosFrom = ($id('fDosFrom')||{}).value||'';
+  const fDosTo   = ($id('fDosTo')||{}).value||'';
+  const fSubFrom = ($id('fSubFrom')||{}).value||'';
+  const fSubTo   = ($id('fSubTo')||{}).value||'';
+  const fPayer   = ($id('fPayer')||{}).value||'';
+  const fProv    = ($id('fProvider')||{}).value||'';
+  const fStat    = ($id('fStatus')||{}).value||'';
+  const fCh      = ($id('fChStatus')||{}).value||'';
+  const fEra     = ($id('fEraStatus')||{}).value||'';
+  const fWq      = ($id('fWorkqueue')||{}).value||'';
+  const fCpt     = ($id('fCpt')||{}).value?.toLowerCase()||'';
+  const fIcd     = ($id('fIcd')||{}).value?.toLowerCase()||'';
+  return MOCK_CLAIMS.filter(c=>{
+    if(fSearch && !c.id.toLowerCase().includes(fSearch) && !c.patient.toLowerCase().includes(fSearch) && !c.payer.toLowerCase().includes(fSearch)) return false;
+    if(fDosFrom && c.dos < fDosFrom) return false;
+    if(fDosTo   && c.dos > fDosTo)   return false;
+    if(fSubFrom && (c.submitted||'9') < fSubFrom) return false;
+    if(fSubTo   && (c.submitted||'0') > fSubTo)   return false;
+    if(fPayer && c.payer !== fPayer) return false;
+    if(fProv  && c.provider !== fProv) return false;
+    if(fStat  && c.status !== fStat)  return false;
+    if(fCh    && c.ch !== fCh)         return false;
+    if(fEra   && c.era !== fEra)       return false;
+    if(fWq    && c.wq !== fWq)         return false;
+    if(fCpt   && !(c.cpt||[]).some(x=>x.toLowerCase().includes(fCpt))) return false;
+    if(fIcd   && !(c.icd10||[]).some(x=>x.toLowerCase().includes(fIcd))) return false;
+    return true;
+  });
+}
+
+function sortClaims(arr){
+  const {col,dir} = S.sort;
+  return [...arr].sort((a,b)=>{
+    let va = a[col]??'', vb = b[col]??'';
+    if(typeof va==='number') return dir==='asc'?va-vb:vb-va;
+    return dir==='asc'?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+  });
+}
+
+function renderClaimsList(){
+  const filtered = filterClaims();
+  const sorted = sortClaims(filtered);
+  const total = sorted.length;
+  const start = (S.page-1)*S.pageSize;
+  const page = sorted.slice(start, start+S.pageSize);
+  // count badge
+  $id('cmtb-list').textContent = MOCK_CLAIMS.length;
+  $id('tableCount').textContent = total+' claim'+(total!==1?'s':'')+(total<MOCK_CLAIMS.length?' (filtered)':'');
+  // sort indicators
+  document.querySelectorAll('.data-table th.sortable').forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(th.dataset.col===S.sort.col) th.classList.add('sort-'+S.sort.dir);
+  });
+  // table
+  let html = '';
+  if(page.length===0){
+    html = '<tr><td colspan="18" class="empty-state"><div class="es-icon">📋</div><p>No claims match your filters.</p></td></tr>';
+  } else {
+    page.forEach(c=>{
+      const checked = S.selected.has(c.id);
+      html += `<tr>
+        <td><input type="checkbox" class="row-cb" data-id="${esc(c.id)}" ${checked?'checked':''}></td>
+        <td><button class="claim-link" data-open="${esc(c.id)}">${esc(c.id)}</button></td>
+        <td>${esc(c.patient)}</td>
+        <td style="color:var(--ink-600)">${esc(c.provider)}</td>
+        <td>${fmtDate(c.dos)}</td>
+        <td>${esc(c.payer)}</td>
+        <td>${cptPills(c.cpt)}</td>
+        <td>${icdPills(c.icd10)}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt$(c.billed)}</td>
+        <td style="text-align:right">${fmt$(c.allowed)}</td>
+        <td style="text-align:right;font-weight:700;color:#059669">${fmt$(c.paid)}</td>
+        <td style="text-align:right;color:${c.pt_resp?'#d97706':'var(--ink-400)'}">${fmt$(c.pt_resp)}</td>
+        <td>${sBadge(c.status)}</td>
+        <td>${fmtDate(c.submitted)}</td>
+        <td>${chBadge(c.ch)}</td>
+        <td>${erBadge(c.era)}</td>
+        <td>${wBadge(c.wq)}</td>
+        <td><button class="row-act" data-open="${esc(c.id)}">View</button></td>
+      </tr>`;
+    });
+  }
+  $id('claimsBody').innerHTML = html;
+  // pager
+  const totalPages = Math.ceil(total/S.pageSize)||1;
+  $id('pagerInfo').textContent = total===0?'No results':`Showing ${start+1}–${Math.min(start+S.pageSize,total)} of ${total}`;
+  let pBtns = `<button class="pager-btn" id="pgPrev" ${S.page<=1?'disabled':''}>&#8592; Prev</button>`;
+  for(let i=1;i<=totalPages;i++){
+    if(totalPages<=7||i===1||i===totalPages||Math.abs(i-S.page)<=1){
+      pBtns += `<button class="pager-btn${i===S.page?' active':''}" data-pg="${i}">${i}</button>`;
+    } else if(Math.abs(i-S.page)===2){
+      pBtns += '<span style="padding:5px 4px;color:var(--ink-400)">…</span>';
+    }
+  }
+  pBtns += `<button class="pager-btn" id="pgNext" ${S.page>=totalPages?'disabled':''}>Next &#8594;</button>`;
+  $id('pagerBtns').innerHTML = pBtns;
+}
+
+function updateBulkBar(){
+  const n = S.selected.size;
+  $id('bulkBar').classList.toggle('active', n>0);
+  $id('bulkCount').textContent = n;
+}
+
+// ── Workqueue Tab ─────────────────────────────────────────────
+function switchWqTab(wqId){
+  S.wqTab = wqId;
+  document.querySelectorAll('.wq-subtab').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.wq===wqId);
+  });
+  renderWqList(wqId);
+  // clear detail
+  $id('wqDetailCol').innerHTML = '<div class="wq-detail-empty"><div style="font-size:2rem;opacity:.3">📋</div><p style="font-size:13px;font-weight:600;color:var(--ink-500)">Select a claim to view details</p></div>';
+}
+
+function renderWqList(wqId){
+  const q = ($id('wqSearch')||{value:''}).value.toLowerCase();
+  let claims = MOCK_CLAIMS.filter(c=>wqFilter(c,wqId));
+  if(q) claims = claims.filter(c=>c.id.toLowerCase().includes(q)||c.patient.toLowerCase().includes(q));
+  $id('wqListCount').textContent = claims.length+' claim'+(claims.length!==1?'s':'');
+  const colors = {follow_up:'#f59e0b',resubmit:'#ef4444',appeal:'#dc2626',era_match:'#d97706',denials:'#b91c1c',missing_auth:'#9a3412',aging_90:'#7c3aed',unmatched_pay:'#0369a1'};
+  const icons  = {follow_up:'🕐',resubmit:'🔄',appeal:'⚖',era_match:'🔗',denials:'🚫',missing_auth:'🔒',aging_90:'📅',unmatched_pay:'💰'};
+  const ic = icons[wqId]||'📋', co = colors[wqId]||'var(--blue-600)';
+  if(claims.length===0){
+    $id('wqListBody').innerHTML = '<div class="wq-empty">No claims in this queue.</div>';
+    return;
+  }
+  $id('wqListBody').innerHTML = claims.map(c=>`
+    <div class="wq-item" data-claim-id="${esc(c.id)}">
+      <div class="wq-item-icon" style="background:${co}18;font-size:.85rem">${ic}</div>
+      <div class="wq-item-body">
+        <div class="wq-item-row1">
+          <span class="wq-item-id">${esc(c.id)}</span>
+          <span class="wq-item-patient">${esc(c.patient)}</span>
+        </div>
+        <div class="wq-item-desc">${esc(c.payer)} &bull; DOS ${fmtDate(c.dos)} &bull; ${esc(c.provider)}</div>
+        <div class="wq-item-row3">
+          ${sBadge(c.status)}
+          <span class="wq-item-amt">${fmt$(c.billed)}</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderWqDetail(claimId){
+  const c = MOCK_CLAIMS.find(x=>x.id===claimId);
+  if(!c) return;
+  const denials = MOCK_DENIALS.filter(d=>d.claim===c.id);
+  const appeals = MOCK_APPEALS.filter(a=>a.claim===c.id);
+  const balance = (c.billed||0)-(c.paid||0);
+  $id('wqDetailCol').innerHTML = `
+    <div class="wq-detail-hdr">
+      <div class="wq-detail-id">${esc(c.id)}</div>
+      <div class="wq-detail-patient">${esc(c.patient)}</div>
+      <div class="wq-detail-sub">
+        <span>${esc(c.payer)}</span> &bull; <span>DOS ${fmtDate(c.dos)}</span> &bull; <span>${esc(c.provider)}</span>
+      </div>
+      <div class="wq-detail-actions">
+        <button class="btn btn-outline btn-sm" data-open-drawer="${esc(c.id)}">📋 Full Detail</button>
+        <button class="btn btn-outline btn-sm" data-modal-open="modalLogDenial">Log Denial</button>
+        <button class="btn btn-blue btn-sm" data-modal-open="modalSubmitAppeal">Submit Appeal</button>
+      </div>
+    </div>
+    <div class="wq-detail-scroll">
+      <div class="wq-det-section">
+        <div class="wq-det-section-title">
+          Financials
+          <span>${sBadge(c.status)}</span>
+        </div>
+        <div class="wq-det-grid">
+          <div class="wq-det-field"><label>Billed</label><span>${fmt$(c.billed)}</span></div>
+          <div class="wq-det-field"><label>Allowed</label><span>${fmt$(c.allowed)}</span></div>
+          <div class="wq-det-field"><label>Paid</label><span style="color:#059669;font-weight:700">${fmt$(c.paid)}</span></div>
+          <div class="wq-det-field"><label>Balance</label><span style="color:${balance>0?'#dc2626':'#059669'};font-weight:700">${fmt$(balance)}</span></div>
+        </div>
+      </div>
+      <div class="wq-det-section">
+        <div class="wq-det-section-title">Claim Info</div>
+        <div class="wq-det-grid">
+          <div class="wq-det-field"><label>CPT</label><span>${cptPills(c.cpt)}</span></div>
+          <div class="wq-det-field"><label>ICD-10</label><span>${icdPills(c.icd10)}</span></div>
+          <div class="wq-det-field"><label>CH Status</label><span>${chBadge(c.ch)}</span></div>
+          <div class="wq-det-field"><label>ERA Status</label><span>${erBadge(c.era)}</span></div>
+        </div>
+      </div>
+      ${denials.length>0?`<div class="wq-det-section"><div class="wq-det-section-title">Denials (${denials.length})</div>${denials.map(d=>`<div class="denial-card" style="padding:9px 12px;margin-bottom:7px"><div style="display:flex;gap:6px;align-items:center"><span class="denial-code">${esc(d.carc)}</span>${d.rarc?`<span class="denial-code" style="background:#fff5f5">${esc(d.rarc)}</span>`:''}<span style="margin-left:auto">${dBadge(d.status)}</span></div><div class="denial-reason" style="margin-top:5px;font-size:12px">${esc(d.reason)}</div></div>`).join('')}</div>`:''}
+      <div class="wq-action-form">
+        <label>Action Note</label>
+        <textarea placeholder="Add a note about this queue action…"></textarea>
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-outline btn-sm">Save Note</button>
+          <button class="btn btn-blue btn-sm">Mark Resolved</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Denials Tab ───────────────────────────────────────────────
+function renderDenials(bucket){
+  S.denialBucket = bucket;
+  document.querySelectorAll('.bucket-tab').forEach(b=>b.classList.toggle('active',b.dataset.bucket===bucket));
+  let dn = MOCK_DENIALS;
+  if(bucket==='appeals_needed') dn = dn.filter(d=>d.status==='open');
+  if(bucket==='recoupments') dn = dn.filter(d=>d.recoupment);
+  // KPIs
+  const open = MOCK_DENIALS.filter(d=>d.status==='open').length;
+  const overturned = MOCK_DENIALS.filter(d=>d.status==='overturned').length;
+  const overturnRate = MOCK_DENIALS.length>0 ? Math.round(overturned/MOCK_DENIALS.length*100) : 0;
+  $id('dkpiTotal').textContent = MOCK_DENIALS.length;
+  $id('dkpiTotalSub').textContent = '$'+MOCK_DENIALS.reduce((s,d)=>s+d.amount,0).toLocaleString();
+  $id('dkpiOpen').textContent = open;
+  $id('dkpiAppealed').textContent = MOCK_DENIALS.filter(d=>['open'].includes(d.status)).length;
+  $id('dkpiOverturned').textContent = overturnRate+'%';
+  $id('dkpiOverturnSub').textContent = overturned+' of '+MOCK_DENIALS.length;
+  // Table
+  if(bucket==='carc'){
+    const groups = {};
+    MOCK_DENIALS.forEach(d=>{ groups[d.carc]=(groups[d.carc]||[]).concat(d); });
+    let html = '';
+    Object.entries(groups).forEach(([carc,items])=>{
+      const amt = items.reduce((s,d)=>s+d.amount,0);
+      html += `<tr><td><span class="denial-code">${esc(carc)}</span></td><td>${items.length}</td><td colspan="8">${fmt$(amt)}</td><td colspan="2"></td><td></td></tr>`;
+    });
+    $id('denialBody').innerHTML = html;
+    return;
+  }
+  if(bucket==='rarc'){
+    const groups = {};
+    MOCK_DENIALS.filter(d=>d.rarc).forEach(d=>{ groups[d.rarc]=(groups[d.rarc]||[]).concat(d); });
+    let html = '';
+    Object.entries(groups).forEach(([rarc,items])=>{
+      const amt = items.reduce((s,d)=>s+d.amount,0);
+      html += `<tr><td colspan="6"><span class="denial-code">${esc(rarc)}</span></td><td>${items.length}</td><td colspan="3">${fmt$(amt)}</td><td colspan="3"></td></tr>`;
+    });
+    $id('denialBody').innerHTML = html;
+    return;
+  }
+  // default: all/appeals_needed/recoupments
+  $id('denialBody').innerHTML = dn.length===0
+    ? '<tr><td colspan="13" class="empty-state"><p>No denials in this filter.</p></td></tr>'
+    : dn.map(d=>`<tr>
+        <td style="font-weight:700;color:var(--blue-700)">${esc(d.id)}</td>
+        <td><button class="claim-link" data-open="${esc(d.claim)}">${esc(d.claim)}</button></td>
+        <td>${esc(d.patient)}</td>
+        <td>${fmtDate(d.dos)}</td>
+        <td>${esc(d.payer)}</td>
+        <td><span class="cpt-pill">${esc(d.code)}</span></td>
+        <td><span class="denial-code" style="font-size:11px">${esc(d.carc)}</span></td>
+        <td>${d.rarc?`<span class="denial-code" style="font-size:11px;background:#fff7ed;color:#9a3412;border-color:#fdba74">${esc(d.rarc)}</span>`:'—'}</td>
+        <td style="max-width:200px;white-space:normal">${esc(d.reason)}</td>
+        <td style="text-align:right;font-weight:700">${fmt$(d.amount)}</td>
+        <td>${dBadge(d.status)}</td>
+        <td>${d.recoupment?'<span style="color:#dc2626;font-weight:700">Yes</span>':'No'}</td>
+        <td><button class="row-act" data-open="${esc(d.claim)}">View</button></td>
+      </tr>`).join('');
+}
+
+// ── Appeals Tab ───────────────────────────────────────────────
+function renderAppeals(){
+  const approved = MOCK_APPEALS.filter(a=>a.status==='approved');
+  $id('apkpiTotal').textContent = MOCK_APPEALS.length;
+  $id('apkpiOpen').textContent  = MOCK_APPEALS.filter(a=>['pending','submitted','under_review'].includes(a.status)).length;
+  $id('apkpiApproved').textContent = approved.length;
+  $id('apkpiAmt').textContent = '$'+approved.reduce((s,a)=>s+a.amount,0).toLocaleString();
+  $id('apTableCount').textContent = MOCK_APPEALS.length+' appeals';
+  $id('appealBody').innerHTML = MOCK_APPEALS.map(a=>`<tr>
+    <td style="font-weight:700;color:var(--blue-700)">${esc(a.id)}</td>
+    <td><button class="claim-link" data-open="${esc(a.claim)}">${esc(a.claim)}</button></td>
+    <td>${esc(a.patient)}</td>
+    <td>${esc(a.payer)}</td>
+    <td>${esc(a.denial)}</td>
+    <td>${fmtDate(a.filed)}</td>
+    <td>${fmtDate(a.due)}</td>
+    <td>${esc(a.level)}</td>
+    <td>${apBadge(a.status)}</td>
+    <td>${esc(a.assigned)}</td>
+    <td><button class="row-act" data-open="${esc(a.claim)}">View Claim</button></td>
+  </tr>`).join('');
+}
+
+// ── Reports Tab ───────────────────────────────────────────────
+function renderReports(){
+  const bill = MOCK_CLAIMS.reduce((s,c)=>s+(c.billed||0),0);
+  const paid  = MOCK_CLAIMS.reduce((s,c)=>s+(c.paid||0),0);
+  const denied = MOCK_CLAIMS.filter(c=>c.status==='denied').reduce((s,c)=>s+(c.billed||0),0);
+  const ar = bill-paid;
+  const rptKpis=[
+    {lbl:'Total Billed',val:'$'+bill.toLocaleString(),color:'blue'},
+    {lbl:'Total Collected',val:'$'+paid.toLocaleString(),color:'green'},
+    {lbl:'Total AR',val:'$'+ar.toLocaleString(),color:'amber'},
+    {lbl:'Denial Amount',val:'$'+denied.toLocaleString(),color:'red'},
+    {lbl:'Collection Rate',val:bill?Math.round(paid/bill*100)+'%':'0%',color:'teal'},
+  ];
+  $id('rptKpiGrid').innerHTML = rptKpis.map(k=>`
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-num">${k.val}</div>
+      <div class="kpi-lbl">${k.lbl}</div>
+    </div>`).join('');
+  // claims by status
+  const statusMap = {};
+  MOCK_CLAIMS.forEach(c=>{ if(!statusMap[c.status]) statusMap[c.status]={count:0,billed:0,paid:0}; statusMap[c.status].count++; statusMap[c.status].billed+=c.billed||0; statusMap[c.status].paid+=c.paid||0; });
+  const maxSt = Math.max(...Object.values(statusMap).map(v=>v.count),1);
+  $id('rptStatusBody').innerHTML = Object.entries(statusMap).sort((a,b)=>b[1].count-a[1].count).map(([st,v])=>`
+    <tr>
+      <td>${sBadge(st)}</td>
+      <td>${v.count}</td>
+      <td>${fmt$(v.billed)}</td>
+      <td>${fmt$(v.paid)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:${Math.round(v.count/maxSt*100)}%;background:var(--blue-500)"></div></div><span style="font-size:11px;font-weight:700;color:var(--ink-600)">${Math.round(v.count/MOCK_CLAIMS.length*100)}%</span></div></td>
+    </tr>`).join('');
+  // claims by payer
+  const payerMap = {};
+  MOCK_CLAIMS.forEach(c=>{ if(!payerMap[c.payer]) payerMap[c.payer]={count:0,billed:0,paid:0}; payerMap[c.payer].count++; payerMap[c.payer].billed+=c.billed||0; payerMap[c.payer].paid+=c.paid||0; });
+  $id('rptPayerBody').innerHTML = Object.entries(payerMap).sort((a,b)=>b[1].billed-a[1].billed).map(([py,v])=>{
+    const ar2=v.billed-v.paid; const arPct=v.billed?Math.round(ar2/v.billed*100):0;
+    return `<tr><td>${esc(py)}</td><td>${v.count}</td><td>${fmt$(v.billed)}</td><td>${fmt$(v.paid)}</td><td><div style="display:flex;align-items:center;gap:6px"><div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:${arPct}%;background:#ef4444"></div></div><span style="font-size:11px;font-weight:700;color:${arPct>50?'#dc2626':'var(--ink-600)'}">${arPct}%</span></div></td></tr>`;
+  }).join('');
+  // CARC analysis
+  const carcMap = {};
+  MOCK_DENIALS.forEach(d=>{ if(!carcMap[d.carc]) carcMap[d.carc]={count:0,amount:0}; carcMap[d.carc].count++; carcMap[d.carc].amount+=d.amount; });
+  const carcDesc = {'CO-4':'Inconsistent modifier','CO-16':'Submission error','CO-50':'Not medically necessary','CO-97':'Bundled service','PR-1':'Deductible'};
+  const totalDen = MOCK_DENIALS.length;
+  $id('rptCarcBody').innerHTML = Object.entries(carcMap).sort((a,b)=>b[1].count-a[1].count).map(([carc,v])=>`
+    <tr>
+      <td><span class="denial-code">${esc(carc)}</span></td>
+      <td>${esc(carcDesc[carc]||'')}</td>
+      <td>${v.count}</td>
+      <td>${fmt$(v.amount)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:${Math.round(v.count/totalDen*100)}%;background:#ef4444"></div></div><span style="font-size:11px;font-weight:700;color:var(--ink-600)">${Math.round(v.count/totalDen*100)}%</span></div></td>
+    </tr>`).join('');
+}
+
+// ── Claim Detail Drawer ───────────────────────────────────────
+function openDrawer(claimId){
+  const c = MOCK_CLAIMS.find(x=>x.id===claimId);
+  if(!c) return;
+  S.drawerClaimId = claimId;
+  populateDrawer(c);
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('claimDrawer').classList.add('open');
+  document.getElementById('claimDrawer').focus();
+  const u = new URL(location.href);
+  u.searchParams.set('id', claimId);
+  history.replaceState(null,'',u);
+}
+
+function closeDrawer(){
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('claimDrawer').classList.remove('open');
+  S.drawerClaimId = null;
+  const u = new URL(location.href);
+  u.searchParams.delete('id');
+  history.replaceState(null,'',u);
+}
+
+function populateDrawer(c){
+  // Header
+  $id('drId').textContent = c.id;
+  $id('drPatient').textContent = c.patient;
+  $id('drSub').innerHTML = `<span>${esc(c.payer)}</span><span>&bull;</span><span>DOS ${fmtDate(c.dos)}</span><span>&bull;</span><span>${esc(c.provider)}</span>${sBadge(c.status)}`;
+  // KPI strip
+  const balance = (c.billed||0)-(c.paid||0);
+  const adj = (c.allowed||0)-(c.paid||0);
+  $id('drKpiBilled').textContent  = fmt$(c.billed);
+  $id('drKpiAllowed').textContent = fmt$(c.allowed);
+  $id('drKpiPaid').textContent    = fmt$(c.paid);
+  $id('drKpiPtResp').textContent  = fmt$(c.pt_resp);
+  $id('drKpiBalance').textContent = fmt$(balance);
+  // Sidebar
+  $id('drStatusSel').value  = c.status||'draft';
+  $id('drWqSel').value      = c.wq||'no_action';
+  $id('drAssignedSel').value = '';
+  $id('drChBadge').innerHTML  = chBadge(c.ch);
+  $id('drEraBadge').innerHTML = erBadge(c.era);
+  $id('drSubDate').textContent = fmtDate(c.submitted);
+  $id('drFiBilled').textContent  = fmt$(c.billed);
+  $id('drFiAllowed').textContent = fmt$(c.allowed);
+  $id('drFiPaid').textContent    = fmt$(c.paid);
+  $id('drFiAdj').textContent     = fmt$(adj);
+  $id('drFiPtResp').textContent  = fmt$(c.pt_resp);
+  $id('drFiBalance').textContent = fmt$(balance);
+  // Overview tab
+  $id('drOverviewGrid').innerHTML = [
+    ['Claim ID',c.id], ['Patient',c.patient], ['Provider',c.provider],
+    ['Payer',c.payer], ['DOS',fmtDate(c.dos)], ['Submitted',fmtDate(c.submitted)],
+    ['CH Status',chBadge(c.ch)], ['ERA Status',erBadge(c.era)]
+  ].map(([l,v])=>`<div class="d-field"><label>${l}</label><span>${String(v||'—').includes('<')?v:esc(v)}</span></div>`).join('');
+  $id('drCptIcdBlock').innerHTML = `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:4px">CPT Codes</div>${cptPills(c.cpt)||'—'}</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:4px">ICD-10 Codes</div>${icdPills(c.icd10)||'—'}</div>`;
+  // Line Items — generate mock data
+  const lines = (c.cpt||[]).map((code,i)=>({num:i+1,cpt:code,mods:(c.mods||[]).join(', ')||(i===0?(c.mods||[]).join(', '):''),ptrs:'1',units:1,billed:(c.billed||0)/((c.cpt||[1]).length),allowed:(c.allowed||0)/((c.cpt||[1]).length),paid:(c.paid||0)/((c.cpt||[1]).length),status:c.status}));
+  $id('drCntLines').textContent = lines.length;
+  $id('drLinesBody').innerHTML = lines.map(l=>`<tr><td>${l.num}</td><td><span class="cpt-pill">${esc(l.cpt)}</span></td><td>${esc(l.mods)||'—'}</td><td>${esc(l.ptrs)}</td><td>1</td><td class="num">${fmt$(l.billed)}</td><td class="num">${fmt$(l.allowed)}</td><td class="num">${fmt$(l.paid)}</td><td>${sBadge(l.status)}</td></tr>`).join('');
+  // Payments
+  const payments = c.paid>0 ? [{date:c.submitted||'2026-03-25',source:'Insurance',ref:'ERA-2026-00'+c.id.slice(-3),type:'Primary',amount:c.paid,notes:''}] : [];
+  if(c.pt_resp>0) payments.push({date:'2026-04-15',source:'Patient',ref:'RCPT-'+c.id.slice(-3),type:'Co-pay',amount:c.pt_resp,notes:'Credit card'});
+  $id('drCntPay').textContent = payments.length;
+  $id('drPayBody').innerHTML = payments.length === 0
+    ? '<tr><td colspan="6" class="empty-state"><p>No payments posted.</p></td></tr>'
+    : payments.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(p.source)}</td><td style="font-family:monospace;font-size:12px">${esc(p.ref)}</td><td>${esc(p.type)}</td><td class="num" style="color:#059669;font-weight:700">${fmt$(p.amount)}</td><td>${esc(p.notes)}</td></tr>`).join('');
+  // Denials
+  const dn = MOCK_DENIALS.filter(d=>d.claim===c.id);
+  $id('drCntDen').textContent = dn.length;
+  $id('drDenialsBlock').innerHTML = dn.length===0
+    ? '<div class="empty-state"><div class="es-icon">✅</div><p>No denials on this claim.</p></div>'
+    : dn.map(d=>`<div class="denial-card"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="denial-code">${esc(d.carc)}</span>${d.rarc?`<span class="denial-code" style="background:#fff7ed;color:#9a3412;border-color:#fdba74">${esc(d.rarc)}</span>`:''}<span style="margin-left:auto">${dBadge(d.status)}</span></div><div class="denial-reason">${esc(d.reason)}</div><div style="margin-top:6px;font-size:11px;color:var(--ink-500)">${esc(d.payer)} &bull; ${fmtDate(d.dos)} &bull; ${fmt$(d.amount)}</div></div>`).join('');
+  // Appeals
+  const ap = MOCK_APPEALS.filter(a=>a.claim===c.id);
+  $id('drCntAp').textContent = ap.length;
+  $id('drAppealsBlock').innerHTML = ap.length===0
+    ? '<div class="empty-state"><div class="es-icon">📄</div><p>No appeals filed.</p></div>'
+    : ap.map(a=>`<div class="appeal-card"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-weight:700;font-size:12px;color:var(--ink-900)">${esc(a.id)}</span><span style="margin-left:auto">${apBadge(a.status)}</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px"><span style="color:var(--ink-500)">Level:</span><span>${esc(a.level)}</span><span style="color:var(--ink-500)">Filed:</span><span>${fmtDate(a.filed)}</span><span style="color:var(--ink-500)">Due:</span><span>${fmtDate(a.due)}</span><span style="color:var(--ink-500)">Assigned:</span><span>${esc(a.assigned)}</span></div></div>`).join('');
+  // Notes
+  const notes = [
+    {user:'System',date:'2026-03-'+c.id.slice(-2).replace('0','1'),text:'Claim created and submitted to clearinghouse.'},
+    ...(c.has_alert?[{user:'Billing',date:'2026-04-01',text:'Alert: action required on this claim.'}]:[])
+  ];
+  $id('drCntNotes').textContent = notes.length;
+  $id('drNotesBlock').innerHTML = notes.map(n=>`<div style="border-bottom:1px solid var(--border);padding:8px 0;margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px">${esc(n.user)} &bull; ${esc(n.date)}</div><div style="font-size:12.5px;color:var(--ink-900)">${esc(n.text)}</div></div>`).join('');
+  // Timeline
+  const tl = [
+    {dot:'gray',action:'Claim Created',meta:'DOS '+fmtDate(c.dos)+', Billed '+fmt$(c.billed),note:null},
+    ...(c.submitted?[{dot:'blue',action:'Submitted to Clearinghouse',meta:fmtDate(c.submitted),note:null}]:[]),
+    ...({'transmitted':'ch accepted','accepted':'accepted'}[c.ch]?[{dot:'green',action:'Clearinghouse '+CH_LBL[c.ch],meta:c.ch==='accepted'?'Ready for payer adjudication':'',note:null}]:[]),
+    ...(c.era==='matched'||c.era==='posted'?[{dot:'green',action:'ERA Received &amp; Matched',meta:fmt$(c.paid)+' paid',note:null}]:[]),
+    ...(c.era==='unmatched'?[{dot:'amber',action:'ERA Unmatched',meta:'Payment received but unmatched',note:null}]:[]),
+    ...(c.status==='denied'?[{dot:'red',action:'Claim Denied',meta:dn.length>0?dn[0].carc+' — '+dn[0].reason:'',note:null}]:[]),
+    ...(c.status==='appealed'?[{dot:'purple',action:'Appeal Filed',meta:ap.length>0?ap[0].level:'',note:null}]:[]),
+    ...(c.status==='paid'?[{dot:'green',action:'Claim Paid &amp; Closed',meta:fmt$(c.paid)+' received',note:null}]:[])
+  ];
+  $id('drTimelineBlock').innerHTML = tl.map(t=>`
+    <div class="d-tl-item">
+      <div class="d-tl-dot ${t.dot}"></div>
+      <div class="d-tl-body">
+        <div class="d-tl-action">${t.action}</div>
+        ${t.meta?`<div class="d-tl-meta">${t.meta}</div>`:''}
+        ${t.note?`<div class="d-tl-note">${t.note}</div>`:''}
+      </div>
+    </div>`).join('');
+  // Reset to overview drawer tab
+  switchDrawerTab('overview');
+}
+
+function switchDrawerTab(panel){
+  S.drawerTab = panel;
+  document.querySelectorAll('.drawer-tab').forEach(b=>b.classList.toggle('active',b.dataset.panel===panel));
+  document.querySelectorAll('.drawer-panel').forEach(p=>p.classList.toggle('active',p.id==='drp-'+panel));
+}
+
+// ── URL Routing ───────────────────────────────────────────────
+function handleUrlParams(){
+  const p = new URLSearchParams(location.search);
+  const tab    = p.get('tab');
+  const id     = p.get('id');
+  const wq     = p.get('wq');
+  const bucket = p.get('bucket');
+  if(wq && ['follow_up','resubmit','appeal','era_match','denials','missing_auth','aging_90','unmatched_pay'].includes(wq)) S.wqTab = wq;
+  if(bucket && ['all','carc','rarc','appeals_needed','recoupments'].includes(bucket)) S.denialBucket = bucket;
+  if(tab && ['overview','list','workqueues','denials','appeals','reports'].includes(tab)){
+    switchTab(tab);
+  } else {
+    switchTab('overview');
+  }
+  if(id) setTimeout(()=>openDrawer(id), 50);
+}
+
+// ── Event Delegation ──────────────────────────────────────────
+document.addEventListener('click', e=>{
+  const t = e.target;
+  // Module tab bar
+  const cmTab = t.closest('.cm-tab');
+  if(cmTab && cmTab.dataset.tab) { switchTab(cmTab.dataset.tab); return; }
+  // Workqueue sub-tabs
+  const wqSubTab = t.closest('.wq-subtab');
+  if(wqSubTab && wqSubTab.dataset.wq) { switchWqTab(wqSubTab.dataset.wq); return; }
+  // WQ list item
+  const wqItem = t.closest('.wq-item');
+  if(wqItem) {
+    document.querySelectorAll('.wq-item').forEach(i=>i.classList.remove('active'));
+    wqItem.classList.add('active');
+    renderWqDetail(wqItem.dataset.claimId);
+    return;
+  }
+  // Open drawer from WQ detail
+  if(t.dataset.openDrawer){ openDrawer(t.dataset.openDrawer); return; }
+  // Denial bucket tabs
+  const bt = t.closest('.bucket-tab');
+  if(bt && bt.dataset.bucket){ renderDenials(bt.dataset.bucket); return; }
+  // Open claim drawer (claim-link, row-act, denial view)
+  const openId = t.dataset.open || t.closest('[data-open]')?.dataset?.open;
+  if(openId){ openDrawer(openId); return; }
+  // Overview queue card -> workqueues tab
+  const ovCard = t.closest('.ov-queue-card');
+  if(ovCard && ovCard.dataset.wq){
+    S.wqTab = ovCard.dataset.wq;
+    switchTab('workqueues');
+    return;
+  }
+  // Drawer tabs
+  const drTab = t.closest('.drawer-tab');
+  if(drTab && drTab.dataset.panel){ switchDrawerTab(drTab.dataset.panel); return; }
+  // Drawer close
+  if(t.id==='drawerClose'||t.id==='drawerOverlay') { closeDrawer(); return; }
+  // Modal open
+  if(t.dataset.modalOpen){ $id(t.dataset.modalOpen).classList.add('open'); return; }
+  // Modal close (backdrop + close buttons)
+  if(t.dataset.close){ $id(t.dataset.close).classList.remove('open'); return; }
+  const mb = t.closest('.modal-back');
+  if(mb && t===mb){ mb.classList.remove('open'); return; }
+  // Row checkboxes
+  if(t.classList.contains('row-cb')){
+    const id2 = t.dataset.id;
+    if(t.checked) S.selected.add(id2); else S.selected.delete(id2);
+    updateBulkBar();
+    return;
+  }
+  // Bulk actions
+  const bulk = t.dataset.bulkAction;
+  if(bulk){
+    if(bulk==='workqueue') alert('Set workqueue for '+S.selected.size+' selected claims.');
+    if(bulk==='assign') alert('Assign '+S.selected.size+' claims to staff.');
+    if(bulk==='submit') alert('Submit '+S.selected.size+' claims to clearinghouse.');
+    if(bulk==='appeal') { S.selected.forEach(id2=>{ const c=MOCK_CLAIMS.find(x=>x.id===id2); if(c) c.wq='appeal'; }); renderClaimsList(); }
+    if(bulk==='export-csv') exportCSV();
+    if(bulk==='void') { if(confirm('Void '+S.selected.size+' claims?')){ S.selected.forEach(id2=>{ const c=MOCK_CLAIMS.find(x=>x.id===id2); if(c) c.status='voided'; }); S.selected.clear(); renderClaimsList(); updateBulkBar(); } }
+    return;
+  }
+  // Btn New Claim
+  if(t.id==='btnNewClaim'){ $id('modalNewClaim').classList.add('open'); return; }
+  if(t.id==='btnSaveNewClaim'){ $id('modalNewClaim').classList.remove('open'); }
+  // Btn Log Denial (from drawer header or drawer panel)
+  if(t.id==='drBtnLogDenial'||t.id==='drBtnLogDenial2'){ $id('modalLogDenial').classList.add('open'); return; }
+  if(t.id==='btnSaveLogDenial'){ $id('modalLogDenial').classList.remove('open'); }
+  // Submit Appeal
+  if(t.id==='drBtnSubmitAppeal'||t.id==='drBtnSubmitAppeal2'){ $id('modalSubmitAppeal').classList.add('open'); return; }
+  if(t.id==='btnSaveAppeal'){ $id('modalSubmitAppeal').classList.remove('open'); }
+  // Post Payment
+  if(t.id==='drBtnPostPayment'){ $id('modalPostPayment').classList.add('open'); return; }
+  if(t.id==='btnSavePayment'){ $id('modalPostPayment').classList.remove('open'); }
+  // New Appeal
+  if(t.id==='btnNewAppeal'){ $id('modalSubmitAppeal').classList.add('open'); return; }
+  // Export
+  if(t.id==='btnExportCSV'){ exportCSV(); return; }
+  // Add note
+  if(t.id==='drBtnAddNote'){
+    const txt = $id('drNewNote').value.trim();
+    if(!txt) return;
+    const nb = $id('drNotesBlock');
+    nb.innerHTML = `<div style="border-bottom:1px solid var(--border);padding:8px 0;margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px">You &bull; just now</div><div style="font-size:12.5px;color:var(--ink-900)">${esc(txt)}</div></div>` + nb.innerHTML;
+    $id('drNewNote').value = '';
+    return;
+  }
+});
+
+// WQ search input
+document.addEventListener('input', e=>{
+  if(e.target.id==='wqSearch') renderWqList(S.wqTab);
+});
+
+// Escape key closes modals + drawer
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-back.open').forEach(m=>m.classList.remove('open'));
+    if(S.drawerClaimId) closeDrawer();
+  }
+});
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportCSV(){
+  const cols = ['id','patient','provider','dos','payer','billed','allowed','paid','pt_resp','status','submitted','ch','era','wq'];
+  const rows = [cols.join(','),...filterClaims().map(c=>cols.map(k=>JSON.stringify(c[k]??'')).join(','))];
+  const blob = new Blob([rows.join('\n')],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'claims-export.csv';
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+window.addEventListener('load', ()=>{
+  if(window.initSidebar) initSidebar();
+  initKPIs();
+  initTabBadges();
+  handleUrlParams();
+});
+</script>
+</body>
+</html>

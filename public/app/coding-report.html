@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Coding Report &amp; Documentation Guidance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+    /* ── Page chrome ────────────────────────────────────────────────────────── */
+    .cr-shell{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+    .cr-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+    .cr-topbar-left{display:flex;align-items:center;gap:12px}
+    .cr-back-link{font-size:.875rem;color:var(--ink-500);text-decoration:none;display:flex;align-items:center;gap:5px}
+    .cr-back-link:hover{color:var(--ink-900)}
+    .cr-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* ── Report header card ─────────────────────────────────────────────────── */
+    .cr-header-card{background:var(--green-light,#f0fdf4);border:1px solid #86efac;border-radius:16px;padding:22px 24px;margin-bottom:24px}
+    .cr-header-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+    .cr-client-name{font-family:"Sora","Public Sans",sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900,#0f172a);line-height:1.2}
+    .cr-header-badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+    .cr-status-badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+    .cr-status-draft{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .cr-status-final{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+    .cr-header-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+    .cr-meta-block{background:#fff;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px}
+    .cr-meta-label{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#16a34a;margin-bottom:3px}
+    .cr-meta-val{font-size:.875rem;font-weight:600;color:var(--ink-900,#0f172a);line-height:1.35}
+
+    /* ── Section headings ───────────────────────────────────────────────────── */
+    .cr-section-head{display:flex;align-items:center;gap:10px;margin:28px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line,#e2e8f0)}
+    .cr-section-icon{font-size:18px;flex-shrink:0}
+    .cr-section-title{font-family:"Sora","Public Sans",sans-serif;font-size:.875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-700,#334155)}
+
+    /* ── Code summary chips ─────────────────────────────────────────────────── */
+    .cr-code-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+    .cr-code-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;font-family:"Sora",sans-serif;font-size:.875rem;font-weight:700;border:2px solid}
+    .cr-chip-high{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+    .cr-chip-medium{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .cr-chip-low{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+
+    /* ── Code guidance card ─────────────────────────────────────────────────── */
+    .cr-code-card{border:1px solid var(--line,#e2e8f0);border-radius:16px;overflow:hidden;margin-bottom:20px}
+    .cr-code-card-head{display:flex;align-items:center;gap:14px;padding:16px 20px;background:var(--cream,#f8f9fa);border-bottom:1px solid var(--line,#e2e8f0);flex-wrap:wrap}
+    .cr-code-number{font-family:"Sora",sans-serif;font-size:1.5rem;font-weight:800;color:var(--ink-900,#0f172a);min-width:72px}
+    .cr-code-title-wrap{flex:1}
+    .cr-code-name{font-size:.9375rem;font-weight:600;color:var(--ink-700,#334155);line-height:1.3}
+    .cr-conf-pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:.6875rem;font-weight:700;margin-top:4px}
+    .cr-conf-high{background:#d1fae5;color:#065f46}
+    .cr-conf-medium{background:#fef3c7;color:#92400e}
+    .cr-conf-low{background:#f1f5f9;color:#475569}
+    .cr-code-rev{margin-left:auto;font-size:.9375rem;font-weight:700;color:#d97706;background:#fff4e8;padding:5px 14px;border-radius:999px;border:1px solid #fde68a;white-space:nowrap}
+
+    .cr-code-body{padding:18px 20px}
+    .cr-guide-block{margin-bottom:18px}
+    .cr-guide-block:last-child{margin-bottom:0}
+    .cr-guide-label{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500,#64748b);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+    .cr-guide-label .guide-icon{font-size:13px}
+    .cr-guide-text{font-size:.875rem;color:var(--ink-700,#334155);line-height:1.65}
+    .cr-guide-list{margin:0;padding-left:18px}
+    .cr-guide-list li{font-size:.875rem;color:var(--ink-700,#334155);line-height:1.65;margin-bottom:4px}
+    .cr-guide-list li:last-child{margin-bottom:0}
+
+    /* ── Checklist items ────────────────────────────────────────────────────── */
+    .cr-checklist{list-style:none;margin:0;padding:0}
+    .cr-checklist li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid var(--line-soft,#f1f5f9);font-size:.875rem;color:var(--ink-700,#334155);line-height:1.5}
+    .cr-checklist li:last-child{border-bottom:none}
+    .cr-check-box{width:18px;height:18px;border:2px solid #cbd5e1;border-radius:4px;flex-shrink:0;margin-top:1px;cursor:pointer;-webkit-print-color-adjust:exact;print-color-adjust:exact; background:#fff}
+    .cr-check-box.checked{background:#16a34a;border-color:#16a34a}
+
+    /* ── Suggested language block ───────────────────────────────────────────── */
+    .cr-lang-block{background:#f8fafc;border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:14px 16px;position:relative}
+    .cr-lang-text{font-size:.875rem;color:var(--ink-700,#334155);line-height:1.75;white-space:pre-wrap;font-family:"Public Sans",sans-serif}
+    .cr-copy-btn{position:absolute;top:10px;right:10px;font-size:.6875rem;padding:4px 10px;border-radius:6px;cursor:pointer;background:#fff;border:1px solid #cbd5e1;color:var(--ink-500,#64748b);font-weight:600;transition:background .15s}
+    .cr-copy-btn:hover{background:#f1f5f9}
+    .cr-copy-btn.copied{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+
+    /* ── Citations ──────────────────────────────────────────────────────────── */
+    .cr-citations{display:flex;flex-wrap:wrap;gap:6px}
+    .cr-citation-chip{font-size:.6875rem;padding:3px 9px;border-radius:999px;border:1px solid #cbd5e1;color:var(--ink-500,#64748b);background:#f8fafc}
+
+    /* ── Deficiencies ───────────────────────────────────────────────────────── */
+    .cr-deficiency-item{display:flex;align-items:flex-start;gap:9px;padding:7px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.8125rem;color:#78350f;line-height:1.5;margin-bottom:6px}
+    .cr-deficiency-item:last-child{margin-bottom:0}
+
+    /* ── Audit summary ──────────────────────────────────────────────────────── */
+    .cr-audit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+    .cr-audit-block{padding:12px 14px;background:#f8f9fa;border:1px solid var(--line,#e2e8f0);border-radius:10px}
+    .cr-audit-block h5{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500,#64748b);margin:0 0 8px}
+    .cr-qa-row{display:flex;gap:8px;align-items:baseline;font-size:.8125rem;padding:2px 0;line-height:1.5}
+    .cr-qa-label{color:var(--ink-500,#64748b);flex:1;font-size:.8125rem}
+    .cr-qa-val{font-weight:600;color:var(--ink-900,#0f172a);white-space:nowrap;font-size:.8125rem}
+    .cr-qa-val.yes{color:#16a34a}
+    .cr-qa-val.no{color:#94a3b8}
+
+    /* ── Empty / error state ────────────────────────────────────────────────── */
+    .cr-empty{text-align:center;padding:64px 24px;color:var(--ink-500,#64748b)}
+    .cr-empty h2{font-size:1.125rem;font-weight:700;color:var(--ink-700,#334155);margin-bottom:8px}
+    .cr-empty p{font-size:.875rem;line-height:1.65;max-width:400px;margin:0 auto 20px}
+
+    /* ── Revenue callout ────────────────────────────────────────────────────── */
+    .cr-rev-callout{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#fff4e8;border:1px solid #fde68a;border-radius:12px;margin-bottom:16px}
+    .cr-rev-label{font-size:.875rem;font-weight:600;color:var(--ink-700,#334155)}
+    .cr-rev-amount{font-family:"Sora",sans-serif;font-size:1.25rem;font-weight:800;color:#d97706}
+
+    /* ── Print ──────────────────────────────────────────────────────────────── */
+    @media print {
+      .cr-topbar, .cr-actions, .cr-copy-btn, .no-print { display: none !important; }
+      .cr-shell { max-width: 100%; padding: 0; }
+      .cr-code-card { break-inside: avoid; }
+      body { background: white !important; }
+    }
+  </style>
+</head>
+<body class="dashboard-body" style="background:var(--surface-soft,#f8fafc)">
+
+<div class="cr-shell">
+
+  <!-- Top bar -->
+  <div class="cr-topbar no-print">
+    <div class="cr-topbar-left">
+      <a class="cr-back-link" href="Coder.html" id="backLink">&#8592; Back to Coder</a>
+    </div>
+    <div class="cr-actions">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="printReport()">Print / Save PDF</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="copyAllBtn" onclick="copyAllDocText()">Copy Documentation Text</button>
+      <button class="btn btn-blue btn-sm" type="button" id="saveBtn" onclick="saveReport()">Save Report</button>
+    </div>
+  </div>
+
+  <!-- Content populated by JS -->
+  <div id="reportContent"></div>
+
+</div>
+
+<script>
+/* ── Helpers ───────────────────────────────────────────────────────────────── */
+function escapeHtml(str){
+  return String(str||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function formatDate(iso){
+  if(!iso) return '—';
+  var d = new Date(iso+'T12:00:00');
+  return d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+}
+
+/* ── Data loading ──────────────────────────────────────────────────────────── */
+var REPORT = null;
+var _saved = false;
+
+function loadReport(){
+  // Priority 1: active report set by Coder.html on "Open Full Report"
+  try {
+    var raw = localStorage.getItem('docusistant_active_report');
+    if(raw){
+      var parsed = JSON.parse(raw);
+      if(parsed && parsed.codeDetails){
+        REPORT = parsed;
+        return;
+      }
+    }
+  } catch(e){}
+
+  // Priority 2: most recent saved report
+  try {
+    var reports = getStoredCoderReports();
+    if(reports && reports.length){
+      REPORT = reports[0];
+      _saved = true;
+      return;
+    }
+  } catch(e){}
+}
+
+/* ── Rendering ─────────────────────────────────────────────────────────────── */
+function render(){
+  var el = document.getElementById('reportContent');
+  if(!REPORT){
+    el.innerHTML = `<div class="cr-empty">
+      <h2>No Report Found</h2>
+      <p>Generate a report in the Coder first, then click "Open Full Report" to view it here.</p>
+      <a class="btn btn-blue" href="Coder.html">Go to Coder</a>
+    </div>`;
+    document.getElementById('saveBtn').style.display = 'none';
+    return;
+  }
+
+  var r = REPORT;
+  var html = '';
+
+  // ── Header card ──────────────────────────────────────────────────────────
+  var statusCls = r.status === 'Final' ? 'cr-status-final' : 'cr-status-draft';
+  html += `<div class="cr-header-card">
+    <div class="cr-header-top">
+      <div>
+        <div class="cr-client-name">${escapeHtml(r.client || 'Unnamed Client')}</div>
+        <div class="cr-header-badges">
+          <span class="cr-status-badge ${statusCls}">${escapeHtml(r.status || 'Draft')}</span>
+        </div>
+      </div>
+    </div>
+    <div class="cr-header-meta">
+      <div class="cr-meta-block"><div class="cr-meta-label">Date of Service</div><div class="cr-meta-val">${escapeHtml(formatDate(r.date))}</div></div>
+      <div class="cr-meta-block"><div class="cr-meta-label">Diagnosis (Primary)</div><div class="cr-meta-val">${escapeHtml(r.diag || '—')}</div></div>
+      <div class="cr-meta-block"><div class="cr-meta-label">Recommended Codes</div><div class="cr-meta-val">${escapeHtml(r.codes || '—')}</div></div>
+      ${r.revenue ? `<div class="cr-meta-block"><div class="cr-meta-label">Estimated Revenue</div><div class="cr-meta-val" style="color:#d97706">${escapeHtml(r.revenue)}</div></div>` : ''}
+    </div>
+  </div>`;
+
+  // ── Code summary chips ───────────────────────────────────────────────────
+  var details = r.codeDetails || [];
+  if(details.length){
+    html += `<div class="cr-section-head"><span class="cr-section-icon">✅</span><span class="cr-section-title">Recommended Codes</span></div>`;
+    html += '<div class="cr-code-chips">';
+    details.forEach(function(cd){
+      var chipCls = cd.confidence === 'high' ? 'cr-chip-high' : (cd.confidence === 'medium' || cd.confidence === 'moderate' ? 'cr-chip-medium' : 'cr-chip-low');
+      html += `<span class="cr-code-chip ${chipCls}">${escapeHtml(cd.code)}</span>`;
+    });
+    html += '</div>';
+
+    // Revenue callout
+    var minRev=0, maxRev=0;
+    details.forEach(function(cd){
+      var vals = String(cd.revenue||'').match(/\$[\d,]+(?:\.\d+)?/g)||[];
+      if(vals.length>=1) minRev += parseFloat(vals[0].replace(/[$,]/g,''))||0;
+      if(vals.length>=2) maxRev += parseFloat(vals[1].replace(/[$,]/g,''))||0;
+    });
+    if(minRev>0){
+      var revText = maxRev > minRev ? ('$'+minRev.toFixed(2)+' – $'+maxRev.toFixed(2)) : ('$'+minRev.toFixed(2));
+      html += `<div class="cr-rev-callout">
+        <span class="cr-rev-label">Total Estimated Revenue (Colorado Medicaid rates)</span>
+        <span class="cr-rev-amount">${escapeHtml(revText)}</span>
+      </div>`;
+    }
+  }
+
+  // ── Per-code documentation guidance ─────────────────────────────────────
+  if(details.length){
+    html += `<div class="cr-section-head"><span class="cr-section-icon">📋</span><span class="cr-section-title">Documentation Guidance — Per Code</span></div>`;
+
+    details.forEach(function(cd, idx){
+      var confCls = cd.confidence === 'high' ? 'cr-conf-high' : (cd.confidence === 'medium' || cd.confidence === 'moderate' ? 'cr-conf-medium' : 'cr-conf-low');
+      var confLabel = cd.confidence === 'high' ? 'High Confidence' : (cd.confidence === 'medium' || cd.confidence === 'moderate' ? 'Moderate Confidence' : 'Low Confidence');
+
+      html += `<div class="cr-code-card" id="card-${idx}">
+        <div class="cr-code-card-head">
+          <div class="cr-code-number">${escapeHtml(cd.code)}</div>
+          <div class="cr-code-title-wrap">
+            <div class="cr-code-name">${escapeHtml(cd.title || cd.code)}</div>
+            <span class="cr-conf-pill ${confCls}">${confLabel}</span>
+          </div>
+          ${cd.revenue ? `<div class="cr-code-rev">${escapeHtml(cd.revenue)}</div>` : ''}
+        </div>
+        <div class="cr-code-body">`;
+
+      // Why recommended
+      if(cd.explanation){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">💡</span>Why This Code Was Recommended</div>
+          <div class="cr-guide-text">${escapeHtml(cd.explanation)}</div>
+        </div>`;
+      }
+
+      // Medical necessity standard
+      if(cd.medicalNecessityStandard){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">⚖️</span>Medical Necessity Standard</div>
+          <div class="cr-guide-text">${escapeHtml(cd.medicalNecessityStandard)}</div>
+        </div>`;
+      }
+
+      // Required documentation (checklist)
+      if(cd.requiredDocumentation && cd.requiredDocumentation.length){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">📌</span>Required Documentation Elements</div>
+          <ul class="cr-checklist" id="checklist-${idx}">`;
+        cd.requiredDocumentation.forEach(function(item, i){
+          html += `<li>
+            <div class="cr-check-box" id="chk-${idx}-${i}" onclick="toggleCheck(this)" title="Mark as completed"></div>
+            <span>${escapeHtml(item)}</span>
+          </li>`;
+        });
+        html += `</ul></div>`;
+      }
+
+      // Common deficiencies
+      if(cd.commonDeficiencies && cd.commonDeficiencies.length){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">⚠️</span>Common Audit Deficiencies — Avoid These</div>`;
+        cd.commonDeficiencies.forEach(function(item){
+          html += `<div class="cr-deficiency-item"><span>⚠</span><span>${escapeHtml(item)}</span></div>`;
+        });
+        html += `</div>`;
+      }
+
+      // Suggested documentation language
+      if(cd.suggestedDocumentationLanguage){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">✍️</span>Suggested Documentation Language</div>
+          <div class="cr-lang-block" id="lang-${idx}">
+            <button class="cr-copy-btn" onclick="copyLang(${idx})" id="copybtn-${idx}">Copy</button>
+            <div class="cr-lang-text">${escapeHtml(cd.suggestedDocumentationLanguage)}</div>
+          </div>
+        </div>`;
+      }
+
+      // Legal citations
+      if(cd.legalCitations && cd.legalCitations.length){
+        html += `<div class="cr-guide-block">
+          <div class="cr-guide-label"><span class="guide-icon">📎</span>Regulatory Citations</div>
+          <div class="cr-citations">`;
+        cd.legalCitations.forEach(function(cite){
+          html += `<span class="cr-citation-chip">${escapeHtml(cite)}</span>`;
+        });
+        html += `</div></div>`;
+      }
+
+      html += `</div></div>`; // .cr-code-body + .cr-code-card
+    });
+  }
+
+  // ── Form audit summary ───────────────────────────────────────────────────
+  var summarySource = r.formSummary || r.auditSummary || '';
+  if(summarySource){
+    html += `<div class="cr-section-head"><span class="cr-section-icon">🗒️</span><span class="cr-section-title">Session Documentation Audit</span></div>`;
+
+    var sections = [];
+    var cur = null;
+    summarySource.split('\n').forEach(function(line){
+      var t = line.trim();
+      if(!t) return;
+      if(t.startsWith('- ')){
+        if(cur){
+          var parts = t.slice(2).split(': ');
+          cur.rows.push({ label: parts[0]||'', val: parts.slice(1).join(': ')||'' });
+        }
+      } else {
+        cur = { title: t, rows: [] };
+        sections.push(cur);
+      }
+    });
+
+    if(sections.length){
+      html += '<div class="cr-audit-grid">';
+      sections.forEach(function(sec){
+        html += `<div class="cr-audit-block"><h5>${escapeHtml(sec.title)}</h5>`;
+        sec.rows.forEach(function(row){
+          var vl = row.val.toLowerCase();
+          var vc = vl==='yes' ? ' yes' : (vl==='no' ? ' no' : '');
+          html += `<div class="cr-qa-row"><span class="cr-qa-label">${escapeHtml(row.label)}</span><span class="cr-qa-val${vc}">${escapeHtml(row.val||'—')}</span></div>`;
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += `<div style="background:#f8f9fa;border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:16px;font-size:.875rem;color:var(--ink-700,#334155);white-space:pre-wrap;line-height:1.65">${escapeHtml(summarySource)}</div>`;
+    }
+  }
+
+  // ── Legal disclaimer ─────────────────────────────────────────────────────
+  html += `<div style="margin-top:32px;padding:14px 18px;background:#f8f9fa;border:1px solid var(--line,#e2e8f0);border-radius:10px;font-size:.75rem;color:var(--ink-500,#64748b);line-height:1.65">
+    <strong>Disclaimer:</strong> This report is a clinical coding tool intended to support documentation. It does not constitute legal, billing, or compliance advice. All codes must be verified by a qualified clinician or certified coder before submission. Colorado Medicaid reimbursement rates are approximate and subject to change. Documentation guidance is based on Colorado HCPF billing guidelines and is provided for educational purposes only.
+  </div>`;
+
+  el.innerHTML = html;
+
+  // Update save button if already saved
+  if(_saved){
+    document.getElementById('saveBtn').textContent = 'Saved ✓';
+    document.getElementById('saveBtn').disabled = true;
+  }
+}
+
+/* ── Interactive checklist ─────────────────────────────────────────────────── */
+function toggleCheck(el){
+  el.classList.toggle('checked');
+}
+
+/* ── Copy functions ────────────────────────────────────────────────────────── */
+function copyLang(idx){
+  var block = document.getElementById('lang-'+idx);
+  if(!block) return;
+  var textEl = block.querySelector('.cr-lang-text');
+  if(!textEl) return;
+  var text = textEl.textContent || textEl.innerText || '';
+  navigator.clipboard.writeText(text.trim()).then(function(){
+    var btn = document.getElementById('copybtn-'+idx);
+    if(btn){ btn.textContent = 'Copied!'; btn.classList.add('copied'); }
+    setTimeout(function(){ if(btn){ btn.textContent='Copy'; btn.classList.remove('copied'); } },2000);
+  }).catch(function(){
+    // Fallback
+    var ta = document.createElement('textarea');
+    ta.value = text.trim();
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = document.getElementById('copybtn-'+idx);
+    if(btn){ btn.textContent = 'Copied!'; btn.classList.add('copied'); }
+    setTimeout(function(){ if(btn){ btn.textContent='Copy'; btn.classList.remove('copied'); } },2000);
+  });
+}
+
+function copyAllDocText(){
+  if(!REPORT || !REPORT.codeDetails) return;
+  var lines = [];
+  lines.push('CODING REPORT — ' + (REPORT.client || 'Unnamed Client'));
+  lines.push('Date of Service: ' + formatDate(REPORT.date));
+  lines.push('Diagnosis: ' + (REPORT.diag || '—'));
+  lines.push('Codes: ' + (REPORT.codes || '—'));
+  lines.push('');
+  REPORT.codeDetails.forEach(function(cd){
+    lines.push('═══════════════════════════════════════');
+    lines.push(cd.code + ' — ' + (cd.title || cd.code));
+    lines.push('═══════════════════════════════════════');
+    if(cd.explanation){ lines.push(''); lines.push('Why Recommended: ' + cd.explanation); }
+    if(cd.medicalNecessityStandard){ lines.push(''); lines.push('Medical Necessity Standard:'); lines.push(cd.medicalNecessityStandard); }
+    if(cd.requiredDocumentation && cd.requiredDocumentation.length){
+      lines.push(''); lines.push('Required Documentation:');
+      cd.requiredDocumentation.forEach(function(item){ lines.push('  □ ' + item); });
+    }
+    if(cd.suggestedDocumentationLanguage){
+      lines.push(''); lines.push('Suggested Documentation Language:');
+      lines.push(cd.suggestedDocumentationLanguage);
+    }
+    lines.push('');
+  });
+
+  var text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(function(){
+    var btn = document.getElementById('copyAllBtn');
+    if(btn){ btn.textContent = '✓ Copied!'; }
+    setTimeout(function(){ if(btn){ btn.textContent='Copy Documentation Text'; } },2500);
+  }).catch(function(){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    var btn = document.getElementById('copyAllBtn');
+    if(btn){ btn.textContent='✓ Copied!'; }
+    setTimeout(function(){ if(btn){ btn.textContent='Copy Documentation Text'; } },2500);
+  });
+}
+
+/* ── Print ─────────────────────────────────────────────────────────────────── */
+function printReport(){
+  window.print();
+}
+
+/* ── Save ──────────────────────────────────────────────────────────────────── */
+function saveReport(){
+  if(!REPORT) return;
+  var existing = getStoredCoderReports();
+  // Don't duplicate if already saved
+  var alreadySaved = existing.some(function(r){ return String(r.id||'') === String(REPORT.id||''); });
+  if(!alreadySaved){
+    existing.unshift(REPORT);
+    setStoredCoderReports(existing.slice(0,200));
+  }
+  var btn = document.getElementById('saveBtn');
+  if(btn){ btn.textContent = 'Saved ✓'; btn.disabled = true; }
+  _saved = true;
+}
+
+/* ── Init ──────────────────────────────────────────────────────────────────── */
+window.onload = async function(){
+  await initDashboard(CLINICIAN_ROLES);
+  loadReport();
+  render();
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

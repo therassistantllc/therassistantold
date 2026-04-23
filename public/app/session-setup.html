@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>New Coding Session - THERASSISTANT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* -- Wizard shell ----------------------------------- */
+    .setup-shell {
+      max-width: 740px;
+      margin: 0 auto;
+      padding-bottom: 48px;
+    }
+
+    /* -- Wizard card ------------------------------------ */
+    .wizard-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: 0 20px 48px rgba(13,53,94,0.12);
+      overflow: hidden;
+      position: relative;
+    }
+    .wizard-card::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--blue-800), var(--blue-500));
+    }
+
+    /* -- Wizard header ---------------------------------- */
+    .wizard-head {
+      padding: 22px 28px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .wizard-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border: 1px solid var(--blue-200);
+      background: var(--blue-100);
+      color: var(--blue-800);
+      border-radius: 999px;
+      font-family: "Sora", "Public Sans", sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .wizard-title {
+      font-family: "Sora", "Public Sans", sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink-900);
+      margin: 0 0 3px;
+      line-height: 1.2;
+    }
+    .wizard-sub {
+      font-size: .8125rem;
+      color: var(--ink-500);
+      margin: 0;
+    }
+
+    /* -- Step indicator --------------------------------- */
+    .step-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-soft);
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      position: relative;
+    }
+    .step-item:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 36px;
+      right: 0;
+      top: 50%;
+      height: 2px;
+      background: var(--border);
+      transform: translateY(-50%);
+      z-index: 0;
+    }
+    .step-item.done:not(:last-child)::after {
+      background: var(--blue-600);
+    }
+    .step-bubble {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Sora", sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-500);
+      flex-shrink: 0;
+      z-index: 1;
+      position: relative;
+      transition: all .2s ease;
+    }
+    .step-item.active .step-bubble {
+      border-color: var(--blue-600);
+      background: var(--blue-600);
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(47,121,183,0.18);
+    }
+    .step-item.done .step-bubble {
+      border-color: var(--blue-600);
+      background: var(--blue-600);
+      color: #fff;
+    }
+    .step-label-group {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      z-index: 1;
+    }
+    .step-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-900);
+      font-family: "Sora", sans-serif;
+    }
+    .step-item:not(.active):not(.done) .step-label {
+      color: var(--ink-500);
+    }
+    .step-sub {
+      font-size: 11px;
+      color: var(--ink-500);
+    }
+
+    /* -- Wizard body / steps ---------------------------- */
+    .wizard-step {
+      display: none;
+      padding: 28px 28px 24px;
+    }
+    .wizard-step.active {
+      display: block;
+    }
+
+    /* -- Section heading -------------------------------- */
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 11px;
+      border: 1px solid var(--blue-200);
+      background: var(--blue-100);
+      color: var(--blue-800);
+      border-radius: 999px;
+      font-family: "Sora", "Public Sans", sans-serif;
+      font-size: .6875rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .step-heading {
+      font-family: "Sora", "Public Sans", sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink-900);
+      margin: 0 0 4px;
+    }
+    .step-desc {
+      font-size: .8125rem;
+      color: var(--ink-500);
+      margin: 0 0 22px;
+      line-height: 1.5;
+    }
+
+    /* -- Form fields ------------------------------------ */
+    .field-group {
+      margin-bottom: 18px;
+    }
+    .field-group:last-of-type {
+      margin-bottom: 0;
+    }
+    .field-label {
+      display: block;
+      font-size: .6875rem;
+      font-weight: 700;
+      color: var(--ink-700);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .field-label .req {
+      color: #dc2626;
+      margin-left: 2px;
+    }
+    .field-hint {
+      font-size: .75rem;
+      color: var(--ink-500);
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+    .field-input,
+    .field-select {
+      width: 100%;
+      padding: 10px 13px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #f9fcff;
+      color: var(--ink-900);
+      font-family: "Public Sans", "Segoe UI", sans-serif;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+      appearance: none;
+    }
+    .field-input:focus,
+    .field-select:focus {
+      border-color: var(--blue-600);
+      box-shadow: 0 0 0 3px rgba(47,121,183,0.14);
+      background: #fff;
+    }
+    .field-input:disabled,
+    .field-select:disabled {
+      background: #f0f4fa;
+      color: var(--ink-500);
+      cursor: not-allowed;
+    }
+    .field-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 560px) {
+      .field-row-2 { grid-template-columns: 1fr; }
+    }
+
+    /* -- Patient search input + dropdown ---------------- */
+    .patient-search-wrap {
+      position: relative;
+    }
+    .patient-search-wrap .field-input {
+      padding-left: 36px;
+    }
+    .patient-search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--ink-500);
+      pointer-events: none;
+    }
+    .patient-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 12px 28px rgba(13,53,94,0.14);
+      z-index: 200;
+      max-height: 240px;
+      overflow-y: auto;
+      display: none;
+    }
+    .patient-dropdown.open {
+      display: block;
+    }
+    .pat-opt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 13px;
+      cursor: pointer;
+      transition: background .1s;
+      border-bottom: 1px solid #f0f4fa;
+    }
+    .pat-opt:last-child {
+      border-bottom: none;
+    }
+    .pat-opt:hover, .pat-opt.focused {
+      background: var(--blue-100);
+    }
+    .pat-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--blue-200), #bdd8f5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--blue-900);
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .pat-info-name {
+      font-size: .875rem;
+      font-weight: 700;
+      color: var(--ink-900);
+    }
+    .pat-info-meta {
+      font-size: .75rem;
+      color: var(--ink-500);
+      margin-top: 1px;
+    }
+    .pat-opt-empty {
+      padding: 14px 13px;
+      font-size: .8125rem;
+      color: var(--ink-500);
+      text-align: center;
+    }
+    .pat-opt-loading {
+      padding: 14px 13px;
+      font-size: .8125rem;
+      color: var(--blue-600);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* -- Appointment selector --------------------------- */
+    .appt-loading-msg {
+      font-size: .78rem;
+      color: var(--ink-500);
+      margin-top: 5px;
+      font-style: italic;
+    }
+    .appt-empty-msg {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #f9fcff;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      font-size: .8125rem;
+      color: var(--ink-500);
+      margin-top: 0;
+    }
+
+    /* -- Category grid ---------------------------------- */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 640px) {
+      .cat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .cat-grid { grid-template-columns: 1fr; }
+    }
+
+    .cat-card {
+      position: relative;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 14px 14px;
+      cursor: pointer;
+      background: #fff;
+      transition: border-color .15s, box-shadow .15s, background .15s, transform .1s;
+      user-select: none;
+      overflow: hidden;
+    }
+    .cat-card:hover {
+      border-color: var(--blue-500);
+      background: #f7fbff;
+      box-shadow: 0 6px 18px rgba(47,121,183,0.12);
+      transform: translateY(-1px);
+    }
+    .cat-card.selected {
+      border-color: var(--blue-600);
+      background: var(--blue-100);
+      box-shadow: 0 0 0 4px rgba(47,121,183,0.18), 0 6px 20px rgba(47,121,183,0.15);
+    }
+    .cat-card.selected .cat-check {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .cat-check {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--blue-600);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(.6);
+      transition: opacity .15s, transform .15s;
+    }
+    .cat-check svg {
+      width: 11px;
+      height: 11px;
+      stroke: #fff;
+      stroke-width: 2.5;
+      fill: none;
+    }
+
+    /* colour-tinted icon bubbles */
+    .cat-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .cat-icon.teal    { background: #ccfbf1; }
+    .cat-icon.blue    { background: var(--blue-100); }
+    .cat-icon.purple  { background: #ede9fe; }
+    .cat-icon.red     { background: #fee2e2; }
+    .cat-icon.amber   { background: #fef3c7; }
+    .cat-icon.green   { background: #dcfce7; }
+    .cat-icon.orange  { background: #ffedd5; }
+    .cat-icon.indigo  { background: #e0e7ff; }
+    .cat-icon.cyan    { background: #cffafe; }
+
+    .cat-title {
+      font-family: "Sora", "Public Sans", sans-serif;
+      font-size: .875rem;
+      font-weight: 700;
+      color: var(--ink-900);
+      margin: 0 0 4px;
+      line-height: 1.2;
+    }
+    .cat-desc {
+      font-size: .75rem;
+      color: var(--ink-500);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    /* -- Wizard actions bar ----------------------------- */
+    .wizard-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 28px 22px;
+      border-top: 1px solid var(--border);
+    }
+    .wizard-actions-right {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .wiz-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #eef6ff;
+      color: var(--blue-800);
+      padding: 10px 22px;
+      border-radius: 10px;
+      font-family: "Public Sans", sans-serif;
+      font-weight: 700;
+      font-size: .9375rem;
+      cursor: pointer;
+      transition: all .15s ease;
+      white-space: nowrap;
+    }
+    .wiz-btn:hover:not(:disabled) {
+      background: var(--blue-100);
+      border-color: var(--blue-500);
+    }
+    .wiz-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+    .wiz-btn.ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--ink-500);
+    }
+    .wiz-btn.ghost:hover:not(:disabled) {
+      background: var(--surface-soft);
+      color: var(--ink-700);
+    }
+    .wiz-btn.primary {
+      background: linear-gradient(135deg, var(--blue-800), var(--blue-500));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 8px 20px rgba(20,83,137,0.22);
+    }
+    .wiz-btn.primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0e3a62, #1e6aa8);
+      transform: translateY(-1px);
+    }
+    .wiz-btn.primary:disabled {
+      box-shadow: none;
+      transform: none;
+    }
+
+    /* -- Inline validation ------------------------------ */
+    .inline-error {
+      display: none;
+      font-size: .75rem;
+      color: #dc2626;
+      margin-top: 5px;
+      font-weight: 600;
+    }
+    .inline-error.show { display: block; }
+    .field-input.error,
+    .field-select.error {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+    }
+
+    /* -- Summary row before launch ---------------------- */
+    .session-summary {
+      display: none;
+      margin: 0 28px 20px;
+      padding: 14px 16px;
+      background: var(--blue-100);
+      border: 1px solid var(--blue-200);
+      border-radius: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .session-summary.visible {
+      display: flex;
+    }
+    .ss-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ss-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--ink-500);
+    }
+    .ss-val {
+      font-size: .8125rem;
+      font-weight: 700;
+      color: var(--blue-800);
+    }
+
+    /* -- Responsive ------------------------------------- */
+    @media (max-width: 700px) {
+      .wizard-head, .wizard-step, .wizard-actions { padding-left: 18px; padding-right: 18px; }
+      .step-track { padding-left: 18px; padding-right: 18px; }
+      .session-summary { margin-left: 18px; margin-right: 18px; }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------ -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <!-- -- Main content ------------------------------------- -->
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>New Coding Session</h1>
+        <p>Select a patient, date of service, and service category to begin.</p>
+      </div>
+      <a class="btn btn-outline" href="coder-home.html">&#8592; Back to Coder Home</a>
+    </header>
+
+    <div class="setup-shell">
+      <div class="wizard-card">
+
+        <!-- Card header -->
+        <div class="wizard-head">
+          <div class="wizard-eyebrow">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M6 4v2.5L7.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            THERASSISTANT Coder
+          </div>
+          <h2 class="wizard-title">Start a New Coding Session</h2>
+          <p class="wizard-sub">Complete both steps to launch the coding workflow for this encounter.</p>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="step-track">
+          <div class="step-item active" id="stepItem1">
+            <div class="step-bubble">1</div>
+            <div class="step-label-group">
+              <span class="step-label">Session Details</span>
+              <span class="step-sub">Patient &amp; appointment</span>
+            </div>
+          </div>
+          <div class="step-item" id="stepItem2">
+            <div class="step-bubble">2</div>
+            <div class="step-label-group">
+              <span class="step-label">Service Category</span>
+              <span class="step-sub">Type of session</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ----------------------------------------------
+             STEP 1 - SESSION DETAILS
+        ---------------------------------------------- -->
+        <div class="wizard-step active" id="wizStep1">
+          <div class="section-label">Step 1 of 2</div>
+          <h3 class="step-heading">Who is this session for?</h3>
+          <p class="step-desc">Search for a patient and confirm the date of service. Linked appointments are optional.</p>
+
+          <!-- Patient search -->
+          <div class="field-group">
+            <label class="field-label" for="patientSearch">Patient <span class="req">*</span></label>
+            <div class="patient-search-wrap">
+              <svg class="patient-search-icon" width="16" height="16" viewBox="0 0 20 20" fill="none">
+                <circle cx="9" cy="9" r="6" stroke="#66788a" stroke-width="1.75"/>
+                <path d="M14.5 14.5L18 18" stroke="#66788a" stroke-width="1.75" stroke-linecap="round"/>
+              </svg>
+              <input
+                type="text"
+                id="patientSearch"
+                class="field-input"
+                placeholder="Type to search patients..."
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <!-- hidden input stores the selected patient id -->
+              <input type="hidden" id="patientId" />
+              <input type="hidden" id="patientName" />
+            </div>
+            <div class="patient-dropdown" id="patientDropdown" role="listbox" aria-label="Patient results"></div>
+            <span class="inline-error" id="patientError">Please select a patient before continuing.</span>
+          </div>
+
+          <!-- Date of service + appointment -->
+          <div class="field-row-2">
+            <div class="field-group">
+              <label class="field-label" for="sessionDos">Date of Service <span class="req">*</span></label>
+              <input type="date" id="sessionDos" class="field-input" />
+              <span class="inline-error" id="dosError">Please enter the date of service.</span>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label" for="appointmentSelect">Linked Appointment</label>
+              <div style="position:relative;">
+                <select id="appointmentSelect" class="field-select" disabled>
+                  <option value="">-- select patient first --</option>
+                </select>
+                <span class="appt-loading-msg" id="apptLoadMsg" style="display:none">Loading appointments...</span>
+              </div>
+              <p class="field-hint">Optional. Links this session to a scheduled appointment record.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ----------------------------------------------
+             STEP 2 - SERVICE CATEGORY
+        ---------------------------------------------- -->
+        <div class="wizard-step" id="wizStep2">
+          <div class="section-label">Step 2 of 2</div>
+          <h3 class="step-heading">What type of session is this?</h3>
+          <p class="step-desc">Select the primary service category. The coding workflow will adapt to your selection.</p>
+
+          <!-- 3 x 3 category grid -->
+          <div class="cat-grid" id="categoryGrid">
+
+            <div class="cat-card" data-cat="Assessment" data-workflow="H0031" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon teal">??</div>
+              <p class="cat-title">Assessment</p>
+              <p class="cat-desc">Comprehensive BPS evaluation - H0031, 90791</p>
+            </div>
+
+            <div class="cat-card" data-cat="Treatment Plan" data-workflow="integrated" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon blue">??</div>
+              <p class="cat-title">Treatment Plan</p>
+              <p class="cat-desc">Plan creation or review - H0032</p>
+            </div>
+
+            <div class="cat-card" data-cat="Therapy" data-workflow="psychotherapy" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon purple">??</div>
+              <p class="cat-title">Therapy</p>
+              <p class="cat-desc">Individual counseling - 90837, H0001</p>
+            </div>
+
+            <div class="cat-card" data-cat="Crisis" data-workflow="integrated" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon red">??</div>
+              <p class="cat-title">Crisis</p>
+              <p class="cat-desc">Crisis intervention &amp; stabilization</p>
+            </div>
+
+            <div class="cat-card" data-cat="Case Management" data-workflow="integrated" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon amber">???</div>
+              <p class="cat-title">Case Management</p>
+              <p class="cat-desc">Care coordination services - T1016</p>
+            </div>
+
+            <div class="cat-card" data-cat="Screening" data-workflow="H0031" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon green">??</div>
+              <p class="cat-title">Screening</p>
+              <p class="cat-desc">PHQ-9, AUDIT, DAST or other brief tool</p>
+            </div>
+
+            <div class="cat-card" data-cat="Peer Support" data-workflow="integrated" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon orange">??</div>
+              <p class="cat-title">Peer Support</p>
+              <p class="cat-desc">Peer specialist services - H0038</p>
+            </div>
+
+            <div class="cat-card" data-cat="Psychoeducation" data-workflow="integrated" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon indigo">??</div>
+              <p class="cat-title">Psychoeducation</p>
+              <p class="cat-desc">Education and skills-building sessions</p>
+            </div>
+
+            <div class="cat-card" data-cat="Substance Use" data-workflow="SUD" tabindex="0" role="button" aria-pressed="false">
+              <div class="cat-check"><svg viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1"/></svg></div>
+              <div class="cat-icon cyan">??</div>
+              <p class="cat-title">Substance Use</p>
+              <p class="cat-desc">SUD assessment or treatment services</p>
+            </div>
+
+          </div>
+          <span class="inline-error" id="catError" style="margin-top:12px;display:none;">Please select a service category.</span>
+        </div>
+
+        <!-- Summary bar (visible on step 2) -->
+        <div class="session-summary" id="sessionSummary">
+          <div class="ss-item">
+            <span class="ss-label">Patient</span>
+            <span class="ss-val" id="ssPatient">--</span>
+          </div>
+          <div class="ss-item">
+            <span class="ss-label">Date of Service</span>
+            <span class="ss-val" id="ssDos">--</span>
+          </div>
+          <div class="ss-item">
+            <span class="ss-label">Appointment</span>
+            <span class="ss-val" id="ssAppt">None linked</span>
+          </div>
+        </div>
+
+        <!-- Wizard action buttons -->
+        <div class="wizard-actions">
+          <button type="button" class="wiz-btn ghost" id="backBtn" onclick="goBack()" style="visibility:hidden">
+            &#8592; Back
+          </button>
+          <div class="wizard-actions-right">
+            <button type="button" class="wiz-btn ghost" onclick="window.location.href='coder-home.html'">Cancel</button>
+            <button type="button" class="wiz-btn primary" id="nextBtn" onclick="handleNext()">
+              Next: Choose Service &#8594;
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /.wizard-card -->
+    </div><!-- /.setup-shell -->
+
+  </main>
+</div><!-- /.dashboard-shell -->
+
+<script>
+/* ----------------------------------------------------------
+   Utilities
+---------------------------------------------------------- */
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso + 'T12:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return String(name || '?')[0].toUpperCase();
+}
+
+/* ----------------------------------------------------------
+   State
+---------------------------------------------------------- */
+var currentStep = 1;
+var allPatients = [];       // [{id, name, dob, payer}]
+var selectedPatient = null; // {id, name, dob, payer}
+var selectedCategory = null;// {cat, workflow}
+
+/* ----------------------------------------------------------
+   Step navigation
+---------------------------------------------------------- */
+function goToStep(n) {
+  currentStep = n;
+
+  document.getElementById('wizStep1').classList.toggle('active', n === 1);
+  document.getElementById('wizStep2').classList.toggle('active', n === 2);
+
+  var si1 = document.getElementById('stepItem1');
+  var si2 = document.getElementById('stepItem2');
+
+  si1.classList.remove('active', 'done');
+  si2.classList.remove('active', 'done');
+
+  if (n === 1) {
+    si1.classList.add('active');
+    si1.querySelector('.step-bubble').textContent = '1';
+  } else {
+    si1.classList.add('done');
+    si1.querySelector('.step-bubble').innerHTML =
+      '<svg width="13" height="13" viewBox="0 0 12 9" fill="none"><polyline points="1,4.5 4.5,8 11,1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    si2.classList.add('active');
+  }
+
+  var back = document.getElementById('backBtn');
+  var next = document.getElementById('nextBtn');
+  back.style.visibility = n === 1 ? 'hidden' : 'visible';
+
+  if (n === 2) {
+    next.textContent = 'Start Session ?';
+    next.classList.add('primary');
+    updateSummaryBar();
+    document.getElementById('sessionSummary').classList.add('visible');
+  } else {
+    next.textContent = 'Next: Choose Service ?';
+    document.getElementById('sessionSummary').classList.remove('visible');
+  }
+}
+
+function goBack() {
+  if (currentStep === 2) goToStep(1);
+}
+
+function handleNext() {
+  if (currentStep === 1) {
+    if (!validateStep1()) return;
+    goToStep(2);
+  } else {
+    if (!validateStep2()) return;
+    launchSession();
+  }
+}
+
+/* ----------------------------------------------------------
+   Validation
+---------------------------------------------------------- */
+function validateStep1() {
+  var ok = true;
+
+  var patErr = document.getElementById('patientError');
+  var dosErr = document.getElementById('dosError');
+  var patInput = document.getElementById('patientSearch');
+  var dosInput = document.getElementById('sessionDos');
+
+  patErr.classList.remove('show');
+  dosErr.classList.remove('show');
+  patInput.classList.remove('error');
+  dosInput.classList.remove('error');
+
+  if (!selectedPatient) {
+    patErr.classList.add('show');
+    patInput.classList.add('error');
+    ok = false;
+  }
+  if (!dosInput.value) {
+    dosErr.classList.add('show');
+    dosInput.classList.add('error');
+    ok = false;
+  }
+  return ok;
+}
+
+function validateStep2() {
+  var catErr = document.getElementById('catError');
+  catErr.classList.remove('show');
+  if (!selectedCategory) {
+    catErr.classList.add('show');
+    return false;
+  }
+  return true;
+}
+
+/* ----------------------------------------------------------
+   Summary bar (step 2)
+---------------------------------------------------------- */
+function updateSummaryBar() {
+  document.getElementById('ssPatient').textContent = selectedPatient ? selectedPatient.name : '--';
+  document.getElementById('ssDos').textContent = fmtDate(document.getElementById('sessionDos').value);
+
+  var apptSel = document.getElementById('appointmentSelect');
+  var apptText = apptSel && apptSel.value && apptSel.selectedIndex > 0
+    ? apptSel.options[apptSel.selectedIndex].text
+    : 'None linked';
+  document.getElementById('ssAppt').textContent = apptText;
+}
+
+/* ----------------------------------------------------------
+   Launch session ? save context ? go to Coder.html
+---------------------------------------------------------- */
+function launchSession() {
+  var apptSel = document.getElementById('appointmentSelect');
+  var apptId = apptSel && apptSel.value ? apptSel.value : null;
+  var apptLabel = apptId && apptSel.selectedIndex > 0
+    ? apptSel.options[apptSel.selectedIndex].text : null;
+
+  var ctx = {
+    patientId:        selectedPatient ? selectedPatient.id : null,
+    clientName:       selectedPatient ? selectedPatient.name : '',
+    sessionDate:      document.getElementById('sessionDos').value,
+    appointmentId:    apptId,
+    appointmentLabel: apptLabel,
+    serviceCategory:  selectedCategory ? selectedCategory.cat : '',
+    workflowPath:     selectedCategory ? selectedCategory.workflow : 'integrated',
+    startedAt:        new Date().toISOString()
+  };
+
+  try {
+    localStorage.setItem('docusistant_new_session', JSON.stringify(ctx));
+    // Also seed docusistant_doc_session so Coder.html can read patient name
+    localStorage.setItem('docusistant_doc_session', JSON.stringify({
+      clientName:   ctx.clientName,
+      sessionDate:  ctx.sessionDate,
+      workflowPath: ctx.workflowPath
+    }));
+  } catch (e) {
+    console.warn('Could not write session to localStorage:', e);
+  }
+
+  window.location.href = 'Coder.html';
+}
+
+/* ----------------------------------------------------------
+   Patient search
+---------------------------------------------------------- */
+var patientSearchTimer = null;
+var dropdownFocusIndex = -1;
+
+function renderPatientDropdown(items, mode) {
+  var dd = document.getElementById('patientDropdown');
+
+  if (mode === 'loading') {
+    dd.innerHTML = '<div class="pat-opt-loading">Searching patients...</div>';
+    dd.classList.add('open');
+    return;
+  }
+  if (!items || items.length === 0) {
+    dd.innerHTML = '<div class="pat-opt-empty">No patients found. Check spelling or add the patient first.</div>';
+    dd.classList.add('open');
+    return;
+  }
+
+  dd.innerHTML = items.map(function(p, idx) {
+    return '<div class="pat-opt" data-idx="' + idx + '" role="option" tabindex="-1">'
+      + '<div class="pat-avatar">' + esc(initials(p.name)) + '</div>'
+      + '<div>'
+      + '<div class="pat-info-name">' + esc(p.name) + '</div>'
+      + '<div class="pat-info-meta">' + (p.dob ? 'DOB ' + esc(fmtDate(p.dob)) : '') + (p.payer ? ' &middot; ' + esc(p.payer) : '') + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  dd.classList.add('open');
+  dropdownFocusIndex = -1;
+
+  dd.querySelectorAll('.pat-opt').forEach(function(opt, idx) {
+    opt.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      selectPatient(items[idx]);
+    });
+  });
+}
+
+function closePatientDropdown() {
+  document.getElementById('patientDropdown').classList.remove('open');
+  dropdownFocusIndex = -1;
+}
+
+function selectPatient(p) {
+  selectedPatient = p;
+  document.getElementById('patientSearch').value = p.name;
+  document.getElementById('patientId').value = p.id;
+  document.getElementById('patientName').value = p.name;
+  document.getElementById('patientSearch').classList.remove('error');
+  document.getElementById('patientError').classList.remove('show');
+  closePatientDropdown();
+  loadAppointments(p.id);
+}
+
+function filterLocalPatients(query) {
+  if (!query) return allPatients.slice(0, 12);
+  var q = query.toLowerCase();
+  return allPatients.filter(function(p) {
+    return p.name.toLowerCase().includes(q);
+  }).slice(0, 12);
+}
+
+async function searchPatients(query) {
+  if (allPatients.length > 0) {
+    renderPatientDropdown(filterLocalPatients(query));
+    return;
+  }
+  renderPatientDropdown(null, 'loading');
+  try {
+    var res = await supabaseClient
+      .from('patient_records')
+      .select('id, name, dob, payer')
+      .order('name', { ascending: true })
+      .limit(200);
+    if (res.error) throw res.error;
+    allPatients = res.data || [];
+    renderPatientDropdown(filterLocalPatients(query));
+  } catch (err) {
+    console.warn('Patient load error:', err);
+    var dd = document.getElementById('patientDropdown');
+    dd.innerHTML = '<div class="pat-opt-empty">Could not load patients. Check your connection.</div>';
+    dd.classList.add('open');
+  }
+}
+
+/* ----------------------------------------------------------
+   Appointment loader
+---------------------------------------------------------- */
+async function loadAppointments(patientId) {
+  var sel = document.getElementById('appointmentSelect');
+  var msg = document.getElementById('apptLoadMsg');
+
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">Loading...</option>';
+  msg.style.display = 'block';
+
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    // appointments.patient_id may be UUID (patients table) or TEXT (patient_records);
+    // attempt cast-safe query using the TEXT id from patient_records
+    var res = await supabaseClient
+      .from('appointments')
+      .select('id, scheduled_start, appointment_type, status, duration_minutes')
+      .eq('patient_id', patientId)
+      .in('status', ['Scheduled', 'Confirmed', 'Completed', 'Checked In'])
+      .gte('scheduled_start', today + 'T00:00:00')
+      .order('scheduled_start', { ascending: false })
+      .limit(20);
+
+    msg.style.display = 'none';
+
+    if (res.error || !res.data || res.data.length === 0) {
+      // Graceful fallback - also try without date filter for past appointments
+      var resPast = await supabaseClient
+        .from('appointments')
+        .select('id, scheduled_start, appointment_type, status, duration_minutes')
+        .eq('patient_id', patientId)
+        .in('status', ['Scheduled', 'Confirmed', 'Completed'])
+        .order('scheduled_start', { ascending: false })
+        .limit(10);
+
+      if (resPast.error || !resPast.data || resPast.data.length === 0) {
+        sel.innerHTML = '<option value="">No appointments found</option>';
+        sel.disabled = false;
+        return;
+      }
+      populateAppointmentSelect(sel, resPast.data);
+    } else {
+      populateAppointmentSelect(sel, res.data);
+    }
+  } catch (err) {
+    console.warn('Appointment load error:', err);
+    msg.style.display = 'none';
+    sel.innerHTML = '<option value="">Could not load appointments</option>';
+    sel.disabled = false;
+  }
+}
+
+function populateAppointmentSelect(sel, appts) {
+  sel.innerHTML = '<option value="">-- Manual entry / no appointment --</option>';
+  appts.forEach(function(a) {
+    var label = (a.appointment_type || 'Appointment')
+      + ' - ' + fmtDate((a.scheduled_start || '').slice(0, 10))
+      + (a.scheduled_start ? ' ' + fmtTime(a.scheduled_start) : '')
+      + ' (' + esc(a.status || '') + ')';
+    var opt = document.createElement('option');
+    opt.value = a.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  sel.disabled = false;
+}
+
+/* ----------------------------------------------------------
+   Category grid selection
+---------------------------------------------------------- */
+function initCategoryGrid() {
+  document.querySelectorAll('.cat-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      selectCategory(card);
+    });
+    card.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectCategory(card);
+      }
+    });
+  });
+}
+
+function selectCategory(card) {
+  document.querySelectorAll('.cat-card').forEach(function(c) {
+    c.classList.remove('selected');
+    c.setAttribute('aria-pressed', 'false');
+  });
+  card.classList.add('selected');
+  card.setAttribute('aria-pressed', 'true');
+  selectedCategory = {
+    cat:      card.dataset.cat,
+    workflow: card.dataset.workflow
+  };
+  document.getElementById('catError').classList.remove('show');
+}
+
+/* ----------------------------------------------------------
+   Patient input event wiring
+---------------------------------------------------------- */
+function initPatientSearch() {
+  var input = document.getElementById('patientSearch');
+
+  input.addEventListener('input', function() {
+    var q = this.value.trim();
+    selectedPatient = null;
+    document.getElementById('patientId').value = '';
+    document.getElementById('patientName').value = '';
+    // Reset appointment selector
+    var sel = document.getElementById('appointmentSelect');
+    sel.innerHTML = '<option value="">-- select patient first --</option>';
+    sel.disabled = true;
+
+    clearTimeout(patientSearchTimer);
+    if (q.length === 0) {
+      closePatientDropdown();
+      return;
+    }
+    patientSearchTimer = setTimeout(function() {
+      searchPatients(q);
+    }, 220);
+  });
+
+  input.addEventListener('focus', function() {
+    if (this.value.trim().length > 0 && !selectedPatient) {
+      searchPatients(this.value.trim());
+    } else if (this.value.trim().length === 0) {
+      // On first focus with empty field, preload list
+      if (allPatients.length === 0) {
+        searchPatients('');
+      } else {
+        renderPatientDropdown(allPatients.slice(0, 12));
+      }
+    }
+  });
+
+  input.addEventListener('keydown', function(e) {
+    var dd = document.getElementById('patientDropdown');
+    var opts = dd.querySelectorAll('.pat-opt');
+    if (!dd.classList.contains('open') || !opts.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      dropdownFocusIndex = Math.min(dropdownFocusIndex + 1, opts.length - 1);
+      opts.forEach(function(o, i) { o.classList.toggle('focused', i === dropdownFocusIndex); });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      dropdownFocusIndex = Math.max(dropdownFocusIndex - 1, 0);
+      opts.forEach(function(o, i) { o.classList.toggle('focused', i === dropdownFocusIndex); });
+    } else if (e.key === 'Enter' && dropdownFocusIndex >= 0) {
+      e.preventDefault();
+      opts[dropdownFocusIndex] && opts[dropdownFocusIndex].dispatchEvent(new MouseEvent('mousedown'));
+    } else if (e.key === 'Escape') {
+      closePatientDropdown();
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('mousedown', function(e) {
+    var wrap = document.querySelector('.patient-search-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      closePatientDropdown();
+    }
+  });
+}
+
+/* ----------------------------------------------------------
+   Default date of service = today
+---------------------------------------------------------- */
+function initDefaultDos() {
+  var today = new Date().toISOString().slice(0, 10);
+  document.getElementById('sessionDos').value = today;
+}
+
+/* ----------------------------------------------------------
+   Boot
+---------------------------------------------------------- */
+window.addEventListener('DOMContentLoaded', async function() {
+  await initDashboard(CLINICIAN_ROLES);
+  initDefaultDos();
+  initPatientSearch();
+  initCategoryGrid();
+});
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

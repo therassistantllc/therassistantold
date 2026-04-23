@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Monthly Schedule</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    /* Layout */
+    .page-layout{display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start}
+
+    /* KPI strip */
+    .kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#7c3aed)}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+
+    /* Month toolbar */
+    .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 15px;box-shadow:var(--shadow-sm)}
+    .nav-btns{display:flex;align-items:center;gap:5px}
+    .nav-btns button{width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--ink-700)}
+    .nav-btns button:hover{background:#f0f7ff}
+    .month-label{font-size:15px;font-weight:700;color:var(--ink-900);min-width:160px;text-align:center;font-family:'Sora',sans-serif}
+    .today-btn{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--ink-700);font-family:inherit}
+    .today-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .spacer{flex:1}
+
+    /* Filter strip */
+    .filter-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+    .filter-strip select{padding:7px 10px;border:1px solid var(--border);border-radius:9px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none;transition:border-color .15s}
+    .filter-strip select:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+
+    /* Calendar grid */
+    .calendar-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--border)}
+    .cal-dow-hdr{padding:8px;text-align:center;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500);background:#f5f9fe;border-right:1px solid var(--border)}
+    .cal-dow-hdr:last-child{border-right:none}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+    .cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px;min-height:96px;cursor:pointer;transition:background .12s;position:relative}
+    .cal-cell:nth-child(7n){border-right:none}
+    .cal-cell:hover{background:#f0f7ff}
+    .cal-cell.today{background:#eff6ff}
+    .cal-cell.other-month{background:#fafcff;opacity:.6}
+    .cal-cell.selected{background:#dbeafe}
+    .cal-day-num{font-size:12.5px;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:4px}
+    .cal-cell.today .cal-day-num{background:var(--blue-600);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px}
+    .cal-dot-row{display:flex;flex-wrap:wrap;gap:2px;max-height:40px;overflow:hidden}
+    .cal-dot{height:5px;border-radius:999px;flex:1 0 17px;min-width:10px;max-width:100%}
+    .cal-count-lbl{font-size:10px;color:var(--ink-500);font-weight:600;margin-top:3px}
+    .cal-more{font-size:10.5px;color:var(--blue-700);font-weight:700}
+
+    /* Day panel */
+    .day-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);margin-top:16px}
+    .day-panel.open{display:block}
+    .day-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .day-panel-title{font-size:15px;font-weight:700;color:var(--ink-900)}
+    .day-panel-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-500);padding:4px;border-radius:6px}
+    .day-panel-close:hover{background:#f0f0f0}
+    .day-appt-row{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);margin-bottom:7px;cursor:pointer}
+    .day-appt-row:hover{background:#f5f9fe}
+    .day-appt-time{font-size:12px;font-weight:700;color:var(--ink-700);white-space:nowrap;width:70px}
+    .day-appt-info{flex:1;min-width:0}
+    .day-appt-patient{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .day-appt-meta{font-size:11.5px;color:var(--ink-500)}
+
+    /* Sidebar */
+    .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+    .insight-title{font-size:13px;font-weight:700;color:var(--ink-900);margin-bottom:14px}
+    .insight-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+    .insight-row:last-child{border-bottom:none;padding-bottom:0}
+    .insight-label{font-size:12px;color:var(--ink-700);font-weight:600}
+    .insight-value{font-size:13px;font-weight:700;color:var(--ink-900);text-align:right}
+    .insight-sub{font-size:11px;color:var(--ink-500)}
+
+    /* Badges */
+    .badge-completed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-scheduled{color:#1e40af;background:#dbeafe;border:1px solid #93c5fd}
+    .badge-confirmed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-arrived{color:#0f766e;background:#ccfbf1;border:1px solid #5eead4}
+    .badge-in-session{color:#5b21b6;background:#ede9fe;border:1px solid #a78bfa}
+    .badge-no-show{color:#7f1d1d;background:#fee2e2;border:1px solid #fca5a5}
+    .badge-cancelled{color:#78350f;background:#fef3c7;border:1px solid #fcd34d}
+
+    /* Detail modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1200;display:none;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop.open{display:flex}
+    .modal{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-lg);border:1px solid var(--border);width:min(520px,100%);max-height:88vh;overflow-y:auto}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+    .modal-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;color:var(--ink-900)}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-500);padding:4px;border-radius:6px}
+    .modal-close:hover{background:#f0f0f0}
+    .modal-body{padding:20px 24px}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--border)}
+    .detail-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+    .detail-group{display:flex;flex-direction:column;gap:4px}
+    .detail-lbl{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em}
+    .detail-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+
+    @media(max-width:1100px){.page-layout{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:600px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.cal-cell{min-height:52px;padding:4px}.cal-dow-hdr{font-size:9px;padding:5px}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Scheduling</div>
+      <a class="nav-link" href="admin-daily-schedule.html">Daily Schedule</a>
+      <a class="nav-link" href="admin-weekly-schedule.html">Weekly Schedule</a>
+      <a class="nav-link active" href="admin-monthly-schedule.html">Monthly Schedule</a>
+      <a class="nav-link" href="admin-waitlist.html">Waitlist</a>
+      <a class="nav-link" href="admin-recurring-appointments.html">Recurring Appointments</a>
+      <a class="nav-link" href="admin-no-shows-cancellations.html">No-Shows &amp; Cancellations</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Monthly Schedule</h1>
+        <p>Full-month provider appointment calendar</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <a class="btn btn-outline btn-sm" href="admin-daily-schedule.html">Daily View</a>
+        <a class="btn btn-outline btn-sm" href="admin-weekly-schedule.html">Weekly View</a>
+        <button class="btn btn-blue btn-sm" id="btnNewAppt" type="button">&#43; New Appointment</button>
+      </div>
+    </header>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card blue"><div class="kpi-num" id="kpiMonthTotal">—</div><div class="kpi-lbl">This Month</div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="kpiMonthDone">—</div><div class="kpi-lbl">Completed</div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="kpiMonthCancelled">—</div><div class="kpi-lbl">Cancelled</div></div>
+      <div class="kpi-card red"><div class="kpi-num" id="kpiMonthNoShow">—</div><div class="kpi-lbl">No-Shows</div></div>
+      <div class="kpi-card purple"><div class="kpi-num" id="kpiMonthUtil">—</div><div class="kpi-lbl">Utilization</div></div>
+    </div>
+
+    <div class="page-layout">
+      <div>
+        <!-- Toolbar -->
+        <div class="toolbar" role="toolbar" aria-label="Month navigation">
+          <div class="nav-btns">
+            <button id="btnPrevMonth" type="button" aria-label="Previous month">&#8249;</button>
+            <span class="month-label" id="monthLabel"></span>
+            <button id="btnNextMonth" type="button" aria-label="Next month">&#8250;</button>
+          </div>
+          <button class="today-btn" id="btnThisMonth" type="button">This Month</button>
+          <div class="spacer"></div>
+          <select id="fProvider" aria-label="Provider" style="padding:7px 10px;border:1px solid var(--border);border-radius:9px;font-size:12.5px;font-family:inherit"><option value="">All Providers</option></select>
+        </div>
+
+        <!-- Calendar -->
+        <div class="calendar-wrap">
+          <div class="cal-dow-row">
+            <div class="cal-dow-hdr">Sun</div><div class="cal-dow-hdr">Mon</div><div class="cal-dow-hdr">Tue</div>
+            <div class="cal-dow-hdr">Wed</div><div class="cal-dow-hdr">Thu</div><div class="cal-dow-hdr">Fri</div><div class="cal-dow-hdr">Sat</div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+
+        <!-- Day detail panel -->
+        <div class="day-panel" id="dayPanel">
+          <div class="day-panel-header">
+            <span class="day-panel-title" id="dayPanelTitle"></span>
+            <button class="day-panel-close" id="btnCloseDayPanel" type="button" aria-label="Close">&times;</button>
+          </div>
+          <div id="dayPanelList"></div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside>
+        <div class="insight-card">
+          <div class="insight-title">&#128202; Month Insights</div>
+          <div class="insight-row"><div><div class="insight-label">Busiest Day</div><div class="insight-sub">Most appts</div></div><div class="insight-value" id="siDay">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">Busiest Provider</div><div class="insight-sub">Most appts</div></div><div class="insight-value" id="siProv">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">Cancellation Rate</div><div class="insight-sub">This month</div></div><div class="insight-value" id="siCancelRate">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">No-Show Rate</div><div class="insight-sub">This month</div></div><div class="insight-value" id="siNoShowRate">—</div></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">&#128336; Day-of-Week Avg</div>
+          <div id="dowBreakdown"></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">&#128100; Provider Mix</div>
+          <div id="providerMix"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="detailTitle">Appointment Details</span>
+      <button class="modal-close" id="btnCloseDetail" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseDetailFtr" type="button">Close</button>
+      <button class="btn btn-blue btn-sm" id="btnMarkComplete" type="button">Mark Completed</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmtTime(t){if(!t)return'—';try{const[h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';return`${h%12||12}:${String(m).padStart(2,'0')} ${ap}`}catch{return t}}
+function lsGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[]}catch{return[]}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+function isoForDate(y,m,d){return`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
+
+const TODAY=new Date();
+const TODAY_ISO=TODAY.toISOString().slice(0,10);
+const SEED_KEY='therassistant_daily_appts_v1';
+const DOW_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/* Type colors */
+const TYPE_COLORS={'Individual Therapy':'#2f79b7','Psychotherapy 53+ min':'#2f79b7','Group Therapy':'#8b5cf6','Family Therapy':'#d97706','Med Management':'#059669','Substance Use Assessment':'#dc2626','Intake':'#0f766e'};
+
+/* Seed months worth of data */
+const BASE_SETS=[
+  [{start:'08:00',end:'09:00',patient:'Marcus Johnson',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'Completed'}],
+  [{start:'09:00',end:'09:55',patient:'Linda Patterson',provider:'Dr. Sarah Chen',type:'Psychotherapy 53+ min',payer:'Aetna Better Health',location:'Room 101',telehealth:false,status:'Completed'},
+   {start:'13:00',end:'14:00',patient:'James Rivera',provider:'Dr. Michael Torres',type:'Substance Use Assessment',payer:'Colorado Medicaid',location:'Room 202',telehealth:false,status:'Scheduled'}],
+  [{start:'10:00',end:'10:30',patient:'Tyler Cruz',provider:'Dr. Sarah Chen',type:'Med Management',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'Completed'},
+   {start:'14:00',end:'15:00',patient:'Sofia Martinez',provider:'Dr. Michael Torres',type:'Individual Therapy',payer:'United Healthcare',location:'Room 202',telehealth:false,status:'No-Show'},
+   {start:'10:30',end:'11:30',patient:'Noah Davis',provider:'Dr. Priya Nair',type:'Family Therapy',payer:'Anthem BCBS',location:'Room 303',telehealth:false,status:'Completed'}],
+  [{start:'11:00',end:'12:00',patient:'Destiny Williams',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'BCBS CO',location:'Telehealth',telehealth:true,status:'Cancelled'},
+   {start:'15:00',end:'16:00',patient:'Elijah Thompson',provider:'Dr. Michael Torres',type:'Group Therapy',payer:'Colorado Medicaid',location:'Group Room A',telehealth:false,status:'Scheduled'}],
+];
+
+function seedMonthData(){
+  const existing=lsGet(SEED_KEY);
+  const now=new Date();
+  const year=now.getFullYear();
+  const month=now.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  let added=false;
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=isoForDate(year,month,d);
+    if(!existing.some(a=>a.date===iso)){
+      const set=BASE_SETS[(d-1)%BASE_SETS.length];
+      set.forEach((a,i)=>{
+        existing.push({...a,id:`MON-${iso}-${i}`,date:iso,status:d<now.getDate()?(a.status||'Completed'):a.status});
+      });
+      added=true;
+    }
+  }
+  if(added) lsSet(SEED_KEY,existing);
+}
+
+/* State */
+let viewYear=TODAY.getFullYear();
+let viewMonth=TODAY.getMonth();
+let selectedDate=null;
+let focusedId=null;
+
+function getAllForMonth(){
+  const y=viewYear,m=viewMonth;
+  const prefix=`${y}-${String(m+1).padStart(2,'0')}-`;
+  const pVal=document.getElementById('fProvider')?.value||'';
+  return lsGet(SEED_KEY).filter(a=>a.date&&a.date.startsWith(prefix)&&(!pVal||a.provider===pVal));
+}
+
+function calcKpis(){
+  const all=getAllForMonth();
+  const total=all.length;
+  const done=all.filter(a=>a.status==='Completed').length;
+  const cancelled=all.filter(a=>a.status==='Cancelled').length;
+  const noShow=all.filter(a=>a.status==='No-Show').length;
+  const util=total?Math.round((done+all.filter(a=>['Arrived','In Session'].includes(a.status)).length)/total*100):0;
+  document.getElementById('kpiMonthTotal').textContent=total;
+  document.getElementById('kpiMonthDone').textContent=done;
+  document.getElementById('kpiMonthCancelled').textContent=cancelled;
+  document.getElementById('kpiMonthNoShow').textContent=noShow;
+  document.getElementById('kpiMonthUtil').textContent=util+'%';
+}
+
+function renderInsights(){
+  const all=getAllForMonth();
+  const total=all.length;
+  // Busiest day
+  const dayMap={};
+  all.forEach(a=>{dayMap[a.date]=(dayMap[a.date]||0)+1});
+  const topDay=Object.entries(dayMap).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('siDay').innerHTML=topDay?`${new Date(topDay[0]+'T00:00:00').getDate()}<div style="font-size:11px;color:var(--ink-500)">${topDay[1]} appts</div>`:'—';
+  // Busiest provider
+  const provMap={};
+  all.forEach(a=>{provMap[a.provider]=(provMap[a.provider]||0)+1});
+  const topProv=Object.entries(provMap).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('siProv').innerHTML=topProv?`${esc(topProv[0].replace('Dr.','').trim())}<div style="font-size:11px;color:var(--ink-500)">${topProv[1]} appts</div>`:'—';
+  // Rates
+  document.getElementById('siCancelRate').textContent=total?Math.round(all.filter(a=>a.status==='Cancelled').length/total*100)+'%':'0%';
+  document.getElementById('siNoShowRate').textContent=total?Math.round(all.filter(a=>a.status==='No-Show').length/total*100)+'%':'0%';
+  // Day-of-week avg
+  const dowCounts=[0,0,0,0,0,0,0];
+  const dowDays=[0,0,0,0,0,0,0];
+  all.forEach(a=>{if(a.date){const d=new Date(a.date+'T00:00:00').getDay();dowCounts[d]++;} });
+  const daysInMonth=new Date(viewYear,viewMonth+1,0).getDate();
+  for(let d=1;d<=daysInMonth;d++){const dow=new Date(isoForDate(viewYear,viewMonth,d)+'T00:00:00').getDay();dowDays[dow]++;}
+  const dowEl=document.getElementById('dowBreakdown');
+  const maxAvg=Math.max(1,...dowCounts.map((c,i)=>dowDays[i]?c/dowDays[i]:0));
+  dowEl.innerHTML=['Su','Mo','Tu','We','Th','Fr','Sa'].map((day,i)=>{
+    const avg=dowDays[i]?+(dowCounts[i]/dowDays[i]).toFixed(1):0;
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="font-size:11px;font-weight:700;color:var(--ink-500);width:18px">${day}</span><div style="flex:1;height:5px;border-radius:999px;background:#e5edf5;overflow:hidden"><div style="height:100%;width:${Math.round(avg/maxAvg*100)}%;background:var(--blue-500);border-radius:999px"></div></div><span style="font-size:11px;font-weight:700;color:var(--ink-700);width:24px;text-align:right">${avg}</span></div>`;
+  }).join('');
+  // Provider mix
+  const maxLoad=Math.max(1,...Object.values(provMap));
+  document.getElementById('providerMix').innerHTML=Object.entries(provMap).sort((a,b)=>b[1]-a[1]).map(([prov,cnt])=>`
+    <div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--ink-700);margin-bottom:3px"><span>${esc(prov.replace('Dr.','').trim())}</span><span>${cnt}</span></div><div style="height:5px;border-radius:999px;background:#e5edf5;overflow:hidden"><div style="height:100%;width:${Math.round(cnt/maxLoad*100)}%;background:var(--blue-500);border-radius:999px"></div></div></div>`).join('')||'<div style="font-size:12px;color:var(--ink-500)">No appointments this month.</div>';
+}
+
+function populateProviderFilter(){
+  const all=lsGet(SEED_KEY);
+  const providers=[...new Set(all.map(a=>a.provider))];
+  const sel=document.getElementById('fProvider');
+  while(sel.children.length>1) sel.removeChild(sel.lastChild);
+  providers.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;sel.appendChild(o)});
+}
+
+function renderMonth(){
+  document.getElementById('monthLabel').textContent=`${MONTHS[viewMonth]} ${viewYear}`;
+  calcKpis();
+  renderInsights();
+
+  const firstDay=new Date(viewYear,viewMonth,1).getDay();
+  const daysInMonth=new Date(viewYear,viewMonth+1,0).getDate();
+  const prevMonDays=new Date(viewYear,viewMonth,0).getDate();
+
+  const allAppts=lsGet(SEED_KEY).filter(a=>{
+    const pVal=document.getElementById('fProvider')?.value||'';
+    if(pVal&&a.provider!==pVal) return false;
+    return true;
+  });
+  function apptsForDate(iso){return allAppts.filter(a=>a.date===iso)}
+
+  let cells='';
+  // Leading empty cells
+  for(let i=0;i<firstDay;i++){
+    const d=prevMonDays-firstDay+1+i;
+    cells+=`<div class="cal-cell other-month" aria-label="Previous month day ${d}" tabindex="-1"><div class="cal-day-num" style="color:var(--ink-500)">${d}</div></div>`;
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=isoForDate(viewYear,viewMonth,d);
+    const appts=apptsForDate(iso);
+    const isToday=iso===TODAY_ISO;
+    const isSel=iso===selectedDate;
+    let dots='';
+    const typesSeen=new Set();
+    appts.slice(0,6).forEach(a=>{if(!typesSeen.has(a.type)){typesSeen.add(a.type);dots+=`<div class="cal-dot" style="background:${TYPE_COLORS[a.type]||'#64748b'}"></div>`;}});
+    const extra=appts.length>6?`<div class="cal-more">+${appts.length-6}</div>`:'';
+    cells+=`<div class="cal-cell${isToday?' today':''}${isSel?' selected':''}" data-date="${esc(iso)}" role="gridcell" aria-label="${new Date(iso+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}, ${appts.length} appointments" tabindex="0">
+      <div class="cal-day-num">${d}</div>
+      <div class="cal-dot-row">${dots}</div>
+      ${appts.length?`<div class="cal-count-lbl">${appts.length} appt${appts.length!==1?'s':''}</div>`:''}
+      ${extra}
+    </div>`;
+  }
+  // Trailing empty cells
+  const totalCells=firstDay+daysInMonth;
+  const trailingCells=(7-totalCells%7)%7;
+  for(let i=1;i<=trailingCells;i++){
+    cells+=`<div class="cal-cell other-month" aria-label="Next month day ${i}" tabindex="-1"><div class="cal-day-num" style="color:var(--ink-500)">${i}</div></div>`;
+  }
+  document.getElementById('calGrid').innerHTML=cells;
+}
+
+function openDayPanel(iso){
+  selectedDate=iso;
+  const appts=lsGet(SEED_KEY).filter(a=>a.date===iso).sort((a,b)=>a.start.localeCompare(b.start));
+  const d=new Date(iso+'T00:00:00');
+  document.getElementById('dayPanelTitle').textContent=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('dayPanelList').innerHTML=appts.length
+    ?appts.map(a=>`<div class="day-appt-row" data-id="${esc(a.id)}">
+        <div class="day-appt-time">${esc(fmtTime(a.start))}</div>
+        <div class="day-appt-info"><div class="day-appt-patient">${esc(a.patient)}</div><div class="day-appt-meta">${esc(a.provider)} &bull; ${esc(a.type)}</div></div>
+        <span class="badge badge-${(a.status||'').toLowerCase().replace(/[^a-z]/g,'-')}">${esc(a.status)}</span>
+      </div>`).join('')
+    :'<div style="font-size:13px;color:var(--ink-500);padding:8px 0">No appointments on this day.</div>';
+  document.getElementById('dayPanel').classList.add('open');
+  renderMonth(); // re-render to show selection highlight
+}
+
+function openDetail(id){
+  const all=lsGet(SEED_KEY);
+  const a=all.find(x=>x.id===id);
+  if(!a) return;
+  focusedId=id;
+  document.getElementById('detailBody').innerHTML=`
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Patient</div><div class="detail-val">${esc(a.patient)}</div></div><div class="detail-group"><div class="detail-lbl">Provider</div><div class="detail-val">${esc(a.provider)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Date</div><div class="detail-val">${esc(new Date(a.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}))}</div></div><div class="detail-group"><div class="detail-lbl">Time</div><div class="detail-val">${esc(fmtTime(a.start))} – ${esc(fmtTime(a.end))}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Type</div><div class="detail-val">${esc(a.type)}</div></div><div class="detail-group"><div class="detail-lbl">Status</div><div class="detail-val"><span class="badge badge-${(a.status||'').toLowerCase().replace(/[^a-z]/g,'-')}">${esc(a.status)}</span></div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Location</div><div class="detail-val">${esc(a.location)}</div></div><div class="detail-group"><div class="detail-lbl">Payer</div><div class="detail-val">${esc(a.payer)}</div></div></div>`;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetail(){document.getElementById('detailModal').classList.remove('open');focusedId=null}
+
+/* Events */
+document.addEventListener('click',e=>{
+  const cell=e.target.closest('.cal-cell[data-date]');
+  if(cell&&!cell.classList.contains('other-month')){openDayPanel(cell.dataset.date);return}
+  const row=e.target.closest('.day-appt-row[data-id]');
+  if(row){openDetail(row.dataset.id);return}
+  if(e.target.id==='detailModal') closeDetail();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeDetail();document.getElementById('dayPanel').classList.remove('open');selectedDate=null;renderMonth();}
+  if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('cal-cell')&&e.target.dataset.date){e.preventDefault();openDayPanel(e.target.dataset.date);}
+});
+document.getElementById('btnPrevMonth').addEventListener('click',()=>{
+  viewMonth--;if(viewMonth<0){viewMonth=11;viewYear--;}renderMonth();
+});
+document.getElementById('btnNextMonth').addEventListener('click',()=>{
+  viewMonth++;if(viewMonth>11){viewMonth=0;viewYear++;}renderMonth();
+});
+document.getElementById('btnThisMonth').addEventListener('click',()=>{
+  viewYear=TODAY.getFullYear();viewMonth=TODAY.getMonth();renderMonth();
+});
+document.getElementById('btnCloseDayPanel').addEventListener('click',()=>{
+  document.getElementById('dayPanel').classList.remove('open');selectedDate=null;renderMonth();
+});
+document.getElementById('btnCloseDetail').addEventListener('click',closeDetail);
+document.getElementById('btnCloseDetailFtr').addEventListener('click',closeDetail);
+document.getElementById('btnMarkComplete').addEventListener('click',()=>{
+  if(!focusedId) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status='Completed';lsSet(SEED_KEY,all);}
+  closeDetail();
+  if(selectedDate) openDayPanel(selectedDate);
+  renderMonth();
+});
+document.getElementById('fProvider').addEventListener('change',renderMonth);
+document.getElementById('btnNewAppt').addEventListener('click',()=>{
+  window.location.href='admin-daily-schedule.html?action=new-appointment';
+});
+
+window.addEventListener('load',async()=>{
+  if(typeof initDashboard==='function'&&typeof ADMIN_ROLES!=='undefined'){
+    try{await initDashboard(ADMIN_ROLES)}catch(err){console.error('[admin-monthly-schedule]',err)}
+  }
+  seedMonthData();
+  populateProviderFilter();
+  renderMonth();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Saved Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .notes-table{width:100%;border-collapse:collapse;font-size:13px}
+    .notes-table th{background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+    .notes-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink-900)}
+    .notes-table tr:hover td{background:#f7fbff}
+    .qa-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin:1.5px 2px 1.5px 0;line-height:1.5}
+    .qa-badge.missing-doc{background:#fef3c7;color:#92400e}
+    .qa-badge.dup-lang{background:#f3e8ff;color:#6b21a8}
+    .qa-badge.weak-just{background:#fff7ed;color:#9a3412}
+    .qa-badge.missing-risk{background:#fee2e2;color:#b91c1c}
+    .qa-badge.missing-code{background:#dbeafe;color:#1d4ed8}
+    .qa-badge.ok{background:#dcfce7;color:#166534}
+    .note-drawer-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1000;display:none;align-items:stretch;justify-content:flex-end}
+    .note-drawer-backdrop.open{display:flex}
+    .note-drawer{width:min(680px,100%);background:#fff;border-left:1px solid var(--border);box-shadow:0 0 60px rgba(13,53,94,.25);display:flex;flex-direction:column;overflow:hidden}
+    .note-drawer-head{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid var(--border)}
+    .note-drawer-body{flex:1;overflow-y:auto;padding:20px 24px}
+    .note-drawer-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+    .note-body-pre{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-family:inherit;font-size:13px;white-space:pre-wrap;color:var(--ink-900);max-height:360px;overflow-y:auto;line-height:1.6}
+    .field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:3px}
+    .field-val{font-size:13.5px;color:var(--ink-900);font-weight:500;margin-bottom:12px}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link active" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Saved Notes</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="exportNotesCSV()">&#8595; Export CSV</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statTotalNotes">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Total Notes</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#f59e0b,#b45309)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statFlagged">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">QA Flagged</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#ef4444,#b91c1c)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statMissingDoc">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">Missing Docs</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#10b981,#059669)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900)" id="statClean">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px">No QA Flags</div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="notesSearch" placeholder="Search by provider, client, ID, diagnosis&hellip;" oninput="renderNotes()">
+        <select id="notesTypeFilter" onchange="renderNotes()">
+          <option value="">All Note Types</option>
+          <option>Progress Note</option>
+          <option>H0031 Assessment</option>
+          <option>H0032 Assessment</option>
+          <option>H0001 Assessment</option>
+          <option>Treatment Plan</option>
+          <option>Discharge Summary</option>
+          <option>Case Note</option>
+          <option>Other</option>
+        </select>
+        <select id="notesQAFilter" onchange="renderNotes()">
+          <option value="">All QA Statuses</option>
+          <option value="flagged">Has QA Flags</option>
+          <option value="clean">No QA Flags</option>
+        </select>
+        <select id="notesPayerFilter" onchange="renderNotes()">
+          <option value="">All Payers</option>
+          <option>Colorado Medicaid</option>
+          <option>Aetna Better Health</option>
+          <option>United BH</option>
+          <option>Anthem BCBS</option>
+          <option>CCHA</option>
+        </select>
+        <span id="notesCount" style="font-size:13px;color:var(--ink-500)"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <!-- Bulk toolbar -->
+        <div id="notesBulkToolbar" style="display:none;align-items:center;gap:10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin-bottom:10px;flex-wrap:wrap">
+          <span id="notesBulkCount" style="font-size:13px;font-weight:700;color:var(--blue-700)">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="bulkNotesExport()">&#8595; Export CSV</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkNotesQA()">Send to QA</button>
+          <button class="btn btn-outline btn-sm" style="color:#b91c1c;border-color:#fca5a5" onclick="bulkNotesClear()">Clear</button>
+        </div>
+        <table class="notes-table">
+          <thead>
+            <tr>
+              <th style="width:32px"><input type="checkbox" id="notesSelectAll" title="Select all" onchange="toggleSelectAllNotes(this)"></th>
+              <th>Note ID</th>
+              <th>Date</th>
+              <th>Provider</th>
+              <th>Client</th>
+              <th>Note Type</th>
+              <th>Diagnoses</th>
+              <th>Payer</th>
+              <th>QA Flags</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="notesTableBody"></tbody>
+        </table>
+      </div>
+      <div id="notesEmpty" style="display:none;text-align:center;padding:40px;font-size:14px;color:var(--ink-500)">No notes found.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Note Drawer -->
+<div class="note-drawer-backdrop" id="noteDrawerBackdrop" onclick="if(event.target===this)closeNoteDrawer()">
+  <div class="note-drawer">
+    <div class="note-drawer-head">
+      <div style="flex:1">
+        <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:1.05rem;color:var(--ink-900)" id="drawerNoteId">Note</div>
+        <div style="font-size:12.5px;color:var(--ink-500)" id="drawerNoteType"></div>
+      </div>
+      <button onclick="closeNoteDrawer()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500)">&times;</button>
+    </div>
+    <div class="note-drawer-body" id="noteDrawerBody"></div>
+    <div class="note-drawer-footer">
+      <button class="btn btn-primary btn-sm" onclick="sendNoteToQA()">Send to QA</button>
+      <button class="btn btn-outline btn-sm" onclick="saveNoteFlag()">Add QA Note</button>
+      <button class="btn btn-outline btn-sm" onclick="closeNoteDrawer()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(iso){if(!iso)return'?';try{return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return iso;}}
+function scGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[];}catch{return[];}}
+
+/* -- Seed notes ------------------------------------------------ */
+const SEED_NOTES = [];
+
+const FLAG_CLASSES = {
+  'Missing Documentation':'missing-doc',
+  'Duplicate Language':'dup-lang',
+  'Weak Justification':'weak-just',
+  'Missing Risk Language':'missing-risk',
+  'Missing H0031/H0032/H0001 Support':'missing-code'
+};
+
+let allNotes = [];
+let filtNotes = [];
+let activeNoteId = null;
+
+function loadNotes() {
+  /* Merge stored notes + seed */
+  const stored = (typeof getStoredNotes === 'function' ? getStoredNotes() : scGet('docusistant_saved_notes_v1'));
+  const mapped = stored.map((n,i) => ({
+    id: n.id || ('NOTE-S-'+(i+1)),
+    noteType: n.noteType || n.type || 'Progress Note',
+    provider: n.providerName || n.provider || '?',
+    client: n.clientInitials || n.client || '?',
+    diagnoses: (n.diagnoses || []).join(', ') || n.diagnosis || '?',
+    payer: n.payer || '?',
+    created: fmtDate(n.created || n.savedAt),
+    modified: fmtDate(n.modified || n.savedAt),
+    flags: [],
+    body: n.noteText || n.body || ''
+  }));
+  allNotes = [...SEED_NOTES, ...mapped];
+
+  /* Stats */
+  const flagged = allNotes.filter(n => n.flags && n.flags.length > 0).length;
+  const missingDoc = allNotes.filter(n => n.flags && n.flags.includes('Missing Documentation')).length;
+  document.getElementById('statTotalNotes').textContent = allNotes.length;
+  document.getElementById('statFlagged').textContent    = flagged;
+  document.getElementById('statMissingDoc').textContent = missingDoc;
+  document.getElementById('statClean').textContent      = allNotes.length - flagged;
+
+  renderNotes();
+}
+
+function renderNotes() {
+  const q    = (document.getElementById('notesSearch').value||'').toLowerCase();
+  const type = document.getElementById('notesTypeFilter').value;
+  const qa   = document.getElementById('notesQAFilter').value;
+  const payer= document.getElementById('notesPayerFilter').value;
+
+  filtNotes = allNotes.filter(n => {
+    if (q && !n.id.toLowerCase().includes(q) && !n.provider.toLowerCase().includes(q) && !n.client.toLowerCase().includes(q) && !n.diagnoses.toLowerCase().includes(q)) return false;
+    if (type && n.noteType !== type) return false;
+    if (qa === 'flagged' && !(n.flags && n.flags.length)) return false;
+    if (qa === 'clean' && (n.flags && n.flags.length)) return false;
+    if (payer && n.payer !== payer) return false;
+    return true;
+  });
+
+  document.getElementById('notesCount').textContent = `${filtNotes.length} note${filtNotes.length!==1?'s':''}`;
+  document.getElementById('notesEmpty').style.display = filtNotes.length ? 'none' : 'block';
+  document.getElementById('notesTableBody').innerHTML = filtNotes.map(n => {
+    const flagsHtml = (n.flags && n.flags.length)
+      ? n.flags.map(f => `<span class="qa-badge ${FLAG_CLASSES[f]||'missing-doc'}">${escHtml(f)}</span>`).join('')
+      : '<span class="qa-badge ok">No Flags</span>';
+    return `<tr>
+      <td style="padding:10px 8px"><input type="checkbox" class="note-bulk-check" data-id="${escHtml(n.id)}" onchange="updateNotesBulkToolbar()"></td>
+      <td style="font-weight:600;color:var(--blue-700);cursor:pointer" onclick="openNoteDrawer('${escHtml(n.id)}')">${escHtml(n.id)}</td>
+      <td>${escHtml(n.created)}</td>
+      <td>${escHtml(n.provider)}</td>
+      <td>${escHtml(n.client)}</td>
+      <td>${escHtml(n.noteType)}</td>
+      <td style="max-width:140px;font-size:12px">${escHtml(n.diagnoses)}</td>
+      <td>${escHtml(n.payer)}</td>
+      <td>${flagsHtml}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="openNoteDrawer('${escHtml(n.id)}')">View</button>
+        <button class="btn btn-outline btn-sm" style="margin-left:4px" onclick="sendNoteToQAById('${escHtml(n.id)}')">QA</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openNoteDrawer(id) {
+  const n = allNotes.find(x => x.id === id);
+  if (!n) return;
+  activeNoteId = id;
+  document.getElementById('drawerNoteId').textContent   = n.id;
+  document.getElementById('drawerNoteType').textContent = n.noteType;
+  const flagsHtml = (n.flags && n.flags.length)
+    ? n.flags.map(f => `<span class="qa-badge ${FLAG_CLASSES[f]||'missing-doc'}">${escHtml(f)}</span>`).join(' ')
+    : '<span class="qa-badge ok">No Flags</span>';
+  document.getElementById('noteDrawerBody').innerHTML = `
+    <div class="field-label">Note Type</div><div class="field-val">${escHtml(n.noteType)}</div>
+    <div class="field-label">Provider</div><div class="field-val">${escHtml(n.provider)}</div>
+    <div class="field-label">Client</div><div class="field-val">${escHtml(n.client)}</div>
+    <div class="field-label">Diagnoses</div><div class="field-val">${escHtml(n.diagnoses)}</div>
+    <div class="field-label">Payer</div><div class="field-val">${escHtml(n.payer)}</div>
+    <div class="field-label">Created</div><div class="field-val">${escHtml(n.created)}</div>
+    <div class="field-label">QA Flags</div><div class="field-val" style="margin-bottom:14px">${flagsHtml}</div>
+    ${n.body ? `<div class="field-label">Note Text</div><div class="note-body-pre">${escHtml(n.body)}</div>` : ''}`;
+  document.getElementById('noteDrawerBackdrop').classList.add('open');
+}
+
+function closeNoteDrawer() { document.getElementById('noteDrawerBackdrop').classList.remove('open'); }
+function sendNoteToQA() { if(activeNoteId) alert('Send note '+activeNoteId+' to QA Review Queue ? connect backend.'); }
+function sendNoteToQAById(id) { alert('Send note '+id+' to QA Review Queue ? connect backend.'); }
+function saveNoteFlag() { alert('Add QA note ? connect backend.'); }
+
+function updateNotesBulkToolbar() {
+  const checked = document.querySelectorAll('.note-bulk-check:checked');
+  const toolbar = document.getElementById('notesBulkToolbar');
+  document.getElementById('notesBulkCount').textContent = checked.length + ' selected';
+  toolbar.style.display = checked.length ? 'flex' : 'none';
+  const sa = document.getElementById('notesSelectAll');
+  if(sa) sa.indeterminate = checked.length > 0 && checked.length < document.querySelectorAll('.note-bulk-check').length;
+}
+function toggleSelectAllNotes(cb) {
+  document.querySelectorAll('.note-bulk-check').forEach(c => { c.checked = cb.checked; });
+  updateNotesBulkToolbar();
+}
+function bulkNotesClear() {
+  document.querySelectorAll('.note-bulk-check').forEach(c => { c.checked = false; });
+  const sa = document.getElementById('notesSelectAll'); if(sa) sa.checked = false;
+  updateNotesBulkToolbar();
+}
+function bulkNotesExport() {
+  const ids = Array.from(document.querySelectorAll('.note-bulk-check:checked')).map(c=>c.dataset.id);
+  const sel = allNotes.filter(n => ids.includes(n.id));
+  const rows = [['ID','Note Type','Provider','Client','Diagnoses','Payer','Created','QA Flags']];
+  sel.forEach(n => rows.push([n.id,n.noteType,n.provider,n.client,n.diagnoses,n.payer,n.created,(n.flags||[]).join('; ')]));
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='notes-export.csv'; a.click();
+}
+function bulkNotesQA() {
+  const ids = Array.from(document.querySelectorAll('.note-bulk-check:checked')).map(c=>c.dataset.id);
+  alert('Send '+ids.length+' note(s) to QA ? connect backend to persist.');
+}
+
+function exportNotesCSV() {
+  const rows = [['ID','Note Type','Provider','Client','Diagnoses','Payer','Created','QA Flags']];
+  allNotes.forEach(n => rows.push([n.id,n.noteType,n.provider,n.client,n.diagnoses,n.payer,n.created,(n.flags||[]).join('; ')]));
+  const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='notes.csv'; a.click();
+}
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+  loadNotes();
+};
+</script>
+</body>
+</html>

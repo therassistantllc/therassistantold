@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Content Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .cm-tabs{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:5px;flex-wrap:wrap}
+    .cm-tab{padding:7px 16px;border-radius:8px;border:none;background:transparent;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:var(--ink-700);transition:background .15s,color .15s}
+    .cm-tab.active{background:var(--blue-500);color:#fff}
+    .cm-tab:hover:not(.active){background:#eef4fb}
+    .cm-table{width:100%;border-collapse:collapse;font-size:13px}
+    .cm-table th{background:#f3f7fb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:left}
+    .cm-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink-900)}
+    .cm-table tr:hover td{background:#f7fbff}
+    .status-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px}
+    .status-badge.published{background:#dcfce7;color:#166534}
+    .status-badge.draft{background:#f3f4f6;color:#374151}
+    .status-badge.archived{background:#fef3c7;color:#92400e}
+    .cm-editor-modal{display:none;position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1000;align-items:center;justify-content:center}
+    .cm-editor-modal.open{display:flex}
+    .cm-editor-box{background:#fff;border-radius:16px;padding:28px 32px;width:min(640px,96%);max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+    .cm-editor-title{font-family:'Sora',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:16px}
+    .cm-field{margin-bottom:14px}
+    .cm-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:4px}
+    .cm-field input,.cm-field select,.cm-field textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box}
+    .cm-field textarea{min-height:100px;resize:vertical}
+    .cm-field input:focus,.cm-field select:focus,.cm-field textarea:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link active" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Content Management</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="openEditor(null)">&#43; Create Content</button>
+      </div>
+    </header>
+
+    <!-- Tab bar -->
+    <div class="cm-tabs">
+      <button class="cm-tab active" onclick="switchCMTab('help',this)">Help Articles</button>
+      <button class="cm-tab" onclick="switchCMTab('faq',this)">FAQ</button>
+      <button class="cm-tab" onclick="switchCMTab('videos',this)">Tutorial Videos</button>
+      <button class="cm-tab" onclick="switchCMTab('releases',this)">Release Notes</button>
+      <button class="cm-tab" onclick="switchCMTab('banners',this)">Banners</button>
+      <button class="cm-tab" onclick="switchCMTab('email',this)">Email Templates</button>
+      <button class="cm-tab" onclick="switchCMTab('support',this)">Support Templates</button>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <input type="search" id="cmSearch" placeholder="Search by title&hellip;" oninput="renderCMTable()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit;flex:1;min-width:160px">
+      <select id="cmStatusFilter" onchange="renderCMTable()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit">
+        <option value="">All Statuses</option>
+        <option>Published</option>
+        <option>Draft</option>
+        <option>Archived</option>
+      </select>
+      <span id="cmCount" style="font-size:13px;color:var(--ink-500);align-self:center"></span>
+    </div>
+
+    <!-- Table -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div style="overflow-x:auto">
+        <table class="cm-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Featured</th>
+              <th>Last Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cmTableBody"></tbody>
+        </table>
+      </div>
+      <div id="cmEmpty" style="display:none;text-align:center;padding:40px;font-size:14px;color:var(--ink-500)">No content items found.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Editor Modal -->
+<div class="cm-editor-modal" id="cmEditorModal">
+  <div class="cm-editor-box">
+    <div class="cm-editor-title" id="editorModalTitle">Create Content</div>
+    <div class="cm-field">
+      <label>Title</label>
+      <input type="text" id="editorTitle" placeholder="Content title">
+    </div>
+    <div class="cm-field">
+      <label>Type</label>
+      <select id="editorType">
+        <option>Help Article</option><option>FAQ</option><option>Tutorial Video</option>
+        <option>Release Notes</option><option>Banner Announcement</option>
+        <option>Email Template</option><option>Support Template</option>
+      </select>
+    </div>
+    <div class="cm-field">
+      <label>Status</label>
+      <select id="editorStatus"><option>Draft</option><option>Published</option><option>Archived</option></select>
+    </div>
+    <div class="cm-field">
+      <label>Body / Content</label>
+      <textarea id="editorBody" placeholder="Enter content here&hellip;"></textarea>
+    </div>
+    <div class="cm-field" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="editorFeatured" style="width:auto;margin:0">
+      <label for="editorFeatured" style="font-size:13px;font-weight:600;color:var(--ink-900);text-transform:none;letter-spacing:0">Pin as Featured</label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="saveContent()">Save</button>
+      <button class="btn btn-outline btn-sm" onclick="closeEditor()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const CM_DATA = {
+  help:[],
+  faq:[],
+  videos:[],
+  releases:[],
+  banners:[],
+  email:[],
+  support:[]
+};
+
+let activeTab = 'help';
+
+function switchCMTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.cm-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCMTable();
+}
+
+function renderCMTable() {
+  const q    = (document.getElementById('cmSearch').value||'').toLowerCase();
+  const stat = document.getElementById('cmStatusFilter').value;
+  const items = (CM_DATA[activeTab]||[]).filter(x => {
+    if (q && !x.title.toLowerCase().includes(q)) return false;
+    if (stat && x.status !== stat) return false;
+    return true;
+  });
+  document.getElementById('cmCount').textContent = `${items.length} item${items.length!==1?'s':''}`;
+  document.getElementById('cmEmpty').style.display = items.length ? 'none' : 'block';
+  const STATUS_CLASS = {Published:'published',Draft:'draft',Archived:'archived'};
+  document.getElementById('cmTableBody').innerHTML = items.map(x => `<tr>
+    <td style="font-weight:600">${escHtml(x.title)}</td>
+    <td>${escHtml(x.type)}</td>
+    <td><span class="status-badge ${STATUS_CLASS[x.status]||'draft'}">${escHtml(x.status)}</span></td>
+    <td style="text-align:center">${x.featured ? '?' : '?'}</td>
+    <td>${escHtml(x.updated)}</td>
+    <td>
+      <button class="btn btn-outline btn-sm" onclick="openEditor('${escHtml(x.id)}')">Edit</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:4px" onclick="publishItem('${escHtml(x.id)}')">Publish</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:4px" onclick="archiveItem('${escHtml(x.id)}')">Archive</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:4px;color:#ef4444;border-color:#fecaca" onclick="deleteItem('${escHtml(x.id)}')">Delete</button>
+    </td>
+  </tr>`).join('');
+}
+
+let editingId = null;
+function openEditor(id) {
+  editingId = id;
+  document.getElementById('editorModalTitle').textContent = id ? 'Edit Content' : 'Create Content';
+  if (id) {
+    const all = Object.values(CM_DATA).flat();
+    const x = all.find(i => i.id === id);
+    if (x) {
+      document.getElementById('editorTitle').value    = x.title;
+      document.getElementById('editorType').value     = x.type;
+      document.getElementById('editorStatus').value   = x.status;
+      document.getElementById('editorFeatured').checked = x.featured;
+      document.getElementById('editorBody').value     = '';
+    }
+  } else {
+    document.getElementById('editorTitle').value = '';
+    document.getElementById('editorBody').value  = '';
+    document.getElementById('editorFeatured').checked = false;
+  }
+  document.getElementById('cmEditorModal').classList.add('open');
+}
+function closeEditor() { document.getElementById('cmEditorModal').classList.remove('open'); }
+function saveContent() { alert('Save content ? connect backend.'); closeEditor(); }
+function publishItem(id) { alert('Publish '+id+' ? connect backend.'); }
+function archiveItem(id) { alert('Archive '+id+' ? connect backend.'); }
+function deleteItem(id) {
+  if (confirm('Delete this content item?')) alert('Delete '+id+' ? connect backend.');
+}
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+  renderCMTable();
+};
+</script>
+</body>
+</html>

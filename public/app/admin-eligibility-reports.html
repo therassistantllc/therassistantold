@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Eligibility Reports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px;box-shadow:var(--shadow-sm)}
+    .kpi-label{font-size:12px;color:var(--ink-600);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+    .kpi-value{font-size:28px;font-weight:700;color:var(--blue-700);margin-top:8px;font-family:'Sora',sans-serif}
+    .kpi-change{font-size:11px;color:#16a34a;margin-top:4px}
+
+    .filters{display:flex;gap:12px;margin-bottom:24px;padding:16px;background:#fafbfc;border:1px solid var(--border);border-radius:11px}
+    .filters select,.filters input{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px}
+    .btn-export{padding:8px 16px;background:var(--blue-700);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px}
+    .btn-export:hover{background:var(--blue-800)}
+
+    .report-table{width:100%;border-collapse:collapse;margin-top:20px}
+    .report-table thead{background:#fafbfc;border-bottom:1px solid var(--border)}
+    .report-table th{text-align:left;padding:12px;font-weight:700;font-size:12px;color:var(--ink-700);text-transform:uppercase;letter-spacing:.05em}
+    .report-table td{padding:12px;border-bottom:1px solid var(--border);font-size:13px}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Reports</div>
+      <a class="nav-link" href="admin-financial-reports.html">Financial</a>
+      <a class="nav-link" href="admin-claim-reports.html">Claims</a>
+      <a class="nav-link active" href="admin-eligibility-reports.html">Eligibility</a>
+      <a class="nav-link" href="admin-productivity-reports.html">Productivity</a>
+      <a class="nav-link" href="admin-audit-reports.html">Audit</a>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Eligibility Reports</h1>
+        <p>Insurance eligibility verification and coverage status</p>
+      </div>
+    </header>
+
+    <!-- KPI Summary -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Active Coverage</div>
+        <div class="kpi-value">2,458</div>
+        <div class="kpi-change">Verified within 30 days</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Expiring Soon</div>
+        <div class="kpi-value">134</div>
+        <div class="kpi-change">In next 60 days</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Expired Coverage</div>
+        <div class="kpi-value">89</div>
+        <div class="kpi-change">Action required</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Pending Verification</div>
+        <div class="kpi-value">42</div>
+        <div class="kpi-change">In queue</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <select>
+        <option>All Coverage Status</option>
+        <option>Active</option>
+        <option>Expiring Soon</option>
+        <option>Expired</option>
+        <option>Pending</option>
+      </select>
+      <select>
+        <option>Date Range: This Month</option>
+        <option>Last 30 Days</option>
+        <option>Last Quarter</option>
+      </select>
+      <button class="btn-export">📊 Export PDF</button>
+    </div>
+
+    <!-- Eligibility by Status -->
+    <h2 style="margin-top:32px;margin-bottom:16px;font-family:'Sora',sans-serif;font-size:16px;color:var(--ink-900)">Eligibility Status</h2>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Insurance Plan</th>
+          <th>Group #</th>
+          <th>Member ID</th>
+          <th>Coverage Status</th>
+          <th>Last Verified</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>John Smith</td>
+          <td>Blue Cross Blue Shield</td>
+          <td>GRP-12345</td>
+          <td>BCS98765432</td>
+          <td><span style="color:#16a34a;font-weight:600">Active</span></td>
+          <td>2024-01-15</td>
+        </tr>
+        <tr>
+          <td>Jane Doe</td>
+          <td>United Healthcare</td>
+          <td>GRP-67890</td>
+          <td>UHC45678901</td>
+          <td><span style="color:#ea8c55;font-weight:600">Expiring in 45 days</span></td>
+          <td>2024-01-10</td>
+        </tr>
+        <tr>
+          <td>Robert Jones</td>
+          <td>Aetna</td>
+          <td>GRP-24680</td>
+          <td>AET13579246</td>
+          <td><span style="color:#b91c1c;font-weight:600">Expired</span></td>
+          <td>2023-12-20</td>
+        </tr>
+        <tr>
+          <td>Susan Miller</td>
+          <td>Cigna</td>
+          <td>GRP-13579</td>
+          <td>CIG02468135</td>
+          <td><span style="color:#6b7280;font-weight:600">Pending</span></td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-eligibility-reports] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-eligibility-reports] Init failed:', err);
+    }
+  }
+});
+</script>
+</body>
+</html>

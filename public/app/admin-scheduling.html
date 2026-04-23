@@ -1,0 +1,1265 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Scheduling</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* ── Admin badge ────────────────────────────────────────── */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+
+    /* ── Toolbar ─────────────────────────────────────────────── */
+    .sched-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .sched-toolbar h1{font-family:'Sora',sans-serif;font-size:1.25rem;margin:0;white-space:nowrap}
+    .view-tabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px}
+    .view-tab{padding:6px 14px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--ink-500);border-radius:7px;font-family:inherit;transition:all .15s}
+    .view-tab.active{background:var(--blue-600);color:#fff}
+    .view-tab:not(.active):hover{background:#f8fafc;color:var(--ink-700)}
+    .nav-date{display:flex;align-items:center;gap:6px}
+    .nav-date button{width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--ink-700)}
+    .nav-date button:hover{background:#f8fafc}
+    .date-label{font-size:14px;font-weight:700;color:var(--ink-900);min-width:170px;text-align:center}
+    .today-btn{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--ink-700);font-family:inherit}
+    .today-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .sched-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center}
+
+    /* ── Filter bar ──────────────────────────────────────────── */
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+    .filter-bar label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);white-space:nowrap}
+    .filter-bar select,.filter-bar input[type="search"]{padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-bar select:focus,.filter-bar input:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .filter-bar input[type="search"]{flex:1;min-width:160px}
+
+    /* ── Stats row ───────────────────────────────────────────── */
+    .stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .stat-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .stat-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .stat-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .stat-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .stat-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .stat-card.teal::before{background:linear-gradient(180deg,#14b8a6,#0f766e)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+
+    /* ── Calendar frame ──────────────────────────────────────── */
+    .cal-frame{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .view-panel{display:none}
+    .view-panel.active{display:block}
+
+    /* ── Daily agenda ─────────────────────────────────────────── */
+    .agenda-grid{display:grid;grid-template-columns:54px 1fr;min-height:600px}
+    .time-col{border-right:1px solid var(--border)}
+    .time-slot{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 8px 0;font-size:10.5px;font-weight:700;color:var(--ink-400);white-space:nowrap}
+    .appt-col{position:relative;background:repeating-linear-gradient(to bottom,transparent,transparent 59px,var(--border) 59px,var(--border) 60px)}
+    .appt-block{position:absolute;left:6px;right:6px;border-radius:8px;padding:6px 10px;cursor:pointer;overflow:hidden;border-left:3px solid transparent;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:filter .1s}
+    .appt-block:hover{filter:brightness(.95)}
+    .appt-block-title{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .appt-block-sub{font-size:11px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .appt-block-clinician{font-size:10.5px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic}
+
+    /* ── Weekly ───────────────────────────────────────────────── */
+    .week-header{display:grid;border-bottom:2px solid var(--border)}
+    .week-time-cell{width:54px;border-right:1px solid var(--border);background:#f8fafc}
+    .week-day-hdr{padding:10px 6px;text-align:center;border-right:1px solid var(--border);font-size:12px;font-weight:700;color:var(--ink-600);background:#f8fafc}
+    .week-day-hdr.today-col{background:#eff6ff;color:var(--blue-700)}
+    .week-day-hdr .day-num{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;line-height:1}
+    .week-day-hdr.today-col .day-num{background:var(--blue-600);color:#fff;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.95rem;margin:0 auto}
+    .week-body{display:grid;overflow-y:auto;max-height:580px}
+    .week-time-label{width:54px;border-right:1px solid var(--border);flex-shrink:0}
+    .week-hour-row{display:grid;border-bottom:1px solid var(--border)}
+    .week-hour-cell{border-right:1px solid var(--border);height:56px;position:relative;min-width:0}
+    .week-hour-cell:last-child{border-right:none}
+    .week-time-text{font-size:10px;font-weight:700;color:var(--ink-400);padding:3px 6px 0;white-space:nowrap}
+    .week-appt{position:absolute;inset:2px 3px;border-radius:5px;padding:3px 6px;font-size:11px;font-weight:700;overflow:hidden;cursor:pointer;border-left:3px solid}
+    .week-appt:hover{filter:brightness(.93)}
+
+    /* ── Monthly ──────────────────────────────────────────────── */
+    .month-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--border);background:#f8fafc}
+    .month-dow{padding:8px 4px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .month-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+    .month-cell{min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px 8px;cursor:pointer;transition:background .1s}
+    .month-cell:nth-child(7n){border-right:none}
+    .month-cell:hover{background:rgba(60,144,209,.04)}
+    .month-cell.other-month .day-number{color:var(--ink-400)}
+    .month-cell.other-month{background:#f8fcfc}
+    .month-cell.today-cell{background:#eff6ff}
+    .month-cell.today-cell .day-number{background:var(--blue-600);color:#fff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+    .day-number{font-size:12px;font-weight:700;color:var(--ink-700);margin-bottom:4px}
+    .month-dot-row{display:flex;gap:3px;flex-wrap:wrap}
+    .month-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* ── Type colors (shared) ─────────────────────────────────── */
+    .type-individual{background:#dbeafe;border-color:#2563eb;color:#1e3a8a}
+    .type-group{background:#d1fae5;border-color:#059669;color:#064e3b}
+    .type-assessment{background:#ede9fe;border-color:#7c3aed;color:#3b0764}
+    .type-telehealth{background:#fef3c7;border-color:#d97706;color:#78350f}
+    .type-checkin{background:#fce7f3;border-color:#be185d;color:#831843}
+    .type-med-mgmt{background:#f0fdf4;border-color:#16a34a;color:#14532d}
+    .type-intake{background:#f0f9ff;border-color:#0369a1;color:#0c4a6e}
+    .type-supervision{background:#faf5ff;border-color:#7c3aed;color:#4c1d95}
+    .type-cancelled{background:#f1f5f9;border-color:#94a3b8;color:#475569;opacity:.65}
+    .type-no-show{background:#fef2f2;border-color:#dc2626;color:#7f1d1d;opacity:.75}
+    .type-blocked{background:#f9fafb;border-color:#d1d5db;color:#6b7280}
+
+    /* dot colors for month view */
+    .dot-individual{background:#2563eb}
+    .dot-group{background:#059669}
+    .dot-assessment{background:#7c3aed}
+    .dot-telehealth{background:#d97706}
+    .dot-checkin{background:#be185d}
+    .dot-med-mgmt{background:#16a34a}
+    .dot-intake{background:#0369a1}
+    .dot-supervision{background:#7c3aed}
+    .dot-cancelled{background:#94a3b8}
+    .dot-no-show{background:#dc2626}
+
+    /* ── Status badges ────────────────────────────────────────── */
+    .status-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}
+    .st-scheduled{background:#dbeafe;color:#1e40af;border-color:#bfdbfe}
+    .st-confirmed{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+    .st-completed{background:#f0fdf4;color:#14532d;border-color:#bbf7d0}
+    .st-cancelled{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .st-no-show{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .st-rescheduled{background:#fef3c7;color:#92400e;border-color:#fde68a}
+
+    /* ── Agenda list (admin overview) ─────────────────────────── */
+    .agenda-list{padding:0}
+    .agenda-row{display:grid;grid-template-columns:70px 32px 1fr auto auto;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer}
+    .agenda-row:last-child{border-bottom:none}
+    .agenda-row:hover{background:#f7fbff}
+    .agenda-time{font-size:12px;font-weight:700;color:var(--blue-700);white-space:nowrap}
+    .agenda-avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;text-transform:uppercase}
+    .agenda-meta{min-width:0}
+    .agenda-name{font-size:13px;font-weight:700;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .agenda-detail{font-size:11.5px;color:var(--ink-500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .agenda-clinician{font-size:11px;color:var(--ink-400);margin-top:1px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* ── Waitlist ─────────────────────────────────────────────── */
+    .wl-row{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);transition:background .1s}
+    .wl-row:last-child{border-bottom:none}
+    .wl-row:hover{background:#f7fbff}
+    .wl-rank{width:24px;text-align:center;font-size:12px;font-weight:800;color:var(--ink-500);flex-shrink:0}
+    .wl-info{flex:1;min-width:0}
+    .wl-name{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .wl-detail{font-size:11.5px;color:var(--ink-500);margin-top:2px}
+    .wl-badge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+    .wl-urgent{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
+    .wl-routine{background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd}
+
+    /* ── Modal ────────────────────────────────────────────────── */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1200;display:none;align-items:center;justify-content:center}
+    .modal-backdrop.open{display:flex}
+    .modal-box{background:#fff;border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.22);width:min(600px,95vw);max-height:90vh;overflow-y:auto;padding:28px 30px}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .modal-title{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--ink-900)}
+    .modal-close{width:30px;height:30px;border:none;background:none;cursor:pointer;font-size:18px;color:var(--ink-500);border-radius:7px;line-height:1}
+    .modal-close:hover{background:#f0f4f8}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+    .form-row{margin-bottom:12px}
+    .form-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-700);display:block;margin-bottom:4px}
+    .form-input{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--ink-900);outline:none;box-sizing:border-box;background:var(--surface)}
+    .form-input:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    .toast{position:fixed;bottom:22px;right:22px;background:#0b2c4d;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.22);z-index:9000;opacity:0;transition:opacity .2s;pointer-events:none}
+    .toast.show{opacity:1}
+
+    /* ── Detail panel (right-side slide-in) ───────────────────── */
+    .detail-panel{position:fixed;top:0;right:0;bottom:0;width:360px;background:#fff;box-shadow:-4px 0 32px rgba(0,0,0,.14);z-index:1100;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);overflow-y:auto}
+    .detail-panel.open{transform:translateX(0)}
+    .dp-head{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .dp-title{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900)}
+    .dp-close{border:none;background:none;cursor:pointer;font-size:18px;color:var(--ink-500);width:30px;height:30px;border-radius:7px}
+    .dp-close:hover{background:#f0f4f8}
+    .dp-body{padding:18px 22px}
+    .dp-field{margin-bottom:14px}
+    .dp-field-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-400);margin-bottom:3px}
+    .dp-field-val{font-size:13.5px;font-weight:600;color:var(--ink-900)}
+    .dp-actions{display:flex;flex-direction:column;gap:8px;padding:0 22px 22px}
+
+    @media(max-width:1200px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}.form-grid-2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ── Sidebar (populated by admin-sidebar.js) ─────────────── -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────── -->
+  <main class="dashboard-main">
+
+    <!-- Header -->
+    <header class="dashboard-header" style="margin-bottom:18px">
+      <div>
+        <h1>Scheduling</h1>
+        <p id="userLabel" style="margin-top:2px">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="exportAppts()">&#8595; Export CSV</button>
+        <button class="btn btn-blue btn-sm" onclick="openApptModal()">&#43; New Appointment</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card blue"><div class="stat-num" id="st-today">—</div><div class="stat-lbl">Today's Appts</div></div>
+      <div class="stat-card green"><div class="stat-num" id="st-confirmed">—</div><div class="stat-lbl">Confirmed</div></div>
+      <div class="stat-card amber"><div class="stat-num" id="st-pending">—</div><div class="stat-lbl">Pending</div></div>
+      <div class="stat-card red"><div class="stat-num" id="st-noshow">—</div><div class="stat-lbl">No-Shows (7d)</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="st-util">—</div><div class="stat-lbl">Utilization</div></div>
+      <div class="stat-card teal"><div class="stat-num" id="st-waitlist">—</div><div class="stat-lbl">Waitlist</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="sched-toolbar">
+      <!-- View tabs -->
+      <div class="view-tabs">
+        <button class="view-tab active" onclick="setView('day')"      id="vt-day">Day</button>
+        <button class="view-tab"        onclick="setView('week')"     id="vt-week">Week</button>
+        <button class="view-tab"        onclick="setView('month')"    id="vt-month">Month</button>
+        <button class="view-tab"        onclick="setView('team')"     id="vt-team">Team</button>
+        <button class="view-tab"        onclick="setView('provider')" id="vt-provider">Provider</button>
+      </div>
+      <!-- Date nav -->
+      <div class="nav-date">
+        <button onclick="navDate(-1)" title="Previous">&#8249;</button>
+        <span class="date-label" id="dateLabel"></span>
+        <button onclick="navDate(1)"  title="Next">&#8250;</button>
+      </div>
+      <button class="today-btn" onclick="goToday()">Today</button>
+      <div class="sched-actions">
+        <button class="btn btn-outline btn-sm" onclick="openWaitlistDrawer()">Waitlist Queue</button>
+        <button class="btn btn-blue btn-sm" onclick="openWaitlistModal()">+ Add to Waitlist</button>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <label for="fClinician">Clinician</label>
+      <select id="fClinician" onchange="applyFilters()" style="min-width:160px">
+        <option value="">All Clinicians</option>
+      </select>
+      <label for="fType">Type</label>
+      <select id="fType" onchange="applyFilters()">
+        <option value="">All Types</option>
+        <option>Individual Therapy</option>
+        <option>Group Therapy</option>
+        <option>Assessment</option>
+        <option>Telehealth</option>
+        <option>Check-In</option>
+        <option>Med Management</option>
+        <option>Intake</option>
+        <option>Supervision</option>
+      </select>
+      <label for="fStatus">Status</label>
+      <select id="fStatus" onchange="applyFilters()">
+        <option value="">All Statuses</option>
+        <option>Scheduled</option>
+        <option>Confirmed</option>
+        <option>Completed</option>
+        <option>Cancelled</option>
+        <option>No-Show</option>
+        <option>Rescheduled</option>
+      </select>
+      <input type="search" id="fSearch" placeholder="&#128269; Search patient&hellip;" oninput="applyFilters()" style="flex:1;min-width:140px">
+    </div>
+
+    <!-- Calendar frame -->
+    <div class="cal-frame">
+
+      <!-- ── Day ── -->
+      <div class="view-panel active" id="view-day">
+        <div class="agenda-grid">
+          <div class="time-col" id="dayTimeCol"></div>
+          <div class="appt-col" id="dayApptCol" onclick="handleDayClick(event)"></div>
+        </div>
+      </div>
+
+      <!-- ── Week ── -->
+      <div class="view-panel" id="view-week">
+        <div class="week-header" id="weekHeader"></div>
+        <div class="week-body"   id="weekBody"></div>
+      </div>
+
+      <!-- ── Month ── -->
+      <div class="view-panel" id="view-month">
+        <div class="month-header">
+          <div class="month-dow">Sun</div><div class="month-dow">Mon</div>
+          <div class="month-dow">Tue</div><div class="month-dow">Wed</div>
+          <div class="month-dow">Thu</div><div class="month-dow">Fri</div>
+          <div class="month-dow">Sat</div>
+        </div>
+        <div class="month-grid" id="monthGrid"></div>
+      </div>
+
+      <!-- ── Team view ── -->
+      <div class="view-panel" id="view-team">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700">Team View</div>
+            <div style="font-size:12px;color:var(--ink-500);margin-top:2px">Weekly workload across the full care team</div>
+          </div>
+          <span id="teamViewCount" style="font-size:12px;color:var(--ink-500)"></span>
+        </div>
+        <div id="teamViewBody" class="agenda-list"></div>
+      </div>
+
+      <!-- ── Provider view ── -->
+      <div class="view-panel" id="view-provider">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700">Provider View</div>
+            <div style="font-size:12px;color:var(--ink-500);margin-top:2px">Focused schedule and utilization for one clinician</div>
+          </div>
+          <span id="providerViewCount" style="font-size:12px;color:var(--ink-500)"></span>
+        </div>
+        <div id="providerViewBody"></div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Appointment Detail Panel ─────────────────────────── -->
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-head">
+    <div class="dp-title" id="dpTitle">Appointment</div>
+    <button class="dp-close" onclick="closeDetail()">&#10005;</button>
+  </div>
+  <div class="dp-body" id="dpBody"></div>
+  <div class="dp-actions" id="dpActions"></div>
+</div>
+
+<div class="detail-panel" id="waitlistPanel">
+  <div class="dp-head">
+    <div class="dp-title">Waitlist Queue</div>
+    <button class="dp-close" onclick="closeWaitlistDrawer()">&#10005;</button>
+  </div>
+  <div class="dp-body" id="waitlistBody"></div>
+  <div class="dp-actions">
+    <button class="btn btn-blue" style="width:100%" onclick="openWaitlistModal();closeWaitlistDrawer()">Add to Waitlist</button>
+  </div>
+</div>
+
+<!-- ── New / Edit Appointment Modal ─────────────────────── -->
+<div class="modal-backdrop" id="apptModal" onclick="if(event.target===this)closeApptModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="apptModalTitle">New Appointment</div>
+      <button class="modal-close" onclick="closeApptModal()">&#10005;</button>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label" for="af-clinician">Clinician</label>
+      <select class="form-input" id="af-clinician">
+        <option value="">— Select clinician —</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="af-patient">Patient</label>
+      <input class="form-input" id="af-patient" list="patientList" placeholder="Search patient name&hellip;" autocomplete="off">
+      <datalist id="patientList"></datalist>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-row">
+        <label class="form-label" for="af-date">Date</label>
+        <input class="form-input" type="date" id="af-date">
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-time">Start Time</label>
+        <input class="form-input" type="time" id="af-time" value="09:00">
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-row">
+        <label class="form-label" for="af-duration">Duration</label>
+        <select class="form-input" id="af-duration">
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="50" selected>50 min</option>
+          <option value="60">60 min</option>
+          <option value="90">90 min</option>
+          <option value="120">120 min</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-type">Type</label>
+        <select class="form-input" id="af-type" onchange="toggleAdminVideoRow(this.value)">
+          <option>Individual Therapy</option>
+          <option>Group Therapy</option>
+          <option>Assessment</option>
+          <option>Telehealth</option>
+          <option>Check-In</option>
+          <option>Med Management</option>
+          <option>Intake</option>
+          <option>Supervision</option>
+        </select>
+      </div>
+    </div>
+    <div id="adminVideoLinkRow" style="display:none">
+      <div class="form-row">
+        <label class="form-label" for="af-video-provider">Video Platform</label>
+        <select class="form-input" id="af-video-provider">
+          <option value="">None / In-office</option>
+          <option value="zoom">Zoom</option>
+          <option value="google">Google Meet</option>
+          <option value="custom">Custom / Doxy.me / Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-video-url">Meeting Link</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input class="form-input" id="af-video-url" type="url" placeholder="https://zoom.us/j/&#8230; or meet.google.com/&#8230;" style="flex:1">
+          <button type="button" class="btn btn-outline btn-sm" onclick="openNewMeet()" style="white-space:nowrap">&#128279; New Meet</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="af-status">Status</label>
+      <select class="form-input" id="af-status">
+        <option>Scheduled</option>
+        <option>Confirmed</option>
+        <option>Completed</option>
+        <option>Cancelled</option>
+        <option>No-Show</option>
+        <option>Rescheduled</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="af-notes">Notes</label>
+      <textarea class="form-input" id="af-notes" rows="2" placeholder="Optional internal notes&hellip;" style="resize:vertical"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeApptModal()">Cancel</button>
+      <button class="btn btn-blue"    onclick="saveAppt()">Save Appointment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Waitlist Modal ────────────────────────────────────── -->
+<div class="modal-backdrop" id="wlModal" onclick="if(event.target===this)closeWlModal()">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-head">
+      <div class="modal-title">Add to Waitlist</div>
+      <button class="modal-close" onclick="closeWlModal()">&#10005;</button>
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="wl-patient">Patient Name</label>
+      <input class="form-input" id="wl-patient" placeholder="Patient name&hellip;">
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="wl-clinician">Preferred Clinician</label>
+      <select class="form-input" id="wl-clinician">
+        <option value="">No preference</option>
+      </select>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-row">
+        <label class="form-label" for="wl-type">Service Type</label>
+        <select class="form-input" id="wl-type">
+          <option>Individual Therapy</option>
+          <option>Assessment</option>
+          <option>Group Therapy</option>
+          <option>Telehealth</option>
+          <option>Intake</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="wl-priority">Priority</label>
+        <select class="form-input" id="wl-priority">
+          <option>Routine</option>
+          <option>Urgent</option>
+          <option>Crisis</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="wl-notes">Notes</label>
+      <textarea class="form-input" id="wl-notes" rows="2" style="resize:vertical" placeholder="Referral info, availability, notes&hellip;"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeWlModal()">Cancel</button>
+      <button class="btn btn-blue"    onclick="saveWaitlist()">Add to Waitlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ── Storage key ──────────────────────────────────────────────── */
+var SK = 'ta_admin_schedule_v1';
+var SK_WL = 'ta_admin_waitlist_v1';
+
+/* ── Clinicians (demo data — replace with Supabase query) ──────── */
+var CLINICIANS = [
+  { id:'c1', name:'Dr. Sarah Mitchell',  color:'#2563eb', initials:'SM' },
+  { id:'c2', name:'James Ortega, LPC',   color:'#059669', initials:'JO' },
+  { id:'c3', name:'Dr. Priya Nambiar',   color:'#7c3aed', initials:'PN' },
+  { id:'c4', name:'Tara Williams, LCSW', color:'#d97706', initials:'TW' },
+  { id:'c5', name:'Marcus Chen, LMFT',   color:'#db2777', initials:'MC' },
+];
+
+/* ── Appointment type → CSS class ─────────────────────────────── */
+var TYPE_CLASS = {
+  'Individual Therapy': 'individual',
+  'Group Therapy':      'group',
+  'Assessment':         'assessment',
+  'Telehealth':         'telehealth',
+  'Check-In':           'checkin',
+  'Med Management':     'med-mgmt',
+  'Intake':             'intake',
+  'Supervision':        'supervision',
+  'Cancelled':          'cancelled',
+  'No-Show':            'no-show',
+  'Blocked':            'blocked',
+};
+
+/* ── Mock appointments (seeded once; persisted to localStorage) ── */
+var MOCK_APPTS = (function () {
+  var today = new Date();
+  var d = function (offset, h, m) {
+    var dt = new Date(today);
+    dt.setDate(dt.getDate() + offset);
+    dt.setHours(h, m, 0, 0);
+    return dt.toISOString();
+  };
+  return [
+    { id:'a1',  clinicianId:'c1', patient:'Aaliyah Foster',    type:'Individual Therapy', status:'Confirmed',  start:d(0,9,0),  duration:50, notes:'' },
+    { id:'a2',  clinicianId:'c2', patient:'James Rodriguez',   type:'Assessment',         status:'Scheduled',  start:d(0,9,0),  duration:90, notes:'' },
+    { id:'a3',  clinicianId:'c3', patient:'Maria Santos',      type:'Telehealth',         status:'Confirmed',  start:d(0,10,0), duration:50, notes:'' },
+    { id:'a4',  clinicianId:'c1', patient:'Devon Brown',       type:'Individual Therapy', status:'Scheduled',  start:d(0,10,0), duration:50, notes:'' },
+    { id:'a5',  clinicianId:'c4', patient:'Cynthia Park',      type:'Group Therapy',      status:'Confirmed',  start:d(0,11,0), duration:90, notes:'' },
+    { id:'a6',  clinicianId:'c5', patient:'Tyrone Jackson',    type:'Check-In',           status:'Scheduled',  start:d(0,11,0), duration:30, notes:'' },
+    { id:'a7',  clinicianId:'c2', patient:'Linda Chen',        type:'Individual Therapy', status:'Completed',  start:d(-1,9,0), duration:50, notes:'' },
+    { id:'a8',  clinicianId:'c1', patient:'Robert Kim',        type:'Intake',             status:'No-Show',    start:d(-1,10,0),duration:60, notes:'' },
+    { id:'a9',  clinicianId:'c3', patient:'Fatima Al-Hassan',  type:'Assessment',         status:'Completed',  start:d(-1,13,0),duration:90, notes:'' },
+    { id:'a10', clinicianId:'c5', patient:'Michael Torres',    type:'Telehealth',         status:'Cancelled',  start:d(-2,9,0), duration:50, notes:'' },
+    { id:'a11', clinicianId:'c1', patient:'Sandra Williams',   type:'Individual Therapy', status:'Scheduled',  start:d(1,9,0),  duration:50, notes:'' },
+    { id:'a12', clinicianId:'c2', patient:'Carlos Gutierrez',  type:'Group Therapy',      status:'Scheduled',  start:d(1,10,0), duration:90, notes:'' },
+    { id:'a13', clinicianId:'c4', patient:'Nina Okafor',       type:'Individual Therapy', status:'Confirmed',  start:d(1,11,0), duration:50, notes:'' },
+    { id:'a14', clinicianId:'c3', patient:'Andre Johnson',     type:'Med Management',     status:'Scheduled',  start:d(2,9,0),  duration:30, notes:'' },
+    { id:'a15', clinicianId:'c1', patient:'Priscilla Moore',   type:'Supervision',        status:'Confirmed',  start:d(2,14,0), duration:60, notes:'' },
+  ];
+}());
+
+/* ── State ───────────────────────────────────────────────────── */
+var currentView = 'day';
+var currentDate = new Date();
+var editId = null;
+var filters = { clinician:'', type:'', status:'', search:'' };
+
+function loadAppts() {
+  try {
+    var raw = localStorage.getItem(SK);
+    return raw ? JSON.parse(raw) : MOCK_APPTS;
+  } catch(e) { return MOCK_APPTS; }
+}
+function saveAppts(list) {
+  try { localStorage.setItem(SK, JSON.stringify(list)); } catch(e) {}
+}
+function loadWl() {
+  try {
+    var raw = localStorage.getItem(SK_WL);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) { return []; }
+}
+function saveWl(list) {
+  try { localStorage.setItem(SK_WL, JSON.stringify(list)); } catch(e) {}
+}
+
+/* Make sure mock data is seeded if localStorage is empty */
+(function () {
+  if (!localStorage.getItem(SK)) saveAppts(MOCK_APPTS);
+}());
+
+/* ── Filters ──────────────────────────────────────────────────── */
+function applyFilters() {
+  filters.clinician = document.getElementById('fClinician').value;
+  filters.type      = document.getElementById('fType').value;
+  filters.status    = document.getElementById('fStatus').value;
+  filters.search    = document.getElementById('fSearch').value.toLowerCase().trim();
+  renderView();
+}
+
+function filteredAppts(list) {
+  return list.filter(function (a) {
+    if (filters.clinician && a.clinicianId !== filters.clinician) return false;
+    if (filters.type      && a.type        !== filters.type)      return false;
+    if (filters.status    && a.status      !== filters.status)    return false;
+    if (filters.search    && !a.patient.toLowerCase().includes(filters.search)) return false;
+    return true;
+  });
+}
+
+/* ── Date helpers ─────────────────────────────────────────────── */
+function sameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function fmtTime(dt) {
+  var h = dt.getHours(), m = dt.getMinutes();
+  var ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 || 12;
+  return h + (m ? ':' + String(m).padStart(2,'0') : '') + ap;
+}
+function fmtDate(dt) {
+  return DAYS[dt.getDay()] + ', ' + MONTHS[dt.getMonth()] + ' ' + dt.getDate() + ', ' + dt.getFullYear();
+}
+
+/* ── Navigation ───────────────────────────────────────────────── */
+function navDate(dir) {
+  if (currentView==='day')  { currentDate.setDate(currentDate.getDate()+dir); }
+  if (currentView==='week') { currentDate.setDate(currentDate.getDate()+dir*7); }
+  if (currentView==='month'){ currentDate.setMonth(currentDate.getMonth()+dir); }
+  if (currentView==='team'||currentView==='provider') { currentDate.setDate(currentDate.getDate()+dir*7); }
+  renderView();
+}
+function goToday() { currentDate = new Date(); renderView(); }
+
+/* ── View switcher ────────────────────────────────────────────── */
+function setView(v) {
+  currentView = v;
+  ['day','week','month','team','provider'].forEach(function(id){
+    document.getElementById('view-'+id).classList.remove('active');
+    document.getElementById('vt-'+id).classList.remove('active');
+  });
+  document.getElementById('view-'+v).classList.add('active');
+  document.getElementById('vt-'+v).classList.add('active');
+  var url = new URL(window.location.href);
+  url.searchParams.set('view', v);
+  history.replaceState(null, '', url);
+  renderView();
+}
+
+/* ── Main render dispatcher ───────────────────────────────────── */
+function renderView() {
+  updateDateLabel();
+  if (currentView==='day')     renderDay();
+  if (currentView==='week')    renderWeek();
+  if (currentView==='month')   renderMonth();
+  if (currentView==='team')    renderTeamView();
+  if (currentView==='provider')renderProviderView();
+  renderWaitlist();
+  updateStats();
+}
+
+function updateDateLabel() {
+  var lbl = document.getElementById('dateLabel');
+  if (currentView==='day')  lbl.textContent = DAYS[currentDate.getDay()] + ', ' + MONTHS[currentDate.getMonth()] + ' ' + currentDate.getDate();
+  if (currentView==='week') {
+    var ws = weekStart(currentDate);
+    var we = new Date(ws); we.setDate(we.getDate()+6);
+    lbl.textContent = MONTHS[ws.getMonth()] + ' ' + ws.getDate() + ' – ' + (ws.getMonth()!==we.getMonth()?MONTHS[we.getMonth()]+' ':'')+we.getDate()+', '+we.getFullYear();
+  }
+  if (currentView==='month')   lbl.textContent = MONTHS[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+  if (currentView==='team') {
+    var tws = weekStart(currentDate);
+    var twe = new Date(tws); twe.setDate(twe.getDate()+6);
+    lbl.textContent = 'Team · ' + MONTHS[tws.getMonth()] + ' ' + tws.getDate() + ' – ' + (tws.getMonth()!==twe.getMonth()?MONTHS[twe.getMonth()]+' ':'') + twe.getDate();
+  }
+  if (currentView==='provider') {
+    var provider = getCurrentProvider();
+    lbl.textContent = provider.name + ' · Week of ' + MONTHS[weekStart(currentDate).getMonth()] + ' ' + weekStart(currentDate).getDate();
+  }
+}
+
+/* ── Day view ─────────────────────────────────────────────────── */
+function renderDay() {
+  var timeCol = document.getElementById('dayTimeCol');
+  var apptCol = document.getElementById('dayApptCol');
+  var startH = 7, endH = 20;
+  var hours = endH - startH;
+
+  // Time labels
+  var tHtml = '';
+  for (var h = startH; h <= endH; h++) {
+    var lbl = h === 12 ? '12 PM' : (h < 12 ? h + ' AM' : (h-12) + ' PM');
+    tHtml += '<div class="time-slot">' + lbl + '</div>';
+  }
+  timeCol.innerHTML = tHtml;
+
+  // Appointments
+  var appts = filteredAppts(loadAppts()).filter(function(a){
+    return sameDay(new Date(a.start), currentDate);
+  });
+  var aHtml = '';
+  appts.forEach(function(a){
+    var start = new Date(a.start);
+    var topPx = ((start.getHours() - startH) * 60 + start.getMinutes()) * (60/60);
+    var heightPx = Math.max((a.duration || 50) - 2, 22);
+    var cls = getTypeClass(a);
+    var clin = CLINICIANS.find(function(c){ return c.id===a.clinicianId; }) || {};
+    aHtml += '<div class="appt-block type-' + cls + '" style="top:' + topPx + 'px;height:' + heightPx + 'px" ' +
+      'onclick="event.stopPropagation();showDetail(\'' + a.id + '\')">' +
+      '<div class="appt-block-title">' + escapeHtml(a.patient) + '</div>' +
+      '<div class="appt-block-sub">' + a.type + ' · ' + fmtTime(start) + '</div>' +
+      '<div class="appt-block-clinician">' + (clin.name||'') + '</div>' +
+      '</div>';
+  });
+  apptCol.style.minHeight = (hours * 60 + 20) + 'px';
+  apptCol.innerHTML = aHtml || '<div style="padding:40px;text-align:center;color:var(--ink-400);font-size:13px">No appointments for this day</div>';
+}
+
+function handleDayClick(e) {
+  if (e.target.closest('.appt-block')) return;
+  var col = document.getElementById('dayApptCol');
+  var rect = col.getBoundingClientRect();
+  var y = e.clientY - rect.top;
+  var startH = 7;
+  var totalMinutes = Math.round(y) + startH * 60;
+  var h = Math.floor(totalMinutes / 60);
+  var m = Math.round((totalMinutes % 60) / 15) * 15;
+  if (m >= 60) { h++; m = 0; }
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  document.getElementById('af-date').value = currentDate.toISOString().slice(0,10);
+  document.getElementById('af-time').value = pad(h) + ':' + pad(m);
+  openApptModal();
+}
+
+/* ── Week view ────────────────────────────────────────────────── */
+function weekStart(d) {
+  var ws = new Date(d);
+  ws.setDate(ws.getDate() - ws.getDay());
+  ws.setHours(0,0,0,0);
+  return ws;
+}
+
+function renderWeek() {
+  var ws = weekStart(currentDate);
+  var today = new Date();
+  var days = [];
+  for (var i=0;i<7;i++) { var d=new Date(ws); d.setDate(d.getDate()+i); days.push(d); }
+  var startH = 7, endH = 20;
+
+  var hHtml = '<div class="week-time-cell"></div>';
+  days.forEach(function(d){
+    var isToday = sameDay(d, today);
+    hHtml += '<div class="week-day-hdr' + (isToday?' today-col':'') + '">' +
+      DAYS_S[d.getDay()] + '<br><span class="day-num">' + d.getDate() + '</span></div>';
+  });
+  document.getElementById('weekHeader').style.gridTemplateColumns = '54px repeat(7,1fr)';
+  document.getElementById('weekHeader').innerHTML = hHtml;
+
+  var allAppts = filteredAppts(loadAppts());
+  var bHtml = '';
+  for (var h=startH; h<endH; h++) {
+    var lbl = h===12?'12 PM':(h<12?h+' AM':(h-12)+' PM');
+    bHtml += '<div class="week-hour-row" style="grid-template-columns:54px repeat(7,1fr)">' +
+      '<div class="week-time-label"><div class="week-time-text">' + lbl + '</div></div>';
+    days.forEach(function(d){
+      var dayAppts = allAppts.filter(function(a){
+        var s=new Date(a.start);
+        return sameDay(s,d) && s.getHours()===h;
+      });
+      var cellHtml = '';
+      dayAppts.forEach(function(a){
+        var cls = getTypeClass(a);
+        var clin = CLINICIANS.find(function(c){ return c.id===a.clinicianId; }) || {};
+        cellHtml += '<div class="week-appt type-' + cls + '" style="border-color:' + (clin.color||'#2563eb') + '" ' +
+          'onclick="showDetail(\'' + a.id + '\')">' +
+          escapeHtml(a.patient.split(' ')[0]) + ' · ' + (a.type.split(' ')[0]) + '</div>';
+      });
+      bHtml += '<div class="week-hour-cell">' + cellHtml + '</div>';
+    });
+    bHtml += '</div>';
+  }
+  document.getElementById('weekBody').style.gridTemplateColumns = '1fr';
+  document.getElementById('weekBody').innerHTML = bHtml;
+}
+
+/* ── Month view ───────────────────────────────────────────────── */
+function renderMonth() {
+  var y = currentDate.getFullYear(), mo = currentDate.getMonth();
+  var first = new Date(y, mo, 1);
+  var last  = new Date(y, mo+1, 0);
+  var today = new Date();
+  var allAppts = filteredAppts(loadAppts());
+
+  var cells = [];
+  for (var i=0; i<first.getDay(); i++) {
+    var d=new Date(y,mo,1-first.getDay()+i); cells.push({d:d,other:true});
+  }
+  for (var j=1; j<=last.getDate(); j++) cells.push({d:new Date(y,mo,j),other:false});
+  while (cells.length%7!==0) {
+    var nd=new Date(y,mo+1,cells.length-last.getDate()-first.getDay()+1);
+    cells.push({d:nd,other:true});
+  }
+
+  var html = '';
+  cells.forEach(function(cell) {
+    var dt = cell.d;
+    var isToday = sameDay(dt, today);
+    var dayAppts = allAppts.filter(function(a){ return sameDay(new Date(a.start), dt); });
+    var dots = dayAppts.slice(0,6).map(function(a){
+      return '<div class="month-dot dot-' + getTypeClass(a) + '"></div>';
+    }).join('');
+    var remainder = dayAppts.length > 6 ? '<span style="font-size:9px;color:var(--ink-500)">+' + (dayAppts.length-6) + '</span>' : '';
+    html += '<div class="month-cell' + (cell.other?' other-month':'') + (isToday?' today-cell':'') + '" ' +
+      'onclick="goDayFromMonth(\'' + dt.toISOString() + '\')">' +
+      '<div class="day-number">' + dt.getDate() + '</div>' +
+      '<div class="month-dot-row">' + dots + remainder + '</div>' +
+      '</div>';
+  });
+  document.getElementById('monthGrid').innerHTML = html;
+}
+
+function goDayFromMonth(iso) {
+  currentDate = new Date(iso);
+  setView('day');
+}
+
+/* ── Agenda list ──────────────────────────────────────────────── */
+function renderTeamView() {
+  var ws = weekStart(currentDate);
+  var we = new Date(ws); we.setDate(we.getDate()+6); we.setHours(23,59,59,999);
+  var allAppts = filteredAppts(loadAppts()).filter(function(a){
+    var start = new Date(a.start);
+    return start >= ws && start <= we;
+  });
+  document.getElementById('teamViewCount').textContent = allAppts.length + ' appointment' + (allAppts.length!==1?'s':'') + ' this week';
+  var html = '';
+  CLINICIANS.forEach(function(clin) {
+    var clinicianAppts = allAppts.filter(function(a){ return a.clinicianId===clin.id; }).sort(function(a,b){ return new Date(a.start)-new Date(b.start); });
+    var confirmed = clinicianAppts.filter(function(a){ return a.status==='Confirmed'; }).length;
+    html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<div class="agenda-avatar" style="background:' + clin.color + '">' + clin.initials + '</div>' +
+          '<div><div class="agenda-name">' + clin.name + '</div><div class="agenda-detail">' + clinicianAppts.length + ' appts · ' + confirmed + ' confirmed</div></div>' +
+        '</div>' +
+        '<button class="btn btn-outline btn-sm" onclick="document.getElementById(\'fClinician\').value=\'' + clin.id + '\';applyFilters();setView(\'provider\')">Open Provider</button>' +
+      '</div>' +
+      (clinicianAppts.length ? clinicianAppts.slice(0,5).map(function(a){
+        var start = new Date(a.start);
+        var stCls = 'st-' + a.status.toLowerCase().replace(/[\s-]/g,'');
+        return '<div class="agenda-row" onclick="showDetail(\'' + a.id + '\')">' +
+          '<div class="agenda-time">' + DAYS_S[start.getDay()] + '<br>' + fmtTime(start) + '</div>' +
+          '<div class="agenda-avatar" style="background:' + clin.color + '">' + clin.initials + '</div>' +
+          '<div class="agenda-meta"><div class="agenda-name">' + escapeHtml(a.patient) + '</div><div class="agenda-detail">' + a.type + '</div></div>' +
+          '<div><span class="status-badge ' + stCls + '">' + a.status + '</span></div>' +
+          '<div></div>' +
+        '</div>';
+      }).join('') : '<div style="padding:10px 0;color:var(--ink-400);font-size:13px">No appointments scheduled for this clinician in the selected week.</div>') +
+    '</div>';
+  });
+  document.getElementById('teamViewBody').innerHTML = html;
+}
+
+function getCurrentProvider() {
+  var selected = document.getElementById('fClinician').value;
+  return CLINICIANS.find(function(c){ return c.id===selected; }) || CLINICIANS[0];
+}
+
+function renderProviderView() {
+  var provider = getCurrentProvider();
+  if (document.getElementById('fClinician').value !== provider.id) {
+    document.getElementById('fClinician').value = provider.id;
+    filters.clinician = provider.id;
+  }
+  var ws = weekStart(currentDate);
+  var we = new Date(ws); we.setDate(we.getDate()+6); we.setHours(23,59,59,999);
+  var providerAppts = loadAppts().filter(function(a){
+    var start = new Date(a.start);
+    return a.clinicianId===provider.id && start >= ws && start <= we;
+  }).sort(function(a,b){ return new Date(a.start)-new Date(b.start); });
+  var minutes = providerAppts.reduce(function(sum,a){ return sum + (a.duration || 0); }, 0);
+  var util = Math.min(100, Math.round(minutes / (5 * 8 * 60) * 100));
+  document.getElementById('providerViewCount').textContent = providerAppts.length + ' appointments · ' + util + '% utilization';
+  var html = '<div style="padding:16px;border-bottom:1px solid var(--border);background:#f8fafc">' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">' +
+      '<div class="agenda-avatar" style="background:' + provider.color + '">' + provider.initials + '</div>' +
+      '<div><div class="agenda-name">' + provider.name + '</div><div class="agenda-detail">Selected provider schedule and weekly workload</div></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">' +
+      '<div class="stat-card blue"><div class="stat-num">' + providerAppts.length + '</div><div class="stat-lbl">Weekly Appointments</div></div>' +
+      '<div class="stat-card green"><div class="stat-num">' + providerAppts.filter(function(a){ return a.status==='Confirmed'; }).length + '</div><div class="stat-lbl">Confirmed</div></div>' +
+      '<div class="stat-card amber"><div class="stat-num">' + minutes + '</div><div class="stat-lbl">Booked Minutes</div></div>' +
+    '</div>' +
+  '</div>';
+  html += providerAppts.length ? providerAppts.map(function(a) {
+    var start = new Date(a.start);
+    var stCls = 'st-' + a.status.toLowerCase().replace(/[\s-]/g,'');
+    return '<div class="agenda-row" onclick="showDetail(\'' + a.id + '\')">' +
+      '<div class="agenda-time">' + DAYS_S[start.getDay()] + '<br><span style="font-size:10px;font-weight:600;color:var(--ink-400)">' + fmtTime(start) + '</span></div>' +
+      '<div class="agenda-avatar" style="background:' + provider.color + '">' + provider.initials + '</div>' +
+      '<div class="agenda-meta"><div class="agenda-name">' + escapeHtml(a.patient) + '</div><div class="agenda-detail">' + a.type + ' · ' + a.duration + ' min</div></div>' +
+      '<div><span class="status-badge ' + stCls + '">' + a.status + '</span></div>' +
+      '<div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editAppt(\'' + a.id + '\')">Edit</button></div>' +
+    '</div>';
+  }).join('') : '<div style="padding:40px;text-align:center;color:var(--ink-400);font-size:13px">No provider appointments scheduled for this week.</div>';
+  document.getElementById('providerViewBody').innerHTML = html;
+}
+
+/* ── Waitlist ─────────────────────────────────────────────────── */
+function renderWaitlist() {
+  var wl = loadWl();
+  document.getElementById('st-waitlist').textContent = wl.length;
+  if (!wl.length) {
+    document.getElementById('waitlistBody').innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--ink-400);font-size:13px">No patients on the waitlist</div>';
+    return;
+  }
+  var html = '';
+  wl.forEach(function(w, i) {
+    var clin = CLINICIANS.find(function(c){ return c.id===w.clinicianId; });
+    var urgCls = w.priority==='Urgent'||w.priority==='Crisis' ? 'wl-urgent' : 'wl-routine';
+    html += '<div class="wl-row">' +
+      '<div class="wl-rank">' + (i+1) + '</div>' +
+      '<div class="wl-info">' +
+        '<div class="wl-name">' + escapeHtml(w.patient) + '</div>' +
+        '<div class="wl-detail">' + w.type + (clin?' · '+clin.name:'') + ' · Added ' + w.added + '</div>' +
+      '</div>' +
+      '<span class="wl-badge ' + urgCls + '">' + w.priority + '</span>' +
+      '<button class="btn btn-blue btn-sm" onclick="scheduleFromWl(' + i + ')">Schedule</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="removeWl(' + i + ')">Remove</button>' +
+      '</div>';
+  });
+  document.getElementById('waitlistBody').innerHTML = html;
+}
+
+function openWaitlistDrawer() {
+  renderWaitlist();
+  document.getElementById('waitlistPanel').classList.add('open');
+}
+
+function closeWaitlistDrawer() {
+  document.getElementById('waitlistPanel').classList.remove('open');
+}
+
+/* ── Stats ────────────────────────────────────────────────────── */
+function updateStats() {
+  var allAppts = loadAppts();
+  var today = new Date();
+  var todayAppts = allAppts.filter(function(a){ return sameDay(new Date(a.start), today); });
+  var sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7);
+  var noShows = allAppts.filter(function(a){ return a.status==='No-Show' && new Date(a.start)>=sevenDaysAgo; });
+
+  var confirmed = todayAppts.filter(function(a){ return a.status==='Confirmed'; });
+  var pending   = todayAppts.filter(function(a){ return a.status==='Scheduled'; });
+
+  // Rough utilization: appts / (clinicians * 8 slots/day)
+  var util = todayAppts.length > 0
+    ? Math.min(100, Math.round((todayAppts.length / (CLINICIANS.length * 8)) * 100))
+    : 0;
+
+  document.getElementById('st-today').textContent     = todayAppts.length;
+  document.getElementById('st-confirmed').textContent  = confirmed.length;
+  document.getElementById('st-pending').textContent    = pending.length;
+  document.getElementById('st-noshow').textContent     = noShows.length;
+  document.getElementById('st-util').textContent       = util + '%';
+  document.getElementById('st-waitlist').textContent   = loadWl().length;
+}
+
+var _currentVideoUrl = '';
+
+/* ── Detail panel ─────────────────────────────────────────────── */
+function showDetail(id) {
+  var appts = loadAppts();
+  var a = appts.find(function(x){ return x.id===id; });
+  if (!a) return;
+  var start = new Date(a.start);
+  var clin  = CLINICIANS.find(function(c){ return c.id===a.clinicianId; }) || {name:'Unknown',color:'#2563eb'};
+  var stCls = 'st-' + a.status.toLowerCase().replace(/[\s-]/g,'');
+  var isTelehealth = (a.type === 'Telehealth');
+  var hasVideo = !!(a.video_url);
+  _currentVideoUrl = a.video_url || '';
+
+  // Build video link field content
+  var videoFieldHtml = '';
+  if (isTelehealth) {
+    if (hasVideo) {
+      videoFieldHtml = '<a href="' + escapeHtml(a.video_url) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;word-break:break-all">' + escapeHtml(a.video_url) + '</a>';
+    } else {
+      videoFieldHtml = '<span style="color:#9ca3af;font-style:italic">No link set — edit appointment to add one</span>';
+    }
+  }
+
+  document.getElementById('dpTitle').textContent = a.patient;
+  document.getElementById('dpBody').innerHTML = [
+    field('Patient',   escapeHtml(a.patient)),
+    field('Clinician', escapeHtml(clin.name)),
+    field('Date & Time', fmtDate(start) + ' at ' + fmtTime(start)),
+    field('Duration',  a.duration + ' minutes'),
+    field('Type',      a.type),
+    field('Status',    '<span class="status-badge ' + stCls + '">' + a.status + '</span>'),
+    isTelehealth ? field('&#127909; Video Link', videoFieldHtml) : '',
+    a.notes ? field('Notes', escapeHtml(a.notes)) : '',
+  ].join('');
+
+  document.getElementById('dpActions').innerHTML = [
+    isTelehealth && hasVideo
+      ? '<a href="' + escapeHtml(a.video_url) + '" target="_blank" rel="noopener noreferrer" class="btn btn-blue" style="width:100%;text-align:center;display:block;text-decoration:none;margin-bottom:6px">&#127909; Join Video Session</a>'
+      : '',
+    isTelehealth && hasVideo
+      ? '<button class="btn btn-outline" style="width:100%;margin-bottom:6px" onclick="copyAdminVideoLink()">&#128203; Copy Video Link</button>'
+      : '',
+    isTelehealth && !hasVideo
+      ? '<button class="btn btn-outline" style="width:100%;margin-bottom:6px;color:#2563eb" onclick="editAppt(\'' + id + '\')">&#128279; Add Video Link</button>'
+      : '',
+    '<button class="btn btn-blue" style="width:100%" onclick="editAppt(\'' + id + '\')">Edit Appointment</button>',
+    '<button class="btn btn-outline" style="width:100%" onclick="cancelAppt(\'' + id + '\')">Mark as Cancelled</button>',
+    '<button class="btn btn-outline" style="width:100%" onclick="noShowAppt(\'' + id + '\')">Mark as No-Show</button>',
+  ].join('');
+
+  document.getElementById('detailPanel').classList.add('open');
+}
+function field(lbl, val) {
+  return '<div class="dp-field"><div class="dp-field-lbl">' + lbl + '</div><div class="dp-field-val">' + val + '</div></div>';
+}
+function closeDetail() { document.getElementById('detailPanel').classList.remove('open'); }
+
+/* ── Appointment modal ────────────────────────────────────────── */
+function openApptModal(prefill) {
+  editId = null;
+  document.getElementById('apptModalTitle').textContent = 'New Appointment';
+  document.getElementById('af-clinician').value = prefill && prefill.clinicianId ? prefill.clinicianId : '';
+  document.getElementById('af-patient').value   = '';
+  document.getElementById('af-date').value      = prefill && prefill.date ? prefill.date : new Date().toISOString().slice(0,10);
+  document.getElementById('af-time').value      = '09:00';
+  document.getElementById('af-type').value      = 'Individual Therapy';
+  document.getElementById('af-status').value    = 'Scheduled';
+  document.getElementById('af-notes').value     = '';
+  document.getElementById('af-video-provider').value = '';
+  document.getElementById('af-video-url').value      = '';
+  document.getElementById('adminVideoLinkRow').style.display = 'none';
+  document.getElementById('apptModal').classList.add('open');
+}
+function closeApptModal() { document.getElementById('apptModal').classList.remove('open'); }
+
+function toggleAdminVideoRow(type) {
+  var show = (type === 'Telehealth');
+  document.getElementById('adminVideoLinkRow').style.display = show ? 'block' : 'none';
+  if (show && !document.getElementById('af-video-url').value) {
+    try {
+      var vid = JSON.parse(localStorage.getItem('ta_video_settings_v1')) || {};
+      if (vid.defaultUrl) {
+        document.getElementById('af-video-provider').value = vid.provider || 'custom';
+        document.getElementById('af-video-url').value      = vid.defaultUrl;
+      }
+    } catch(e) {}
+  }
+}
+
+function openNewMeet() {
+  window.open('https://meet.google.com/new', '_blank', 'noopener,noreferrer');
+}
+
+function copyAdminVideoLink() {
+  if (!_currentVideoUrl) return;
+  if (navigator.clipboard) { navigator.clipboard.writeText(_currentVideoUrl).catch(function(){}); }
+  showToast('Video link copied!');
+}
+
+function editAppt(id) {
+  var appts = loadAppts();
+  var a = appts.find(function(x){ return x.id===id; });
+  if (!a) return;
+  closeDetail();
+  editId = id;
+  document.getElementById('apptModalTitle').textContent = 'Edit Appointment';
+  document.getElementById('af-clinician').value = a.clinicianId || '';
+  document.getElementById('af-patient').value   = a.patient;
+  var s = new Date(a.start);
+  document.getElementById('af-date').value      = s.toISOString().slice(0,10);
+  document.getElementById('af-time').value      = String(s.getHours()).padStart(2,'0') + ':' + String(s.getMinutes()).padStart(2,'0');
+  document.getElementById('af-duration').value  = String(a.duration);
+  document.getElementById('af-type').value      = a.type;
+  document.getElementById('af-status').value    = a.status;
+  document.getElementById('af-notes').value     = a.notes || '';
+  document.getElementById('af-video-provider').value = a.video_provider || '';
+  document.getElementById('af-video-url').value      = a.video_url      || '';
+  toggleAdminVideoRow(a.type);
+  document.getElementById('apptModal').classList.add('open');
+}
+
+function saveAppt() {
+  var patient = document.getElementById('af-patient').value.trim();
+  var date    = document.getElementById('af-date').value;
+  var time    = document.getElementById('af-time').value;
+  if (!patient || !date || !time) { showToast('Please fill in patient, date, and time.'); return; }
+
+  var start = new Date(date + 'T' + time);
+  var appts = loadAppts();
+  if (editId) {
+    var idx = appts.findIndex(function(a){ return a.id===editId; });
+    if (idx > -1) {
+      appts[idx].clinicianId = document.getElementById('af-clinician').value;
+      appts[idx].patient     = patient;
+      appts[idx].start       = start.toISOString();
+      appts[idx].duration    = parseInt(document.getElementById('af-duration').value)||50;
+      appts[idx].type          = document.getElementById('af-type').value;
+      appts[idx].status        = document.getElementById('af-status').value;
+      appts[idx].notes         = document.getElementById('af-notes').value.trim();
+      appts[idx].video_provider = document.getElementById('af-video-provider').value;
+      appts[idx].video_url     = document.getElementById('af-video-url').value.trim();
+    }
+    showToast('Appointment updated.');
+  } else {
+    appts.push({
+      id: 'a' + Date.now(),
+      clinicianId: document.getElementById('af-clinician').value,
+      patient:  patient,
+      start:    start.toISOString(),
+      duration: parseInt(document.getElementById('af-duration').value)||50,
+      type:     document.getElementById('af-type').value,
+      status:   document.getElementById('af-status').value,
+      notes:    document.getElementById('af-notes').value.trim(),
+      video_provider: document.getElementById('af-video-provider').value,
+      video_url: document.getElementById('af-video-url').value.trim(),
+    });
+    showToast('Appointment saved.');
+  }
+  saveAppts(appts);
+  closeApptModal();
+  renderView();
+}
+
+function cancelAppt(id) {
+  var appts = loadAppts();
+  var a = appts.find(function(x){ return x.id===id; });
+  if (a) { a.status = 'Cancelled'; saveAppts(appts); }
+  closeDetail();
+  renderView();
+  showToast('Appointment marked as Cancelled.');
+}
+function noShowAppt(id) {
+  var appts = loadAppts();
+  var a = appts.find(function(x){ return x.id===id; });
+  if (a) { a.status = 'No-Show'; saveAppts(appts); }
+  closeDetail();
+  renderView();
+  showToast('Appointment marked as No-Show.');
+}
+
+/* ── Waitlist modal ───────────────────────────────────────────── */
+function openWaitlistModal()  { document.getElementById('wlModal').classList.add('open'); }
+function closeWlModal()       { document.getElementById('wlModal').classList.remove('open'); }
+
+function saveWaitlist() {
+  var patient = document.getElementById('wl-patient').value.trim();
+  if (!patient) { showToast('Please enter a patient name.'); return; }
+  var wl = loadWl();
+  wl.push({
+    patient:    patient,
+    clinicianId:document.getElementById('wl-clinician').value,
+    type:       document.getElementById('wl-type').value,
+    priority:   document.getElementById('wl-priority').value,
+    notes:      document.getElementById('wl-notes').value.trim(),
+    added:      new Date().toLocaleDateString(),
+  });
+  saveWl(wl);
+  closeWlModal();
+  renderView();
+  showToast(patient + ' added to waitlist.');
+}
+function removeWl(idx) {
+  var wl = loadWl();
+  wl.splice(idx, 1);
+  saveWl(wl);
+  renderView();
+  showToast('Removed from waitlist.');
+}
+function scheduleFromWl(idx) {
+  var wl = loadWl();
+  var w = wl[idx];
+  closeWaitlistDrawer();
+  openApptModal({ clinicianId: w.clinicianId, date: new Date().toISOString().slice(0,10) });
+  document.getElementById('af-patient').value = w.patient;
+  document.getElementById('af-type').value    = w.type;
+}
+
+/* ── Export ───────────────────────────────────────────────────── */
+function exportAppts() {
+  var appts = filteredAppts(loadAppts());
+  var rows = [['ID','Patient','Clinician','Date','Time','Duration','Type','Status','Notes']];
+  appts.forEach(function(a) {
+    var s = new Date(a.start);
+    var clin = CLINICIANS.find(function(c){ return c.id===a.clinicianId; });
+    rows.push([a.id, a.patient, clin?clin.name:'', s.toLocaleDateString(), s.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}), a.duration, a.type, a.status, a.notes]);
+  });
+  var csv = rows.map(function(r){ return r.map(function(v){ return '"'+String(v||'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'schedule-export.csv'; a.click();
+}
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+function getTypeClass(a) {
+  if (a.status==='Cancelled') return 'cancelled';
+  if (a.status==='No-Show')   return 'no-show';
+  var key = a.type;
+  return (TYPE_CLASS[key] || 'individual');
+}
+
+function escapeHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2800);
+}
+
+/* ── Init ─────────────────────────────────────────────────────── */
+window.onload = async function () {
+  var user = await initDashboard(ADMIN_ROLES);
+  if (!user) return;
+
+  var email = (user.email || '').split('@')[0];
+  document.getElementById('userLabel').textContent = 'Scheduling \u2014 ' + email;
+
+  // Populate clinician dropdowns
+  var clinSels = ['fClinician','af-clinician','wl-clinician'];
+  clinSels.forEach(function(selId) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    CLINICIANS.forEach(function(c) {
+      var opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  });
+
+  // Keyboard: Escape closes panels
+  document.addEventListener('keydown', function(e) {
+    if (e.key==='Escape') { closeDetail(); closeWaitlistDrawer(); closeApptModal(); closeWlModal(); }
+  });
+
+  var requestedView = new URLSearchParams(window.location.search).get('view');
+  if (requestedView && ['day','week','month','team','provider'].indexOf(requestedView) > -1) {
+    setView(requestedView);
+    return;
+  }
+  renderView();
+};
+</script>
+</body>
+</html>

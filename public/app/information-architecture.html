@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Information Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js?v=2"></script>
+  <style>
+
+    /* ─── Layout ───────────────────────────────────────────────── */
+    .ia-main { max-width: 1340px; }
+
+    /* ─── Section header ───────────────────────────────────────── */
+    .eyebrow {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--blue-600); margin-bottom: 5px;
+    }
+    .sec-title {
+      font-family: "Sora", sans-serif; font-size: 21px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 4px;
+    }
+    .sec-sub {
+      font-size: 13px; color: var(--ink-500); margin-bottom: 20px; max-width: 680px;
+    }
+
+    /* ─── Portal card wrapper ──────────────────────────────────── */
+    .portal-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    /* ─── Portal header band ───────────────────────────────────── */
+    .portal-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+    }
+    .portal-header:hover { background: var(--surface-soft); }
+    .portal-icon {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .portal-icon.gray    { background: #f1f5f9; }
+    .portal-icon.blue    { background: #dbeafe; }
+    .portal-icon.teal    { background: #ccfbf1; }
+    .portal-icon.green   { background: #dcfce7; }
+    .portal-icon.purple  { background: #ede9fe; }
+    .portal-icon.amber   { background: #fef3c7; }
+    .portal-icon.rose    { background: #ffe4e6; }
+    .portal-meta { flex: 1; min-width: 0; }
+    .portal-name {
+      font-family: "Sora", sans-serif; font-size: 15px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 2px;
+    }
+    .portal-desc { font-size: 12.5px; color: var(--ink-500); }
+    .portal-roles { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .role-chip {
+      padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+      border: 1px solid;
+    }
+    .rc-patient    { background:#eff8ff; border-color:#c3dffb; color:#1e5fa3; }
+    .rc-clinician  { background:#f0fdfb; border-color:#99f6e4; color:#0d7060; }
+    .rc-billing    { background:#dcfce7; border-color:#bbf7d0; color:#166534; }
+    .rc-cred       { background:#ede9fe; border-color:#ddd6fe; color:#5b21b6; }
+    .rc-admin      { background:#fef3c7; border-color:#fde68a; color:#92400e; }
+    .rc-supervisor { background:#fff1f2; border-color:#fecdd3; color:#9f1239; }
+    .rc-frontdesk  { background:#f8fafc; border-color:#cbd5e1; color:#334155; }
+    .rc-public     { background:#f5f5f5; border-color:#d4d4d4; color:#525252; }
+    .portal-chevron {
+      font-size: 13px; color: var(--ink-500); transition: transform .2s;
+      flex-shrink: 0; margin-left: 8px;
+    }
+    .portal-section.open .portal-chevron { transform: rotate(90deg); }
+
+    /* ─── Portal body ──────────────────────────────────────────── */
+    .portal-body { display: none; padding: 0 24px 20px; }
+    .portal-section.open .portal-body { display: block; }
+
+    /* ─── Top nav row ──────────────────────────────────────────── */
+    .topnav-row {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      padding: 14px 0 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .topnav-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--ink-500); align-self: center;
+      margin-right: 4px; white-space: nowrap;
+    }
+    .topnav-item {
+      background: var(--surface-soft); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 11px;
+      font-size: 12px; font-weight: 600; color: var(--ink-700);
+      white-space: nowrap;
+    }
+    .topnav-item.active { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
+
+    /* ─── Two-column portal layout ─────────────────────────────── */
+    .portal-columns {
+      display: grid; grid-template-columns: 220px 1fr; gap: 16px;
+    }
+
+    /* ─── Sidebar tree ──────────────────────────────────────────── */
+    .sidebar-tree {
+      background: var(--surface-soft); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 12px; height: fit-content;
+    }
+    .tree-section-label {
+      font-size: 9.5px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .09em; color: var(--ink-500); margin: 10px 0 4px; padding: 0 4px;
+    }
+    .tree-section-label:first-child { margin-top: 0; }
+    .tree-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 6px; border-radius: 7px;
+      font-size: 12px; color: var(--ink-700); font-weight: 500;
+      cursor: default; white-space: nowrap;
+    }
+    .tree-item.active {
+      background: var(--blue-100); color: var(--blue-800); font-weight: 700;
+    }
+    .tree-item .ti-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: var(--border);
+    }
+    .tree-item.active .ti-dot { background: var(--blue-600); }
+    .tree-sub {
+      padding-left: 18px;
+    }
+    .tree-sub .tree-item { font-size: 11.5px; color: var(--ink-500); }
+    .tree-sub .tree-item.active { color: var(--blue-700); background: none; font-weight: 600; }
+    .tree-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+
+    /* ─── Page grid ─────────────────────────────────────────────── */
+    .page-grid {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    /* ─── Page group ─────────────────────────────────────────────── */
+    .page-group {
+      background: var(--surface-soft); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .page-group-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px 8px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .pg-icon { font-size: 14px; flex-shrink: 0; }
+    .pg-title {
+      font-size: 12.5px; font-weight: 700; color: var(--ink-900); flex: 1;
+    }
+    .pg-access {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .06em; padding: 2px 7px; border-radius: 999px;
+      border: 1px solid;
+    }
+    .pg-access.pub   { background:#f5f5f5; border-color:#d4d4d4; color:#525252; }
+    .pg-access.auth  { background:#eff8ff; border-color:#c3dffb; color:#1e5fa3; }
+    .pg-access.role  { background:#fef3c7; border-color:#fde68a; color:#92400e; }
+    .pg-access.admin { background:#ede9fe; border-color:#ddd6fe; color:#5b21b6; }
+
+    /* ─── Page rows ──────────────────────────────────────────────── */
+    .page-row {
+      display: flex; align-items: flex-start; gap: 0;
+      padding: 7px 14px 6px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12.5px;
+    }
+    .page-row:last-child { border-bottom: none; }
+    .page-row.sub-row { padding-left: 26px; background: rgba(0,0,0,.015); }
+    .page-row.sub-row .pr-name { font-size: 12px; color: var(--ink-500); }
+    .pr-icon { width: 18px; flex-shrink: 0; font-size: 12px; margin-top: 1px; }
+    .pr-name {
+      flex: 1; color: var(--ink-700); font-weight: 500; line-height: 1.4;
+    }
+    .pr-name strong { color: var(--ink-900); font-weight: 700; }
+    .pr-name .pr-desc { display: block; font-size: 11px; color: var(--ink-500); margin-top: 1px; }
+    .pr-badges { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; min-width: 0; }
+    .pr-badge {
+      padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;
+      border: 1px solid; white-space: nowrap;
+    }
+    .prb-r  { background:#f0fdfb; border-color:#99f6e4; color:#0d7060; } /* read */
+    .prb-rw { background:#eff8ff; border-color:#c3dffb; color:#1e5fa3; } /* read-write */
+    .prb-own{ background:#fff1f2; border-color:#fecdd3; color:#9f1239; } /* own only */
+    .prb-no { background:#f8fafc; border-color:#e2e8f0; color:#94a3b8; } /* no access */
+    .prb-all{ background:#dcfce7; border-color:#bbf7d0; color:#166534; } /* all roles */
+
+    /* ─── Legend ─────────────────────────────────────────────────── */
+    .ia-legend {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 14px; background: var(--surface-soft);
+      border: 1px solid var(--border); border-radius: 10px; margin-bottom: 20px;
+    }
+    .leg-label { font-size: 10.5px; font-weight: 700; color: var(--ink-500); margin-right: 4px; }
+
+    /* ─── Summary strip ──────────────────────────────────────────── */
+    .ia-summary {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+      margin-bottom: 24px;
+    }
+    .ia-sum-cell {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 10px; text-align: center; box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+    }
+    .ia-sum-cell::after {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    }
+    .ia-sum-cell.c-gray   ::after { background:#94a3b8; }
+    .ia-sum-cell.c-blue   ::after { background:var(--blue-600); }
+    .ia-sum-cell.c-teal   ::after { background:#14b8a6; }
+    .ia-sum-cell.c-green  ::after { background:#22c55e; }
+    .ia-sum-cell.c-purple ::after { background:#8b5cf6; }
+    .ia-sum-cell.c-amber  ::after { background:#f59e0b; }
+    .ia-sum-num {
+      font-family: "Sora", sans-serif; font-size: 1.6rem; font-weight: 700;
+      color: var(--ink-900); line-height: 1; margin-top: 2px;
+    }
+    .ia-sum-lbl {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--ink-500); margin-top: 3px;
+    }
+    .ia-sum-icon { font-size: 18px; }
+    /* colored left border via wrapper div trick */
+    .ia-sum-cell.c-gray   { border-left: 3px solid #94a3b8; }
+    .ia-sum-cell.c-blue   { border-left: 3px solid var(--blue-600); }
+    .ia-sum-cell.c-teal   { border-left: 3px solid #14b8a6; }
+    .ia-sum-cell.c-green  { border-left: 3px solid #22c55e; }
+    .ia-sum-cell.c-purple { border-left: 3px solid #8b5cf6; }
+    .ia-sum-cell.c-amber  { border-left: 3px solid #f59e0b; }
+    .ia-sum-cell.c-rose   { border-left: 3px solid #fb7185; }
+
+    @media(max-width:1000px){
+      .portal-columns { grid-template-columns: 1fr; }
+      .sidebar-tree { display: none; }
+    }
+    @media(max-width:700px){
+      .ia-summary { grid-template-columns: repeat(3,1fr); }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ══════════════ SIDEBAR ══════════════ -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">Information Architecture</div>
+    <nav class="sidebar-nav" style="margin-top:16px">
+      <a class="nav-link" href="#public"       style="font-size:12px">🌐 Public Website</a>
+      <a class="nav-link" href="#patient"      style="font-size:12px">🏥 Patient Portal</a>
+      <a class="nav-link" href="#clinician"    style="font-size:12px">📋 Clinician Portal</a>
+      <a class="nav-link" href="#billing"      style="font-size:12px">💳 Billing Portal</a>
+      <a class="nav-link" href="#credentialing" style="font-size:12px">🛡️ Credentialing Portal</a>
+      <a class="nav-link" href="#admin"        style="font-size:12px">⚙️ Admin Portal</a>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:10px 0">
+      <a class="nav-link" href="platform-architecture.html" style="font-size:12px">← Platform Architecture</a>
+      <a class="nav-link" href="admin-overview.html"        style="font-size:12px">← Admin Overview</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- ══════════════ MAIN ══════════════ -->
+  <main class="dashboard-main ia-main">
+
+    <!-- Page header -->
+    <header class="dashboard-header" style="margin-bottom:22px">
+      <div>
+        <div class="eyebrow">Information Architecture · v1.0 · April 2026</div>
+        <h1 style="font-family:'Sora',sans-serif;font-size:26px;font-weight:800;margin-bottom:4px">Information Architecture</h1>
+        <p style="font-size:14px;color:var(--ink-500)">
+          THERASSISTANT · 6 portals · 7 role types · Full navigation, page, and access map
+        </p>
+      </div>
+    </header>
+
+    <!-- Summary strip -->
+    <div class="ia-summary">
+      <div class="ia-sum-cell c-gray">
+        <div class="ia-sum-icon">🌐</div>
+        <div class="ia-sum-num">1</div>
+        <div class="ia-sum-lbl">Public Site</div>
+      </div>
+      <div class="ia-sum-cell c-blue">
+        <div class="ia-sum-icon">🏥</div>
+        <div class="ia-sum-num">14</div>
+        <div class="ia-sum-lbl">Patient Pages</div>
+      </div>
+      <div class="ia-sum-cell c-teal">
+        <div class="ia-sum-icon">📋</div>
+        <div class="ia-sum-num">18</div>
+        <div class="ia-sum-lbl">Clinician Pages</div>
+      </div>
+      <div class="ia-sum-cell c-green">
+        <div class="ia-sum-icon">💳</div>
+        <div class="ia-sum-num">16</div>
+        <div class="ia-sum-lbl">Billing Pages</div>
+      </div>
+      <div class="ia-sum-cell c-purple">
+        <div class="ia-sum-icon">🛡️</div>
+        <div class="ia-sum-num">10</div>
+        <div class="ia-sum-lbl">Cred. Pages</div>
+      </div>
+      <div class="ia-sum-cell c-amber">
+        <div class="ia-sum-icon">⚙️</div>
+        <div class="ia-sum-num">22</div>
+        <div class="ia-sum-lbl">Admin Pages</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="ia-legend">
+      <span class="leg-label">Access type:</span>
+      <span class="pr-badge prb-all">All Roles</span>
+      <span class="pr-badge prb-rw">Read + Write</span>
+      <span class="pr-badge prb-r">Read Only</span>
+      <span class="pr-badge prb-own">Own Records</span>
+      <span class="pr-badge prb-no">No Access</span>
+      &nbsp;&nbsp;
+      <span class="leg-label">Page access:</span>
+      <span class="pg-access pub">Public</span>
+      <span class="pg-access auth">Auth Required</span>
+      <span class="pg-access role">Role Gated</span>
+      <span class="pg-access admin">Admin Only</span>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         1 · PUBLIC WEBSITE
+    ══════════════════════════════════════════════════════════ -->
+    <a id="public"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon gray">🌐</div>
+        <div class="portal-meta">
+          <div class="portal-name">Public Website — therassistant.com</div>
+          <div class="portal-desc">Marketing, product information, and pre-auth entry points. No login required.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-public">Anyone</span>
+          <span class="role-chip rc-patient">Prospective Patient</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <!-- Top nav -->
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">Home</span>
+          <span class="topnav-item">How It Works</span>
+          <span class="topnav-item">For Practices</span>
+          <span class="topnav-item">Pricing</span>
+          <span class="topnav-item">For Clinicians</span>
+          <span class="topnav-item">Resources</span>
+          <span class="topnav-item">Contact</span>
+          <span class="topnav-item">Log In →</span>
+          <span class="topnav-item">Start Free Trial</span>
+        </div>
+
+        <div class="portal-columns">
+          <!-- Sidebar tree (footer nav simulation) -->
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Main Pages</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Home</div>
+            <div class="tree-item"><span class="ti-dot"></span> How It Works</div>
+            <div class="tree-item"><span class="ti-dot"></span> For Practices</div>
+            <div class="tree-item"><span class="ti-dot"></span> Pricing</div>
+            <div class="tree-item"><span class="ti-dot"></span> For Clinicians</div>
+            <div class="tree-section-label">Resources</div>
+            <div class="tree-item"><span class="ti-dot"></span> Blog</div>
+            <div class="tree-item"><span class="ti-dot"></span> Help Center</div>
+            <div class="tree-item"><span class="ti-dot"></span> Changelog</div>
+            <div class="tree-item"><span class="ti-dot"></span> Status Page</div>
+            <div class="tree-section-label">Legal</div>
+            <div class="tree-item"><span class="ti-dot"></span> Privacy Policy</div>
+            <div class="tree-item"><span class="ti-dot"></span> Terms of Service</div>
+            <div class="tree-item"><span class="ti-dot"></span> BAA / HIPAA</div>
+            <div class="tree-section-label">Auth Entry Points</div>
+            <div class="tree-item"><span class="ti-dot"></span> Login</div>
+            <div class="tree-item"><span class="ti-dot"></span> Sign Up / Trial</div>
+            <div class="tree-item"><span class="ti-dot"></span> Forgot Password</div>
+          </div>
+
+          <!-- Pages -->
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏠</span>
+                <span class="pg-title">Core Marketing Pages</span>
+                <span class="pg-access pub">Public</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Home</strong>
+                  <span class="pr-desc">Hero, value props, product highlights, pricing CTA, testimonials</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>How It Works</strong>
+                  <span class="pr-desc">Step-by-step overview of the clinical-to-billing workflow</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>For Practices</strong>
+                  <span class="pr-desc">Group practice, multi-location, white-label features</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Pricing</strong>
+                  <span class="pr-desc">Subscription tiers, per-provider pricing, enterprise contact</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>For Clinicians</strong>
+                  <span class="pr-desc">Clinician-specific value props, coding engine demo, documentation tools</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Contact / Book Demo</strong>
+                  <span class="pr-desc">Demo request form, sales contact, live chat widget</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📚</span>
+                <span class="pg-title">Resources &amp; Legal</span>
+                <span class="pg-access pub">Public</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Blog / Knowledge Base</strong>
+                  <span class="pr-desc">Coding guides, billing tips, Colorado Medicaid updates</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Help Center</strong>
+                  <span class="pr-desc">FAQs, feature documentation, video walkthroughs</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Privacy Policy · Terms · BAA</strong>
+                  <span class="pr-desc">HIPAA Business Associate Agreement, privacy disclosures</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>System Status</strong>
+                  <span class="pr-desc">Uptime, incident history, scheduled maintenance</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🔐</span>
+                <span class="pg-title">Authentication Entry Points</span>
+                <span class="pg-access pub">Public</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Login</strong>
+                  <span class="pr-desc">Email + password, remember me, MFA prompt, role-based redirect</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All Roles</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Sign Up / Free Trial</strong>
+                  <span class="pr-desc">Practice name, admin email, subscription tier selection, Stripe onboarding</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Forgot Password / Reset</strong>
+                  <span class="pr-desc">Email-based reset, secure token expiry</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-all">All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient Portal Invite Link</strong>
+                  <span class="pr-desc">Token-based intake entry for new patients (email link)</span>
+                </div>
+                <div class="pr-badges"><span class="role-chip rc-patient" style="font-size:10px">Patient</span></div>
+              </div>
+            </div>
+
+          </div><!-- /page-grid -->
+        </div><!-- /columns -->
+      </div><!-- /body -->
+    </div><!-- /portal -->
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         2 · PATIENT PORTAL
+    ══════════════════════════════════════════════════════════ -->
+    <a id="patient"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon blue">🏥</div>
+        <div class="portal-meta">
+          <div class="portal-name">Patient Portal — /portal</div>
+          <div class="portal-desc">Self-service patient layer for intake, communication, payments, and secure documents.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-patient">Patient</span>
+          <span class="role-chip rc-frontdesk">Front Desk (proxy)</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">My Home</span>
+          <span class="topnav-item">Appointments</span>
+          <span class="topnav-item">Messages</span>
+          <span class="topnav-item">Documents</span>
+          <span class="topnav-item">Billing</span>
+          <span class="topnav-item">My Profile</span>
+          <span class="topnav-item">Log Out</span>
+        </div>
+
+        <div class="portal-columns">
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Dashboard</div>
+            <div class="tree-item active"><span class="ti-dot"></span> My Home</div>
+            <div class="tree-section-label">Appointments</div>
+            <div class="tree-item"><span class="ti-dot"></span> Upcoming</div>
+            <div class="tree-item"><span class="ti-dot"></span> Request Appointment</div>
+            <div class="tree-item"><span class="ti-dot"></span> Past Appointments</div>
+            <div class="tree-item"><span class="ti-dot"></span> Telehealth Links</div>
+            <div class="tree-section-label">Messages</div>
+            <div class="tree-item"><span class="ti-dot"></span> Inbox</div>
+            <div class="tree-item"><span class="ti-dot"></span> New Message</div>
+            <div class="tree-section-label">Health</div>
+            <div class="tree-item"><span class="ti-dot"></span> Screenings</div>
+            <div class="tree-sub">
+              <div class="tree-item active"><span class="ti-dot"></span> PHQ-9</div>
+              <div class="tree-item"><span class="ti-dot"></span> GAD-7</div>
+              <div class="tree-item"><span class="ti-dot"></span> PCL-5</div>
+              <div class="tree-item"><span class="ti-dot"></span> ASRS</div>
+              <div class="tree-item"><span class="ti-dot"></span> ACE / C-SSRS</div>
+            </div>
+            <div class="tree-section-label">Documents</div>
+            <div class="tree-item"><span class="ti-dot"></span> Shared Documents</div>
+            <div class="tree-item"><span class="ti-dot"></span> Upload Document</div>
+            <div class="tree-item"><span class="ti-dot"></span> Consents &amp; ROI</div>
+            <div class="tree-section-label">Billing</div>
+            <div class="tree-item"><span class="ti-dot"></span> Statements</div>
+            <div class="tree-item"><span class="ti-dot"></span> Make a Payment</div>
+            <div class="tree-item"><span class="ti-dot"></span> Payment Plan</div>
+            <div class="tree-item"><span class="ti-dot"></span> Card on File</div>
+            <div class="tree-section-label">Account</div>
+            <div class="tree-item"><span class="ti-dot"></span> My Profile</div>
+            <div class="tree-item"><span class="ti-dot"></span> Insurance Info</div>
+            <div class="tree-item"><span class="ti-dot"></span> Notification Prefs</div>
+          </div>
+
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏠</span>
+                <span class="pg-title">Dashboard &amp; Onboarding</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>My Home Dashboard</strong>
+                  <span class="pr-desc">Next appointment, pending forms, balance summary, recent messages, telehealth link</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Intake Form (new patient)</strong>
+                  <span class="pr-desc">Demographics, emergency contact, insurance, consent to treat, HIPAA notice, ROI</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Insurance Information</strong>
+                  <span class="pr-desc">Primary/secondary payer, member ID, group number, subscriber info</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📅</span>
+                <span class="pg-title">Appointments</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Upcoming Appointments</strong>
+                  <span class="pr-desc">List of scheduled sessions, dates, clinician, modality (in-person / telehealth)</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Request Appointment</strong>
+                  <span class="pr-desc">Preferred date/time, session type, clinician preference, reason for visit</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Telehealth Session</strong>
+                  <span class="pr-desc">Zoom join link, session instructions, pre-session checklist</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Past Appointments</strong>
+                  <span class="pr-desc">Session history, visit summaries (clinician-shared only)</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📋</span>
+                <span class="pg-title">Screenings &amp; Health</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Screening Center</strong>
+                  <span class="pr-desc">List of assigned screening forms with completion status and due dates</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">PHQ-9 · GAD-7 · PCL-5
+                  <span class="pr-desc">Guided form, auto-score, submission confirmation</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">ASRS · ACE · C-SSRS
+                  <span class="pr-desc">Structured clinical screening; C-SSRS routes to safety notification</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Screening History</strong>
+                  <span class="pr-desc">Score trends over time, date submitted, clinician reviewed status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">💬</span>
+                <span class="pg-title">Secure Messaging</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Message Inbox</strong>
+                  <span class="pr-desc">Threaded messages with care team, unread badge, attachments</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>New Message / Compose</strong>
+                  <span class="pr-desc">To: clinician, subject, body, optional attachment — HIPAA-secured</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📁</span>
+                <span class="pg-title">Documents &amp; Consents</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Shared Documents</strong>
+                  <span class="pr-desc">Clinician-shared summaries, treatment plans, educational materials</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read Only</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Upload Document</strong>
+                  <span class="pr-desc">Insurance cards, ID, prior records — size limit enforced, virus scan</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Consents &amp; ROI</strong>
+                  <span class="pr-desc">Review and e-sign: informed consent, release of information, HIPAA notice</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">💳</span>
+                <span class="pg-title">Patient Billing</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Billing Summary</strong>
+                  <span class="pr-desc">Current balance, last payment, insurance status, next statement date</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Statements</strong>
+                  <span class="pr-desc">Itemized statements by date, downloadable PDF, payer breakdown</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Make a Payment</strong>
+                  <span class="pr-desc">Stripe-powered one-time payment, receipt email, balance update</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Payment Plan</strong>
+                  <span class="pr-desc">View active plan, installment schedule, auto-pay status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Card on File</strong>
+                  <span class="pr-desc">Add/remove/update saved card via Stripe tokenization — no raw card data stored</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Patient Own</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         3 · CLINICIAN PORTAL
+    ══════════════════════════════════════════════════════════ -->
+    <a id="clinician"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon teal">📋</div>
+        <div class="portal-meta">
+          <div class="portal-name">Clinician Portal — /app</div>
+          <div class="portal-desc">Primary clinical workspace for documentation, coding, scheduling, and patient management.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-clinician">Clinician</span>
+          <span class="role-chip rc-supervisor">Supervisor</span>
+          <span class="role-chip rc-frontdesk">Front Desk</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">Dashboard</span>
+          <span class="topnav-item">Patients</span>
+          <span class="topnav-item">Calendar</span>
+          <span class="topnav-item">Notes</span>
+          <span class="topnav-item">Coding</span>
+          <span class="topnav-item">Saved Reports</span>
+          <span class="topnav-item">Billing Alerts</span>
+          <span class="topnav-item">Settings</span>
+          <span class="topnav-item">Log Out</span>
+        </div>
+
+        <div class="portal-columns">
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Home</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Dashboard</div>
+            <div class="tree-section-label">Patients</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient List</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient Record</div>
+            <div class="tree-sub">
+              <div class="tree-item"><span class="ti-dot"></span> Demographics</div>
+              <div class="tree-item"><span class="ti-dot"></span> Insurance</div>
+              <div class="tree-item"><span class="ti-dot"></span> Diagnoses</div>
+              <div class="tree-item"><span class="ti-dot"></span> Screenings</div>
+              <div class="tree-item"><span class="ti-dot"></span> Treatment Plan</div>
+              <div class="tree-item"><span class="ti-dot"></span> Notes History</div>
+              <div class="tree-item"><span class="ti-dot"></span> Authorizations</div>
+              <div class="tree-item"><span class="ti-dot"></span> Documents</div>
+            </div>
+            <div class="tree-section-label">Calendar</div>
+            <div class="tree-item"><span class="ti-dot"></span> My Schedule</div>
+            <div class="tree-item"><span class="ti-dot"></span> New Appointment</div>
+            <div class="tree-item"><span class="ti-dot"></span> Recurring Setup</div>
+            <div class="tree-section-label">Documentation</div>
+            <div class="tree-item"><span class="ti-dot"></span> New Note</div>
+            <div class="tree-item"><span class="ti-dot"></span> Progress Notes</div>
+            <div class="tree-item"><span class="ti-dot"></span> Intake Assessment</div>
+            <div class="tree-item"><span class="ti-dot"></span> Treatment Plan</div>
+            <div class="tree-item"><span class="ti-dot"></span> Group Notes</div>
+            <div class="tree-item"><span class="ti-dot"></span> Psych Eval</div>
+            <div class="tree-item"><span class="ti-dot"></span> Supervisor Queue</div>
+            <div class="tree-section-label">Coding</div>
+            <div class="tree-item"><span class="ti-dot"></span> Coding Engine</div>
+            <div class="tree-item"><span class="ti-dot"></span> Saved Reports</div>
+            <div class="tree-item"><span class="ti-dot"></span> Billing Alerts</div>
+            <div class="tree-section-label">Account</div>
+            <div class="tree-item"><span class="ti-dot"></span> My Profile</div>
+            <div class="tree-item"><span class="ti-dot"></span> Settings</div>
+          </div>
+
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏠</span>
+                <span class="pg-title">Dashboard</span>
+                <span class="pg-access auth">Auth Required</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Clinician Dashboard</strong>
+                  <span class="pr-desc">Today's schedule, pending notes, billing alerts, signature queue, coding opportunities</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Caseload</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">👥</span>
+                <span class="pg-title">Patient Management</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient List</strong>
+                  <span class="pr-desc">Search, filter by active/inactive/insurer, caseload view. Supervisor sees all.</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Caseload</span><span class="pr-badge prb-rw" style="margin-left:2px">Supervisor: All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient Record</strong>
+                  <span class="pr-desc">Unified patient view with tabbed sections</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Patients</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Demographics Tab
+                  <span class="pr-desc">Name, DOB, address, phone, emergency contact, portal invite status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">R/W</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Insurance / Authorization Tab
+                  <span class="pr-desc">Active payers, auth numbers, units remaining, expiry alerts</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Diagnoses &amp; Treatment Plan Tab
+                  <span class="pr-desc">DSM-5/ICD-10 list, treatment goals, review dates</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">R/W</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Screening History Tab
+                  <span class="pr-desc">PHQ-9, GAD-7, PCL-5, ASRS score trends with date and clinician notes</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">R/W</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Notes History Tab
+                  <span class="pr-desc">All session notes with lock/finalized status, signature badges, addenda</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Documents Tab
+                  <span class="pr-desc">Patient-uploaded files, consents, insurance cards — upload and view</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">R/W</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📅</span>
+                <span class="pg-title">Calendar &amp; Scheduling</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>My Schedule (Calendar View)</strong>
+                  <span class="pr-desc">Day/week/month toggle, Google Calendar sync, telehealth vs in-person color coding</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Calendar</span><span class="pr-badge prb-rw" style="margin-left:2px">FD: All</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>New Appointment</strong>
+                  <span class="pr-desc">Patient, clinician, date/time, modality, service type, Zoom link auto-generate</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Clinician + FD</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Recurring Appointment Setup</strong>
+                  <span class="pr-desc">Frequency, end date, buffer time, conflict detection</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Clinician + FD</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📝</span>
+                <span class="pg-title">Clinical Documentation</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>New Progress Note</strong>
+                  <span class="pr-desc">Note type select, session details, subjective/objective/assessment, plan, co-sign flag</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Intake Assessment</strong>
+                  <span class="pr-desc">Biopsychosocial intake, presenting problem, history, diagnostic impressions, safety plan</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Treatment Plan</strong>
+                  <span class="pr-desc">DSM goals, measurable objectives, interventions, review dates, e-signature</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Patients</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Group Note</strong>
+                  <span class="pr-desc">Group roster, individual participation notes, shared content, co-facilitation</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Groups</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Family Session Note</strong>
+                  <span class="pr-desc">Multi-member participation, relationship mapping, identified patient designation</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Psychiatric Evaluation</strong>
+                  <span class="pr-desc">MSE, symptom inventory, medication history, risk assessment, Axis/diagnostic impression</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Supervisor Signature Queue</strong>
+                  <span class="pr-desc">Notes pending co-signature, addendum tool, approval/return workflow</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fff1f2;border-color:#fecdd3;color:#9f1239">Supervisor Only</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Addendum</strong>
+                  <span class="pr-desc">Append-only correction to a locked note — timestamped, auditable</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Notes</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">⚡</span>
+                <span class="pg-title">Coding &amp; Revenue</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Coding Engine (THERASSISTANT Coder)</strong>
+                  <span class="pr-desc">Session intake questionnaire → CPT/HCPCS/ICD-10 report → charge capture</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Sessions</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Saved Coding Reports</strong>
+                  <span class="pr-desc">History of generated reports, audit-ready export, revenue capture flags</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Reports</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Billing Alerts</strong>
+                  <span class="pr-desc">Missed codes, authorization expiry, documentation gaps requiring action</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own Alerts</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>H0031 — SUD Assessment Tool</strong>
+                  <span class="pr-desc">ASAM-guided assessment documentation, level of care recommendation</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>H0001 / H0032 — SUD Services</strong>
+                  <span class="pr-desc">Substance use treatment note tools with Medicaid billing guidance</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Psychotherapy Documentation Tool</strong>
+                  <span class="pr-desc">CPT 90837/90834/90847/90853 documentation with add-on code support</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-own">Own</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         4 · BILLING PORTAL
+    ══════════════════════════════════════════════════════════ -->
+    <a id="billing"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon green">💳</div>
+        <div class="portal-meta">
+          <div class="portal-name">Billing Portal — /billing</div>
+          <div class="portal-desc">Full RCM workspace: eligibility, claims, ERA, denials, patient balances, and payment posting.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-billing">Billing Specialist</span>
+          <span class="role-chip rc-admin">Admin</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">Dashboard</span>
+          <span class="topnav-item">Eligibility</span>
+          <span class="topnav-item">Claims</span>
+          <span class="topnav-item">ERA / Payments</span>
+          <span class="topnav-item">Denials</span>
+          <span class="topnav-item">Patient Balances</span>
+          <span class="topnav-item">Authorizations</span>
+          <span class="topnav-item">Reports</span>
+          <span class="topnav-item">Settings</span>
+        </div>
+
+        <div class="portal-columns">
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Overview</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Billing Dashboard</div>
+            <div class="tree-section-label">Eligibility</div>
+            <div class="tree-item"><span class="ti-dot"></span> Eligibility Check</div>
+            <div class="tree-item"><span class="ti-dot"></span> Check History</div>
+            <div class="tree-item"><span class="ti-dot"></span> Batch Eligibility</div>
+            <div class="tree-section-label">Claims</div>
+            <div class="tree-item"><span class="ti-dot"></span> Charge Review Queue</div>
+            <div class="tree-item"><span class="ti-dot"></span> Claim Creation</div>
+            <div class="tree-item"><span class="ti-dot"></span> Claims Worklist</div>
+            <div class="tree-item"><span class="ti-dot"></span> Claim Detail</div>
+            <div class="tree-item"><span class="ti-dot"></span> Batch Submission</div>
+            <div class="tree-item"><span class="ti-dot"></span> Claim Status</div>
+            <div class="tree-section-label">ERA / Payments</div>
+            <div class="tree-item"><span class="ti-dot"></span> ERA Imports</div>
+            <div class="tree-item"><span class="ti-dot"></span> ERA Detail</div>
+            <div class="tree-item"><span class="ti-dot"></span> Payment Posting</div>
+            <div class="tree-item"><span class="ti-dot"></span> EFT Tracking</div>
+            <div class="tree-section-label">Denials</div>
+            <div class="tree-item"><span class="ti-dot"></span> Denial Worklist</div>
+            <div class="tree-item"><span class="ti-dot"></span> Appeal Manager</div>
+            <div class="tree-section-label">Patient Balances</div>
+            <div class="tree-item"><span class="ti-dot"></span> Balance Worklist</div>
+            <div class="tree-item"><span class="ti-dot"></span> Payment Plans</div>
+            <div class="tree-item"><span class="ti-dot"></span> Write-offs</div>
+            <div class="tree-item"><span class="ti-dot"></span> Refunds</div>
+            <div class="tree-section-label">Authorizations</div>
+            <div class="tree-item"><span class="ti-dot"></span> Auth Tracking</div>
+            <div class="tree-item"><span class="ti-dot"></span> Referral Tracking</div>
+            <div class="tree-section-label">Imports</div>
+            <div class="tree-item"><span class="ti-dot"></span> SimplePractice Import</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient Import</div>
+          </div>
+
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏠</span>
+                <span class="pg-title">Billing Dashboard</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Billing Dashboard</strong>
+                  <span class="pr-desc">AR summary, claims aging chart, denial rate, ERA pending, top alerts, payer mix</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">✅</span>
+                <span class="pg-title">Eligibility</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Eligibility Check</strong>
+                  <span class="pr-desc">Real-time 270/271 EDI query: deductible, copay, COB, mental health benefits</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Batch Eligibility</strong>
+                  <span class="pr-desc">Run eligibility for all appointments in a date range — queue + results export</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Eligibility History</strong>
+                  <span class="pr-desc">Log of prior checks with full response detail, date, user</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📋</span>
+                <span class="pg-title">Claims Workflow</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Charge Review Queue</strong>
+                  <span class="pr-desc">Approved charges awaiting claim creation — review, edit modifiers, approve/reject</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Claim Creation</strong>
+                  <span class="pr-desc">Build 837P/I from charge items — NPI, taxonomy, place of service, diagnosis pointers</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Claims Worklist</strong>
+                  <span class="pr-desc">Filter by status (draft/submitted/accepted/rejected/paid), payer, provider, date range</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Claim Detail</strong>
+                  <span class="pr-desc">Full claim view: service lines, billing codes, status history, ERA match, notes</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Batch Submission</strong>
+                  <span class="pr-desc">Select claims, validate, submit to Availity / Office Ally, get batch confirmation</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Claim Status Monitor</strong>
+                  <span class="pr-desc">Live status updates per claim — 277CA acknowledgement, payer adjudication status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">💰</span>
+                <span class="pg-title">ERA &amp; Payment Posting</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>ERA Imports</strong>
+                  <span class="pr-desc">Upload 835 file or auto-receive from clearinghouse — parse and queue for posting</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>ERA Detail</strong>
+                  <span class="pr-desc">Line-by-line EOB, CAS adjustment codes, patient responsibility, claim match status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Payment Posting</strong>
+                  <span class="pr-desc">Apply ERA line items to claims, auto-post matched, manual for unmatched, post adjustments</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>EFT Tracking</strong>
+                  <span class="pr-desc">Match EFT deposits to ERA batches, bank deposit reference, deposit timeline</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🚫</span>
+                <span class="pg-title">Denials &amp; Appeals</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Denial Worklist</strong>
+                  <span class="pr-desc">Denied claims grouped by reason code, payer, provider — action queue with age indicator</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Appeal Manager</strong>
+                  <span class="pr-desc">Draft appeal letter, attach supporting documentation, track appeal status and deadline</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">👤</span>
+                <span class="pg-title">Patient Balances</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Balance Worklist</strong>
+                  <span class="pr-desc">Patients with outstanding balance — filter by age (30/60/90/120+), amount, payer</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Statement Generation</strong>
+                  <span class="pr-desc">Generate itemized patient statement — print / email / portal publish</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Payment Plans</strong>
+                  <span class="pr-desc">Create installment plan, set amounts, link to Stripe auto-pay, track payment status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Write-offs &amp; Adjustments</strong>
+                  <span class="pr-desc">Contractual write-off, hardship, bad debt — requires reason code + approval</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fef3c7;border-color:#fde68a;color:#92400e">Admin Approve</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Refunds</strong>
+                  <span class="pr-desc">Initiate Stripe refund, link to original payment, adjust ledger</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fef3c7;border-color:#fde68a;color:#92400e">Admin Approve</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📋</span>
+                <span class="pg-title">Authorizations &amp; Referrals</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Authorization Tracking</strong>
+                  <span class="pr-desc">Auth number, payer, units authorized, units used, expiry date, alert threshold</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span><span class="pr-badge prb-r" style="margin-left:2px">Clinician: Read</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Referral Tracking</strong>
+                  <span class="pr-desc">Referring provider, referral number, visit count, expiry, payer requirements</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Billing + Admin</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         5 · CREDENTIALING PORTAL
+    ══════════════════════════════════════════════════════════ -->
+    <a id="credentialing"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon purple">🛡️</div>
+        <div class="portal-meta">
+          <div class="portal-name">Credentialing Portal — /credentialing</div>
+          <div class="portal-desc">Provider enrollment, license management, CAQH tracking, compliance, and audit readiness.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-cred">Credentialing Spec.</span>
+          <span class="role-chip rc-admin">Admin</span>
+          <span class="role-chip rc-clinician">Clinician (own)</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">Dashboard</span>
+          <span class="topnav-item">Providers</span>
+          <span class="topnav-item">Enrollments</span>
+          <span class="topnav-item">Licenses &amp; DEA</span>
+          <span class="topnav-item">Contracts</span>
+          <span class="topnav-item">Compliance</span>
+          <span class="topnav-item">Audit Logs</span>
+          <span class="topnav-item">Reports</span>
+        </div>
+
+        <div class="portal-columns">
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Overview</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Cred. Dashboard</div>
+            <div class="tree-section-label">Providers</div>
+            <div class="tree-item"><span class="ti-dot"></span> Provider Directory</div>
+            <div class="tree-item"><span class="ti-dot"></span> Provider Profile</div>
+            <div class="tree-sub">
+              <div class="tree-item"><span class="ti-dot"></span> Credentials</div>
+              <div class="tree-item"><span class="ti-dot"></span> Licenses</div>
+              <div class="tree-item"><span class="ti-dot"></span> DEA</div>
+              <div class="tree-item"><span class="ti-dot"></span> Malpractice</div>
+              <div class="tree-item"><span class="ti-dot"></span> Enrollments</div>
+              <div class="tree-item"><span class="ti-dot"></span> Contracts</div>
+            </div>
+            <div class="tree-section-label">Enrollments</div>
+            <div class="tree-item"><span class="ti-dot"></span> Enrollment Tracker</div>
+            <div class="tree-item"><span class="ti-dot"></span> CAQH Status</div>
+            <div class="tree-item"><span class="ti-dot"></span> PECOS / NPPES</div>
+            <div class="tree-section-label">Compliance</div>
+            <div class="tree-item"><span class="ti-dot"></span> HIPAA Audit Log</div>
+            <div class="tree-item"><span class="ti-dot"></span> Consent Records</div>
+            <div class="tree-item"><span class="ti-dot"></span> ROI Tracking</div>
+            <div class="tree-item"><span class="ti-dot"></span> Medicaid Compliance</div>
+            <div class="tree-section-label">Reports</div>
+            <div class="tree-item"><span class="ti-dot"></span> Expiration Reports</div>
+            <div class="tree-item"><span class="ti-dot"></span> Compliance Reports</div>
+          </div>
+
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏠</span>
+                <span class="pg-title">Credentialing Dashboard</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Credentialing Dashboard</strong>
+                  <span class="pr-desc">Expiring licenses (30/60/90 day), pending enrollments, CAQH alerts, contract renewal timeline</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">👤</span>
+                <span class="pg-title">Provider Management</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Provider Directory</strong>
+                  <span class="pr-desc">All providers with NPI, taxonomy, credential status badge, enrollment count</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span><span class="pr-badge prb-own" style="margin-left:2px">Clinician: Own</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Provider Profile</strong>
+                  <span class="pr-desc">NPI, taxonomy, address, affiliations, supervisor designation, practice locations</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Licenses Tab
+                  <span class="pr-desc">LPC, LPC-C, LCSW, LAC — state, number, issue date, expiry, renewal status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">DEA Registration Tab
+                  <span class="pr-desc">DEA number, schedule, issue date, expiry, state CDS registration</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Malpractice Insurance Tab
+                  <span class="pr-desc">Carrier, policy number, limits, effective/expiry dates, certificate upload</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Enrollments Tab
+                  <span class="pr-desc">Payer-by-payer enrollment status, effective date, pending/active/terminated badges</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row sub-row">
+                <span class="pr-icon">↳</span>
+                <div class="pr-name">Contracts Tab
+                  <span class="pr-desc">Payer contract, effective date, fee schedule reference, recredentialing date</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📋</span>
+                <span class="pg-title">Enrollment &amp; External Registries</span>
+                <span class="pg-access role">Role Gated</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Enrollment Tracker</strong>
+                  <span class="pr-desc">All active/pending/terminated enrollments by payer, provider, status, and date</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>CAQH Status</strong>
+                  <span class="pr-desc">CAQH ProView status per provider, last attestation date, expiry alert, re-attest link</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>PECOS / NPPES</strong>
+                  <span class="pr-desc">Medicare enrollment status (PECOS), NPI registry data (NPPES), last verified date</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🔒</span>
+                <span class="pg-title">Compliance &amp; Audit</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>HIPAA Audit Log</strong>
+                  <span class="pr-desc">User access log: who viewed/changed what PHI, IP, timestamp — immutable</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r" style="background:#ede9fe;border-color:#ddd6fe;color:#5b21b6">Admin + Cred</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Consent Records</strong>
+                  <span class="pr-desc">All signed consents with version, patient, clinician, date — download audit trail</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Release of Information Tracking</strong>
+                  <span class="pr-desc">ROI requests, who authorized, recipient, date sent, expiry</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Cred + Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Medicaid Compliance Monitor</strong>
+                  <span class="pr-desc">Colorado Medicaid billing compliance flags, documentation requirements, rule updates</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r" style="background:#ede9fe;border-color:#ddd6fe;color:#5b21b6">Admin + Cred</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Expiration Reports</strong>
+                  <span class="pr-desc">License / DEA / malpractice / CAQH / contract expiry timeline — exportable</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         6 · ADMIN PORTAL
+    ══════════════════════════════════════════════════════════ -->
+    <a id="admin"></a>
+    <div class="portal-section open">
+      <div class="portal-header" onclick="togglePortal(this)">
+        <div class="portal-icon amber">⚙️</div>
+        <div class="portal-meta">
+          <div class="portal-name">Admin Portal — /admin</div>
+          <div class="portal-desc">Full platform operations: user management, subscriptions, revenue oversight, QA, system configuration, and multi-tenant support.</div>
+        </div>
+        <div class="portal-roles">
+          <span class="role-chip rc-admin">Admin</span>
+          <span class="role-chip" style="background:#fde8d8;border:1px solid #f5c6a0;color:#9a3412;font-size:10.5px;padding:2px 9px;border-radius:999px;font-weight:600">Super Admin</span>
+        </div>
+        <span class="portal-chevron">▶</span>
+      </div>
+      <div class="portal-body">
+
+        <div class="topnav-row">
+          <span class="topnav-label">Top Nav:</span>
+          <span class="topnav-item active">Overview</span>
+          <span class="topnav-item">Clients</span>
+          <span class="topnav-item">Users</span>
+          <span class="topnav-item">Billing</span>
+          <span class="topnav-item">Revenue</span>
+          <span class="topnav-item">Support</span>
+          <span class="topnav-item">Reports</span>
+          <span class="topnav-item">System</span>
+        </div>
+
+        <div class="portal-columns">
+          <div class="sidebar-tree">
+            <div class="tree-section-label">Dashboards</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Overview</div>
+            <div class="tree-item"><span class="ti-dot"></span> Revenue Dashboard</div>
+            <div class="tree-item"><span class="ti-dot"></span> Financial Dashboard</div>
+            <div class="tree-item"><span class="ti-dot"></span> Usage Analytics</div>
+            <div class="tree-section-label">Practice Management</div>
+            <div class="tree-item"><span class="ti-dot"></span> Client Database</div>
+            <div class="tree-item"><span class="ti-dot"></span> Client Detail</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient Database</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient Detail</div>
+            <div class="tree-section-label">Users &amp; Subscriptions</div>
+            <div class="tree-item"><span class="ti-dot"></span> User Management</div>
+            <div class="tree-item"><span class="ti-dot"></span> Subscriptions</div>
+            <div class="tree-section-label">Billing Operations</div>
+            <div class="tree-item"><span class="ti-dot"></span> Billing Alerts</div>
+            <div class="tree-item"><span class="ti-dot"></span> ERA Imports</div>
+            <div class="tree-item"><span class="ti-dot"></span> ERA Detail</div>
+            <div class="tree-item"><span class="ti-dot"></span> Payment Posting</div>
+            <div class="tree-section-label">Imports</div>
+            <div class="tree-item"><span class="ti-dot"></span> SimplePractice Import</div>
+            <div class="tree-item"><span class="ti-dot"></span> Patient Import</div>
+            <div class="tree-section-label">Quality &amp; Support</div>
+            <div class="tree-item"><span class="ti-dot"></span> QA / Review Queue</div>
+            <div class="tree-item"><span class="ti-dot"></span> Support Center</div>
+            <div class="tree-item"><span class="ti-dot"></span> Live Chat</div>
+            <div class="tree-item"><span class="ti-dot"></span> Correspondence</div>
+            <div class="tree-section-label">Content &amp; Config</div>
+            <div class="tree-item"><span class="ti-dot"></span> Code Rules</div>
+            <div class="tree-item"><span class="ti-dot"></span> Content Management</div>
+            <div class="tree-item"><span class="ti-dot"></span> Staff Performance</div>
+            <div class="tree-item"><span class="ti-dot"></span> Notifications</div>
+            <div class="tree-item"><span class="ti-dot"></span> System Settings</div>
+            <div class="tree-section-label">Architecture</div>
+            <div class="tree-item"><span class="ti-dot"></span> Platform Architecture</div>
+            <div class="tree-item active"><span class="ti-dot"></span> Information Architecture</div>
+          </div>
+
+          <div class="page-grid">
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📊</span>
+                <span class="pg-title">Dashboards &amp; Analytics</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>System Overview</strong>
+                  <span class="pr-desc">Active clients, users, tickets, ERA queue, support alerts, SaaS health indicators</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Revenue Dashboard</strong>
+                  <span class="pr-desc">Total billed, collected, AR aging, ERA totals, payer mix — filterable by period</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Financial Dashboard</strong>
+                  <span class="pr-desc">SaaS MRR, subscription churn, payment failures, Stripe payouts dashboard</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fde8d8;border-color:#f5c6a0;color:#9a3412">Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Usage Analytics</strong>
+                  <span class="pr-desc">Feature adoption, coding engine sessions, active users, page traffic, error rates</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🏢</span>
+                <span class="pg-title">Practice &amp; Patient Management</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Client Database</strong>
+                  <span class="pr-desc">All subscribed practices — name, plan, active patients, billing status, support history</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Client Detail</strong>
+                  <span class="pr-desc">Practice profile, users, patient list, billing alerts, support tickets, claims, notes</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient Database</strong>
+                  <span class="pr-desc">Cross-practice patient search (super admin only) — HIPAA audit logged</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fde8d8;border-color:#f5c6a0;color:#9a3412">Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient Detail</strong>
+                  <span class="pr-desc">Demographics, claims, billing alerts, payments, eligibility history, activity log</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">👥</span>
+                <span class="pg-title">Users &amp; Subscriptions</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>User Management</strong>
+                  <span class="pr-desc">Invite, deactivate, role assignment, reset password, preview-as-user, MFA status</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Subscriptions</strong>
+                  <span class="pr-desc">Plan tier, provider seats, billing cycle, Stripe subscription ID, upgrade/downgrade</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fde8d8;border-color:#f5c6a0;color:#9a3412">Super Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">💳</span>
+                <span class="pg-title">Billing Operations</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Billing Alerts</strong>
+                  <span class="pr-desc">Cross-practice billing alert dashboard — filter by type, severity, client, date</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>ERA Imports</strong>
+                  <span class="pr-desc">All ERA files across practices — import status, posting queue, unmatched claims</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Payment Posting</strong>
+                  <span class="pr-desc">Manual and automated posting queue — ERA line items, posting status, corrections</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">📥</span>
+                <span class="pg-title">Data Imports</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>SimplePractice Import</strong>
+                  <span class="pr-desc">CSV import for patients, appointments, claims, payments — field mapping, duplicate detection</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Patient Import</strong>
+                  <span class="pr-desc">Bulk patient CSV import with dedup logic (Name+DOB, MemberID, SubscriberID)</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">🎯</span>
+                <span class="pg-title">Quality, Support &amp; Communication</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>QA / Review Queue</strong>
+                  <span class="pr-desc">Clinical documentation quality review, flagged notes, supervisor return queue</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Support Center</strong>
+                  <span class="pr-desc">All support tickets — new/open/waiting/closed, filter by client/priority/type</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Live Chat Admin</strong>
+                  <span class="pr-desc">Real-time client messaging, presence indicators, assign to agent, escalate to ticket</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Correspondence Repository</strong>
+                  <span class="pr-desc">All uploaded files from clients — EOBs, letters, insurance docs, organized by client</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Notifications Center</strong>
+                  <span class="pr-desc">Platform-wide alert configuration — billing alerts, credential expiry, ERA failures</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Staff Performance</strong>
+                  <span class="pr-desc">Coding volume, note completion rate, denial rate by clinician, billing specialist metrics</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+            </div>
+
+            <div class="page-group">
+              <div class="page-group-header">
+                <span class="pg-icon">⚙️</span>
+                <span class="pg-title">System Configuration</span>
+                <span class="pg-access admin">Admin Only</span>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Code Rules</strong>
+                  <span class="pr-desc">CPT/HCPCS trigger rules, thresholds, exclusions, Colorado Medicaid overrides</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Content Management</strong>
+                  <span class="pr-desc">In-app help text, templates, note prompts, billing alert messages</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw">Admin + Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>System Settings</strong>
+                  <span class="pr-desc">Portal branding, Supabase config, feature flags, white-label domain, data retention policy</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-rw" style="background:#fde8d8;border-color:#f5c6a0;color:#9a3412">Super Admin</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Saved Notes / Reports</strong>
+                  <span class="pr-desc">All saved coding reports and clinical notes across clients — admin read access</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Platform Architecture</strong>
+                  <span class="pr-desc">Module definitions, data flow map, role permissions — system design reference</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+              <div class="page-row">
+                <span class="pr-icon">📄</span>
+                <div class="pr-name"><strong>Information Architecture</strong> <em style="font-size:11px;color:var(--blue-600)">(this page)</em>
+                  <span class="pr-desc">IA map, portal structure, navigation, page inventory, role access matrix</span>
+                </div>
+                <div class="pr-badges"><span class="pr-badge prb-r">Read</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px;margin-bottom:32px;display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">IA version:</strong> 1.0 — April 2026</div>
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Portals:</strong> 6 · <strong style="color:var(--ink-700)">Total pages:</strong> 80+ · <strong style="color:var(--ink-700)">Role types:</strong> 7</div>
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Auth:</strong> Supabase · JWT · Role metadata · Row-level security</div>
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Multi-tenant:</strong> Practice-scoped data isolation · White-label domain support</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  if(typeof requireAuth === 'function') requireAuth();
+  if(typeof bindLogout  === 'function') bindLogout('logoutBtn');
+
+  function togglePortal(header) {
+    const section = header.closest('.portal-section');
+    section.classList.toggle('open');
+  }
+
+  // Smooth scroll for anchor nav links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const t = document.querySelector(a.getAttribute('href'));
+      if(t){ e.preventDefault(); t.scrollIntoView({behavior:'smooth', block:'start'}); }
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Notification Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .notif-item{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);transition:background .12s;cursor:pointer;position:relative}
+    .notif-item:hover{background:#f7fbff}
+    .notif-item.unread{background:#f0f7ff}
+    .notif-item.unread::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue-500);border-radius:2px 0 0 2px}
+    .notif-icon{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+    .notif-title{font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:2px}
+    .notif-desc{font-size:12.5px;color:var(--ink-700);line-height:1.5}
+    .notif-meta{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap}
+    .sev-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .sev-badge.critical{background:#fee2e2;color:#b91c1c}
+    .sev-badge.high{background:#fef3c7;color:#92400e}
+    .sev-badge.medium{background:#dbeafe;color:#1d4ed8}
+    .sev-badge.low{background:#f3f4f6;color:#374151}
+    .notif-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto;flex-shrink:0}
+    .notif-time{font-size:11.5px;color:var(--ink-500);white-space:nowrap}
+    .notif-list-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .notif-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:5px;margin-bottom:16px;flex-wrap:wrap}
+    .notif-tab{padding:7px 16px;border-radius:8px;border:none;background:transparent;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:var(--ink-700);transition:background .15s,color .15s}
+    .notif-tab.active{background:var(--blue-500);color:#fff}
+    .notif-tab:hover:not(.active){background:#eef4fb}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link active" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Notification Center</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="markAllRead()">&#10003; Mark All Read</button>
+        <button class="btn btn-outline btn-sm" onclick="archiveAll()">Archive All</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue-500)"></div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700" id="statTotalNotif">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:3px">Total</div>
+      </div>
+      <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm)">
+        <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:#b91c1c" id="statCritical">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b91c1c;margin-top:3px">Critical</div>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm)">
+        <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:#92400e" id="statUnread">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#92400e;margin-top:3px">Unread</div>
+      </div>
+      <div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm)">
+        <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:#166534" id="statArchived">0</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#166534;margin-top:3px">Archived</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="notif-tabs">
+      <button class="notif-tab active" onclick="switchNotifTab('all',this)">All</button>
+      <button class="notif-tab" onclick="switchNotifTab('unread',this)">Unread</button>
+      <button class="notif-tab" onclick="switchNotifTab('critical',this)">Critical</button>
+      <button class="notif-tab" onclick="switchNotifTab('archived',this)">Archived</button>
+    </div>
+
+    <!-- Filters -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <input type="search" id="notifSearch" placeholder="Search notifications&hellip;" oninput="renderNotifs()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit;flex:1;min-width:160px">
+      <select id="notifTypeFilter" onchange="renderNotifs()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit">
+        <option value="">All Types</option>
+        <option>Failed Payment</option>
+        <option>Expiring Subscription</option>
+        <option>New Signup Pending</option>
+        <option>High Priority Ticket</option>
+        <option>Delinquent Account</option>
+        <option>Storage Limit Warning</option>
+        <option>System Error</option>
+        <option>Stripe Webhook Failure</option>
+        <option>QA Review Required</option>
+      </select>
+      <select id="notifSevFilter" onchange="renderNotifs()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit">
+        <option value="">All Severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <span id="notifCount" style="font-size:13px;color:var(--ink-500);align-self:center"></span>
+    </div>
+
+    <div class="notif-list-panel" id="notifListPanel"></div>
+    <div id="notifEmpty" style="display:none;text-align:center;padding:40px;font-size:14px;color:var(--ink-500)">No notifications found.</div>
+  </main>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const TYPE_ICONS = {
+  'Failed Payment':'??','Expiring Subscription':'?','New Signup Pending':'??',
+  'High Priority Ticket':'??','Delinquent Account':'??','Storage Limit Warning':'??',
+  'System Error':'??','Stripe Webhook Failure':'?','QA Review Required':'??'
+};
+const TYPE_BG = {
+  'Failed Payment':'#fee2e2','Expiring Subscription':'#fef3c7','New Signup Pending':'#dcfce7',
+  'High Priority Ticket':'#fee2e2','Delinquent Account':'#fef3c7','Storage Limit Warning':'#f3e8ff',
+  'System Error':'#fee2e2','Stripe Webhook Failure':'#fee2e2','QA Review Required':'#dbeafe'
+};
+
+const NOTIF_SEED = [];
+
+let notifData = [];
+let activeNotifTab = 'all';
+
+function renderStats() {
+  document.getElementById('statTotalNotif').textContent = notifData.filter(n=>!n.archived).length;
+  document.getElementById('statCritical').textContent   = notifData.filter(n=>n.severity==='critical'&&!n.archived).length;
+  document.getElementById('statUnread').textContent     = notifData.filter(n=>!n.read&&!n.archived).length;
+  document.getElementById('statArchived').textContent   = notifData.filter(n=>n.archived).length;
+}
+
+function switchNotifTab(tab, btn) {
+  activeNotifTab = tab;
+  document.querySelectorAll('.notif-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderNotifs();
+}
+
+function renderNotifs() {
+  const q    = (document.getElementById('notifSearch').value||'').toLowerCase();
+  const type = document.getElementById('notifTypeFilter').value;
+  const sev  = document.getElementById('notifSevFilter').value;
+
+  let items = notifData.filter(n => {
+    if (activeNotifTab === 'unread' && n.read)     return false;
+    if (activeNotifTab === 'critical' && n.severity !== 'critical') return false;
+    if (activeNotifTab === 'archived' && !n.archived) return false;
+    if (activeNotifTab === 'all' && n.archived)    return false;
+    if (q && !n.title.toLowerCase().includes(q) && !n.desc.toLowerCase().includes(q)) return false;
+    if (type && n.type !== type) return false;
+    if (sev && n.severity !== sev) return false;
+    return true;
+  });
+
+  document.getElementById('notifCount').textContent = `${items.length} notification${items.length!==1?'s':''}`;
+  document.getElementById('notifEmpty').style.display = items.length ? 'none' : 'block';
+  document.getElementById('notifListPanel').style.display = items.length ? '' : 'none';
+  document.getElementById('notifListPanel').innerHTML = items.map(n => `
+    <div class="notif-item ${!n.read?'unread':''}" id="notif-${n.id}">
+      <div class="notif-icon" style="background:${TYPE_BG[n.type]||'#f3f4f6'}">${TYPE_ICONS[n.type]||'??'}</div>
+      <div style="flex:1;min-width:0">
+        <div class="notif-title">${escHtml(n.title)}</div>
+        <div class="notif-desc">${escHtml(n.desc)}</div>
+        <div class="notif-meta">
+          <span class="sev-badge ${n.severity}">${n.severity.charAt(0).toUpperCase()+n.severity.slice(1)}</span>
+          <span style="font-size:11.5px;color:var(--ink-500)">${escHtml(n.type)}</span>
+          ${n.assignee ? `<span style="font-size:11.5px;color:var(--blue-700)">&#9654; ${escHtml(n.assignee)}</span>` : ''}
+        </div>
+      </div>
+      <div class="notif-actions">
+        <span class="notif-time">${escHtml(n.time)}</span>
+        <div style="display:flex;gap:4px">
+          ${!n.read ? `<button class="btn btn-outline btn-sm" onclick="markRead('${n.id}');event.stopPropagation()">Read</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="assignNotif('${n.id}');event.stopPropagation()">Assign</button>
+          ${!n.archived ? `<button class="btn btn-outline btn-sm" onclick="archiveNotif('${n.id}');event.stopPropagation()">Archive</button>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function markRead(id) {
+  const n = notifData.find(x=>x.id===id);
+  if (n) { n.read = true; renderStats(); renderNotifs(); }
+}
+function archiveNotif(id) {
+  const n = notifData.find(x=>x.id===id);
+  if (n) { n.archived = true; renderStats(); renderNotifs(); }
+}
+function assignNotif(id) { alert('Assign notification '+id+' to staff ? connect backend.'); }
+function markAllRead()  { notifData.forEach(n=>{ if(!n.archived) n.read=true; }); renderStats(); renderNotifs(); }
+function archiveAll()   { notifData.forEach(n=>{ if(!n.archived&&n.read) n.archived=true; }); renderStats(); renderNotifs(); }
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin','admin']);
+  if (!user) return;
+  /* -- Inject escalation triggers from ticket data -- */
+  const scTickets = (function(){try{var r=localStorage.getItem('docusistant_sc_tickets_v1');return r?JSON.parse(r):[];}catch(e){return[];}})();
+  const triggered = checkEscalationTriggers(scTickets);
+  triggered.forEach(function(e){
+    notifData.unshift({id:'esc-'+Date.now()+'-'+Math.random().toString(36).slice(2),type:'High Priority Ticket',severity:e.severity,title:e.label,desc:'Escalation trigger detected: '+e.label,time:'Just now',read:false,archived:false});
+  });
+  renderStats();
+  renderNotifs();
+};
+</script>
+</body>
+</html>

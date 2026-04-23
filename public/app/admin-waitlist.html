@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Waitlist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    /* KPI strip */
+    .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+
+    /* Filter bar */
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 15px}
+    .filter-bar select,.filter-bar input{padding:7px 10px;border:1px solid var(--border);border-radius:9px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-bar select:focus,.filter-bar input:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .spacer{flex:1}
+
+    /* Table card */
+    .table-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .table-card table{width:100%;border-collapse:collapse}
+    .table-card th{background:#f5f9fe;padding:11px 14px;text-align:left;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:2px solid var(--border);white-space:nowrap}
+    .table-card td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink-900);vertical-align:middle}
+    .table-card tr:last-child td{border-bottom:none}
+    .table-card tbody tr:hover{background:#f5f9fe;cursor:pointer}
+    .table-wrap{overflow-x:auto}
+
+    /* Urgency badges */
+    .badge-critical{color:#7f1d1d;background:#fee2e2;border:1px solid #fca5a5;font-weight:800}
+    .badge-high{color:#78350f;background:#fef3c7;border:1px solid #fcd34d}
+    .badge-medium{color:#1e40af;background:#dbeafe;border:1px solid #93c5fd}
+    .badge-low{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-ready{color:#5b21b6;background:#ede9fe;border:1px solid #a78bfa}
+    .badge-contacted{color:#0f766e;background:#ccfbf1;border:1px solid #5eead4}
+    .badge-pending{color:#92400e;background:#fef3c7;border:1px solid #fcd34d}
+
+    /* Action buttons */
+    .action-btns{display:flex;gap:5px;white-space:nowrap}
+
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1200;display:none;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop.open{display:flex}
+    .modal{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-lg);border:1px solid var(--border);width:min(560px,100%);max-height:88vh;overflow-y:auto}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+    .modal-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;color:var(--ink-900)}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-500);padding:4px;border-radius:6px}
+    .modal-close:hover{background:#f0f0f0}
+    .modal-body{padding:20px 24px}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--border)}
+    .form-group{margin-bottom:14px}
+    .form-label{display:block;font-size:12px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+    .form-control{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;box-sizing:border-box;outline:none}
+    .form-control:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .detail-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+    .detail-group{display:flex;flex-direction:column;gap:4px}
+    .detail-lbl{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em}
+    .detail-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+
+    /* Empty state */
+    .empty-state{text-align:center;padding:52px 20px;color:var(--ink-500)}
+    .empty-state-icon{font-size:2.5rem;margin-bottom:8px}
+    .empty-state p{font-size:14px;margin:0}
+
+    @media(max-width:900px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.form-row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Scheduling</div>
+      <a class="nav-link" href="admin-daily-schedule.html">Daily Schedule</a>
+      <a class="nav-link" href="admin-weekly-schedule.html">Weekly Schedule</a>
+      <a class="nav-link" href="admin-monthly-schedule.html">Monthly Schedule</a>
+      <a class="nav-link active" href="admin-waitlist.html">Waitlist</a>
+      <a class="nav-link" href="admin-recurring-appointments.html">Recurring Appointments</a>
+      <a class="nav-link" href="admin-no-shows-cancellations.html">No-Shows &amp; Cancellations</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Waitlist</h1>
+        <p>Patients awaiting appointment scheduling</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-blue btn-sm" id="btnAddWaitlist" type="button">&#43; Add to Waitlist</button>
+      </div>
+    </header>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card blue"><div class="kpi-num" id="kpiTotal">—</div><div class="kpi-lbl">Total Waitlisted</div></div>
+      <div class="kpi-card red"><div class="kpi-num" id="kpiHighPriority">—</div><div class="kpi-lbl">High Priority</div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="kpiReady">—</div><div class="kpi-lbl">Ready to Schedule</div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="kpiAvgWait">—</div><div class="kpi-lbl">Avg Wait (days)</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar" aria-label="Waitlist filters">
+      <input type="search" id="fSearch" placeholder="Search patient, provider…" aria-label="Search" style="min-width:200px">
+      <select id="fUrgency" aria-label="Urgency"><option value="">All Urgencies</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>
+      <select id="fProvider" aria-label="Provider"><option value="">All Providers</option></select>
+      <select id="fType" aria-label="Type"><option value="">All Types</option></select>
+      <select id="fStatus" aria-label="Status"><option value="">All Statuses</option><option>Pending</option><option>Contacted</option><option>Ready</option></select>
+      <div class="spacer"></div>
+      <span id="rowCount" style="font-size:12.5px;font-weight:700;color:var(--ink-500)"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Provider Pref.</th>
+              <th>Type</th>
+              <th>Payer</th>
+              <th>Urgency</th>
+              <th>Date Added</th>
+              <th>Wait (days)</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="waitlistBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyWaitlist" class="empty-state" style="display:none"><div class="empty-state-icon">&#128100;</div><p>No waitlist entries match the selected filters.</p></div>
+    </div>
+  </main>
+</div>
+
+<!-- Add to Waitlist Modal -->
+<div class="modal-backdrop" id="addModal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="addModalTitle">Add to Waitlist</span>
+      <button class="modal-close" id="btnCloseAdd" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="addPatient">Patient Name</label><input class="form-control" id="addPatient" type="text" placeholder="Full name"></div>
+        <div class="form-group"><label class="form-label" for="addDOB">Date of Birth</label><input class="form-control" id="addDOB" type="date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="addProvider">Preferred Provider</label><select class="form-control" id="addProvider"><option value="">Any Available</option><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option></select></div>
+        <div class="form-group"><label class="form-label" for="addType">Service Type</label><select class="form-control" id="addType"><option>Individual Therapy</option><option>Group Therapy</option><option>Family Therapy</option><option>Med Management</option><option>Substance Use Assessment</option><option>Intake</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="addPayer">Insurance / Payer</label><input class="form-control" id="addPayer" type="text" placeholder="Payer name"></div>
+        <div class="form-group"><label class="form-label" for="addUrgency">Urgency</label><select class="form-control" id="addUrgency"><option>Low</option><option selected>Medium</option><option>High</option><option>Critical</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label" for="addNotes">Notes</label><textarea class="form-control" id="addNotes" rows="3" placeholder="Referral source, reason for urgency, preferred days/times…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseAddFtr" type="button">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveAdd" type="button">Add to Waitlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail / Convert Modal -->
+<div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="detailTitle">Waitlist Details</span>
+      <button class="modal-close" id="btnCloseDetail" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseDetailFtr" type="button">Close</button>
+      <button class="btn btn-outline btn-sm" id="btnMarkContacted" type="button">Mark Contacted</button>
+      <button class="btn btn-blue btn-sm" id="btnConvert" type="button">Schedule Appointment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function lsGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[]}catch{return[]}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+function daysSince(iso){try{return Math.floor((Date.now()-new Date(iso).getTime())/(86400000))}catch{return 0}}
+function fmtDate(iso){try{return new Date(iso+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return iso}}
+
+const TODAY_ISO=new Date().toISOString().slice(0,10);
+const SEED_KEY='therassistant_waitlist_v1';
+
+const SEED_DATA=[
+  {id:'WL-001',patient:'Aaliyah Foster',dob:'1992-03-14',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'Colorado Medicaid',urgency:'Critical',status:'Pending',dateAdded:'2025-06-01',notes:'Crisis situation, recent hospitalization. Needs prompt intake.',phone:'(720) 555-0141'},
+  {id:'WL-002',patient:'DeShawn Holloway',dob:'1987-09-22',provider:'Dr. Michael Torres',type:'Substance Use Assessment',payer:'Aetna Better Health',urgency:'High',status:'Contacted',dateAdded:'2025-06-05',notes:'Referred by ER. Spoke on 6/7, left voicemail on 6/9.',phone:'(303) 555-0882'},
+  {id:'WL-003',patient:'Mei-Lin Chao',dob:'2001-06-30',provider:'',type:'Individual Therapy',payer:'BCBS CO',urgency:'Medium',status:'Pending',dateAdded:'2025-06-08',notes:'College student, anxiety/depression. Flexible schedule.',phone:'(720) 555-0375'},
+  {id:'WL-004',patient:'Roberto Vega',dob:'1975-12-05',provider:'Dr. Priya Nair',type:'Family Therapy',payer:'United Healthcare',urgency:'Medium',status:'Ready',dateAdded:'2025-06-10',notes:'Family conflict, 2 minors involved.',phone:'(303) 555-0554'},
+  {id:'WL-005',patient:'Tamika Stokes',dob:'1983-04-18',provider:'Dr. James Liu',type:'Med Management',payer:'Humana BH',urgency:'High',status:'Contacted',dateAdded:'2025-06-12',notes:'Current treatment gap. Previous prescriber left practice.',phone:'(720) 555-0216'},
+  {id:'WL-006',patient:'Carson Webb',dob:'1995-08-02',provider:'',type:'Group Therapy',payer:'Colorado Medicaid',urgency:'Low',status:'Pending',dateAdded:'2025-06-14',notes:'Looking for peer support group for young adults.',phone:'(303) 555-0737'},
+  {id:'WL-007',patient:'Priya Anand',dob:'1990-01-11',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'Anthem BCBS',urgency:'Medium',status:'Pending',dateAdded:'2025-06-16',notes:'New patient self-referral. Prefers evening slots.',phone:'(720) 555-0193'},
+  {id:'WL-008',patient:'Damon Pierce',dob:'1968-11-29',provider:'Dr. Michael Torres',type:'Intake',payer:'Medicare',urgency:'High',status:'Ready',dateAdded:'2025-06-18',notes:'Elderly, transportation issues, prefers telehealth.',phone:'(303) 555-0428'},
+  {id:'WL-009',patient:'Lauren Kruse',dob:'1999-07-07',provider:'',type:'Individual Therapy',payer:'Aetna Better Health',urgency:'Low',status:'Pending',dateAdded:'2025-06-20',notes:'PostPartum, referred by OB/GYN.',phone:'(720) 555-0661'},
+  {id:'WL-010',patient:'Marcus Hall',dob:'1980-05-15',provider:'Dr. Priya Nair',type:'Substance Use Assessment',payer:'Colorado Medicaid',urgency:'Critical',status:'Contacted',dateAdded:'2025-06-21',notes:'Court ordered, deadline 7/15. Needs urgent placement.',phone:'(303) 555-0814'},
+];
+
+function seedIfEmpty(){
+  const existing=lsGet(SEED_KEY);
+  if(existing.length===0) lsSet(SEED_KEY,SEED_DATA);
+}
+
+function populateFilters(){
+  const all=lsGet(SEED_KEY);
+  const providers=[...new Set(all.map(a=>a.provider).filter(Boolean))];
+  const types=[...new Set(all.map(a=>a.type))];
+  const pSel=document.getElementById('fProvider');
+  while(pSel.children.length>1) pSel.removeChild(pSel.lastChild);
+  providers.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;pSel.appendChild(o)});
+  const tSel=document.getElementById('fType');
+  while(tSel.children.length>1) tSel.removeChild(tSel.lastChild);
+  types.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;tSel.appendChild(o)});
+}
+
+function urgencyBadge(u){
+  const cls={'Critical':'badge-critical','High':'badge-high','Medium':'badge-medium','Low':'badge-low'}[u]||'badge-pending';
+  return`<span class="badge ${cls}">${esc(u)}</span>`;
+}
+function statusBadge(s){
+  const cls={'Pending':'badge-pending','Contacted':'badge-contacted','Ready':'badge-ready'}[s]||'badge-pending';
+  return`<span class="badge ${cls}">${esc(s)}</span>`;
+}
+
+function filtered(){
+  const q=(document.getElementById('fSearch').value||'').toLowerCase();
+  const u=document.getElementById('fUrgency').value;
+  const p=document.getElementById('fProvider').value;
+  const t=document.getElementById('fType').value;
+  const s=document.getElementById('fStatus').value;
+  return lsGet(SEED_KEY).filter(e=>{
+    if(q&&!(e.patient+e.provider+e.type).toLowerCase().includes(q)) return false;
+    if(u&&e.urgency!==u) return false;
+    if(p&&e.provider!==p) return false;
+    if(t&&e.type!==t) return false;
+    if(s&&e.status!==s) return false;
+    return true;
+  }).sort((a,b)=>{
+    const order={Critical:0,High:1,Medium:2,Low:3};
+    return (order[a.urgency]??4)-(order[b.urgency]??4);
+  });
+}
+
+function calcKpis(){
+  const all=lsGet(SEED_KEY);
+  document.getElementById('kpiTotal').textContent=all.length;
+  document.getElementById('kpiHighPriority').textContent=all.filter(e=>['Critical','High'].includes(e.urgency)).length;
+  document.getElementById('kpiReady').textContent=all.filter(e=>e.status==='Ready').length;
+  const waits=all.map(e=>daysSince(e.dateAdded)).filter(d=>!isNaN(d));
+  document.getElementById('kpiAvgWait').textContent=waits.length?Math.round(waits.reduce((a,b)=>a+b,0)/waits.length):'—';
+}
+
+function render(){
+  calcKpis();
+  const rows=filtered();
+  document.getElementById('rowCount').textContent=`${rows.length} result${rows.length!==1?'s':''}`;
+  const tbody=document.getElementById('waitlistBody');
+  const empty=document.getElementById('emptyWaitlist');
+  if(rows.length===0){tbody.innerHTML='';empty.style.display='';return}
+  empty.style.display='none';
+  tbody.innerHTML=rows.map(e=>`<tr data-id="${esc(e.id)}">
+    <td><div style="font-weight:700">${esc(e.patient)}</div><div style="font-size:11px;color:var(--ink-500)">${esc(e.phone||'')}</div></td>
+    <td>${esc(e.provider||'Any Available')}</td>
+    <td>${esc(e.type)}</td>
+    <td>${esc(e.payer)}</td>
+    <td>${urgencyBadge(e.urgency)}</td>
+    <td>${esc(fmtDate(e.dateAdded))}</td>
+    <td><span style="font-weight:700;color:${daysSince(e.dateAdded)>30?'#b91c1c':'var(--ink-900)'}">${daysSince(e.dateAdded)}</span></td>
+    <td>${statusBadge(e.status)}</td>
+    <td><div class="action-btns" style="justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm js-contact" data-id="${esc(e.id)}" type="button">Contact</button>
+      <button class="btn btn-blue btn-sm js-schedule" data-id="${esc(e.id)}" type="button">Schedule</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+let focusedId=null;
+
+function openDetail(id){
+  const all=lsGet(SEED_KEY);
+  const e=all.find(x=>x.id===id);
+  if(!e) return;
+  focusedId=id;
+  document.getElementById('detailBody').innerHTML=`
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Patient</div><div class="detail-val">${esc(e.patient)}</div></div><div class="detail-group"><div class="detail-lbl">Date of Birth</div><div class="detail-val">${esc(fmtDate(e.dob))}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Phone</div><div class="detail-val">${esc(e.phone||'—')}</div></div><div class="detail-group"><div class="detail-lbl">Payer</div><div class="detail-val">${esc(e.payer)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Preferred Provider</div><div class="detail-val">${esc(e.provider||'Any Available')}</div></div><div class="detail-group"><div class="detail-lbl">Service Type</div><div class="detail-val">${esc(e.type)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Urgency</div><div class="detail-val">${urgencyBadge(e.urgency)}</div></div><div class="detail-group"><div class="detail-lbl">Status</div><div class="detail-val">${statusBadge(e.status)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Date Added</div><div class="detail-val">${esc(fmtDate(e.dateAdded))}</div></div><div class="detail-group"><div class="detail-lbl">Wait Time</div><div class="detail-val">${daysSince(e.dateAdded)} days</div></div></div>
+    ${e.notes?`<div style="margin-top:4px"><div class="detail-lbl" style="font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Notes</div><div style="font-size:13px;color:var(--ink-700);background:#f5f9fe;border:1px solid var(--border);border-radius:9px;padding:10px">${esc(e.notes)}</div></div>`:''}`;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetail(){document.getElementById('detailModal').classList.remove('open');focusedId=null}
+function closeAdd(){document.getElementById('addModal').classList.remove('open')}
+
+/* Events */
+document.addEventListener('click',e=>{
+  // Row click
+  const tr=e.target.closest('tr[data-id]');
+  const contactBtn=e.target.closest('.js-contact');
+  const scheduleBtn=e.target.closest('.js-schedule');
+  if(contactBtn){openDetail(contactBtn.dataset.id);return}
+  if(scheduleBtn){openDetail(scheduleBtn.dataset.id);return}
+  if(tr){openDetail(tr.dataset.id);return}
+  if(e.target.id==='addModal') closeAdd();
+  if(e.target.id==='detailModal') closeDetail();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDetail();closeAdd()}});
+document.getElementById('btnAddWaitlist').addEventListener('click',()=>document.getElementById('addModal').classList.add('open'));
+document.getElementById('btnCloseAdd').addEventListener('click',closeAdd);
+document.getElementById('btnCloseAddFtr').addEventListener('click',closeAdd);
+document.getElementById('btnCloseDetail').addEventListener('click',closeDetail);
+document.getElementById('btnCloseDetailFtr').addEventListener('click',closeDetail);
+document.getElementById('btnMarkContacted').addEventListener('click',()=>{
+  if(!focusedId) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status='Contacted';lsSet(SEED_KEY,all);}
+  closeDetail();render();
+});
+document.getElementById('btnConvert').addEventListener('click',()=>{
+  if(!focusedId) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status='Ready';lsSet(SEED_KEY,all);}
+  closeDetail();render();
+  window.location='admin-daily-schedule.html';
+});
+document.getElementById('btnSaveAdd').addEventListener('click',()=>{
+  const patient=document.getElementById('addPatient').value.trim();
+  if(!patient){alert('Patient name is required.');return}
+  const all=lsGet(SEED_KEY);
+  const newEntry={
+    id:'WL-'+String(Date.now()).slice(-6),
+    patient,
+    dob:document.getElementById('addDOB').value,
+    provider:document.getElementById('addProvider').value,
+    type:document.getElementById('addType').value,
+    payer:document.getElementById('addPayer').value,
+    urgency:document.getElementById('addUrgency').value,
+    status:'Pending',
+    dateAdded:TODAY_ISO,
+    notes:document.getElementById('addNotes').value.trim(),
+    phone:''
+  };
+  all.push(newEntry);
+  lsSet(SEED_KEY,all);
+  closeAdd();
+  ['addPatient','addDOB','addPayer','addNotes'].forEach(id=>{document.getElementById(id).value=''});
+  document.getElementById('addUrgency').value='Medium';
+  populateFilters();
+  render();
+});
+['fSearch','fUrgency','fProvider','fType','fStatus'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(el.tagName==='SELECT'?'change':'input',render);
+});
+
+window.addEventListener('load',async()=>{
+  if(typeof initDashboard==='function'&&typeof ADMIN_ROLES!=='undefined'){
+    try{await initDashboard(ADMIN_ROLES)}catch(err){console.error('[admin-waitlist]',err)}
+  }
+  seedIfEmpty();
+  populateFilters();
+  render();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1180 @@
+﻿// index.html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Therassistant / Docusistant (MH + SUD)</title>
+  </head>
+  <body>
+    <!--
+     <body>
+<div class="shell">
+  <div class="wrap">
+    <div class="header">
+      <span class="eyebrow">THERASSISTANT · THERASSISTANT</span>
+      <h1>Integrated Mental Health + Substance Use Engine</h1>
+      <p class="sub">Structured clinical prompts drive the logic engine first; the narrative note is assembled second. That is how you get documentation that is readable, consistent, and much harder to sabotage with free-text chaos.</p>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <span id="progressText">Question 1 of 12</span>
+        <span id="sectionText">Session Context</span>
+      </div>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+
+    <!-- PAGE 1 -->
+    <section class="page active" data-section="Session Context">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Session Context</div>
+          <h2>What kind of encounter are you documenting?</h2>
+          <div class="question">This choice controls which questions appear next and which rule libraries are allowed to fire.</div>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="servicePath" value="mh" checked><div><strong>Mental Health Session</strong><span>Use for psychotherapy and behavioral health assessment work primarily focused on mental health symptoms and functioning.</span></div></label>
+            <label class="choice"><input type="radio" name="servicePath" value="sud"><div><strong>Substance Use Session</strong><span>Use for encounters focused primarily on substance use patterns, relapse risk, severity, ASAM review, or level-of-care analysis.</span></div></label>
+            <label class="choice"><input type="radio" name="servicePath" value="integrated"><div><strong>Integrated MH + SUD Session</strong><span>Use when mental health and substance use were both materially evaluated in the same encounter.</span></div></label>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" disabled>Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 2 -->
+    <section class="page" data-section="Administrative">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Administrative</div>
+          <h2>Enter the session details.</h2>
+          <div class="question">These fields are required before the tool will generate documentation or suggest psychotherapy duration codes.</div>
+          <div class="grid two">
+            <div>
+              <label class="label" for="dos">Date of Service</label>
+              <input id="dos" type="date">
+            </div>
+            <div>
+              <label class="label" for="clinician">Clinician (Name + Credentials)</label>
+              <input id="clinician" type="text" maxlength="80" placeholder="e.g., Krystin Butler, CRCR, CSPR, CSMC">
+            </div>
+          </div>
+          <div class="grid two" style="margin-top:14px">
+            <div>
+              <label class="label" for="pos">Place of Service</label>
+              <select id="pos">
+                <option value="11 — Office">11 — Office</option>
+                <option value="02 — Telehealth">02 — Telehealth</option>
+                <option value="10 — Telehealth in Home">10 — Telehealth in Home</option>
+                <option value="12 — Home">12 — Home</option>
+                <option value="03 — School">03 — School</option>
+                <option value="09 — Correctional Facility">09 — Correctional Facility</option>
+                <option value="99 — Other">99 — Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="providerType">Provider Type</label>
+              <select id="providerType">
+                <option value="licensed-mental-health">Licensed Mental Health Clinician</option>
+                <option value="licensed-sud">Licensed SUD Clinician</option>
+                <option value="integrated-provider">Integrated Behavioral Health Provider</option>
+                <option value="supervised-clinician">Supervised/Unlicensed Clinician</option>
+                <option value="peer-support">Peer Support</option>
+                <option value="case-manager">Case Manager</option>
+              </select>
+            </div>
+          </div>
+          <div class="inline-times" style="margin-top:14px">
+            <div>
+              <label class="label" for="start">Start Time</label>
+              <input id="start" type="time">
+            </div>
+            <div>
+              <label class="label" for="end">End Time</label>
+              <input id="end" type="time">
+            </div>
+            <div>
+              <label class="label" for="mins">Total Minutes</label>
+              <input id="mins" type="number" min="1" max="600" placeholder="Auto-calculated if blank">
+            </div>
+          </div>
+          <div class="helper">If start and end time are entered, total minutes can be left blank and will calculate automatically.</div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 3 -->
+    <section class="page" data-section="Diagnosis">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Diagnosis</div>
+          <h2>Select the diagnosis and contextual code.</h2>
+          <div class="question">The diagnosis library is preserved here rather than flattened into mush. Choose the category first, then the specific diagnosis.</div>
+          <div class="grid two">
+            <div>
+              <label class="label" for="icdCat">ICD-10 Category</label>
+              <select id="icdCat"></select>
+            </div>
+            <div>
+              <label class="label" for="icdCode">Specific Diagnosis</label>
+              <select id="icdCode"></select>
+            </div>
+          </div>
+          <div class="grid two" style="margin-top:14px">
+            <div>
+              <label class="label" for="sdoh">Psychosocial Stressor / Z Code</label>
+              <select id="sdoh"></select>
+            </div>
+            <div>
+              <label class="label" for="contextShort">Additional Context / Stressor (optional)</label>
+              <input id="contextShort" type="text" maxlength="140" placeholder="Short phrase only; keep it tight.">
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 4 -->
+    <section class="page" data-section="Screening">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Screening</div>
+          <h2>Was a formal screening tool used?</h2>
+          <div class="question">Validated screening tools can support H0002 when separately documented. Informal symptom check-ins do not get to wear a fake screening costume.</div>
+          <div class="check-grid three">
+            <label class="check"><input type="checkbox" value="PHQ-9" data-screen-tool><div><strong>PHQ-9</strong><span>Depression screening</span></div></label>
+            <label class="check"><input type="checkbox" value="GAD-7" data-screen-tool><div><strong>GAD-7</strong><span>Anxiety screening</span></div></label>
+            <label class="check"><input type="checkbox" value="AUDIT/AUDIT-C" data-screen-tool><div><strong>AUDIT / AUDIT-C</strong><span>Alcohol screening</span></div></label>
+            <label class="check"><input type="checkbox" value="DAST" data-screen-tool><div><strong>DAST</strong><span>Drug screening</span></div></label>
+            <label class="check"><input type="checkbox" value="CAGE" data-screen-tool><div><strong>CAGE</strong><span>Alcohol screening</span></div></label>
+            <label class="check"><input type="checkbox" value="MDQ" data-screen-tool><div><strong>MDQ</strong><span>Mood screening</span></div></label>
+            <label class="check"><input type="checkbox" value="PCL-5" data-screen-tool><div><strong>PCL-5</strong><span>Trauma screening</span></div></label>
+            <label class="check"><input type="checkbox" value="C-SSRS" data-screen-tool><div><strong>C-SSRS</strong><span>Suicide screening</span></div></label>
+            <label class="check"><input type="checkbox" value="Other validated tool" data-screen-tool><div><strong>Other Validated Tool</strong><span>Use only if it is truly a formal tool</span></div></label>
+          </div>
+          <div class="grid three" style="margin-top:16px">
+            <div>
+              <label class="label" for="screenScored">Were results scored?</label>
+              <select id="screenScored"><option value="no">No</option><option value="yes">Yes</option></select>
+            </div>
+            <div>
+              <label class="label" for="screenInterpreted">Were results interpreted?</label>
+              <select id="screenInterpreted"><option value="no">No</option><option value="yes">Yes</option></select>
+            </div>
+            <div>
+              <label class="label" for="screenAction">What did the screening drive?</label>
+              <select id="screenAction">
+                <option value="none">No distinct action</option>
+                <option value="referral">Referral</option>
+                <option value="further-assessment">Further Assessment</option>
+                <option value="triage">Triage / Eligibility Decision</option>
+                <option value="monitoring">Monitoring Plan</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 5 MH -->
+    <section class="page" data-section="Mental Health Assessment" data-paths="mh integrated">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">MH Assessment</div>
+          <h2>What mental health assessment work occurred?</h2>
+          <div class="question">This page distinguishes routine therapy from actual assessment work. That distinction is the whole game.</div>
+          <div class="logic-box">
+            <div class="logic-title">Symptoms / Review</div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="mh_currentSymptoms"><div><strong>Current symptoms reviewed</strong><span>Symptoms were actively evaluated, not merely mentioned.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_severity"><div><strong>Symptom severity reviewed</strong><span>Severity, intensity, or progression was assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_history"><div><strong>History of presenting problem reviewed</strong><span>Course, onset, or prior context was evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_strengths"><div><strong>Strengths / limitations documented</strong><span>Protective strengths or limitations were part of the assessment.</span></div></label>
+            </div>
+          </div>
+          <div class="logic-box" style="margin-top:14px">
+            <div class="logic-title">Functioning</div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="mh_social"><div><strong>Social / relationship functioning reviewed</strong><span>Relationships, supports, conflict, or interpersonal functioning.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_work"><div><strong>Work / school functioning reviewed</strong><span>Occupational or academic functioning was assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_adl"><div><strong>Daily living / self-care reviewed</strong><span>ADLs, executive functioning, or basic self-care were assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_cognitive"><div><strong>Cognitive / behavioral functioning reviewed</strong><span>Attention, concentration, executive function, or behavioral control.</span></div></label>
+            </div>
+          </div>
+          <div class="logic-box" style="margin-top:14px">
+            <div class="logic-title">Risk / Diagnosis</div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="mh_risk"><div><strong>Risk assessed</strong><span>Suicidality, self-harm, violence, impulsivity, or destabilization assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_dxClarified"><div><strong>Diagnostic clarification done</strong><span>Diagnosis was analyzed, reconsidered, or clarified.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_dxRevised"><div><strong>Diagnosis revised</strong><span>Diagnostic impression changed or was formally updated.</span></div></label>
+              <label class="check"><input type="checkbox" id="mh_reassessment"><div><strong>Mental health reassessment completed</strong><span>Today went beyond routine therapy and into reassessment territory.</span></div></label>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 6 SUD -->
+    <section class="page" data-section="Substance Use Assessment" data-paths="sud integrated">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">SUD Assessment</div>
+          <h2>What substance use assessment work occurred?</h2>
+          <div class="question">This is where H0001 lives or dies. A passing mention of substance use does not get to cosplay as a structured assessment.</div>
+          <div class="logic-box">
+            <div class="logic-title">Substances / Use Pattern</div>
+            <div class="check-grid three">
+              <label class="check"><input type="checkbox" id="sud_alcohol"><div><strong>Alcohol reviewed</strong><span>Alcohol use was materially evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_opioids"><div><strong>Opioids reviewed</strong><span>Opioid use was materially evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_stimulants"><div><strong>Stimulants reviewed</strong><span>Stimulant use was materially evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_cannabis"><div><strong>Cannabis reviewed</strong><span>Cannabis use was materially evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_sedatives"><div><strong>Sedatives reviewed</strong><span>Sedative use was materially evaluated.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_otherSubstance"><div><strong>Other substance reviewed</strong><span>Another substance was evaluated.</span></div></label>
+            </div>
+            <div class="check-grid" style="margin-top:12px">
+              <label class="check"><input type="checkbox" id="sud_frequency"><div><strong>Frequency reviewed</strong><span>How often the client uses.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_quantity"><div><strong>Quantity reviewed</strong><span>How much the client uses.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_duration"><div><strong>Duration reviewed</strong><span>How long the pattern has existed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_route"><div><strong>Route reviewed</strong><span>How the substance is used.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_lastUse"><div><strong>Last use reviewed</strong><span>Most recent use assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_history"><div><strong>Past treatment history reviewed</strong><span>Prior SUD treatment or recovery history reviewed.</span></div></label>
+            </div>
+          </div>
+          <div class="logic-box" style="margin-top:14px">
+            <div class="logic-title">Clinical Impact / Diagnostic Analysis</div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="sud_cravings"><div><strong>Cravings reviewed</strong><span>Craving intensity or pattern assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_tolerance"><div><strong>Tolerance reviewed</strong><span>Tolerance assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_withdrawal"><div><strong>Withdrawal reviewed</strong><span>Withdrawal signs or risk assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_relapse"><div><strong>Relapse triggers reviewed</strong><span>Relapse risks or vulnerability patterns reviewed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_readiness"><div><strong>Readiness to change reviewed</strong><span>Motivation, stage of change, or buy-in assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_functionImpact"><div><strong>Functional impact of use reviewed</strong><span>Work, housing, legal, relationship, or health impact assessed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_diagnosis"><div><strong>SUD diagnosis / severity documented</strong><span>Substance-related diagnosis or severity was determined.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_asam"><div><strong>ASAM or structured SUD framework reviewed</strong><span>Structured level-of-care or multi-dimensional analysis completed.</span></div></label>
+              <label class="check"><input type="checkbox" id="sud_loc"><div><strong>Level of care / referral needs evaluated</strong><span>Detox, rehab, IOP, MAT, or referral needs considered.</span></div></label>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 7 -->
+    <section class="page" data-section="Treatment Planning">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Treatment Planning</div>
+          <h2>Did active treatment plan work occur?</h2>
+          <div class="question">H0032 requires actual plan activity, not vague nodding at goals from across the room.</div>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="plan_initial"><div><strong>Initial treatment plan created</strong><span>New formal plan was created today.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_review"><div><strong>Formal treatment plan review completed</strong><span>An actual plan review occurred.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_goals"><div><strong>Goals created or revised</strong><span>Goals changed, were added, or formally updated.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_objectives"><div><strong>Objectives created or revised</strong><span>Objectives were written or changed.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_interventions"><div><strong>Interventions selected or revised</strong><span>Interventions were actively chosen or modified.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_progress"><div><strong>Progress toward goals reviewed</strong><span>Progress was evaluated in a plan-relevant way.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_barriers"><div><strong>Barriers to progress reviewed</strong><span>Barriers were analyzed and led to plan work.</span></div></label>
+            <label class="check"><input type="checkbox" id="plan_clientCollab"><div><strong>Client collaboration documented</strong><span>Client participated in plan creation or revision.</span></div></label>
+          </div>
+          <div class="grid two" style="margin-top:16px">
+            <div>
+              <label class="label" for="planReason">Reason for plan creation / review / update</label>
+              <select id="planReason">
+                <option value="none">No distinct plan work</option>
+                <option value="symptom-change">Symptom Change</option>
+                <option value="plateau">Progress Plateau / Regression</option>
+                <option value="new-focus">New Clinical Focus</option>
+                <option value="improved-stability">Improved Stability / Goal Adjustment</option>
+                <option value="safety">Safety Change</option>
+                <option value="external">External / Legal / Access Change</option>
+                <option value="scheduled-review">Scheduled Review</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="planFreqChange">Session frequency or modality changed?</label>
+              <select id="planFreqChange"><option value="no">No</option><option value="yes">Yes</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 8 -->
+    <section class="page" data-section="Therapeutic Interventions">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Interventions</div>
+          <h2>What interventions were used in session?</h2>
+          <div class="question">These selections drive the narrative and support psychotherapy. They also help show whether the encounter was treatment, assessment, planning, or some mix of the three-headed bureaucratic hydra.</div>
+          <div class="check-grid three">
+            <label class="check"><input type="checkbox" id="int_cbt"><div><strong>Cognitive restructuring</strong><span>Thought challenging, reframing, or cognitive work.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_ba"><div><strong>Behavioral activation</strong><span>Activation, routines, or behavior change planning.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_mi"><div><strong>Motivational interviewing</strong><span>Ambivalence exploration, change talk, readiness work.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_mind"><div><strong>Mindfulness / relaxation</strong><span>Grounding, relaxation, or mindfulness techniques.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_skills"><div><strong>Coping / emotion regulation skills</strong><span>Skills coaching or emotional regulation support.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_problem"><div><strong>Problem solving</strong><span>Barrier resolution or practical problem-solving work.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_relapse"><div><strong>Relapse prevention</strong><span>Trigger management or recovery planning.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_supportive"><div><strong>Supportive therapy</strong><span>Supportive exploration and therapeutic processing.</span></div></label>
+            <label class="check"><input type="checkbox" id="int_planReview"><div><strong>Treatment plan review</strong><span>Explicit plan review or revision in session.</span></div></label>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 9 -->
+    <section class="page" data-section="Client Response">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Client Response</div>
+          <h2>How did the client present and respond?</h2>
+          <div class="question">Structured response language keeps the narrative consistent and gives the tool something solid to assemble instead of a bucket of vibes.</div>
+          <div class="grid two">
+            <div>
+              <label class="label" for="engagement">Client engagement</label>
+              <select id="engagement">
+                <option value="actively engaged">Actively engaged</option>
+                <option value="moderately engaged">Moderately engaged</option>
+                <option value="minimally engaged">Minimally engaged</option>
+                <option value="guarded but cooperative">Guarded but cooperative</option>
+                <option value="distracted during session">Distracted during session</option>
+                <option value="required frequent redirection">Required frequent redirection</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="functionalStatus">Overall functional status today</label>
+              <select id="functionalStatus">
+                <option value="improved">Improved</option>
+                <option value="unchanged">Unchanged</option>
+                <option value="declined">Declined</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid two" style="margin-top:14px">
+            <div>
+              <label class="label" for="responseBenefit">Observed session response</label>
+              <select id="responseBenefit">
+                <option value="demonstrated insight and participation">Demonstrated insight and participation</option>
+                <option value="participated with moderate responsiveness">Participated with moderate responsiveness</option>
+                <option value="showed limited responsiveness">Showed limited responsiveness</option>
+                <option value="required support to remain focused">Required support to remain focused</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="followUp">Follow-up direction</label>
+              <select id="followUp">
+                <option value="continue treatment according to the current plan">Continue treatment according to the current plan</option>
+                <option value="continue treatment with revised goals and interventions">Continue treatment with revised goals and interventions</option>
+                <option value="continue treatment with ongoing monitoring of symptoms and functioning">Continue treatment with ongoing monitoring of symptoms and functioning</option>
+                <option value="follow through with recommended referral and next-step planning">Follow through with recommended referral and next-step planning</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 10 -->
+    <section class="page" data-section="Review & Generate">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Review</div>
+          <h2>Generate the note and rule-engine output.</h2>
+          <div class="question">The engine will validate core elements, run the trigger libraries, and assemble the narrative. Borderline cases get a follow-up prompt instead of reckless auto-firing.</div>
+          <div class="hint-box">
+            <div class="logic-title">Required before generation</div>
+            <div class="chips">
+              <span class="chip">Date of Service</span>
+              <span class="chip">Clinician</span>
+              <span class="chip">Place of Service</span>
+              <span class="chip">Diagnosis</span>
+              <span class="chip">Time / Minutes</span>
+              <span class="chip">At least one intervention</span>
+            </div>
+          </div>
+          <div id="validationBox" class="alert-box hidden" style="margin-top:16px"></div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="generateAll()">Generate Output</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 11 -->
+    <section class="page" data-section="Results">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Results</div>
+          <h2>Suggested codes and documentation support.</h2>
+          <div class="summary-grid">
+            <div>
+              <div class="result-box">
+                <div class="logic-title">Suggested Codes</div>
+                <div id="resultsList" class="result-list"></div>
+              </div>
+            </div>
+            <div>
+              <div class="score-box">
+                <div class="score" id="docStrength">0%</div>
+                <div class="score-label">Documentation Strength Score</div>
+                <div class="support" id="docStrengthChips" style="margin-top:12px"></div>
+              </div>
+              <div class="score-box" style="margin-top:16px">
+                <div class="logic-title">Psychotherapy Duration</div>
+                <div id="psychCode" style="font-size:18px;font-weight:800">Not yet determined</div>
+                <div id="psychDetail" class="small" style="margin-top:6px"></div>
+              </div>
+            </div>
+          </div>
+          <div class="support-wrap" style="margin-top:16px">
+            <div class="logic-title">Support Summary</div>
+            <textarea id="supportSummary" readonly></textarea>
+            <div class="actions" style="margin-top:12px"><span></span><button class="btn" type="button" onclick="copyText('supportSummary')">Copy Support Summary</button></div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="nextPage()">Next</button></div>
+      </div>
+    </section>
+
+    <!-- PAGE 12 -->
+    <section class="page" data-section="Narrative Note">
+      <div class="page-card">
+        <div class="page-body">
+          <div class="section-tag">Narrative Output</div>
+          <h2>Generated narrative note.</h2>
+          <div class="question">The narrative format stays intact. The tool is simply building it from structured inputs instead of letting free text run off into the woods.</div>
+          <div class="note-wrap">
+            <textarea id="noteOutput" readonly></textarea>
+          </div>
+        </div>
+        <div class="actions"><button class="btn ghost" type="button" onclick="prevPage()">Back</button><button class="btn primary" type="button" onclick="copyText('noteOutput')">Copy Note</button></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const ICD_MAP = {
+  "F20–F29 Psychotic Disorders": [
+    "F20.0 — Paranoid schizophrenia",
+    "F20.9 — Schizophrenia, unspecified",
+    "F23 — Brief psychotic disorder",
+    "F25.1 — Schizoaffective disorder, depressive type",
+    "F29 — Unspecified psychosis not due to a substance or known physiological condition"
+  ],
+  "F30–F39 Mood Disorders": [
+    "F31.4 — Bipolar disorder, current episode depressed, severe, without psychotic features",
+    "F31.9 — Bipolar disorder, unspecified",
+    "F32.0 — Major depressive disorder, single episode, mild",
+    "F32.1 — Major depressive disorder, single episode, moderate",
+    "F33.1 — Major depressive disorder, recurrent, moderate",
+    "F33.2 — Major depressive disorder, recurrent severe without psychotic features",
+    "F34.1 — Dysthymic disorder"
+  ],
+  "F40–F48 Anxiety / Trauma / Stressor Disorders": [
+    "F40.10 — Social phobia, unspecified",
+    "F41.1 — Generalized anxiety disorder",
+    "F41.9 — Anxiety disorder, unspecified",
+    "F42.9 — Obsessive-compulsive disorder, unspecified",
+    "F43.10 — Post-traumatic stress disorder, unspecified",
+    "F43.12 — Chronic post-traumatic stress disorder",
+    "F43.23 — Adjustment disorder with mixed anxiety and depressed mood",
+    "F43.24 — Adjustment disorder with disturbance of conduct"
+  ],
+  "F50–F59 Behavioral Syndromes": [
+    "F50.9 — Eating disorder, unspecified",
+    "F51.01 — Primary insomnia",
+    "F51.05 — Insomnia due to other mental disorder"
+  ],
+  "F60–F69 Personality / Behavioral": [
+    "F60.3 — Borderline personality disorder",
+    "F63.9 — Impulse disorder, unspecified"
+  ],
+  "F90–F98 Childhood / Neurodevelopmental": [
+    "F90.0 — Attention-deficit hyperactivity disorder, predominantly inattentive type",
+    "F90.2 — Attention-deficit hyperactivity disorder, combined type",
+    "F91.3 — Oppositional defiant disorder",
+    "F93.0 — Separation anxiety disorder of childhood"
+  ],
+  "F10–F19 Substance-Related Disorders": [
+    "F10.20 — Alcohol dependence, uncomplicated",
+    "F10.21 — Alcohol dependence, in remission",
+    "F11.20 — Opioid dependence, uncomplicated",
+    "F12.20 — Cannabis dependence, uncomplicated",
+    "F14.20 — Cocaine dependence, uncomplicated",
+    "F15.20 — Other stimulant dependence, uncomplicated",
+    "F19.20 — Other psychoactive substance dependence, uncomplicated"
+  ],
+  "R45 Symptom Codes": [
+    "R45.0 — Nervousness",
+    "R45.1 — Restlessness and agitation",
+    "R45.4 — Irritability and anger",
+    "R45.7 — State of emotional shock and stress, unspecified",
+    "R45.82 — Worries",
+    "R45.84 — Anhedonia",
+    "R45.851 — Suicidal ideations",
+    "R45.88 — Nonsuicidal self-harm"
+  ]
+};
+
+const SDOH_CODES = [
+  "None / Not documented",
+  "Z55.9 — Problems related to education and literacy, unspecified",
+  "Z56.9 — Unspecified problems related to employment",
+  "Z59.0 — Homelessness",
+  "Z59.6 — Low income",
+  "Z59.819 — Housing instability, housed, unspecified",
+  "Z60.0 — Problems of adjustment to life-cycle transitions",
+  "Z60.2 — Problems related to living alone",
+  "Z62.820 — Parent-child relational problem",
+  "Z63.0 — Problems in relationship with spouse or partner",
+  "Z63.5 — Disruption of family by separation or divorce",
+  "Z63.79 — Other stressful life events affecting family and household",
+  "Z65.3 — Problems related to legal circumstances",
+  "Z65.8 — Other specified problems related to psychosocial circumstances"
+];
+
+const RULES = {
+  H0002: {
+    threshold: 100,
+    explanation: "H0002 triggered because a structured behavioral health screening tool was administered, scored or interpreted, and used to inform clinical decision-making.",
+    followUp: "Did you administer and interpret a formal screening tool such as PHQ-9, GAD-7, AUDIT-C, DAST, or another validated screen today?",
+    hard: ["validated_screening_tool_used"],
+    soft: {
+      screening_score_documented: 25,
+      screening_interpreted: 25,
+      screening_discussed_with_client: 20,
+      screening_used_for_referral: 25,
+      screening_used_for_triage: 25
+    },
+    blockers: ["no_screening_tool_used"]
+  },
+  H0031: {
+    threshold: 70,
+    explanation: "H0031 triggered because the documentation reflects behavioral health assessment work involving symptoms, functioning, risk, and/or diagnostic clarification beyond routine psychotherapy.",
+    followUp: "Did you reassess the client’s symptoms, functioning, risk, or diagnosis beyond routine therapy today?",
+    hard: ["initial_mh_intake","mh_reassessment","diagnosis_revised","diagnostic_clarification_done"],
+    soft: {
+      current_symptoms_reviewed: 20,
+      symptom_severity_reviewed: 15,
+      history_of_presenting_problem_reviewed: 20,
+      functioning_reviewed_single_domain: 15,
+      functioning_reviewed_multiple_domains: 30,
+      risk_assessed: 25,
+      strengths_reviewed: 10
+    },
+    blockers: ["routine_psychotherapy_only","brief_screen_only","plan_only_without_assessment"]
+  },
+  H0001: {
+    threshold: 70,
+    explanation: "H0001 triggered because the documentation reflects a structured substance use assessment involving use patterns, clinical impact, and diagnostic or treatment-planning analysis.",
+    followUp: "Did you complete a structured review of substance use history, relapse, severity, or level-of-care needs today?",
+    hard: ["initial_sud_assessment","sud_reassessment","asam_review_completed","court_ordered_sud_assessment"],
+    soft: {
+      substance_type_reviewed: 30,
+      frequency_reviewed: 30,
+      quantity_reviewed: 20,
+      duration_reviewed: 20,
+      route_reviewed: 20,
+      last_use_reviewed: 20,
+      cravings_reviewed: 20,
+      tolerance_reviewed: 20,
+      withdrawal_reviewed: 20,
+      relapse_triggers_reviewed: 20,
+      readiness_to_change_reviewed: 15,
+      functional_impact_reviewed: 20,
+      sud_diagnosis_documented: 30,
+      level_of_care_reviewed: 20
+    },
+    blockers: ["substance_use_only_briefly_mentioned","screening_only","case_management_only"]
+  },
+  H0032: {
+    threshold: 70,
+    explanation: "H0032 triggered because the note documents active development, review, or modification of the treatment plan, including goals, objectives, interventions, and reason for plan work.",
+    followUp: "Did you create, review, or revise any treatment goals, objectives, interventions, or service frequency today?",
+    hard: ["initial_treatment_plan_created","formal_treatment_plan_review_completed","treatment_goals_revised"],
+    soft: {
+      objectives_documented: 25,
+      interventions_documented: 25,
+      progress_toward_goals_reviewed: 20,
+      barriers_reviewed: 20,
+      client_collaboration_documented: 15,
+      frequency_changed: 15,
+      reason_for_plan_review_documented: 15
+    },
+    blockers: ["routine_progress_note_only","goals_only_briefly_referenced","no_actual_plan_work"]
+  }
+};
+
+let pages = [];
+let visiblePages = [];
+let pageIndex = 0;
+
+function initLibraries(){
+  const icdCat = document.getElementById('icdCat');
+  const icdCode = document.getElementById('icdCode');
+  const sdoh = document.getElementById('sdoh');
+
+  icdCat.innerHTML = Object.keys(ICD_MAP).map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  sdoh.innerHTML = SDOH_CODES.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  function refreshCodes(){
+    const list = ICD_MAP[icdCat.value] || [];
+    icdCode.innerHTML = list.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  }
+  icdCat.addEventListener('change', refreshCodes);
+  refreshCodes();
+}
+
+function getServicePath(){
+  return (document.querySelector('input[name="servicePath"]:checked') || {}).value || 'mh';
+}
+
+function refreshVisiblePages(){
+  const path = getServicePath();
+  visiblePages = pages.filter(p => {
+    const paths = p.dataset.paths;
+    if(!paths) return true;
+    return paths.split(/\s+/).includes(path);
+  });
+  visiblePages.forEach(p => p.classList.remove('active'));
+  if(pageIndex >= visiblePages.length) pageIndex = visiblePages.length - 1;
+  if(pageIndex < 0) pageIndex = 0;
+  visiblePages[pageIndex].classList.add('active');
+  updateProgress();
+}
+
+function updateProgress(){
+  const total = visiblePages.length;
+  const current = pageIndex + 1;
+  document.getElementById('progressText').textContent = `Question ${current} of ${total}`;
+  document.getElementById('sectionText').textContent = visiblePages[pageIndex]?.dataset.section || '';
+  document.getElementById('progressBar').style.width = `${(current/total)*100}%`;
+}
+
+function nextPage(){
+  if(pageIndex < visiblePages.length - 1){
+    visiblePages[pageIndex].classList.remove('active');
+    pageIndex += 1;
+    visiblePages[pageIndex].classList.add('active');
+    updateProgress();
+  }
+}
+
+function prevPage(){
+  if(pageIndex > 0){
+    visiblePages[pageIndex].classList.remove('active');
+    pageIndex -= 1;
+    visiblePages[pageIndex].classList.add('active');
+    updateProgress();
+  }
+}
+
+function checked(id){
+  const el = document.getElementById(id);
+  return !!(el && el.checked);
+}
+
+function val(id){
+  const el = document.getElementById(id);
+  return el ? (el.value || '').trim() : '';
+}
+
+function selectedScreenTools(){
+  return [...document.querySelectorAll('[data-screen-tool]:checked')].map(x => x.value);
+}
+
+function calcMinutes(){
+  const manual = parseInt(val('mins'),10);
+  if(!isNaN(manual) && manual > 0) return manual;
+  const start = val('start');
+  const end = val('end');
+  if(!start || !end) return 0;
+  const s = new Date(`1970-01-01T${start}:00`);
+  let e = new Date(`1970-01-01T${end}:00`);
+  if(e < s) e = new Date(e.getTime() + 24*60*60*1000);
+  return Math.round((e - s) / 60000);
+}
+
+function getInterventions(){
+  const map = [
+    ['int_cbt','cognitive restructuring'],
+    ['int_ba','behavioral activation'],
+    ['int_mi','motivational interviewing'],
+    ['int_mind','mindfulness / relaxation'],
+    ['int_skills','coping / emotion regulation skills'],
+    ['int_problem','problem-solving techniques'],
+    ['int_relapse','relapse prevention strategies'],
+    ['int_supportive','supportive therapy'],
+    ['int_planReview','treatment plan review']
+  ];
+  return map.filter(([id]) => checked(id)).map(([,label]) => label);
+}
+
+function getSupportFlags(){
+  const flags = new Set();
+
+  const tools = selectedScreenTools();
+  if(tools.length) flags.add('validated_screening_tool_used');
+  else flags.add('no_screening_tool_used');
+  if(val('screenScored') === 'yes') flags.add('screening_score_documented');
+  if(val('screenInterpreted') === 'yes') flags.add('screening_interpreted');
+  if(tools.length && (val('screenScored') === 'yes' || val('screenInterpreted') === 'yes')) flags.add('screening_discussed_with_client');
+  if(val('screenAction') === 'referral') flags.add('screening_used_for_referral');
+  if(val('screenAction') === 'triage' || val('screenAction') === 'further-assessment') flags.add('screening_used_for_triage');
+
+  const path = getServicePath();
+  const interventions = getInterventions();
+
+  // MH flags
+  if(path !== 'sud'){
+    if(checked('mh_currentSymptoms')) flags.add('current_symptoms_reviewed');
+    if(checked('mh_severity')) flags.add('symptom_severity_reviewed');
+    if(checked('mh_history')) flags.add('history_of_presenting_problem_reviewed');
+    if(checked('mh_strengths')) flags.add('strengths_reviewed');
+    const funcCount = ['mh_social','mh_work','mh_adl','mh_cognitive'].filter(checked).length;
+    if(funcCount === 1) flags.add('functioning_reviewed_single_domain');
+    if(funcCount >= 2) flags.add('functioning_reviewed_multiple_domains');
+    if(checked('mh_risk')) flags.add('risk_assessed');
+    if(checked('mh_dxClarified')) flags.add('diagnostic_clarification_done');
+    if(checked('mh_dxRevised')) flags.add('diagnosis_revised');
+    if(checked('mh_reassessment')) flags.add('mh_reassessment');
+    const mhActivity = ['mh_currentSymptoms','mh_severity','mh_history','mh_strengths','mh_social','mh_work','mh_adl','mh_cognitive','mh_risk','mh_dxClarified','mh_dxRevised','mh_reassessment'].filter(checked).length;
+    if(mhActivity === 0 && interventions.length) flags.add('routine_psychotherapy_only');
+    if(tools.length && mhActivity === 0 && !interventions.length) flags.add('brief_screen_only');
+  }
+
+  // SUD flags
+  if(path !== 'mh'){
+    const substanceCount = ['sud_alcohol','sud_opioids','sud_stimulants','sud_cannabis','sud_sedatives','sud_otherSubstance'].filter(checked).length;
+    if(substanceCount) flags.add('substance_type_reviewed');
+    if(checked('sud_frequency')) flags.add('frequency_reviewed');
+    if(checked('sud_quantity')) flags.add('quantity_reviewed');
+    if(checked('sud_duration')) flags.add('duration_reviewed');
+    if(checked('sud_route')) flags.add('route_reviewed');
+    if(checked('sud_lastUse')) flags.add('last_use_reviewed');
+    if(checked('sud_cravings')) flags.add('cravings_reviewed');
+    if(checked('sud_tolerance')) flags.add('tolerance_reviewed');
+    if(checked('sud_withdrawal')) flags.add('withdrawal_reviewed');
+    if(checked('sud_relapse')) flags.add('relapse_triggers_reviewed');
+    if(checked('sud_readiness')) flags.add('readiness_to_change_reviewed');
+    if(checked('sud_functionImpact')) flags.add('functional_impact_reviewed');
+    if(checked('sud_diagnosis')) flags.add('sud_diagnosis_documented');
+    if(checked('sud_asam')) flags.add('asam_review_completed');
+    if(checked('sud_loc')) flags.add('level_of_care_reviewed');
+    const sudActivity = ['sud_frequency','sud_quantity','sud_duration','sud_route','sud_lastUse','sud_cravings','sud_tolerance','sud_withdrawal','sud_relapse','sud_readiness','sud_functionImpact','sud_diagnosis','sud_asam','sud_loc','sud_history'].filter(checked).length + substanceCount;
+    if(substanceCount && sudActivity < 3) flags.add('substance_use_only_briefly_mentioned');
+    if(tools.length && sudActivity === 0) flags.add('screening_only');
+  }
+
+  // Plan flags
+  if(checked('plan_initial')) flags.add('initial_treatment_plan_created');
+  if(checked('plan_review')) flags.add('formal_treatment_plan_review_completed');
+  if(checked('plan_goals')) flags.add('treatment_goals_revised');
+  if(checked('plan_objectives')) flags.add('objectives_documented');
+  if(checked('plan_interventions') || checked('int_planReview')) flags.add('interventions_documented');
+  if(checked('plan_progress')) flags.add('progress_toward_goals_reviewed');
+  if(checked('plan_barriers')) flags.add('barriers_reviewed');
+  if(checked('plan_clientCollab')) flags.add('client_collaboration_documented');
+  if(val('planFreqChange') === 'yes') flags.add('frequency_changed');
+  if(val('planReason') !== 'none') flags.add('reason_for_plan_review_documented');
+  const planElements = ['plan_initial','plan_review','plan_goals','plan_objectives','plan_interventions','plan_progress','plan_barriers','plan_clientCollab'].filter(checked).length + (val('planReason') !== 'none' ? 1 : 0) + (val('planFreqChange') === 'yes' ? 1 : 0);
+  if(planElements === 0) flags.add('no_actual_plan_work');
+  if(planElements > 0 && !checked('plan_goals') && !checked('plan_objectives') && !checked('plan_interventions') && !checked('plan_review') && !checked('plan_initial')) flags.add('goals_only_briefly_referenced');
+  if(planElements > 0 && !['mh_currentSymptoms','mh_severity','mh_history','mh_social','mh_work','mh_adl','mh_cognitive','mh_risk','mh_dxClarified','mh_dxRevised','mh_reassessment'].some(checked) && !['sud_frequency','sud_quantity','sud_duration','sud_route','sud_lastUse','sud_cravings','sud_tolerance','sud_withdrawal','sud_relapse','sud_readiness','sud_functionImpact','sud_diagnosis','sud_asam','sud_loc'].some(checked)) flags.add('plan_only_without_assessment');
+  if(planElements === 0 && interventions.length) flags.add('routine_progress_note_only');
+
+  return flags;
+}
+
+function evaluateRule(code, flags){
+  const rule = RULES[code];
+  let score = 0;
+  let blocked = false;
+  const support = [];
+
+  for(const b of rule.blockers){
+    if(flags.has(b)) blocked = true;
+  }
+  for(const h of rule.hard){
+    if(flags.has(h)){
+      score = Math.max(score, 100);
+      support.push(h);
+    }
+  }
+  for(const [k,w] of Object.entries(rule.soft)){
+    if(flags.has(k)){
+      score += w;
+      support.push(k);
+    }
+  }
+
+  let confidence = 'low';
+  let status = 'none';
+  if(blocked){
+    status = 'blocked';
+  } else if(score >= rule.threshold){
+    status = 'suggest';
+    confidence = score >= 100 ? 'high' : 'high';
+  } else if(score >= rule.threshold - 20){
+    status = 'borderline';
+    confidence = 'medium';
+  }
+
+  return { code, score, blocked, status, confidence, support, explanation: rule.explanation, followUp: rule.followUp };
+}
+
+function getPsychotherapyResult(){
+  const mins = calcMinutes();
+  if(mins >= 53) return { code:'90837', label:'90837 — Psychotherapy, 60 minutes', detail:`${mins} total minutes documented.` };
+  if(mins >= 38) return { code:'90834', label:'90834 — Psychotherapy, 45 minutes', detail:`${mins} total minutes documented.` };
+  if(mins >= 16) return { code:'90832', label:'90832 — Psychotherapy, 30 minutes', detail:`${mins} total minutes documented.` };
+  return { code:'', label:'No psychotherapy code supported by duration', detail: mins ? `${mins} total minutes documented.` : 'Session minutes not available.' };
+}
+
+function validateCore(){
+  const missing = [];
+  if(!val('dos')) missing.push('Date of Service');
+  if(!val('clinician')) missing.push('Clinician');
+  if(!val('pos')) missing.push('Place of Service');
+  if(!val('icdCode')) missing.push('Diagnosis');
+  if(calcMinutes() <= 0) missing.push('Time / Minutes');
+  if(getInterventions().length === 0) missing.push('At least one intervention');
+  return missing;
+}
+
+function renderValidation(missing){
+  const box = document.getElementById('validationBox');
+  if(!missing.length){
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  box.classList.remove('hidden');
+  box.style.background = 'var(--bad-bg)';
+  box.style.border = '1px solid #fecaca';
+  box.style.color = 'var(--bad)';
+  box.innerHTML = `<strong>Session information incomplete.</strong><br>${missing.join('<br>')}`;
+}
+
+function humanizeSupport(arr){
+  const map = {
+    validated_screening_tool_used:'Validated screening tool used',
+    screening_score_documented:'Screening score documented',
+    screening_interpreted:'Screening interpreted',
+    screening_discussed_with_client:'Screening outcome discussed',
+    screening_used_for_referral:'Screening informed referral',
+    screening_used_for_triage:'Screening informed triage / further assessment',
+    current_symptoms_reviewed:'Current symptoms reviewed',
+    symptom_severity_reviewed:'Symptom severity reviewed',
+    history_of_presenting_problem_reviewed:'History of presenting problem reviewed',
+    functioning_reviewed_single_domain:'Functioning reviewed in one domain',
+    functioning_reviewed_multiple_domains:'Functioning reviewed in multiple domains',
+    risk_assessed:'Risk assessed',
+    diagnostic_clarification_done:'Diagnostic clarification documented',
+    diagnosis_revised:'Diagnosis revised',
+    mh_reassessment:'Mental health reassessment completed',
+    strengths_reviewed:'Strengths / limitations documented',
+    substance_type_reviewed:'Substance type reviewed',
+    frequency_reviewed:'Frequency reviewed',
+    quantity_reviewed:'Quantity reviewed',
+    duration_reviewed:'Duration reviewed',
+    route_reviewed:'Route reviewed',
+    last_use_reviewed:'Last use reviewed',
+    cravings_reviewed:'Cravings reviewed',
+    tolerance_reviewed:'Tolerance reviewed',
+    withdrawal_reviewed:'Withdrawal reviewed',
+    relapse_triggers_reviewed:'Relapse triggers reviewed',
+    readiness_to_change_reviewed:'Readiness to change reviewed',
+    functional_impact_reviewed:'Functional impact reviewed',
+    sud_diagnosis_documented:'SUD diagnosis / severity documented',
+    asam_review_completed:'ASAM or structured SUD framework reviewed',
+    level_of_care_reviewed:'Level of care / referral needs evaluated',
+    initial_treatment_plan_created:'Initial treatment plan created',
+    formal_treatment_plan_review_completed:'Formal treatment plan review completed',
+    treatment_goals_revised:'Goals created or revised',
+    objectives_documented:'Objectives documented',
+    interventions_documented:'Interventions documented or revised',
+    progress_toward_goals_reviewed:'Progress toward goals reviewed',
+    barriers_reviewed:'Barriers reviewed',
+    client_collaboration_documented:'Client collaboration documented',
+    frequency_changed:'Frequency or modality changed',
+    reason_for_plan_review_documented:'Reason for plan work documented'
+  };
+  return arr.map(x => map[x] || x);
+}
+
+function buildResults(ruleResults, psych){
+  const resultsList = document.getElementById('resultsList');
+  resultsList.innerHTML = '';
+
+  const suggested = ruleResults.filter(r => r.status === 'suggest' || r.status === 'borderline');
+  if(!suggested.length){
+    resultsList.innerHTML = `<div class="result-item"><div class="result-head"><b>No additional code suggestions fired.</b><span class="conf low">LOW</span></div><div class="result-reason">The current structured inputs do not support H0002, H0031, H0001, or H0032 at threshold. That may be correct. Better no code than a code suggestion doing parkour off a cliff.</div></div>`;
+  } else {
+    suggested.forEach(r => {
+      const confClass = r.status === 'suggest' ? 'high' : 'medium';
+      const nameMap = {
+        H0002:'H0002 — Behavioral Health Screening',
+        H0031:'H0031 — Behavioral Health Assessment',
+        H0001:'H0001 — Alcohol / Drug Assessment',
+        H0032:'H0032 — Treatment Plan Review'
+      };
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <div class="result-head">
+          <b>${nameMap[r.code]}</b>
+          <span class="conf ${confClass}">${r.status === 'suggest' ? 'HIGH' : 'BORDERLINE'}</span>
+        </div>
+        <div class="result-reason">${r.explanation}</div>
+        <div class="support">${humanizeSupport(r.support).map(s => `<span class="chip">${escapeHtml(s)}</span>`).join('')}</div>
+        ${r.status === 'borderline' ? `<div class="follow-up">${escapeHtml(r.followUp)}</div>` : ''}
+      `;
+      resultsList.appendChild(item);
+    });
+  }
+
+  document.getElementById('psychCode').textContent = psych.label;
+  document.getElementById('psychDetail').textContent = psych.detail;
+}
+
+function buildStrength(ruleResults, psych){
+  let score = 0;
+  const chips = [];
+  const allSupport = [...new Set(ruleResults.flatMap(r => r.support))];
+  score += Math.min(allSupport.length * 7, 56);
+  if(psych.code) score += 12;
+  if(val('dos') && val('clinician') && val('icdCode')) score += 12;
+  if(calcMinutes() > 0) score += 10;
+  if(getInterventions().length > 0) score += 10;
+  if(score > 100) score = 100;
+
+  if(allSupport.includes('current_symptoms_reviewed') || allSupport.includes('substance_type_reviewed')) chips.push('Symptoms / Use Patterns');
+  if(allSupport.includes('functioning_reviewed_single_domain') || allSupport.includes('functioning_reviewed_multiple_domains') || allSupport.includes('functional_impact_reviewed')) chips.push('Functioning / Impact');
+  if(allSupport.includes('risk_assessed')) chips.push('Risk');
+  if(allSupport.includes('diagnostic_clarification_done') || allSupport.includes('sud_diagnosis_documented')) chips.push('Diagnosis');
+  if(allSupport.includes('treatment_goals_revised') || allSupport.includes('formal_treatment_plan_review_completed')) chips.push('Plan Work');
+  if(getInterventions().length) chips.push('Interventions');
+
+  document.getElementById('docStrength').textContent = `${score}%`;
+  document.getElementById('docStrengthChips').innerHTML = chips.map(c => `<span class="chip good">${escapeHtml(c)}</span>`).join('');
+  return score;
+}
+
+function buildSupportSummary(ruleResults, psych){
+  const lines = [];
+  lines.push('Suggested Documentation Events');
+  lines.push('');
+  const codeNames = {
+    H0002:'H0002 – Behavioral Health Screening',
+    H0031:'H0031 – Behavioral Health Assessment',
+    H0001:'H0001 – Alcohol / Drug Assessment',
+    H0032:'H0032 – Treatment Plan Review'
+  };
+  ruleResults.filter(r => r.status === 'suggest' || r.status === 'borderline').forEach(r => {
+    lines.push(codeNames[r.code]);
+    lines.push(`Confidence: ${r.status === 'suggest' ? 'High' : 'Borderline'}`);
+    lines.push(`Reason: ${r.explanation}`);
+    if(r.support.length){
+      lines.push('Support Indicators:');
+      humanizeSupport(r.support).forEach(s => lines.push(`- ${s}`));
+    }
+    if(r.status === 'borderline') lines.push(`Follow-Up Prompt: ${r.followUp}`);
+    lines.push('');
+  });
+  if(psych.code){
+    lines.push(`${psych.label}`);
+    lines.push(`Reason: Time supports psychotherapy duration code. ${psych.detail}`);
+  }
+  document.getElementById('supportSummary').value = lines.join('\n').trim();
+}
+
+function joinPretty(arr){
+  if(arr.length === 0) return '';
+  if(arr.length === 1) return arr[0];
+  if(arr.length === 2) return `${arr[0]} and ${arr[1]}`;
+  return `${arr.slice(0,-1).join(', ')}, and ${arr[arr.length-1]}`;
+}
+
+function buildNarrative(ruleResults, psych){
+  const tools = selectedScreenTools();
+  const path = getServicePath();
+  const diagnosis = val('icdCode');
+  const sdoh = val('sdoh');
+  const context = val('contextShort');
+  const engagement = val('engagement');
+  const response = val('responseBenefit');
+  const followUp = val('followUp');
+  const interventions = getInterventions();
+  const mins = calcMinutes();
+
+  const dos = val('dos');
+  const clinician = val('clinician');
+  const pos = val('pos');
+
+  // ---------------- SUBJECTIVE ----------------
+  let subjective = "Client reports ongoing symptoms impacting daily functioning";
+  if(sdoh && !sdoh.startsWith('None')){
+    subjective += ` in the context of ${sdoh}`;
+  }
+  if(context){
+    subjective += `, including ${context}`;
+  }
+  subjective += ".";
+
+  // ---------------- OBJECTIVE ----------------
+  let objectiveParts = [];
+
+  if(checked('mh_currentSymptoms')){
+    objectiveParts.push("Client presented with observable mental health symptoms");
+  }
+
+  if(tools.length){
+    objectiveParts.push(
+      `Structured screening administered (${tools.join(', ')}) with results interpreted to guide clinical decision-making`
+    );
+  }
+
+  if(ruleResults.some(r => r.code === 'H0031' && r.status === 'suggest')){
+    objectiveParts.push(
+      "Comprehensive behavioral health reassessment completed, including symptom review, functional status, and diagnostic evaluation"
+    );
+  }
+
+  if(ruleResults.some(r => r.code === 'H0001' && r.status === 'suggest')){
+    objectiveParts.push(
+      "Substance use assessment completed, including evaluation of use patterns, relapse risk, and functional impact"
+    );
+  }
+
+  if(interventions.length){
+    objectiveParts.push(
+      `Interventions implemented: ${joinPretty(interventions)}`
+    );
+  }
+
+  let objective = objectiveParts.join(". ") + ".";
+
+  // ---------------- ASSESSMENT ----------------
+  let assessment = `Presentation remains consistent with ${diagnosis}`;
+  if(sdoh && !sdoh.startsWith('None')){
+    assessment += `, with contributing psychosocial stressors`;
+  }
+  assessment += ". ";
+
+  let components = [];
+  if(tools.length) components.push("structured screening");
+  if(ruleResults.some(r => r.code === 'H0031' && r.status === 'suggest')) components.push("behavioral health assessment");
+  if(ruleResults.some(r => r.code === 'H0001' && r.status === 'suggest')) components.push("substance use evaluation");
+
+  if(components.length){
+    assessment += `Services exceed routine psychotherapy and include ${joinPretty(components)}. `;
+  }
+
+  assessment += "Clinical complexity supports continued treatment.";
+
+  // ---------------- PLAN ----------------
+  let plan = followUp.charAt(0).toUpperCase() + followUp.slice(1) + ".";
+
+  // ---------------- FINAL NOTE ----------------
+  const note = `
+Date of Service: ${dos}
+Place of Service: ${pos}
+Clinician: ${clinician}
+Service Path: ${path === 'mh' ? 'Mental Health' : path === 'sud' ? 'Substance Use' : 'Integrated MH + SUD'}
+Start Time: ${val('start')} End Time: ${val('end')} Minutes: ${mins}
+
+S — Subjective:
+${subjective}
+
+O — Objective:
+${objective}
+
+A — Assessment:
+${assessment}
+
+P — Plan:
+${plan}
+`.trim();
+
+  document.getElementById('noteOutput').value = note;
+}
+function generateAll(){
+  const missing = validateCore();
+  renderValidation(missing);
+  if(missing.length){
+    return;
+  }
+
+  const flags = getSupportFlags();
+  const ruleResults = ['H0002','H0031','H0001','H0032'].map(code => evaluateRule(code, flags));
+
+  // Force path-based suppression for irrelevant lanes
+  const path = getServicePath();
+  ruleResults.forEach(r => {
+    if(path === 'mh' && r.code === 'H0001') r.status = 'none';
+    if(path === 'sud' && r.code === 'H0031') r.status = 'none';
+  });
+
+  // Additional minimum element gates
+  const h0032 = ruleResults.find(r => r.code === 'H0032');
+  if(h0032 && (h0032.status === 'suggest' || h0032.status === 'borderline')){
+    const hasPlanCore = val('icdCode') && (checked('plan_goals') || checked('plan_objectives')) && (checked('plan_interventions') || checked('int_planReview')) && val('planReason') !== 'none';
+    if(!hasPlanCore){
+      h0032.status = 'borderline';
+      h0032.support = h0032.support.filter(x => x !== 'initial_treatment_plan_created');
+    }
+  }
+
+  const psych = getPsychotherapyResult();
+  buildResults(ruleResults, psych);
+  buildStrength(ruleResults, psych);
+  buildSupportSummary(ruleResults, psych);
+  buildNarrative(ruleResults, psych);
+
+  visiblePages[pageIndex].classList.remove('active');
+  pageIndex += 1;
+  visiblePages[pageIndex].classList.add('active');
+  updateProgress();
+}
+
+async function copyText(id){
+  const el = document.getElementById(id);
+  try{
+    await navigator.clipboard.writeText(el.value || el.textContent || '');
+  }catch(e){
+    if(el.select) { el.select(); document.execCommand('copy'); }
+  }
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initLibraries();
+  pages = [...document.querySelectorAll('.page')];
+  document.querySelectorAll('input[name="servicePath"]').forEach(r => r.addEventListener('change', () => {
+    const currentSection = visiblePages[pageIndex]?.dataset.section;
+    pageIndex = 0;
+    refreshVisiblePages();
+    if(currentSection === 'Session Context') updateProgress();
+  }));
+  refreshVisiblePages();
+});
+</script>
+    -->
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

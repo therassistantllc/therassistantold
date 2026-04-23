@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Insurance Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.8rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink-500);margin-top:6px;letter-spacing:.04em}
+
+    .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;box-shadow:var(--shadow-sm)}
+    .search-input{flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px}
+
+    .filter-section{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .filter-section select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900)}
+
+    .queues-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+    .queue-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;box-shadow:var(--shadow-sm);cursor:pointer;transition:all .2s}
+    .queue-card:hover{border-color:var(--blue-500);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+
+    .queue-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(135deg,#f5f9fe,#ffffff);border-bottom:1px solid var(--border)}
+    .queue-title{font-size:14px;font-weight:700;color:var(--ink-900)}
+    .queue-count{font-family:'Sora',sans-serif;font-size:18px;font-weight:700;padding:4px 10px;border-radius:6px}
+
+    .queue-body{padding:14px 16px}
+    .queue-stat{display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px}
+    .queue-actions{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .queue-actions button{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:11px;font-weight:600;color:var(--ink-700)}
+    .queue-actions button:hover{background:#f0f7ff;border-color:var(--blue-400);color:var(--blue-700)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Calendar</div>
+      <a class="nav-link" href="admin-calendar.html">Daily Schedule</a>
+      <div class="nav-group-label">Clients</div>
+      <a class="nav-link" href="admin-client-list.html">Client List</a>
+      <div class="nav-group-label">Billing</div>
+      <a class="nav-link active" href="admin-insurance-dashboard.html">Insurance</a>
+      <a class="nav-link" href="admin-claims-dashboard.html">Claims</a>
+      <a class="nav-link" href="admin-payments-dashboard.html">Payments</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Insurance Management</h1>
+        <p>Eligibility, authorization, and coverage tracking</p>
+      </div>
+      <div>
+        <button class="btn btn-blue btn-sm" id="btnAddPayer" type="button">+ Add Payer</button>
+      </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-num" id="kpiEligibility">—</div><div class="kpi-lbl">Eligibility Issues</div></div>
+      <div class="kpi-card" style="border-left-color:#f59e0b"><div class="kpi-num" id="kpiAuth">—</div><div class="kpi-lbl">Auth Needed</div></div>
+      <div class="kpi-card" style="border-left-color:#ef4444"><div class="kpi-num" id="kpiExpiring">—</div><div class="kpi-lbl">Expiring Coverage</div></div>
+      <div class="kpi-card" style="border-left-color:#64748b"><div class="kpi-num" id="kpiMissing">—</div><div class="kpi-lbl">Missing Info</div></div>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+      <input class="search-input" type="search" id="searchInput" placeholder="Search by payer, client, member ID…" style="flex:1">
+      <input type="date" id="dateFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+    </div>
+
+    <div class="filter-section">
+      <select id="filterPayer" style="min-width:150px">
+        <option value="">All Payers</option>
+        <option>Colorado Medicaid</option>
+        <option>Aetna</option>
+        <option>United Healthcare</option>
+        <option>BCBS CO</option>
+      </select>
+      <select id="filterIssue">
+        <option value="">All Issues</option>
+        <option>Eligibility Verification</option>
+        <option>Prior Authorization</option>
+        <option>Expiring Coverage</option>
+        <option>Terminated Coverage</option>
+        <option>Missing Information</option>
+      </select>
+      <select id="filterPriority">
+        <option value="">All Priorities</option>
+        <option>Critical</option>
+        <option>High</option>
+        <option>Medium</option>
+        <option>Low</option>
+      </select>
+    </div>
+
+    <!-- Workqueues Grid -->
+    <div class="queues-grid" id="queuesContainer">
+      <div style="text-align:center;padding:48px;color:var(--ink-500);grid-column:1/-1">
+        <div style="font-size:2.5rem;margin-bottom:12px">🏥</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink-700)">Loading workqueues…</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+const QUEUE_DEFINITIONS = [
+  {id:'eligibility', label:'Eligibility Verification', priority:'high', count:5},
+  {id:'auth', label:'Prior Authorization Requests', priority:'critical', count:8},
+  {id:'expiring', label:'Expiring Coverage Alerts', priority:'high', count:3},
+  {id:'terminated', label:'Terminated Coverage Alerts', priority:'medium', count:2},
+  {id:'missing_info', label:'Missing Subscriber Information', priority:'high', count:6},
+  {id:'payer_issues', label:'Payer-Specific Issues', priority:'medium', count:4},
+];
+
+function renderQueueCard(q) {
+  const priorityColors = {critical:'#ef4444', high:'#f59e0b', medium:'#eab308', low:'#64748b'};
+  const bgColor = priorityColors[q.priority] || '#64748b';
+  
+  return `
+    <div class="queue-card">
+      <div class="queue-header">
+        <span class="queue-title">${q.label}</span>
+        <span class="queue-count" style="background:${bgColor}20;color:${bgColor};border:1px solid ${bgColor}40">${q.count}</span>
+      </div>
+      <div class="queue-body">
+        <div class="queue-stat">
+          <span>Items in Queue</span>
+          <span style="font-weight:700;color:var(--ink-900)">${q.count}</span>
+        </div>
+        <div style="font-size:11px;color:var(--ink-500)">Updated: just now</div>
+        <div class="queue-actions">
+          <button class="js-open-queue">Open</button>
+          <button class="js-defer-queue">Defer</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderQueues() {
+  const container = document.getElementById('queuesContainer');
+  container.innerHTML = QUEUE_DEFINITIONS.map(renderQueueCard).join('');
+  
+  document.querySelectorAll('.js-open-queue').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Insurance] Open queue'));
+  });
+
+  document.querySelectorAll('.js-defer-queue').forEach(btn => {
+    btn.addEventListener('click', () => console.log('[Insurance] Defer queue'));
+  });
+}
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-insurance-dashboard] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-insurance-dashboard] Init failed:', err);
+    }
+  }
+
+  document.getElementById('kpiEligibility').textContent = '5';
+  document.getElementById('kpiAuth').textContent = '8';
+  document.getElementById('kpiExpiring').textContent = '3';
+  document.getElementById('kpiMissing').textContent = '6';
+
+  renderQueues();
+
+  document.getElementById('btnAddPayer')?.addEventListener('click', () => {
+    console.log('[Insurance] Add payer');
+  });
+});
+</script>
+</body>
+</html>

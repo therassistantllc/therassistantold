@@ -1,0 +1,23 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "node scripts/repo-check.js",
+    "check:repo": "node scripts/repo-check.js",
+    "build:clinician-onboarding": "esbuild onboarding/clinician-onboarding-entry.jsx --bundle --format=iife --platform=browser --target=es2019 --outfile=onboarding/dist/clinician-onboarding.bundle.js",
+    "watch:clinician-onboarding": "esbuild onboarding/clinician-onboarding-entry.jsx --bundle --format=iife --platform=browser --target=es2019 --outfile=onboarding/dist/clinician-onboarding.bundle.js --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
+    "esbuild": "^0.28.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  }
+}

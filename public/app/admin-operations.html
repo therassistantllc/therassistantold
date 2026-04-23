@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Compliance and Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+.mod-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:18px}.mod-tab{border:none;background:none;padding:10px 14px;font:600 12.5px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.mod-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}.mod-panel{display:none}.mod-panel.active{display:block}
+.hero,.launch-grid{display:grid;gap:12px}.hero{grid-template-columns:2fr 1fr;margin-bottom:18px}.launch-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.card,.launch{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)}.card h3,.launch h4{margin:0 0 8px;font-family:'Sora',sans-serif}.card p,.launch p{margin:0 0 12px;color:var(--ink-500);font-size:13px;line-height:1.6}.launch h4{font-size:14px}.launch a{display:inline-flex;align-items:center;gap:6px;color:var(--blue-700);font-size:12px;font-weight:700;text-decoration:none}.launch a:hover{text-decoration:underline}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)}.kpi-num{font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;line-height:1;color:var(--ink-900)}.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-top:6px}
+.note{font-size:12px;color:var(--ink-500);margin-top:12px}
+@media(max-width:900px){.hero,.kpis{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <div class="admin-badge">Admin Portal</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div>
+      <h1>Compliance / Operations</h1>
+      <p>Credentialing, licenses, audits, alerts, code rules, policies, and content under one operational module.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-outline btn-sm" href="admin-credentialing.html">Open Credentialing</a>
+      <a class="btn btn-blue btn-sm" href="admin-billing-alerts.html">Open Alerts</a>
+    </div>
+  </header>
+  <div class="hero">
+    <div class="card"><h3>Consolidated Operations Entry</h3><p>Compliance and operational controls now live under one top-level area instead of being scattered across separate sidebar branches. Legacy pages remain available as drill-downs from this module.</p></div>
+    <div class="card"><h3>Use Pattern</h3><p>Start here for policy, audit, alerts, and credentialing work. Then open the underlying operational page only when you need task-level detail.</p></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-num">22</div><div class="kpi-lbl">Credentialing Items</div></div>
+    <div class="kpi"><div class="kpi-num">11</div><div class="kpi-lbl">Licenses Expiring</div></div>
+    <div class="kpi"><div class="kpi-num">23</div><div class="kpi-lbl">Open Alerts</div></div>
+    <div class="kpi"><div class="kpi-num">7</div><div class="kpi-lbl">Audit Reviews</div></div>
+  </div>
+  <div class="mod-tabs" id="tabBar">
+    <button class="mod-tab active" data-tab="credentialing">Credentialing</button>
+    <button class="mod-tab" data-tab="licenses">Licenses</button>
+    <button class="mod-tab" data-tab="code-rules">Code Rules</button>
+    <button class="mod-tab" data-tab="audits">Audits</button>
+    <button class="mod-tab" data-tab="alerts">Alerts</button>
+    <button class="mod-tab" data-tab="policies">Policies</button>
+    <button class="mod-tab" data-tab="content">Content</button>
+  </div>
+  <section class="mod-panel active" id="panel-credentialing"><div class="launch-grid"><div class="launch"><h4>Credentialing Dashboard</h4><p>Manage payer enrollment, CAQH, PTAN, and status reviews.</p><a href="admin-credentialing.html">Open credentialing -></a></div><div class="launch"><h4>Staff Directory</h4><p>Open clinician and staff records when credential-level action is needed.</p><a href="admin-staff.html">Open staff records -></a></div></div></section>
+  <section class="mod-panel" id="panel-licenses"><div class="launch-grid"><div class="launch"><h4>License Tracking</h4><p>Review renewals and expiring licenses in the credentialing workflow.</p><a href="admin-credentialing.html#lic-exp">Open licenses -></a></div><div class="launch"><h4>Audit License Docs</h4><p>Review submitted and missing license documents.</p><a href="admin-document-center.html">Open document center -></a></div></div></section>
+  <section class="mod-panel" id="panel-code-rules"><div class="launch-grid"><div class="launch"><h4>Code Rules Library</h4><p>Review coding and billing rule definitions.</p><a href="admin-code-rules.html">Open code rules -></a></div><div class="launch"><h4>Service Codes</h4><p>Maintain the operational service and coding reference set.</p><a href="admin-service-codes.html">Open service codes -></a></div></div></section>
+  <section class="mod-panel" id="panel-audits"><div class="launch-grid"><div class="launch"><h4>Audit Reports</h4><p>Review operational and billing audit findings.</p><a href="admin-audit-reports.html">Open audit reports -></a></div><div class="launch"><h4>Saved Reports</h4><p>Open previously generated report packages.</p><a href="saved-reports.html">Open saved reports -></a></div></div></section>
+  <section class="mod-panel" id="panel-alerts"><div class="launch-grid"><div class="launch"><h4>Billing Alerts</h4><p>Open the live alerts queue for billing and compliance issues.</p><a href="admin-billing-alerts.html">Open alerts -></a></div><div class="launch"><h4>Notifications</h4><p>Review platform notifications and escalation settings.</p><a href="admin-notifications.html">Open notifications -></a></div></div></section>
+  <section class="mod-panel" id="panel-policies"><div class="launch-grid"><div class="launch"><h4>Policy Management</h4><p>Use content workflows for SOPs and policy reference material.</p><a href="admin-content.html">Open policy content -></a></div><div class="launch"><h4>Platform Settings</h4><p>Manage administrative settings tied to policy enforcement.</p><a href="admin-settings.html">Open settings -></a></div></div></section>
+  <section class="mod-panel" id="panel-content"><div class="launch-grid"><div class="launch"><h4>Content Management</h4><p>Manage operational documents and internal content artifacts.</p><a href="admin-content.html">Open content -></a></div><div class="launch"><h4>Document Center</h4><p>Review stored content and compliance documents.</p><a href="admin-document-center.html">Open document center -></a></div></div></section>
+  <p class="note">The sidebar now treats compliance and operations as one enterprise module instead of multiple top-level categories.</p>
+</main>
+</div>
+<script>
+(function(){
+  const valid = ['credentialing','licenses','code-rules','audits','alerts','policies','content'];
+  function setTab(tab){
+    const next = valid.includes(tab) ? tab : 'credentialing';
+    document.querySelectorAll('.mod-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === next));
+    document.querySelectorAll('.mod-panel').forEach(panel => panel.classList.toggle('active', panel.id === 'panel-' + next));
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', next);
+    history.replaceState(null, '', url);
+  }
+  document.getElementById('tabBar').addEventListener('click', event => {
+    const btn = event.target.closest('.mod-tab');
+    if (btn) setTab(btn.dataset.tab);
+  });
+  setTab(new URLSearchParams(window.location.search).get('tab') || 'credentialing');
+}());
+</script>
+</body>
+</html>

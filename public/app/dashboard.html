@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="permissions.js?v=1"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .ud-hero{background:var(--surface);border-radius:22px;border:1px solid var(--border);
+      box-shadow:0 16px 40px rgba(13,53,94,.1);padding:26px 32px;margin-bottom:18px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      animation:fadeSlideUp 340ms ease-out both;position:relative;overflow:hidden}
+    .ud-hero::before{content:"";position:absolute;right:-50px;top:-50px;width:280px;height:280px;
+      border-radius:50%;background:radial-gradient(circle,rgba(47,121,183,.08),transparent 65%);pointer-events:none}
+    .ud-hero h1{font-size:clamp(19px,2.3vw,26px);margin-bottom:5px}
+    .ud-hero p{font-size:13px;color:var(--ink-500);max-width:480px;line-height:1.5}
+    .ud-quick-btns{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+    .ud-kpi-strip{display:grid;gap:8px;margin-bottom:18px}
+    .ud-kpi-strip.cols-5{grid-template-columns:repeat(5,1fr)}
+    .ud-kpi-strip.cols-4{grid-template-columns:repeat(4,1fr)}
+    .ud-kpi-strip.cols-3{grid-template-columns:repeat(3,1fr)}
+    .ud-kpi{background:var(--surface);border-radius:12px;border:1px solid var(--border);
+      box-shadow:0 6px 14px rgba(13,53,94,.07);padding:14px 16px;position:relative;overflow:hidden;
+      animation:fadeSlideUp 400ms ease-out both}
+    .ud-kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+      background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .ud-kpi.warn::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .ud-kpi.danger::after{background:linear-gradient(180deg,#dc2626,#991b1b)}
+    .ud-kpi.success::after{background:linear-gradient(180deg,#059669,#047857)}
+    .ud-kpi.revenue::after{background:linear-gradient(180deg,#e69831,#b86a0c)}
+    .ud-kpi-lbl{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-500);margin-bottom:5px}
+    .ud-kpi-val{font-family:"Sora",sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:2px}
+    .ud-kpi.revenue .ud-kpi-val{color:#c47a1e}
+    .ud-kpi.warn .ud-kpi-val{color:#b45309}
+    .ud-kpi.danger .ud-kpi-val{color:#dc2626}
+    .ud-kpi.success .ud-kpi-val{color:#059669}
+    .ud-kpi-sub{font-size:10px;color:var(--ink-500)}
+    .ud-grid-2{display:grid;grid-template-columns:1fr 320px;gap:14px;margin-bottom:18px;align-items:start}
+    .ud-panel{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+      box-shadow:0 8px 20px rgba(13,53,94,.08);overflow:hidden;animation:fadeSlideUp 420ms ease-out both}
+    .ud-panel-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .ud-panel-title{font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:var(--ink-900)}
+    .ud-panel-link{font-size:12px;font-weight:700;color:var(--blue-700);text-decoration:none}
+    .ud-panel-link:hover{text-decoration:underline}
+    .ud-section-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+      color:var(--ink-500);margin:20px 0 10px}
+    .ud-workflow{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:22px}
+    .ud-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+      padding:20px 18px 16px;cursor:pointer;text-decoration:none;color:inherit;
+      transition:all .16s ease;display:flex;flex-direction:column;gap:8px;
+      box-shadow:0 4px 12px rgba(13,53,94,.07);animation:fadeSlideUp 440ms ease-out both}
+    .ud-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(13,53,94,.12);border-color:var(--blue-300)}
+    .ud-card-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);
+      display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:var(--blue-900)}
+    .ud-card-icon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .ud-card-icon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .ud-card-icon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+    .ud-card-icon.red{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .ud-card h3{font-size:13.5px;font-weight:700;color:var(--ink-900);margin:0}
+    .ud-card p{font-size:12px;color:var(--ink-500);margin:0;line-height:1.45}
+    .ud-card-arrow{color:var(--blue-600);font-size:.9rem;margin-top:auto;font-weight:700;align-self:flex-end}
+    .ud-activity-row{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--border)}
+    .ud-activity-row:last-child{border-bottom:none}
+    .ud-activity-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .ud-activity-main{flex:1;min-width:0}
+    .ud-activity-title{font-size:13px;font-weight:600;color:var(--ink-900)}
+    .ud-activity-meta{font-size:11px;color:var(--ink-500)}
+    .ud-links-list{padding:8px 0}
+    .ud-link-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);
+      text-decoration:none;color:var(--ink-800);font-size:13px;font-weight:500;transition:background .12s}
+    .ud-link-row:last-child{border-bottom:none}
+    .ud-link-row:hover{background:#f0f7ff;color:var(--blue-800)}
+    .ud-link-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .ud-link-arrow{margin-left:auto;color:var(--ink-400);font-size:.85rem}
+    .ud-sub-banner{background:linear-gradient(135deg,var(--blue-900),#113358);border-radius:16px;
+      padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+      margin-bottom:18px;animation:fadeSlideUp 480ms ease-out both}
+    .ud-sub-banner h3{font-size:15px;font-weight:700;color:#fff;margin-bottom:4px}
+    .ud-sub-banner p{font-size:12.5px;color:rgba(255,255,255,.7);margin:0}
+    .ud-sub-actions{display:flex;gap:8px;flex-shrink:0}
+    .btn-white-sm{background:#fff;color:#1e3a5f;border:none;border-radius:8px;padding:8px 16px;
+      font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+    .btn-outline-sm{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.42);border-radius:8px;
+      padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+    .btn-outline-sm:hover{background:rgba(255,255,255,.1)}
+    .ud-aging-bar{display:flex;gap:4px;margin-bottom:14px;padding:0 16px;flex-wrap:wrap}
+    .ud-aging-seg{flex:1;min-width:56px;background:var(--surface-2,#f1f5f9);border-radius:8px;
+      padding:8px 10px;text-align:center;border:1px solid var(--border)}
+    .ud-aging-seg-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)}
+    .ud-aging-seg-val{font-family:"Sora",sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900)}
+    .ud-aging-seg.danger .ud-aging-seg-val{color:#dc2626}
+    .ud-aging-seg.warn .ud-aging-seg-val{color:#d97706}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+  </aside>
+
+  <!-- -- Main ---------------------------------------------- -->
+  <main class="dashboard-main">
+
+    <!-- ----------------------------------------------------
+         ADMIN / BILLING / OPS SECTION
+    ---------------------------------------------------- -->
+    <section id="section-admin" style="display:none">
+
+      <!-- Hero -->
+      <div class="ud-hero">
+        <div>
+          <h1>Good <span id="adminTimeOfDay">morning</span>, <span id="adminName">Admin</span></h1>
+          <p>Here is your operational summary for <strong id="adminDateStr"></strong>.</p>
+        </div>
+        <div class="ud-quick-btns">
+          <a class="btn btn-blue" href="admin-claims.html">Claims Queue</a>
+          <a class="btn btn-ghost" href="admin-billing-alerts.html">Billing Alerts</a>
+          <a class="btn btn-ghost" href="admin-era-imports.html">ERA Imports</a>
+        </div>
+      </div>
+
+      <!-- KPI Strip -->
+      <div class="ud-kpi-strip cols-5">
+        <div class="ud-kpi revenue"><div class="ud-kpi-lbl">Revenue MTD</div><div class="ud-kpi-val" id="kpiRevMTD">--</div><div class="ud-kpi-sub">Month to date</div></div>
+        <div class="ud-kpi"><div class="ud-kpi-lbl">Claims Submitted</div><div class="ud-kpi-val" id="kpiClaimsSubmitted">--</div><div class="ud-kpi-sub">MTD</div></div>
+        <div class="ud-kpi warn"><div class="ud-kpi-lbl">Outstanding AR</div><div class="ud-kpi-val" id="kpiAR">--</div><div class="ud-kpi-sub">Total open balance</div></div>
+        <div class="ud-kpi danger"><div class="ud-kpi-lbl">Open Alerts</div><div class="ud-kpi-val" id="kpiAlerts">--</div><div class="ud-kpi-sub">Requires attention</div></div>
+        <div class="ud-kpi"><div class="ud-kpi-lbl">ERA Pending</div><div class="ud-kpi-val" id="kpiERA">--</div><div class="ud-kpi-sub">Unmatched payments</div></div>
+      </div>
+
+      <!-- 2-col grid -->
+      <div class="ud-grid-2">
+
+        <!-- Left col -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+
+          <!-- Claims Aging -->
+          <div class="ud-panel">
+            <div class="ud-panel-head">
+              <span class="ud-panel-title">Claims Aging</span>
+              <a class="ud-panel-link" href="admin-claims.html">View All &rsaquo;</a>
+            </div>
+            <div class="ud-aging-bar" id="agingBar">
+              <div class="ud-aging-seg"><div class="ud-aging-seg-lbl">0-30d</div><div class="ud-aging-seg-val" id="aging0">--</div></div>
+              <div class="ud-aging-seg warn"><div class="ud-aging-seg-lbl">31-60d</div><div class="ud-aging-seg-val" id="aging31">--</div></div>
+              <div class="ud-aging-seg warn"><div class="ud-aging-seg-lbl">61-90d</div><div class="ud-aging-seg-val" id="aging61">--</div></div>
+              <div class="ud-aging-seg danger"><div class="ud-aging-seg-lbl">91-120d</div><div class="ud-aging-seg-val" id="aging91">--</div></div>
+              <div class="ud-aging-seg danger"><div class="ud-aging-seg-lbl">120d+</div><div class="ud-aging-seg-val" id="aging120">--</div></div>
+            </div>
+          </div>
+
+          <!-- Work Queues quick links -->
+          <div class="ud-panel">
+            <div class="ud-panel-head">
+              <span class="ud-panel-title">Work Queues</span>
+              <a class="ud-panel-link" href="admin-workqueue.html">Open Queue &rsaquo;</a>
+            </div>
+            <div class="ud-links-list">
+              <a class="ud-link-row" href="admin-billing-alerts.html"><span class="ud-link-dot" style="background:#3b82f6"></span>Billing Alerts<span id="qlAlerts" style="margin-left:6px;font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:99px;padding:1px 7px;font-weight:800"></span><span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-era-imports.html"><span class="ud-link-dot" style="background:#8b5cf6"></span>ERA Imports<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-payment-posting.html"><span class="ud-link-dot" style="background:#10b981"></span>Payment Posting<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-eligibility.html"><span class="ud-link-dot" style="background:#f59e0b"></span>Eligibility Verification<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-qa.html"><span class="ud-link-dot" style="background:#ef4444"></span>QA Review Queue<span class="ud-link-arrow">&rsaquo;</span></a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right col - Quick Navigation -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="ud-panel">
+            <div class="ud-panel-head"><span class="ud-panel-title">Quick Navigation</span></div>
+            <div class="ud-links-list">
+              <a class="ud-link-row" href="patients.html"><span class="ud-link-dot" style="background:#3b82f6"></span>Patient Records<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-clients.html"><span class="ud-link-dot" style="background:#6366f1"></span>Client Accounts<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-scheduling.html"><span class="ud-link-dot" style="background:#14b8a6"></span>Scheduling<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-reports.html"><span class="ud-link-dot" style="background:#f59e0b"></span>Reports<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-revenue-dashboard.html"><span class="ud-link-dot" style="background:#10b981"></span>Revenue Dashboard<span class="ud-link-arrow">&rsaquo;</span></a>
+              <a class="ud-link-row" href="admin-dashboard.html"><span class="ud-link-dot" style="background:#8b5cf6"></span>Full Admin Dashboard<span class="ud-link-arrow">&rsaquo;</span></a>
+            </div>
+          </div>
+
+          <!-- Credentialing alerts (shown for admin/credentialing roles) -->
+          <div class="ud-panel" data-roles="admin,super_admin,credentialing_specialist">
+            <div class="ud-panel-head">
+              <span class="ud-panel-title">Credentialing</span>
+              <a class="ud-panel-link" href="admin-credentialing.html">Manage &rsaquo;</a>
+            </div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--ink-500)">
+              <div id="credAlertMsg">Loading credential status...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------
+         CLINICIAN / SUPERVISOR SECTION
+    ---------------------------------------------------- -->
+    <section id="section-clinical" style="display:none">
+
+      <!-- Hero -->
+      <div class="ud-hero">
+        <div>
+          <h1>Good <span id="clinTimeOfDay">morning</span>, <span id="clinName">Clinician</span></h1>
+          <p>Today is <strong id="clinDateStr"></strong>. You have <strong id="clinApptCount">--</strong> appointments and <strong id="clinActionCount">--</strong> items needing attention.</p>
+        </div>
+        <div class="ud-quick-btns">
+          <a class="btn btn-blue" href="coder-home.html">&#9889; New Session</a>
+          <a class="btn btn-ghost" href="clinician-billing-alerts.html">&#9888; Billing Alerts</a>
+          <a class="btn btn-ghost" href="clinician-dashboard.html">Full Dashboard</a>
+        </div>
+      </div>
+
+      <!-- KPI Strip -->
+      <div class="ud-kpi-strip cols-4">
+        <div class="ud-kpi"><div class="ud-kpi-lbl">Sessions Completed</div><div class="ud-kpi-val" id="clinSessions">0</div><div class="ud-kpi-sub">All time</div></div>
+        <div class="ud-kpi revenue"><div class="ud-kpi-lbl">Revenue Identified</div><div class="ud-kpi-val" id="clinRevenue">$0</div><div class="ud-kpi-sub">Estimated uplift</div></div>
+        <div class="ud-kpi warn"><div class="ud-kpi-lbl">Drafts Pending</div><div class="ud-kpi-val" id="clinDrafts">0</div><div class="ud-kpi-sub">Needs finalization</div></div>
+        <div class="ud-kpi success"><div class="ud-kpi-lbl">Sessions Remaining</div><div class="ud-kpi-val" id="clinRemaining">50</div><div class="ud-kpi-sub">This billing period</div></div>
+      </div>
+
+      <!-- Subscription banner -->
+      <div class="ud-sub-banner">
+        <div>
+          <h3>Your Subscription</h3>
+          <p>You have <strong id="clinSubLeft">50</strong> sessions remaining this billing period.</p>
+        </div>
+        <div class="ud-sub-actions">
+          <a class="btn-white-sm" href="subscription.html">Manage Plan</a>
+          <a class="btn-outline-sm" href="subscription.html">&#8679; Upgrade</a>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="ud-section-label">Quick Actions</div>
+      <div class="ud-workflow">
+        <a class="ud-card" href="coder-home.html">
+          <div class="ud-card-icon">NS</div>
+          <h3>New Session</h3>
+          <p>Start documentation workflow with coding guidance for Colorado Medicaid.</p>
+          <span class="ud-card-arrow">&#8594;</span>
+        </a>
+        <a class="ud-card" href="resume-draft.html">
+          <div class="ud-card-icon amber">RD</div>
+          <h3>Resume Draft</h3>
+          <p>Continue in-progress notes and unfinished coding sessions.</p>
+          <span class="ud-card-arrow">&#8594;</span>
+        </a>
+        <a class="ud-card" href="saved-reports.html">
+          <div class="ud-card-icon green">CR</div>
+          <h3>Coding Reports</h3>
+          <p>Review completed reports, export PDF documentation, track revenue.</p>
+          <span class="ud-card-arrow">&#8594;</span>
+        </a>
+        <a class="ud-card" href="saved-notes.html">
+          <div class="ud-card-icon purple">SN</div>
+          <h3>Saved Notes</h3>
+          <p>Access clinical documentation drafts and finalized progress notes.</p>
+          <span class="ud-card-arrow">&#8594;</span>
+        </a>
+      </div>
+
+      <!-- Billing alerts panel -->
+      <div id="clinBA" style="display:none;margin-bottom:22px"></div>
+
+      <!-- Recent Activity -->
+      <div class="ud-section-label">Recent Activity</div>
+      <div class="ud-panel" style="margin-bottom:22px">
+        <div id="clinActivity" style="min-height:60px"><div style="padding:22px;text-align:center;color:var(--ink-500);font-size:13px">No recent activity yet. <a href="coder-home.html" style="color:var(--blue-700);font-weight:700">Start your first session &#8594;</a></div></div>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------
+         FRONT DESK SECTION
+    ---------------------------------------------------- -->
+    <section id="section-frontdesk" style="display:none">
+
+      <div class="ud-hero">
+        <div>
+          <h1>Good <span id="fdTimeOfDay">morning</span>, <span id="fdName">Front Desk</span></h1>
+          <p>Today is <strong id="fdDateStr"></strong>. Manage appointments, patients, and scheduling below.</p>
+        </div>
+        <div class="ud-quick-btns">
+          <a class="btn btn-blue" href="patients.html">+ New Patient</a>
+          <a class="btn btn-ghost" href="admin-scheduling.html">Scheduling</a>
+          <a class="btn btn-ghost" href="agenda.html">Today's Agenda</a>
+        </div>
+      </div>
+
+      <div class="ud-workflow" style="margin-bottom:22px">
+        <a class="ud-card" href="patients.html"><div class="ud-card-icon">PT</div><h3>Patients</h3><p>View and manage patient records, demographics, and intake forms.</p><span class="ud-card-arrow">&#8594;</span></a>
+        <a class="ud-card" href="admin-scheduling.html"><div class="ud-card-icon green">SC</div><h3>Scheduling</h3><p>Manage and view the full appointment calendar.</p><span class="ud-card-arrow">&#8594;</span></a>
+        <a class="ud-card" href="agenda.html"><div class="ud-card-icon amber">AG</div><h3>Today's Agenda</h3><p>Quick view of today's appointments and tasks.</p><span class="ud-card-arrow">&#8594;</span></a>
+        <a class="ud-card" href="admin-eligibility.html"><div class="ud-card-icon purple">EL</div><h3>Eligibility</h3><p>Verify patient insurance eligibility before appointments.</p><span class="ud-card-arrow">&#8594;</span></a>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------
+         PATIENT SECTION  (redirects to patient portal)
+    ---------------------------------------------------- -->
+    <section id="section-patient" style="display:none">
+      <div style="padding:60px 24px;text-align:center;color:var(--ink-500);font-size:14px">
+        Redirecting to patient portal&hellip;
+      </div>
+    </section>
+
+  </main>
+</div><!-- /dashboard-shell -->
+
+<!-- Admin preview banner -->
+<div id="adminPreviewBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:#1e3a5f;color:#fff;padding:10px 20px;z-index:9999;align-items:center;gap:12px;font-size:13px">
+  <span>&#128065; <strong>Admin Preview Mode</strong><span id="previewUserLabel"></span></span>
+  <button onclick="exitAdminPreview()" style="margin-left:auto;background:#fff;color:#1e3a5f;border:none;border-radius:5px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:12px">Exit Preview</button>
+</div>
+
+<script>
+/* -- Helpers ------------------------------------------------ */
+function greet() {
+  var h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+function fmtDateStr(d) {
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+function computeRevMax(r) {
+  if (r.codeDetails && r.codeDetails.length) {
+    return r.codeDetails.reduce(function(s,cd){
+      var v = String(cd.revenue||'').match(/\$\d+(?:\.\d+)?/g)||[];
+      var hi = v.length>=2?Number(v[1].replace('$','')):v.length===1?Number(v[0].replace('$','')):0;
+      return s+(hi||0);
+    },0);
+  }
+  if (typeof parseRevenueValue === 'function') return parseRevenueValue(r.revenue);
+  return 0;
+}
+function exitAdminPreview() {
+  sessionStorage.removeItem('docusistant_admin_preview');
+  sessionStorage.removeItem('docusistant_preview_user');
+  if (window.opener) window.close();
+  else window.location.href = 'admin-users.html';
+}
+
+/* -- Role ? section(s) lookup ------------------------------- */
+var ROLE_SECTIONS = {
+  admin:                    ['admin'],
+  super_admin:              ['admin'],
+  billing_specialist:       ['admin'],
+  billing_staff:            ['admin'],
+  credentialing_specialist: ['admin'],
+  supervisor:               ['admin', 'clinical'],
+  front_desk:               ['frontdesk'],
+  clinician:                ['clinical'],
+  patient:                  ['patient']
+};
+
+window.onload = async function() {
+  /* Show admin preview banner if applicable */
+  if (sessionStorage.getItem('docusistant_admin_preview') === '1') {
+    var banner = document.getElementById('adminPreviewBanner');
+    if (banner) {
+      banner.style.display = 'flex';
+      try {
+        var pu = JSON.parse(sessionStorage.getItem('docusistant_preview_user') || 'null');
+        if (pu) document.getElementById('previewUserLabel').textContent = ' (as '+pu.name+')';
+      } catch(e) {}
+    }
+  }
+
+  /* Allow all staff roles (patient separately handled) */
+  var user = await initDashboard(STAFF_ROLES);
+  if (!user) return;
+
+  var role = getRole(user);
+  var firstName = (user.user_metadata && user.user_metadata.name || '').split(' ')[0] || roleLabel(role);
+  var today = fmtDateStr(new Date());
+  var greeting = greet();
+
+  /* Apply permissions layer for data-roles elements */
+  if (typeof AppPermissions !== 'undefined') AppPermissions.apply();
+
+  /* Show the right sections(s) */
+  var sections = ROLE_SECTIONS[role] || ['clinical'];
+  if (role === 'patient') {
+    window.location.replace('patient-portal.html');
+    return;
+  }
+  sections.forEach(function(s) {
+    var el = document.getElementById('section-'+s);
+    if (el) el.style.display = '';
+  });
+
+  /* -- Admin section init --------------------------------- */
+  if (sections.indexOf('admin') !== -1) {
+    var ag = document.getElementById('adminTimeOfDay');
+    var an = document.getElementById('adminName');
+    var ad = document.getElementById('adminDateStr');
+    if (ag) ag.textContent = greeting;
+    if (an) an.textContent = firstName;
+    if (ad) ad.textContent = today;
+    /* KPIs - placeholder values; production wires to Supabase */
+    document.getElementById('kpiRevMTD').textContent = '--';
+    document.getElementById('kpiClaimsSubmitted').textContent = '--';
+    document.getElementById('kpiAR').textContent = '--';
+    document.getElementById('kpiAlerts').textContent = '--';
+    document.getElementById('kpiERA').textContent = '--';
+    /* Aging bucktes - placeholder */
+    ['aging0','aging31','aging61','aging91','aging120'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent='--'; });
+    /* Credentialing message */
+    var cm = document.getElementById('credAlertMsg');
+    if (cm) cm.textContent = 'Credential status data will be loaded from the credentialing module.';
+  }
+
+  /* -- Clinical section init ------------------------------ */
+  if (sections.indexOf('clinical') !== -1) {
+    var ct = document.getElementById('clinTimeOfDay');
+    var cn = document.getElementById('clinName');
+    var cd = document.getElementById('clinDateStr');
+    if (ct) ct.textContent = greeting;
+    if (cn) cn.textContent = firstName;
+    if (cd) cd.textContent = today;
+
+    /* Local coded reports / notes */
+    var reports = typeof getStoredCoderReports === 'function' ? getStoredCoderReports() : [];
+    var notes   = typeof getStoredNotes === 'function' ? getStoredNotes() : [];
+    var SESSION_LIMIT = 50;
+    var finalR  = reports.filter(function(r){ return String(r.status||'').toLowerCase()==='final'; });
+    var drafts  = reports.filter(function(r){ return String(r.status||'').toLowerCase()!=='final'; });
+    var revenue = reports.reduce(function(s,r){ return s+computeRevMax(r); },0);
+    var remaining = Math.max(0, SESSION_LIMIT - reports.length);
+
+    document.getElementById('clinSessions').textContent  = finalR.length;
+    document.getElementById('clinRevenue').textContent   = '$'+revenue.toFixed(0);
+    document.getElementById('clinDrafts').textContent    = drafts.length;
+    document.getElementById('clinRemaining').textContent = remaining;
+    document.getElementById('clinSubLeft').textContent   = remaining;
+    document.getElementById('clinApptCount').textContent = '--';
+    document.getElementById('clinActionCount').textContent = drafts.length || 0;
+
+    /* Billing alerts mini-panel */
+    try {
+      var baRaw = JSON.parse(localStorage.getItem('docusistant_billing_alerts_v1') || '[]');
+      if (baRaw.length) {
+        var baOpen = baRaw.filter(function(a){ return a.status!=='Resolved'&&a.status!=='Archived'; });
+        if (baOpen.length) {
+          var top5 = baOpen.sort(function(a,b){
+            var pw={'Urgent':0,'High Priority':1,'Routine':2};
+            return (pw[a.priority]||2)-(pw[b.priority]||2);
+          }).slice(0,5);
+          var baHtml = '<div class="ud-panel"><div class="ud-panel-head">'
+            +'<span class="ud-panel-title">Billing Alerts ('+baOpen.length+' open)</span>'
+            +'<a class="ud-panel-link" href="clinician-billing-alerts.html">View All &rsaquo;</a>'
+            +'</div>'
+            + top5.map(function(a){
+              var pc = a.priority==='Urgent'?'background:#fee2e2;color:#b91c1c':a.priority==='High Priority'?'background:#fef3c7;color:#92400e':'background:#f1f5f9;color:#64748b';
+              return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">'
+                +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;color:var(--ink-900)">'+(a.patient_name||'')+'</div>'
+                +'<div style="font-size:11px;color:var(--ink-500)">'+(a.alert_type||'')+'</div></div>'
+                +'<span style="font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:99px;'+pc+'">'+a.priority+'</span></div>';
+            }).join('')
+            +'</div>';
+          var clinBAEl = document.getElementById('clinBA');
+          if (clinBAEl) { clinBAEl.innerHTML = '<div class="ud-section-label">Billing Alerts</div>'+baHtml; clinBAEl.style.display=''; }
+        }
+      }
+    } catch(e) {}
+
+    /* Recent activity */
+    var allItems = reports.map(function(r){ return {type:'report',label:r.client||'Session',sub:(r.codes||'').split('\n')[0]||'',date:r.date||r.dateSubmitted||''}; })
+      .concat(notes.map(function(n){ return {type:'note',label:n.client||'Note',sub:n.type||'Progress Note',date:n.dos||n.modified||''}; }))
+      .sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; }).slice(0,8);
+
+    var actEl = document.getElementById('clinActivity');
+    if (actEl && allItems.length) {
+      actEl.innerHTML = allItems.map(function(it){
+        return '<div class="ud-activity-row">'
+          +'<div class="ud-activity-dot" style="background:'+(it.type==='report'?'var(--blue-600)':'var(--success)')+'"></div>'
+          +'<div class="ud-activity-main"><div class="ud-activity-title">'+escapeHtml(it.label)+'</div>'
+          +'<div class="ud-activity-meta">'+escapeHtml(it.sub)+(it.date?' - '+new Date(it.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+'</div></div>'
+          +'<span class="badge '+(it.type==='report'?'badge-active':'badge-final')+'" style="font-size:11px;flex-shrink:0">'+(it.type==='report'?'Report':'Note')+'</span>'
+          +'</div>';
+      }).join('');
+    }
+  }
+
+  /* -- Front desk init ------------------------------------ */
+  if (sections.indexOf('frontdesk') !== -1) {
+    var ft = document.getElementById('fdTimeOfDay');
+    var fn = document.getElementById('fdName');
+    var fd = document.getElementById('fdDateStr');
+    if (ft) ft.textContent = greeting;
+    if (fn) fn.textContent = firstName;
+    if (fd) fd.textContent = today;
+  }
+};
+
+function roleLabel(role) {
+  return {admin:'Admin',super_admin:'Admin',billing_specialist:'Billing',billing_staff:'Billing',
+    credentialing_specialist:'Credentialing',clinician:'Clinician',supervisor:'Supervisor',
+    front_desk:'Front Desk',patient:'Patient'}[role] || 'User';
+}
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

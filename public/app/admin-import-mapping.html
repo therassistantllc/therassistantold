@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Import Mapping</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .top-grid{display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start;margin-bottom:18px}
+    .surface{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm)}
+    .surface-head{padding:16px 18px;border-bottom:1px solid var(--border)}
+    .surface-title{font-family:"Sora",sans-serif;font-size:15px;font-weight:700;color:var(--ink-900)}
+    .surface-copy{margin-top:6px;font-size:12.5px;color:var(--ink-500);line-height:1.5}
+    .surface-body{padding:18px}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .summary-stat{padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}
+    .summary-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .summary-value{margin-top:6px;font-family:"Sora",sans-serif;font-size:24px;font-weight:700;color:var(--ink-900)}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+    .toolbar .field{display:flex;flex-direction:column;gap:5px;min-width:180px}
+    .toolbar label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .toolbar input,.toolbar select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface);outline:none}
+    .workspace-links{display:grid;gap:10px}
+    .workspace-tile{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}
+    .workspace-name{font-weight:700;color:var(--ink-900)}
+    .workspace-copy{margin-top:4px;font-size:12px;color:var(--ink-500)}
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);overflow:hidden}
+    .mapping-table{width:100%;border-collapse:collapse}
+    .mapping-table th,.mapping-table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12.5px;text-align:left;vertical-align:top}
+    .mapping-table th{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);background:var(--surface-soft)}
+    .mapping-row{cursor:pointer}
+    .mapping-row:hover{background:#f8fbff}
+    .mapping-row.selected{background:rgba(37,99,235,.06)}
+    .type-pill{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;border:1px solid rgba(37,99,235,.16);background:rgba(37,99,235,.08);font-size:11px;font-weight:700;color:#1d4ed8}
+    .detail-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:18px;margin-top:18px}
+    .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm)}
+    .detail-card .surface-body{padding-top:16px}
+    .detail-name{margin:0;font-family:"Sora",sans-serif;font-size:18px;font-weight:700;color:var(--ink-900)}
+    .detail-copy{margin:8px 0 0;color:var(--ink-600);line-height:1.5}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}
+    .metric-box{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}
+    .metric-box .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .metric-box .value{margin-top:6px;font-size:16px;font-weight:700;color:var(--ink-900)}
+    .mapped-fields{display:flex;gap:8px;flex-wrap:wrap}
+    .field-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:11px;font-weight:700;color:#047857}
+    .empty-state{padding:36px 20px;text-align:center;color:var(--ink-500)}
+    @media (max-width:1080px){
+      .top-grid,.detail-layout{grid-template-columns:1fr}
+      .summary-grid,.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:640px){
+      .summary-grid,.metric-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-patient-imports.html">Patient Imports</a>
+      <a class="nav-link" href="admin-simplepractice-imports.html">SimplePractice Imports</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-import-history.html">Import History</a>
+      <a class="nav-link active" href="admin-import-mapping.html">Import Mapping</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Import Mapping</h1>
+        <p>Manage saved field-mapping templates and jump back into the source workspaces that create them.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-outline btn-sm" href="admin-patient-imports.html">Patient Imports</a>
+        <a class="btn btn-blue btn-sm" href="admin-simplepractice-imports.html">SimplePractice</a>
+      </div>
+    </header>
+
+    <section class="top-grid">
+      <div class="surface">
+        <div class="surface-head">
+          <div class="surface-title">Template Summary</div>
+          <div class="surface-copy">These templates are stored locally and reused by the import modules.</div>
+        </div>
+        <div class="surface-body">
+          <div class="summary-grid">
+            <div class="summary-stat"><div class="summary-label">Templates</div><div class="summary-value" id="sumTemplates">0</div></div>
+            <div class="summary-stat"><div class="summary-label">Mapped Fields</div><div class="summary-value" id="sumFields">0</div></div>
+            <div class="summary-stat"><div class="summary-label">Patient Templates</div><div class="summary-value" id="sumPatient">0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface">
+        <div class="surface-head">
+          <div class="surface-title">Workspaces</div>
+          <div class="surface-copy">Open the import modules that create and consume these templates.</div>
+        </div>
+        <div class="surface-body workspace-links">
+          <div class="workspace-tile"><div><div class="workspace-name">Patient Imports</div><div class="workspace-copy">Template-based patient CSV mapping and deduplication.</div></div><a class="btn btn-outline btn-sm" href="admin-patient-imports.html">Open</a></div>
+          <div class="workspace-tile"><div><div class="workspace-name">SimplePractice Imports</div><div class="workspace-copy">Cross-type template management and reuse.</div></div><a class="btn btn-outline btn-sm" href="admin-simplepractice-imports.html">Open</a></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="field" style="flex:1 1 280px"><label for="templateSearch">Search</label><input id="templateSearch" type="search" placeholder="Template name or import type"></div>
+      <div class="field"><label for="typeFilter">Type</label><select id="typeFilter"><option value="">All template types</option></select></div>
+    </section>
+
+    <section class="table-shell">
+      <div class="surface-head"><div class="surface-title">Saved Mapping Templates</div><div class="surface-copy">Reusable mapping profiles from both import experiences.</div></div>
+      <div style="overflow:auto">
+        <table class="mapping-table">
+          <thead><tr><th>Template</th><th>Type</th><th>Mapped Fields</th><th>Saved</th><th>Actions</th></tr></thead>
+          <tbody id="templateTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="templateEmpty" style="display:none">No saved templates yet. Create one in an import workflow and it will appear here.</div>
+    </section>
+
+    <section class="detail-layout">
+      <div class="detail-card"><div class="surface-head"><div class="surface-title">Template Details</div></div><div class="surface-body" id="templateDetail"><p class="detail-copy">Select a template to inspect mapped fields and related workspace options.</p></div></div>
+      <div class="detail-card"><div class="surface-head"><div class="surface-title">Suggested Next Step</div></div><div class="surface-body" id="nextStepPanel"><p class="detail-copy">Choose a template to jump back into the matching import module.</p></div></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const ADMIN_ROLES = ["admin","billing_staff","super_admin"];
+const TEMPLATE_KEY = "docusistant_import_templates_v1";
+const WORKSPACE_BY_TYPE = { "Patient List": { label: "Patient Imports", href: "admin-patient-imports.html" } };
+let selectedTemplateId = null;
+
+function readTemplates(){ try { return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || "[]"); } catch (err) { console.warn("[admin-import-mapping] Failed to parse templates", err); return []; } }
+function saveTemplates(templates){ localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates)); }
+function escHtml(value){ return String(value == null ? "" : value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function formatNumber(value){ return (Number(value) || 0).toLocaleString(); }
+function formatDate(value){ if(!value) return "-"; var date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+function typeOptions(templates){ return Array.from(new Set(templates.map(function(template){ return template.type || "Unknown"; }))).sort(); }
+function workspaceFor(template){ return WORKSPACE_BY_TYPE[template.type] || { label: "SimplePractice Imports", href: "admin-simplepractice-imports.html" }; }
+function mappedFieldKeys(template){ var mapping = template.mapping && typeof template.mapping === "object" ? template.mapping : null; return mapping ? Object.keys(mapping).filter(function(key){ return mapping[key]; }).sort() : []; }
+function currentFilters(){ return { search:document.getElementById("templateSearch").value.trim().toLowerCase(), type:document.getElementById("typeFilter").value }; }
+function filterTemplates(templates){ var filters = currentFilters(); return templates.filter(function(template){ if(filters.type && template.type !== filters.type) return false; if(!filters.search) return true; return [template.name,template.type].join(" ").toLowerCase().indexOf(filters.search) !== -1; }); }
+
+function populateTypeFilter(templates, preset){
+  var select = document.getElementById("typeFilter");
+  select.innerHTML = '<option value="">All template types</option>' + typeOptions(templates).map(function(type){ return '<option value="' + escHtml(type) + '">' + escHtml(type) + "</option>"; }).join("");
+  if(preset) select.value = preset;
+}
+
+function renderSummary(templates){
+  document.getElementById("sumTemplates").textContent = formatNumber(templates.length);
+  document.getElementById("sumFields").textContent = formatNumber(templates.reduce(function(sum,template){ return sum + (Number(template.fields) || mappedFieldKeys(template).length || 0); },0));
+  document.getElementById("sumPatient").textContent = formatNumber(templates.filter(function(template){ return template.type === "Patient List"; }).length);
+}
+
+function metricBox(label, value){ return '<div class="metric-box"><div class="label">' + label + '</div><div class="value">' + value + "</div></div>"; }
+
+function renderTable(templates){
+  var body = document.getElementById("templateTableBody");
+  var empty = document.getElementById("templateEmpty");
+  if(!templates.length){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  body.innerHTML = templates.map(function(template){
+    var fieldCount = Number(template.fields) || mappedFieldKeys(template).length || 0;
+    return '<tr class="mapping-row' + (template.id === selectedTemplateId ? " selected" : "") + '" data-template-id="' + escHtml(template.id) + '">'
+      + "<td><strong>" + escHtml(template.name || "Untitled Template") + "</strong></td>"
+      + '<td><span class="type-pill">' + escHtml(template.type || "Unknown") + "</span></td>"
+      + "<td>" + formatNumber(fieldCount) + "</td>"
+      + "<td>" + escHtml(formatDate(template.date)) + "</td>"
+      + '<td><button class="btn btn-outline btn-sm" type="button" data-delete-id="' + escHtml(template.id) + '">Delete</button></td>'
+      + "</tr>";
+  }).join("");
+
+  document.querySelectorAll(".mapping-row").forEach(function(rowEl){
+    rowEl.addEventListener("click", function(event){
+      if(event.target && event.target.dataset.deleteId) return;
+      selectedTemplateId = rowEl.dataset.templateId;
+      renderTable(templates);
+      renderDetail(templates);
+    });
+  });
+  document.querySelectorAll("[data-delete-id]").forEach(function(button){
+    button.addEventListener("click", function(event){
+      event.stopPropagation();
+      deleteTemplate(button.dataset.deleteId);
+    });
+  });
+}
+
+function renderDetail(templates){
+  var detail = document.getElementById("templateDetail");
+  var nextStep = document.getElementById("nextStepPanel");
+  var selected = templates.find(function(template){ return template.id === selectedTemplateId; }) || templates[0];
+  if(!selected){
+    detail.innerHTML = '<p class="detail-copy">No templates match the current filters.</p>';
+    nextStep.innerHTML = '<p class="detail-copy">Create a mapping template in one of the import workspaces to manage it here.</p>';
+    return;
+  }
+  selectedTemplateId = selected.id;
+  var fields = mappedFieldKeys(selected);
+  var fieldCount = Number(selected.fields) || fields.length || 0;
+  var workspace = workspaceFor(selected);
+  detail.innerHTML = '<h2 class="detail-name">' + escHtml(selected.name || "Untitled Template") + "</h2>"
+    + '<p class="detail-copy">Saved for ' + escHtml(selected.type || "Unknown") + " imports on " + escHtml(formatDate(selected.date)) + ".</p>"
+    + '<div class="metric-grid">'
+    + metricBox("Type", escHtml(selected.type || "Unknown"))
+    + metricBox("Mapped Fields", formatNumber(fieldCount))
+    + metricBox("Storage Key", escHtml(selected.id || "-"))
+    + "</div>"
+    + '<div class="surface-copy" style="margin-bottom:10px">Mapped field keys</div>'
+    + (fields.length ? '<div class="mapped-fields">' + fields.map(function(field){ return '<span class="field-chip">' + escHtml(field) + "</span>"; }).join("") + "</div>" : '<p class="detail-copy">This template stores counts and type metadata but does not include a field-by-field map.</p>');
+  nextStep.innerHTML = '<div class="workspace-tile" style="margin-bottom:12px"><div><div class="workspace-name">' + escHtml(workspace.label) + '</div><div class="workspace-copy">Use this template inside the matching import workflow.</div></div><a class="btn btn-blue btn-sm" href="' + escHtml(workspace.href) + '">Open</a></div>'
+    + '<p class="detail-copy">Templates created in the patient import wizard and the SimplePractice import flow now stay visible here for quick review and cleanup.</p>';
+}
+
+function deleteTemplate(id){
+  saveTemplates(readTemplates().filter(function(template){ return template.id !== id; }));
+  if(selectedTemplateId === id) selectedTemplateId = null;
+  renderPage();
+}
+
+function renderPage(){
+  var templates = readTemplates();
+  renderSummary(templates);
+  var filtered = filterTemplates(templates);
+  renderTable(filtered);
+  renderDetail(filtered);
+}
+
+async function initPage(){
+  try { if(typeof initDashboard === "function") await initDashboard(ADMIN_ROLES); } catch (err) { console.error("[admin-import-mapping] init failed", err); }
+  var params = new URLSearchParams(window.location.search);
+  var presetType = params.get("type");
+  if(presetType === "patient") presetType = "Patient List";
+  populateTypeFilter(readTemplates(), presetType || "");
+  selectedTemplateId = params.get("id") || null;
+  ["templateSearch","typeFilter"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", renderPage);
+    document.getElementById(id).addEventListener("change", renderPage);
+  });
+  var logoutBtn = document.getElementById("logoutBtn");
+  if(logoutBtn && typeof logout === "function") logoutBtn.addEventListener("click", function(){ logout(); });
+  renderPage();
+}
+
+document.addEventListener("DOMContentLoaded", initPage);
+</script>
+</body>
+</html>

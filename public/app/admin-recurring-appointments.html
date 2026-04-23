@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Recurring Appointments</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    /* KPI strip */
+    .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#7c3aed)}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+
+    /* Filter bar */
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 15px}
+    .filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid var(--border);border-radius:9px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-bar input:focus,.filter-bar select:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .spacer{flex:1}
+
+    /* Table */
+    .table-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .table-card table{width:100%;border-collapse:collapse}
+    .table-card th{background:#f5f9fe;padding:11px 14px;text-align:left;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:2px solid var(--border);white-space:nowrap}
+    .table-card td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink-900);vertical-align:middle}
+    .table-card tr:last-child td{border-bottom:none}
+    .table-card tbody tr:hover{background:#f5f9fe;cursor:pointer}
+    .table-wrap{overflow-x:auto}
+
+    /* Status badges */
+    .badge-active{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-paused{color:#92400e;background:#fef3c7;border:1px solid #fcd34d}
+    .badge-cancelled{color:#7f1d1d;background:#fee2e2;border:1px solid #fca5a5}
+    .badge-completed{color:#1e40af;background:#dbeafe;border:1px solid #93c5fd}
+
+    /* Freq chip */
+    .freq-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700;background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe}
+
+    /* Action buttons */
+    .action-btns{display:flex;gap:5px;white-space:nowrap}
+
+    /* Modals */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1200;display:none;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop.open{display:flex}
+    .modal{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-lg);border:1px solid var(--border);width:min(580px,100%);max-height:90vh;overflow-y:auto}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+    .modal-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;color:var(--ink-900)}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-500);padding:4px;border-radius:6px}
+    .modal-close:hover{background:#f0f0f0}
+    .modal-body{padding:20px 24px}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--border)}
+    .form-group{margin-bottom:14px}
+    .form-label{display:block;font-size:12px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+    .form-control{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;box-sizing:border-box;outline:none}
+    .form-control:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .detail-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+    .detail-group{display:flex;flex-direction:column;gap:4px}
+    .detail-lbl{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em}
+    .detail-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+
+    /* Empty state */
+    .empty-state{text-align:center;padding:52px 20px;color:var(--ink-500)}
+    .empty-state-icon{font-size:2.5rem;margin-bottom:8px}
+    .empty-state p{font-size:14px;margin:0}
+
+    @media(max-width:900px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.form-row,.form-row-3{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Scheduling</div>
+      <a class="nav-link" href="admin-daily-schedule.html">Daily Schedule</a>
+      <a class="nav-link" href="admin-weekly-schedule.html">Weekly Schedule</a>
+      <a class="nav-link" href="admin-monthly-schedule.html">Monthly Schedule</a>
+      <a class="nav-link" href="admin-waitlist.html">Waitlist</a>
+      <a class="nav-link active" href="admin-recurring-appointments.html">Recurring Appointments</a>
+      <a class="nav-link" href="admin-no-shows-cancellations.html">No-Shows &amp; Cancellations</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Recurring Appointments</h1>
+        <p>Manage repeating appointment series</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-blue btn-sm" id="btnCreateSeries" type="button">&#43; Create Series</button>
+      </div>
+    </header>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card blue"><div class="kpi-num" id="kpiActive">--</div><div class="kpi-lbl">Active Series</div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="kpiWeekly">--</div><div class="kpi-lbl">Weekly Sessions</div></div>
+      <div class="kpi-card purple"><div class="kpi-num" id="kpiBiweekly">--</div><div class="kpi-lbl">Biweekly</div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="kpiMissed">--</div><div class="kpi-lbl">Missed Recurring</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar" aria-label="Series filters">
+      <input type="search" id="fSearch" placeholder="Search patient, provider..." aria-label="Search" style="min-width:200px">
+      <select id="fProvider" aria-label="Provider"><option value="">All Providers</option></select>
+      <select id="fFreq" aria-label="Frequency"><option value="">All Frequencies</option><option>Weekly</option><option>Biweekly</option><option>Monthly</option></select>
+      <select id="fStatus" aria-label="Status"><option value="">All Statuses</option><option>Active</option><option>Paused</option><option>Cancelled</option><option>Completed</option></select>
+      <div class="spacer"></div>
+      <span id="rowCount" style="font-size:12.5px;font-weight:700;color:var(--ink-500)"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Provider</th>
+              <th>Type</th>
+              <th>Frequency</th>
+              <th>Day / Time</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Next Appt</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="seriesBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none"><div class="empty-state-icon">&#128260;</div><p>No recurring series match the current filters.</p></div>
+    </div>
+  </main>
+</div>
+
+<!-- Create Series Modal -->
+<div class="modal-backdrop" id="createModal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="createTitle">Create Recurring Series</span>
+      <button class="modal-close" id="btnCloseCreate" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="cPatient">Patient Name</label><input class="form-control" id="cPatient" type="text" placeholder="Full name"></div>
+        <div class="form-group"><label class="form-label" for="cProvider">Provider</label><select class="form-control" id="cProvider"><option>Dr. Sarah Chen</option><option>Dr. Michael Torres</option><option>Dr. Priya Nair</option><option>Dr. James Liu</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="cType">Service Type</label><select class="form-control" id="cType"><option>Individual Therapy</option><option>Group Therapy</option><option>Family Therapy</option><option>Med Management</option><option>Substance Use Assessment</option></select></div>
+        <div class="form-group"><label class="form-label" for="cPayer">Payer</label><input class="form-control" id="cPayer" type="text" placeholder="Insurance / payer"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label class="form-label" for="cFreq">Frequency</label><select class="form-control" id="cFreq"><option>Weekly</option><option>Biweekly</option><option>Monthly</option></select></div>
+        <div class="form-group"><label class="form-label" for="cDay">Day of Week</label><select class="form-control" id="cDay"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option></select></div>
+        <div class="form-group"><label class="form-label" for="cTime">Start Time</label><input class="form-control" id="cTime" type="time" value="10:00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" for="cStart">Series Start</label><input class="form-control" id="cStart" type="date"></div>
+        <div class="form-group"><label class="form-label" for="cEnd">Series End</label><input class="form-control" id="cEnd" type="date"></div>
+      </div>
+      <div class="form-group"><label class="form-label" for="cDuration">Duration (minutes)</label><input class="form-control" id="cDuration" type="number" value="60" min="15" max="120"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseCreateFtr" type="button">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveCreate" type="button">Create Series</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="detailTitle">Series Details</span>
+      <button class="modal-close" id="btnCloseDetail" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseDetailFtr" type="button">Close</button>
+      <button class="btn btn-outline btn-sm" id="btnPauseResume" type="button">Pause</button>
+      <button class="btn btn-danger btn-sm" id="btnCancelSeries" type="button">Cancel Series</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function lsGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[]}catch{return[]}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+function fmtDate(iso){try{return new Date(iso+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return iso||'--'}}
+function fmtTime(t){if(!t)return'--';try{const[h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';return`${h%12||12}:${String(m).padStart(2,'0')} ${ap}`}catch{return t}}
+function nextOccurrence(dayName,freq,startDate,endDate){
+  const days={Sunday:0,Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5,Saturday:6};
+  const target=days[dayName]??1;
+  const now=new Date();
+  let d=new Date(Math.max(now,new Date(startDate+'T00:00:00')));
+  const limit=endDate?new Date(endDate+'T23:59:59'):new Date(2099,0,1);
+  for(let i=0;i<400;i++){
+    if(d.getDay()===target&&d>now){
+      if(d<=limit) return d.toISOString().slice(0,10);
+      return null;
+    }
+    d.setDate(d.getDate()+1);
+    if(d>limit) return null;
+  }
+  return null;
+}
+
+const TODAY_ISO=new Date().toISOString().slice(0,10);
+const SEED_KEY='therassistant_recurring_v1';
+
+const SEED_DATA=[
+  {id:'REC-001',patient:'Marcus Johnson',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'Colorado Medicaid',frequency:'Weekly',dayOfWeek:'Tuesday',time:'08:00',duration:60,startDate:'2025-01-07',endDate:'2025-12-30',status:'Active',missedCount:1},
+  {id:'REC-002',patient:'Linda Patterson',provider:'Dr. Sarah Chen',type:'Psychotherapy 53+ min',payer:'Aetna Better Health',frequency:'Weekly',dayOfWeek:'Wednesday',time:'09:00',duration:55,startDate:'2025-02-05',endDate:'2025-08-31',status:'Active',missedCount:0},
+  {id:'REC-003',patient:'Sofia Martinez',provider:'Dr. Michael Torres',type:'Individual Therapy',payer:'United Healthcare',frequency:'Biweekly',dayOfWeek:'Thursday',time:'14:00',duration:60,startDate:'2025-03-13',endDate:'2025-09-30',status:'Paused',missedCount:2},
+  {id:'REC-004',patient:'Noah Davis',provider:'Dr. Priya Nair',type:'Family Therapy',payer:'Anthem BCBS',frequency:'Biweekly',dayOfWeek:'Monday',time:'10:30',duration:60,startDate:'2025-04-07',endDate:'2025-10-31',status:'Active',missedCount:0},
+  {id:'REC-005',patient:'Carmen Reyes',provider:'Dr. James Liu',type:'Med Management',payer:'Anthem BCBS',frequency:'Monthly',dayOfWeek:'Friday',time:'08:30',duration:30,startDate:'2025-01-03',endDate:null,status:'Active',missedCount:0},
+  {id:'REC-006',patient:'Denise Morgan',provider:'Dr. James Liu',type:'Individual Therapy',payer:'United BH',frequency:'Weekly',dayOfWeek:'Tuesday',time:'10:00',duration:60,startDate:'2025-05-06',endDate:'2025-11-30',status:'Cancelled',missedCount:3},
+  {id:'REC-007',patient:'Robert Kim',provider:'Dr. Priya Nair',type:'Psychotherapy 53+ min',payer:'Colorado Medicaid',frequency:'Weekly',dayOfWeek:'Wednesday',time:'14:00',duration:60,startDate:'2025-04-02',endDate:'2026-04-01',status:'Active',missedCount:0},
+  {id:'REC-008',patient:'Isabella Wilson',provider:'Dr. Priya Nair',type:'Individual Therapy',payer:'Humana BH',frequency:'Biweekly',dayOfWeek:'Friday',time:'10:30',duration:60,startDate:'2025-05-02',endDate:'2025-11-28',status:'Active',missedCount:1},
+  {id:'REC-009',patient:'Tyler Cruz',provider:'Dr. Sarah Chen',type:'Med Management',payer:'Colorado Medicaid',frequency:'Monthly',dayOfWeek:'Thursday',time:'10:00',duration:30,startDate:'2025-02-06',endDate:null,status:'Active',missedCount:0},
+  {id:'REC-010',patient:'Elijah Thompson',provider:'Dr. Michael Torres',type:'Group Therapy',payer:'Colorado Medicaid',frequency:'Weekly',dayOfWeek:'Monday',time:'15:00',duration:90,startDate:'2025-03-03',endDate:'2025-09-29',status:'Active',missedCount:0},
+];
+
+function seedIfEmpty(){
+  if(lsGet(SEED_KEY).length===0) lsSet(SEED_KEY,SEED_DATA);
+}
+
+function populateFilters(){
+  const all=lsGet(SEED_KEY);
+  const providers=[...new Set(all.map(a=>a.provider))];
+  const sel=document.getElementById('fProvider');
+  while(sel.children.length>1) sel.removeChild(sel.lastChild);
+  providers.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;sel.appendChild(o)});
+}
+
+function statusBadge(s){
+  const cls={'Active':'badge-active','Paused':'badge-paused','Cancelled':'badge-cancelled','Completed':'badge-completed'}[s]||'badge-pending';
+  return`<span class="badge ${cls}">${esc(s)}</span>`;
+}
+
+function filtered(){
+  const q=(document.getElementById('fSearch').value||'').toLowerCase();
+  const p=document.getElementById('fProvider').value;
+  const f=document.getElementById('fFreq').value;
+  const s=document.getElementById('fStatus').value;
+  return lsGet(SEED_KEY).filter(e=>{
+    if(q&&!(e.patient+e.provider).toLowerCase().includes(q)) return false;
+    if(p&&e.provider!==p) return false;
+    if(f&&e.frequency!==f) return false;
+    if(s&&e.status!==s) return false;
+    return true;
+  });
+}
+
+function calcKpis(){
+  const all=lsGet(SEED_KEY);
+  document.getElementById('kpiActive').textContent=all.filter(e=>e.status==='Active').length;
+  document.getElementById('kpiWeekly').textContent=all.filter(e=>e.frequency==='Weekly'&&e.status==='Active').length;
+  document.getElementById('kpiBiweekly').textContent=all.filter(e=>e.frequency==='Biweekly'&&e.status==='Active').length;
+  document.getElementById('kpiMissed').textContent=all.reduce((sum,e)=>sum+(e.missedCount||0),0);
+}
+
+function render(){
+  calcKpis();
+  const rows=filtered();
+  document.getElementById('rowCount').textContent=`${rows.length} series`;
+  const tbody=document.getElementById('seriesBody');
+  const empty=document.getElementById('emptyState');
+  if(rows.length===0){tbody.innerHTML='';empty.style.display='';return}
+  empty.style.display='none';
+  tbody.innerHTML=rows.map(e=>{
+    const next=nextOccurrence(e.dayOfWeek,e.frequency,e.startDate,e.endDate);
+    return`<tr data-id="${esc(e.id)}">
+      <td><div style="font-weight:700">${esc(e.patient)}</div><div style="font-size:11px;color:var(--ink-500)">${esc(e.type)}</div></td>
+      <td>${esc(e.provider)}</td>
+      <td>${esc(e.type)}</td>
+      <td><span class="freq-chip">&#128260; ${esc(e.frequency)}</span></td>
+      <td>${esc(e.dayOfWeek)} &bull; ${esc(fmtTime(e.time))}</td>
+      <td>${esc(fmtDate(e.startDate))}</td>
+      <td>${e.endDate?esc(fmtDate(e.endDate)):'<span style="color:var(--ink-500)">Ongoing</span>'}</td>
+      <td>${next?`<span style="font-weight:600">${esc(fmtDate(next))}</span>`:'<span style="color:var(--ink-500)">--</span>'}</td>
+      <td>${statusBadge(e.status)}</td>
+      <td><div class="action-btns" style="justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm js-pause" data-id="${esc(e.id)}" data-status="${esc(e.status)}" type="button">${e.status==='Paused'?'Resume':'Pause'}</button>
+        <button class="btn btn-outline btn-sm js-view" data-id="${esc(e.id)}" type="button">View</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+let focusedId=null;
+
+function openDetail(id){
+  const all=lsGet(SEED_KEY);
+  const e=all.find(x=>x.id===id);
+  if(!e) return;
+  focusedId=id;
+  document.getElementById('btnPauseResume').textContent=e.status==='Paused'?'Resume':'Pause';
+  const next=nextOccurrence(e.dayOfWeek,e.frequency,e.startDate,e.endDate);
+  document.getElementById('detailBody').innerHTML=`
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Patient</div><div class="detail-val">${esc(e.patient)}</div></div><div class="detail-group"><div class="detail-lbl">Provider</div><div class="detail-val">${esc(e.provider)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Service Type</div><div class="detail-val">${esc(e.type)}</div></div><div class="detail-group"><div class="detail-lbl">Payer</div><div class="detail-val">${esc(e.payer)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Frequency</div><div class="detail-val">${esc(e.frequency)}</div></div><div class="detail-group"><div class="detail-lbl">Day &amp; Time</div><div class="detail-val">${esc(e.dayOfWeek)} at ${esc(fmtTime(e.time))}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Series Start</div><div class="detail-val">${esc(fmtDate(e.startDate))}</div></div><div class="detail-group"><div class="detail-lbl">Series End</div><div class="detail-val">${e.endDate?esc(fmtDate(e.endDate)):'Ongoing'}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Next Appointment</div><div class="detail-val">${next?esc(fmtDate(next)):'--'}</div></div><div class="detail-group"><div class="detail-lbl">Status</div><div class="detail-val">${statusBadge(e.status)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Duration</div><div class="detail-val">${esc(e.duration)} min</div></div><div class="detail-group"><div class="detail-lbl">Missed Sessions</div><div class="detail-val"><span style="color:${e.missedCount>0?'#b91c1c':'var(--ink-900)'};font-weight:700">${e.missedCount||0}</span></div></div></div>`;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetail(){document.getElementById('detailModal').classList.remove('open');focusedId=null}
+function closeCreate(){document.getElementById('createModal').classList.remove('open')}
+
+/* Events */
+document.addEventListener('click',e=>{
+  const pauseBtn=e.target.closest('.js-pause');
+  const viewBtn=e.target.closest('.js-view');
+  const tr=e.target.closest('tr[data-id]');
+  if(pauseBtn){
+    e.stopPropagation();
+    const all=lsGet(SEED_KEY);
+    const i=all.findIndex(x=>x.id===pauseBtn.dataset.id);
+    if(i>-1){all[i].status=all[i].status==='Paused'?'Active':'Paused';lsSet(SEED_KEY,all);}
+    render();return;
+  }
+  if(viewBtn){e.stopPropagation();openDetail(viewBtn.dataset.id);return}
+  if(tr){openDetail(tr.dataset.id);return}
+  if(e.target.id==='detailModal') closeDetail();
+  if(e.target.id==='createModal') closeCreate();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDetail();closeCreate()}});
+document.getElementById('btnCreateSeries').addEventListener('click',()=>{
+  document.getElementById('cStart').value=TODAY_ISO;
+  document.getElementById('createModal').classList.add('open');
+});
+document.getElementById('btnCloseCreate').addEventListener('click',closeCreate);
+document.getElementById('btnCloseCreateFtr').addEventListener('click',closeCreate);
+document.getElementById('btnCloseDetail').addEventListener('click',closeDetail);
+document.getElementById('btnCloseDetailFtr').addEventListener('click',closeDetail);
+document.getElementById('btnPauseResume').addEventListener('click',()=>{
+  if(!focusedId) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status=all[i].status==='Paused'?'Active':'Paused';lsSet(SEED_KEY,all);}
+  closeDetail();render();
+});
+document.getElementById('btnCancelSeries').addEventListener('click',()=>{
+  if(!focusedId) return;
+  if(!confirm('Cancel this recurring series? Existing appointments will not be removed.')) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status='Cancelled';lsSet(SEED_KEY,all);}
+  closeDetail();render();
+});
+document.getElementById('btnSaveCreate').addEventListener('click',()=>{
+  const patient=document.getElementById('cPatient').value.trim();
+  if(!patient){alert('Patient name is required.');return}
+  const all=lsGet(SEED_KEY);
+  all.push({
+    id:'REC-'+String(Date.now()).slice(-6),
+    patient,
+    provider:document.getElementById('cProvider').value,
+    type:document.getElementById('cType').value,
+    payer:document.getElementById('cPayer').value,
+    frequency:document.getElementById('cFreq').value,
+    dayOfWeek:document.getElementById('cDay').value,
+    time:document.getElementById('cTime').value,
+    duration:parseInt(document.getElementById('cDuration').value)||60,
+    startDate:document.getElementById('cStart').value||TODAY_ISO,
+    endDate:document.getElementById('cEnd').value||null,
+    status:'Active',
+    missedCount:0
+  });
+  lsSet(SEED_KEY,all);
+  closeCreate();
+  document.getElementById('cPatient').value='';
+  document.getElementById('cPayer').value='';
+  document.getElementById('cEnd').value='';
+  populateFilters();render();
+});
+['fSearch'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+['fProvider','fFreq','fStatus'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+
+window.addEventListener('load',async()=>{
+  if(typeof initDashboard==='function'&&typeof ADMIN_ROLES!=='undefined'){
+    try{await initDashboard(ADMIN_ROLES)}catch(err){console.error('[admin-recurring-appointments]',err)}
+  }
+  seedIfEmpty();
+  populateFilters();
+  render();
+});
+</script>
+</body>
+</html>

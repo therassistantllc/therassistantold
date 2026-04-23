@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Service Codes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .codes-table{width:100%;border-collapse:collapse;margin-top:20px}
+    .codes-table thead{background:#fafbfc;border-bottom:1px solid var(--border)}
+    .codes-table th{text-align:left;padding:12px;font-weight:700;font-size:12px;color:var(--ink-700);text-transform:uppercase;letter-spacing:.05em}
+    .codes-table td{padding:12px;border-bottom:1px solid var(--border);font-size:13px}
+    .codes-table tbody tr:hover{background:rgba(59,130,246,.02)}
+
+    .page-controls{display:flex;gap:12px;align-items:center;margin-bottom:24px}
+    .page-controls input{flex:1;max-width:300px}
+    .btn-primary{padding:10px 20px;background:var(--blue-700);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+    .btn-primary:hover{background:var(--blue-800)}
+
+    .tab-buttons{display:flex;gap:16px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px}
+    .tab-btn{background:none;border:none;padding:8px 0;font-weight:600;font-size:14px;color:var(--ink-600);cursor:pointer;border-bottom:2px solid transparent;position:relative;bottom:-13px}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-700)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-users.html">Users</a>
+      <a class="nav-link" href="admin-roles.html">Roles & Permissions</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Service Codes</h1>
+        <p>Configure CPT, ICD-10, and other billing codes</p>
+      </div>
+    </header>
+
+    <div class="tab-buttons">
+      <button class="tab-btn active" data-tab="cpt">CPT Codes</button>
+      <button class="tab-btn" data-tab="icd10">ICD-10 Codes</button>
+      <button class="tab-btn" data-tab="modifiers">Modifiers</button>
+    </div>
+
+    <div id="cpt-tab">
+      <div class="page-controls">
+        <input type="text" id="cptSearch" placeholder="Search CPT codes..." style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        <button class="btn-primary">+ Add Code</button>
+      </div>
+
+      <table class="codes-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th>Base Fee</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>90834</strong></td>
+            <td>Psychotherapy, 45 minutes</td>
+            <td>Office Visit</td>
+            <td>$150.00</td>
+            <td><a href="#" style="color:var(--blue-700);text-decoration:none;font-size:12px">Edit</a></td>
+          </tr>
+          <tr>
+            <td><strong>90837</strong></td>
+            <td>Psychotherapy, 60 minutes</td>
+            <td>Office Visit</td>
+            <td>$200.00</td>
+            <td><a href="#" style="color:var(--blue-700);text-decoration:none;font-size:12px">Edit</a></td>
+          </tr>
+          <tr>
+            <td><strong>90847</strong></td>
+            <td>Family psychotherapy, 60 minutes</td>
+            <td>Office Visit</td>
+            <td>$250.00</td>
+            <td><a href="#" style="color:var(--blue-700);text-decoration:none;font-size:12px">Edit</a></td>
+          </tr>
+          <tr>
+            <td><strong>99213</strong></td>
+            <td>Office visit, established patient</td>
+            <td>Office Visit</td>
+            <td>$100.00</td>
+            <td><a href="#" style="color:var(--blue-700);text-decoration:none;font-size:12px">Edit</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-service-codes] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-service-codes] Init failed:', err);
+    }
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+</script>
+</body>
+</html>

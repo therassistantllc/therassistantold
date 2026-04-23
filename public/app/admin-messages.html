@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Messages</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    .messages-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .messages-table thead{background:#f5f9fe;border-bottom:1px solid var(--border)}
+    .messages-table th{padding:12px 16px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-700);letter-spacing:.04em}
+    .messages-table td{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px}
+    .messages-table tbody tr:hover{background:#fafbfc}
+    .messages-table tbody tr:last-child td{border-bottom:none}
+
+    .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;box-shadow:var(--shadow-sm)}
+    .toolbar input, .toolbar select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)}
+
+    .priority-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600}
+    .priority-high{background:#ef4444;color:#fff}
+    .priority-medium{background:#f59e0b;color:#fff}
+    .priority-low{background:#10b981;color:#fff}
+
+    .empty-state{text-align:center;padding:48px;color:var(--ink-500)}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <div class="nav-group-label">Communication</div>
+      <a class="nav-link active" href="admin-messages.html">Messages</a>
+      <a class="nav-link" href="support-center.html">Tickets</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Messages</h1>
+        <p>Internal and client communications</p>
+      </div>
+      <div>
+        <button class="btn btn-blue btn-sm" id="btnNewMessage" type="button">+ New Message</button>
+      </div>
+    </header>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+      <input type="search" id="searchInput" placeholder="Search messages…" style="flex:1;min-width:250px">
+      <select id="statusFilter">
+        <option value="">All Status</option>
+        <option>Unread</option>
+        <option>Read</option>
+      </select>
+      <select id="typeFilter">
+        <option value="">All Types</option>
+        <option>Internal</option>
+        <option>Client</option>
+      </select>
+    </div>
+
+    <!-- Messages Table -->
+    <table class="messages-table">
+      <thead>
+        <tr>
+          <th style="width:5%">✓</th>
+          <th style="width:25%">From / To</th>
+          <th style="width:40%">Subject</th>
+          <th style="width:15%">Date</th>
+          <th style="width:15%">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td>Sarah Chen</td>
+          <td>Follow-up on appointment</td>
+          <td>04/11/2026</td>
+          <td><span class="priority-badge priority-low">Read</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td>Patient Portal</td>
+          <td>Appointment confirmation</td>
+          <td>04/10/2026</td>
+          <td><span class="priority-badge priority-low">Read</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td>Admin Team</td>
+          <td>System update notification</td>
+          <td>04/09/2026</td>
+          <td><span class="priority-badge priority-low">Read</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-messages] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-messages] Init failed:', err);
+    }
+  }
+
+  document.getElementById('btnNewMessage')?.addEventListener('click', () => {
+    console.log('[Messages] New message');
+  });
+});
+</script>
+</body>
+</html>

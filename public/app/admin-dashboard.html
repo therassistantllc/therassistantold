@@ -1,0 +1,552 @@
+﻿<!DOCTYPE html>
+<!-- ================================================================
+  THERASSISTANT — Admin Dashboard
+  ================================================================
+  WIDGET INVENTORY (20 widgets):
+    1.  Revenue Summary (MTD / YTD)
+    2.  Outstanding AR
+    3.  Claims Aging buckets
+    4.  Denials by Payer
+    5.  CARC/RARC Trends
+    6.  Open Billing Alerts
+    7.  Open Support Tickets
+    8.  Open Chats
+    9.  Eligibility Failures
+   10.  Missing Authorizations
+   11.  ERA Import Status
+   12.  Unmatched Payments
+   13.  Collections by Clinician
+   14.  Claims Submitted
+   15.  Claims Denied
+   16.  Claims Paid
+   17.  Recredentialing Reminders
+   18.  License Expirations
+   19.  Active Users
+   20.  Support Team Workload
+
+  ─── API ROUTES ──────────────────────────────────────────────────
+  GET  /api/admin/dashboard/kpis            ?period &from &to &payer &clinician
+  GET  /api/admin/claims/aging              ?period &payer &clinician
+  GET  /api/admin/claims/denials-by-payer   ?period
+  GET  /api/admin/claims/carc-rarc-trends   ?period &limit
+  GET  /api/admin/claims/submitted          ?period &payer &clinician &page &limit
+  GET  /api/admin/claims/denied             ?period &payer &clinician &page &limit
+  GET  /api/admin/claims/paid               ?period &payer &clinician &page &limit
+  GET  /api/admin/alerts/summary            — open count, critical count, by type
+  GET  /api/admin/tickets/summary           — open, urgent, by category
+  GET  /api/admin/chats/summary             — open, unread, by status
+  GET  /api/admin/eligibility/failures      ?period &payer &clinician
+  GET  /api/admin/billing/missing-auths     ?clinician &payer
+  GET  /api/admin/era/status                ?period
+  GET  /api/admin/payments/unmatched        ?period
+  GET  /api/admin/clinicians/collections    ?period
+  GET  /api/admin/compliance/recredentialing
+  GET  /api/admin/compliance/licenses
+  GET  /api/admin/platform/active-users     ?period
+  GET  /api/admin/platform/team-workload
+
+  ─── DATABASE TABLES ─────────────────────────────────────────────
+  claims           (id, client_id, clinician_id, payer_id, dos, cpt,
+                    billed_amt, allowed_amt, paid_amt, status,
+                    submitted_at, paid_at, denied_at, denial_reason_id)
+  claims_aging     VIEW — buckets: 0-30, 31-60, 61-90, 91-120, 120+
+  denial_reasons   (id, carc_code, rarc_code, description, payer_id)
+  billing_alerts   (id, client_id, type, priority, status, created_at)
+  support_tickets  (id, provider, client, category, priority, status,
+                    assigned_to, created_at, last_updated)
+  chat_sessions    (id, session_type, status, unread_count, created_at)
+  eligibility_veri (id, client_id, payer_id, verified_at, status,
+                    failure_reason, clinician_id)
+  authorizations   (id, client_id, payer_id, auth_number, start_date,
+                    end_date, sessions_approved, sessions_used, status)
+  era_imports      (id, file_name, payer, imported_at, claims_count,
+                    matched_count, unmatched_count, status)
+  payment_postings (id, era_id, claim_id, amount, posted_at,
+                    match_status, match_confidence)
+  clinician_colls  VIEW — clinician_id, name, billed, collected,
+                          collection_rate, claim_count
+  credentials      (id, clinician_id, payer_id, status, expires_at,
+                    days_until_expiry, alert_sent)
+  licenses         (id, clinician_id, license_type, state,
+                    license_number, expires_at, status)
+  user_sessions    (id, user_id, role, last_active, ip_addr,
+                    login_at, page_views)
+  staff_assignments(id, staff_id, ticket_id, assigned_at,
+                    completed_at, work_type)
+
+  ─── PERMISSIONS ─────────────────────────────────────────────────
+  super_admin   — full read/write on all widgets + export
+  admin         — full read on all widgets, limited write
+  billing_staff — read: claims, AR, ERA, alerts, eligibility only
+  clinician     — no access (redirected to dashboard.html)
+
+  RLS policies on all tables check auth.jwt()->>'role' against
+  the ADMIN_ROLES constant declared in shared.js
+  ================================================================ -->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    /* ── Admin badge ── */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+
+    /* ── Sidebar groups ── */
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-400);padding:18px 16px 5px;pointer-events:none;user-select:none}
+    .nav-group-label:first-of-type{padding-top:8px}
+
+    /* ── Section header ── */
+    .adm-section-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:36px 0 16px;padding-bottom:10px;border-bottom:2px solid var(--border)}
+    .adm-section-header h2{font-family:"Sora",sans-serif;font-size:1.05rem;font-weight:700;color:var(--ink-900);margin:0}
+    .adm-section-header a{font-size:12px;font-weight:600;color:var(--blue-700);text-decoration:none;white-space:nowrap}
+    .adm-section-header a:hover{text-decoration:underline}
+    .adm-section-header:first-child{margin-top:0}
+
+    /* ── KPI cards (3-up, spacious) ── */
+    .adm-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:0}
+    .adm-kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px 20px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;cursor:default}
+    .adm-kpi-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700));border-radius:4px 0 0 4px}
+    .adm-kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .adm-kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .adm-kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .adm-kpi-num{font-family:"Sora",sans-serif;font-size:2.2rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:6px}
+    .adm-kpi-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)}
+    .adm-kpi-sub{font-size:12px;color:var(--ink-400);margin-top:4px}
+
+    /* ── Pulse bar (inline activity metrics) ── */
+    .adm-pulse-bar{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+    .adm-pulse-item{padding:16px 20px;border-right:1px solid var(--border);transition:background .12s}
+    .adm-pulse-item:last-child{border-right:none}
+    .adm-pulse-item:hover{background:#f7fbff;cursor:pointer}
+    .adm-pulse-num{font-family:"Sora",sans-serif;font-size:1.7rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:4px}
+    .adm-pulse-num.amber{color:#b45309}
+    .adm-pulse-num.red{color:#b91c1c}
+    .adm-pulse-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)}
+
+    /* ── Panels ── */
+    .adm-two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:0}
+    .adm-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;box-shadow:var(--shadow-sm)}
+    .adm-panel-title{font-size:13px;font-weight:700;color:var(--ink-800);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .adm-panel-title a{font-size:12px;font-weight:600;color:var(--blue-700);text-decoration:none}
+    .adm-panel-title a:hover{text-decoration:underline}
+
+    /* ── Bar charts (taller + more whitespace) ── */
+    .adm-bar-row{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:13px}
+    .adm-bar-row:last-child{margin-bottom:0}
+    .adm-bar-label{width:130px;flex-shrink:0;color:var(--ink-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+    .adm-bar-track{flex:1;background:#edf1f5;border-radius:99px;height:9px;overflow:hidden}
+    .adm-bar-fill{background:var(--blue-500);height:100%;border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+    .adm-bar-fill.green{background:#10b981}
+    .adm-bar-fill.amber{background:#f59e0b}
+    .adm-bar-fill.red{background:#ef4444}
+    .adm-bar-count{width:44px;text-align:right;font-weight:700;color:var(--ink-700);flex-shrink:0;font-size:12.5px}
+
+    /* ── Badges ── */
+    .badge-new{color:#0d4c8e;background:#e8f2ff;border:1px solid #c3dffb}
+    .badge-pending{color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa}
+    .badge-waiting-ins{color:#6b3b00;background:#fff3dc;border:1px solid #f5d78c}
+    .badge-waiting-cl{color:#5a3a00;background:#fff8e6;border:1px solid #f0e3a0}
+    .badge-completed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-closed{color:var(--ink-500);background:#edf1f5;border:1px solid #cdd6e0}
+    .badge-draft{color:var(--ink-500);background:#f3f4f6;border:1px solid #d1d5db}
+    .badge-urgent{color:#9b1c1c;background:#fde8e8;border:1px solid #fca5a5}
+    .badge-high{color:#7c2d12;background:#fff0e5;border:1px solid #f5c6a0}
+    .badge-routine{color:var(--ink-500);background:#f3f4f6;border:1px solid #d1d5db}
+
+    /* ── Legacy aliases kept for JS badge functions ── */
+    .adm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+    .adm-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .adm-stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .adm-stat.amber::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .adm-stat.red::after{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .adm-stat.green::after{background:linear-gradient(180deg,#10b981,#059669)}
+    .adm-stat-num{font-family:"Sora",sans-serif;font-size:1.8rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .adm-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+
+    @media(max-width:1100px){.adm-kpi-row{grid-template-columns:1fr 1fr}.adm-pulse-bar{grid-template-columns:1fr 1fr}.adm-pulse-item:nth-child(2){border-right:none}.adm-pulse-item:nth-child(3){border-top:1px solid var(--border)}}
+    @media(max-width:860px){.adm-two-col{grid-template-columns:1fr}}
+    @media(max-width:600px){.adm-kpi-row{grid-template-columns:1fr}.adm-pulse-bar{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="dashboard-main">
+
+    <!-- Header -->
+    <header class="dashboard-header" style="margin-bottom:32px">
+      <div>
+        <h1>Admin Dashboard</h1>
+        <p id="userLabel" style="margin-top:2px">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--ink-500)">Logged in as: <span id="welcomeName" style="color:var(--ink-900)"></span></span>
+        <a class="btn btn-outline btn-sm" href="support-center.html">&#127381; Open Tickets</a>
+      </div>
+    </header>
+
+    <!-- ══════════════════════════════════════
+         SECTION: FINANCIAL HEALTH
+    ══════════════════════════════════════ -->
+    <div class="adm-section-header" style="margin-top:0">
+      <h2>Financial Health</h2>
+      <a href="admin-revenue-dashboard.html">Full Revenue Report &#8594;</a>
+    </div>
+    <div class="adm-kpi-row" style="margin-bottom:32px">
+      <div class="adm-kpi-card green">
+        <div class="adm-kpi-num" id="kpiRevenueMtd">$127,480</div>
+        <div class="adm-kpi-label">Revenue MTD</div>
+        <div class="adm-kpi-sub" id="kpiRevenueSub">$891,250 YTD &nbsp;&#183;&nbsp; goal: $150k/mo</div>
+      </div>
+      <div class="adm-kpi-card amber">
+        <div class="adm-kpi-num" id="kpiArOutstanding">$284,120</div>
+        <div class="adm-kpi-label">AR Outstanding</div>
+        <div class="adm-kpi-sub" id="kpiArSub">$77,520 aged 90+ days</div>
+      </div>
+      <div class="adm-kpi-card red">
+        <div class="adm-kpi-num" id="kpiDenialRate">12.3%</div>
+        <div class="adm-kpi-label">Denial Rate</div>
+        <div class="adm-kpi-sub" id="kpiDenialSub">Target &lt;8% &nbsp;&#183;&nbsp; up 1.2% from last month</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SECTION: ACTIVE WORK — pulse bar
+    ══════════════════════════════════════ -->
+    <div class="adm-section-header">
+      <h2>Active Work</h2>
+    </div>
+    <div class="adm-pulse-bar" style="margin-bottom:32px">
+      <div class="adm-pulse-item" data-href="admin-billing-alerts.html" title="View Billing Alerts">
+        <div class="adm-pulse-num amber">23</div>
+        <div class="adm-pulse-label">Billing Alerts</div>
+      </div>
+      <div class="adm-pulse-item" data-href="support-center.html" title="View Support Tickets">
+        <div class="adm-pulse-num amber" id="statOpenTickets">0</div>
+        <div class="adm-pulse-label">Open Tickets</div>
+      </div>
+      <div class="adm-pulse-item" data-href="admin-eligibility.html" title="View Eligibility Failures">
+        <div class="adm-pulse-num red">14</div>
+        <div class="adm-pulse-label">Eligibility Failures</div>
+      </div>
+      <div class="adm-pulse-item" data-href="admin-credentialing.html" title="View Credentialing">
+        <div class="adm-pulse-num red">3</div>
+        <div class="adm-pulse-label">Credentialing Alerts</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SECTION: REVENUE BREAKDOWN
+    ══════════════════════════════════════ -->
+    <div class="adm-section-header">
+      <h2>Revenue Breakdown</h2>
+      <a href="admin-financial.html">AR Aging Detail &#8594;</a>
+    </div>
+    <div class="adm-two-col" style="margin-bottom:32px">
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>AR Aging Buckets</span>
+          <a href="admin-financial.html">View All</a>
+        </div>
+        <div id="arAgingBars"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>Denials by Payer</span>
+          <a href="admin-revenue-dashboard.html">Full Report</a>
+        </div>
+        <div id="denialBars"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SECTION: OPEN WORK ITEMS
+    ══════════════════════════════════════ -->
+    <div class="adm-section-header">
+      <h2>Open Work Items</h2>
+      <a href="admin-billing-alerts.html">Manage Alerts &#8594;</a>
+    </div>
+    <div class="adm-two-col" style="margin-bottom:32px">
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>Billing Alerts</span>
+          <a href="admin-billing-alerts.html">All 23 alerts</a>
+        </div>
+        <div class="table-wrap" style="max-height:260px">
+          <table class="data-table">
+            <thead><tr><th>Client</th><th>Issue</th><th>Payer</th><th>Age</th></tr></thead>
+            <tbody id="billingAlertsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>Eligibility Failures</span>
+          <a href="admin-eligibility.html">Review all 14</a>
+        </div>
+        <div class="table-wrap" style="max-height:260px">
+          <table class="data-table">
+            <thead><tr><th>Client</th><th>Payer</th><th>Date</th><th>Reason</th></tr></thead>
+            <tbody id="eligibilityBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SECTION: COMPLIANCE & TICKETS
+    ══════════════════════════════════════ -->
+    <div class="adm-section-header">
+      <h2>Compliance &amp; Support</h2>
+      <a href="admin-credentialing.html">Credentialing Dashboard &#8594;</a>
+    </div>
+    <div class="adm-two-col" style="margin-bottom:8px">
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>Credentialing Reminders</span>
+          <a href="admin-credentialing.html">All items</a>
+        </div>
+        <div id="credReminders"></div>
+      </div>
+      <div class="adm-panel">
+        <div class="adm-panel-title">
+          <span>Recent Support Tickets</span>
+          <a href="support-center.html">All tickets</a>
+        </div>
+        <div class="table-wrap" style="max-height:280px">
+          <table class="data-table">
+            <thead><tr><th>ID</th><th>Provider</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
+            <tbody id="recentTicketsBody"></tbody>
+          </table>
+        </div>
+        <div id="noTickets" style="display:none;text-align:center;padding:20px;font-size:13px;color:var(--ink-500)">No recent tickets. <a href="support-center.html" style="color:var(--blue-700);font-weight:700">Open Support Center &#8594;</a></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+'use strict';
+const SC_TICKETS_KEY = 'therassistant_sc_tickets_v1';
+
+function scGet(key) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function statusBadge(s) {
+  const m={'New':'badge-new','Pending':'badge-pending','Waiting on Client':'badge-waiting-cl','Waiting on Insurance':'badge-waiting-ins','Completed':'badge-completed','Closed':'badge-closed'};
+  return '<span class="badge '+(m[s]||'badge-draft')+'">'+escHtml(s)+'</span>';
+}
+function priorityBadge(p) {
+  const m={'Urgent':'badge-urgent','High Priority':'badge-high','Routine':'badge-routine'};
+  return '<span class="badge '+(m[p]||'badge-routine')+'">'+escHtml(p)+'</span>';
+}
+function renderHBars(elId, rows) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  if (!rows || !rows.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--ink-500);margin:8px 0">No data available.</p>';
+    return;
+  }
+  var maxVal = Math.max.apply(null, rows.map(function(r) { return r.value; }));
+  if (maxVal <= 0) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--ink-500);margin:8px 0">No data available.</p>';
+    return;
+  }
+  el.innerHTML = rows.map(function(r) {
+    var pct = Math.round(r.value / maxVal * 100);
+    var cls = r.cls ? ' ' + r.cls : '';
+    var display = escHtml(r.display || String(r.value));
+    return '<div class="adm-bar-row">' +
+      '<span class="adm-bar-label">' + escHtml(r.label) + '</span>' +
+      '<div class="adm-bar-track"><div class="adm-bar-fill' + cls + '" style="width:' + pct + '%"></div></div>' +
+      '<span class="adm-bar-count">' + display + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+}
+function formatPercent(value) {
+  return (Math.round(value * 10) / 10) + '%';
+}
+function parseDayAge(ageText) {
+  var n = parseInt(ageText, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+const AR_AGING = [
+  {label:'0-30 days',  value:82000, display:'$82,000', cls:'green'},
+  {label:'31-60 days', value:71400, display:'$71,400'},
+  {label:'61-90 days', value:53200, display:'$53,200', cls:'amber'},
+  {label:'90+ days',   value:77520, display:'$77,520', cls:'red'},
+];
+const DENIAL_DATA = [
+  {label:'CO HCPF (RAE)', value:18, display:'18%', cls:'red'},
+  {label:'Aetna',         value:14, display:'14%', cls:'amber'},
+  {label:'Cigna',         value:10, display:'10%'},
+  {label:'United / OHC',  value:9,  display:'9%'},
+  {label:'Kaiser CO',     value:8,  display:'8%'},
+];
+const BILLING_ALERTS = [
+  {client:'Rivera, J.',   issue:'Missing auth - H2015',       payer:'CO HCPF',   age:'3d'},
+  {client:'Okafor, T.',   issue:'Duplicate claim 90834',      payer:'Aetna',     age:'5d'},
+  {client:'Chen, M.',     issue:'Eligibility inactive',       payer:'Kaiser',    age:'1d'},
+  {client:'Williams, K.', issue:'Auth expiring in 2 days',    payer:'HCPF-RAE5', age:'2d'},
+  {client:'Patel, S.',    issue:'Missing dx on claim',        payer:'United',    age:'7d'},
+];
+const ELIGIBILITY_FAILS = [
+  {client:'Torres, A.',  payer:'CO HCPF',   date:'Apr 5', reason:'Coverage ended'},
+  {client:'Brooks, E.',  payer:'Aetna',     date:'Apr 5', reason:'Plan not active'},
+  {client:'Diaz, R.',    payer:'Cigna BH',  date:'Apr 4', reason:'NPI not enrolled'},
+  {client:'Nguyen, P.',  payer:'United BH', date:'Apr 3', reason:'Out-of-network'},
+  {client:'Johnson, D.', payer:'CO HCPF',   date:'Apr 3', reason:'Effective date pending'},
+];
+const CRED_REMINDERS = [
+  {name:'Santos, Maria',  item:'LAC License Renewal',      days:18, cls:'amber'},
+  {name:'Fontaine, Jac.', item:'DEA Registration Renewal', days:28, cls:'amber'},
+  {name:'Osei, Kwame',    item:'PECOS Re-enrollment',      days:-3, cls:'red'},
+];
+const MOCK_TICKETS = [
+  {id:'TKT-1041', provider:'Dr. Santos',   category:'Billing / Claims',  priority:'High Priority', status:'Pending'},
+  {id:'TKT-1039', provider:'Dr. Fontaine', category:'Auth / Prior Auth',  priority:'Urgent',        status:'New'},
+  {id:'TKT-1037', provider:'Dr. Osei',     category:'Client Record',      priority:'Routine',       status:'Pending'},
+  {id:'TKT-1033', provider:'Dr. Santos',   category:'Billing / Claims',  priority:'Routine',       status:'Waiting on Insurance'},
+];
+
+function toTime(v) { var t = new Date(v).getTime(); return isNaN(t) ? 0 : t; }
+
+function renderBillingAlerts() {
+  var empty = '<tr><td colspan="4" style="text-align:center;padding:14px;font-size:13px;color:var(--ink-500)">No billing alerts</td></tr>';
+  document.getElementById('billingAlertsBody').innerHTML = BILLING_ALERTS.length
+    ? BILLING_ALERTS.map(function(a) {
+        var ageNum = parseInt(a.age);
+        return '<tr>' +
+          '<td>' + escHtml(a.client) + '</td>' +
+          '<td style="font-size:12px;color:var(--ink-700)">' + escHtml(a.issue) + '</td>' +
+          '<td><span class="badge badge-draft">' + escHtml(a.payer) + '</span></td>' +
+          '<td style="font-weight:700;color:' + (ageNum <= 2 ? '#dc2626' : '#b45309') + '">' + escHtml(a.age) + '</td>' +
+          '</tr>';
+      }).join('')
+    : empty;
+}
+
+function renderEligibilityFails() {
+  var empty = '<tr><td colspan="4" style="text-align:center;padding:14px;font-size:13px;color:var(--ink-500)">No eligibility failures</td></tr>';
+  document.getElementById('eligibilityBody').innerHTML = ELIGIBILITY_FAILS.length
+    ? ELIGIBILITY_FAILS.map(function(e) {
+        return '<tr>' +
+          '<td>' + escHtml(e.client) + '</td>' +
+          '<td><span class="badge badge-draft">' + escHtml(e.payer) + '</span></td>' +
+          '<td class="muted">' + escHtml(e.date) + '</td>' +
+          '<td style="font-size:12px;color:#dc2626;font-weight:600">' + escHtml(e.reason) + '</td>' +
+          '</tr>';
+      }).join('')
+    : empty;
+}
+
+function renderCredReminders() {
+  document.getElementById('credReminders').innerHTML =
+    CRED_REMINDERS.map(function(r) {
+      var overdue   = r.days < 0;
+      var daysLabel = overdue ? Math.abs(r.days) + 'd overdue' : r.days + 'd remaining';
+      var dotColor  = overdue ? '#ef4444' : '#f59e0b';
+      var badgeCls  = overdue ? 'badge-urgent' : 'badge-high';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">' +
+        '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + dotColor + ';flex-shrink:0"></span>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--ink-900)">' + escHtml(r.name) + '</div>' +
+          '<div style="font-size:12px;color:var(--ink-500);margin-top:1px">' + escHtml(r.item) + '</div>' +
+        '</div>' +
+        '<span class="badge ' + badgeCls + '" style="white-space:nowrap">' + daysLabel + '</span>' +
+        '</div>';
+    }).join('') +
+    '<div style="margin-top:10px"><a href="admin-credentialing.html" style="font-size:12px;font-weight:700;color:var(--blue-700);text-decoration:none">View All Credentialing &#8594;</a></div>';
+}
+
+function renderRecentTickets(openTickets) {
+  var recentSource = openTickets.length
+    ? openTickets.slice().sort(function(a, b) { return toTime(b.lastUpdated) - toTime(a.lastUpdated); }).slice(0, 5)
+    : MOCK_TICKETS;
+  var tbody = document.getElementById('recentTicketsBody');
+  var noEl  = document.getElementById('noTickets');
+  if (!recentSource.length) { if (noEl) noEl.style.display = 'block'; return; }
+  tbody.innerHTML = recentSource.map(function(t) {
+    return '<tr>' +
+      '<td class="muted" style="font-size:11.5px"><a href="support-center.html" style="color:inherit;text-decoration:none;font-weight:600">' + escHtml(t.id) + '</a></td>' +
+      '<td>' + escHtml(t.provider || '') + '</td>' +
+      '<td style="font-size:12px">' + escHtml(t.category) + '</td>' +
+      '<td>' + priorityBadge(t.priority) + '</td>' +
+      '<td>' + statusBadge(t.status) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.error('[admin-dashboard] Missing dependency: initDashboard or ADMIN_ROLES is not defined.');
+    return;
+  }
+  var user;
+  try {
+    user = await initDashboard(ADMIN_ROLES);
+  } catch (err) {
+    console.error('[admin-dashboard] Dashboard initialization failed:', err);
+    return;
+  }
+  if (!user) return;
+
+  var tickets = scGet(SC_TICKETS_KEY);
+  var CLOSED = ['Completed', 'Closed'];
+  var openTickets = tickets.filter(function(t) { return !CLOSED.includes(t.status); });
+  document.getElementById('statOpenTickets').textContent = openTickets.length;
+
+  renderHBars('arAgingBars', AR_AGING);
+  renderHBars('denialBars',  DENIAL_DATA);
+  renderBillingAlerts();
+  renderEligibilityFails();
+  renderCredReminders();
+  renderRecentTickets(openTickets);
+});
+
+document.querySelectorAll('.adm-pulse-item[data-href]').forEach(function(el) {
+  el.addEventListener('click', function() {
+    window.location.href = el.getAttribute('data-href');
+  });
+  el.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      window.location.href = el.getAttribute('data-href');
+    }
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1439 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Live Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+
+    /* -- Three-Panel Chat Layout --------------------------- */
+    .chat-layout{display:grid;grid-template-columns:220px 340px 1fr;height:calc(100vh - 128px);border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--surface)}
+
+    /* -- Left: Category Sidebar ---------------------------- */
+    .chat-cats{background:var(--surface-soft);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+    .chat-cats-header{padding:16px 14px 10px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.08em}
+    .chat-cat-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-radius:0;transition:background .14s;position:relative;border:none;background:none;width:100%;text-align:left;font-family:inherit;font-size:13.5px;color:var(--ink-700)}
+    .chat-cat-item:hover{background:rgba(60,144,209,.07)}
+    .chat-cat-item.active{background:rgba(60,144,209,.12);color:var(--blue-600);font-weight:700}
+    .chat-cat-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue-500);border-radius:0 2px 2px 0}
+    .chat-cat-count{margin-left:auto;background:var(--blue-600);color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+    .chat-cat-count.amber{background:#c77113}
+    .chat-cat-count.red{background:#dc2626}
+    .chat-cats-divider{height:1px;background:var(--border);margin:6px 10px}
+
+    /* -- Middle: Conversation List ------------------------- */
+    .chat-convs{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+    .chat-convs-bar{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-shrink:0}
+    .chat-search{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;background:var(--surface-soft);outline:none;color:var(--ink-900)}
+    .chat-search:focus{border-color:var(--blue-500)}
+    .chat-convs-list{flex:1;overflow-y:auto}
+    .chat-conv-item{display:flex;align-items:flex-start;gap:10px;padding:12px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;position:relative}
+    .chat-conv-item:hover{background:rgba(60,144,209,.05)}
+    .chat-conv-item.active{background:rgba(60,144,209,.1)}
+    .chat-conv-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue-600),var(--blue-800));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;position:relative}
+    .conv-online-dot{position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);background:#94a3b8}
+    .conv-online-dot.online{background:#4ade80}
+    .conv-online-dot.idle{background:#fbbf24}
+    .chat-conv-body{flex:1;min-width:0}
+    .chat-conv-row1{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+    .chat-conv-name{font-weight:700;font-size:13px;color:var(--ink-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    .chat-conv-time{font-size:11px;color:var(--ink-500);flex-shrink:0}
+    .chat-conv-preview{font-size:12px;color:var(--ink-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
+    .chat-conv-row3{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+    .chat-topic-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dbeafe;color:#1e40af;text-transform:uppercase;letter-spacing:.04em}
+    .chat-priority-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px}
+    .chat-priority-badge.urgent{background:#fee2e2;color:#b91c1c}
+    .chat-priority-badge.high{background:#fef3c7;color:#92400e}
+    .chat-priority-badge.routine{background:#f1f5f9;color:#475569}
+    .chat-unread-badge{margin-left:auto;background:var(--blue-600);color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+    .chat-convs-empty{text-align:center;padding:40px 16px;color:var(--ink-500);font-size:13px}
+    .chat-convs-empty-icon{font-size:2.2rem;margin-bottom:8px}
+
+    /* -- Right: Conversation Detail ------------------------ */
+    .chat-detail{display:flex;flex-direction:column;overflow:hidden;background:#fff}
+    .chat-detail-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--ink-500);gap:12px;padding:20px}
+    .chat-det-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0;background:var(--surface)}
+    .chat-det-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--blue-600),var(--blue-800));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;position:relative}
+    .chat-det-info{flex:1;min-width:0}
+    .chat-det-name{font-weight:700;font-size:14px;color:var(--ink-900)}
+    .chat-det-sub{font-size:12px;color:var(--ink-500);display:flex;align-items:center;gap:8px;margin-top:2px}
+    .chat-det-actions{display:flex;gap:6px;flex-shrink:0}
+    .chat-det-actions button{border:1.5px solid var(--border);border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--surface);color:var(--ink-700);transition:border-color .14s,background .14s}
+    .chat-det-actions button:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-700)}
+    .chat-det-actions button.danger{border-color:#fca5a5;color:#b91c1c}
+    .chat-det-actions button.danger:hover{background:#fef2f2}
+    .chat-det-actions button.success-btn{border-color:#a7f3d0;color:#065f46}
+    .chat-det-actions button.success-btn:hover{background:#f0fdf4}
+
+    /* Detail body: messages + right sidebar */
+    .chat-det-body{display:flex;flex:1;min-height:0;overflow:hidden}
+    .chat-det-msgs-col{display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden}
+    .chat-det-sidebar{width:240px;border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:var(--surface-soft)}
+
+    /* Messages */
+    .chat-det-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+    .chat-msg{display:flex;align-items:flex-end;gap:8px;animation:cmFadeIn .2s ease}
+    .chat-msg.mine{flex-direction:row-reverse}
+    @keyframes cmFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+    .chat-msg-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;color:#fff;text-transform:uppercase}
+    .chat-msg-av.client{background:linear-gradient(135deg,var(--blue-600),var(--blue-800))}
+    .chat-msg-av.staff{background:linear-gradient(135deg,#10b981,#047857)}
+    .chat-msg-av.system{background:#94a3b8}
+    .chat-msg-body{max-width:72%;display:flex;flex-direction:column;gap:3px}
+    .chat-msg.mine .chat-msg-body{align-items:flex-end}
+    .chat-msg-bubble{padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.52;word-break:break-word;color:var(--ink-900)}
+    .chat-msg.client .chat-msg-bubble{background:#f0f7ff;border-radius:3px 14px 14px 14px}
+    .chat-msg.mine .chat-msg-bubble{background:linear-gradient(135deg,#10b981,#047857);color:#fff;border-radius:14px 14px 3px 14px}
+    .chat-msg.system .chat-msg-bubble{background:#fef3c7;color:#92400e;font-size:12.5px;border-radius:8px;text-align:center;font-style:italic;padding:8px 14px}
+    .chat-msg-meta{font-size:10.5px;color:var(--ink-500);display:flex;align-items:center;gap:4px;margin-top:2px}
+    .chat-attach-pill{display:inline-flex;align-items:center;gap:5px;background:#dbeafe;border-radius:7px;padding:4px 9px;font-size:11.5px;color:#1e40af;font-weight:600;margin-top:4px}
+
+    /* Typing indicator */
+    .chat-typing{display:flex;align-items:flex-end;gap:8px;padding:0 4px 4px}
+    .chat-typing-dots{display:flex;gap:3px;padding:9px 12px;background:#f0f7ff;border-radius:3px 14px 14px 14px}
+    .chat-typing-dots span{width:6px;height:6px;border-radius:50%;background:#94a3b8;animation:ctBounce 1.2s infinite}
+    .chat-typing-dots span:nth-child(2){animation-delay:.2s}
+    .chat-typing-dots span:nth-child(3){animation-delay:.4s}
+    @keyframes ctBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+    /* Internal note */
+    .chat-note-msg{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;margin:4px 0}
+    .chat-note-msg .note-icon{font-size:14px;padding-top:1px;flex-shrink:0}
+    .chat-note-msg .note-text{font-size:12.5px;color:#92400e;font-style:italic}
+    .chat-note-msg .note-meta{font-size:11px;color:#b45309;margin-top:2px}
+
+    /* Input area */
+    .chat-compose{border-top:1px solid var(--border);padding:10px 14px;flex-shrink:0;background:#fff}
+    .chat-compose-toolbar{display:flex;gap:6px;margin-bottom:8px;align-items:center}
+    .chat-compose-toolbar button{border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--surface-soft);color:var(--ink-700);transition:border-color .14s;white-space:nowrap}
+    .chat-compose-toolbar button:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .chat-compose-toolbar button.note-toggle{border-color:#fde68a;background:#fffbeb;color:#92400e}
+    .chat-compose-toolbar button.note-toggle:hover{border-color:#f59e0b}
+    .chat-compose-toolbar button.note-toggle.active{background:#fde68a;color:#78350f}
+    .compose-mode-bar{font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px;background:#fffbeb;color:#92400e;display:none;margin-bottom:6px;text-align:center}
+    .compose-mode-bar.visible{display:block}
+    .chat-compose-row{display:flex;gap:8px;align-items:flex-end}
+    .chat-compose-ta{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13.5px;font-family:inherit;resize:none;min-height:42px;max-height:120px;outline:none;line-height:1.45;color:var(--ink-900)}
+    .chat-compose-ta:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .chat-compose-ta.note-mode{border-color:#fde68a;background:#fffef0}
+    .chat-send-btn{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#10b981,#047857);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .15s,opacity .15s}
+    .chat-send-btn:hover{transform:scale(1.09)}
+    .chat-send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .chat-send-btn svg{width:17px;height:17px;fill:#fff}
+    .chat-file-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+    .chat-file-chip{display:inline-flex;align-items:center;gap:5px;background:#dbeafe;border-radius:6px;padding:3px 8px;font-size:11px;color:#1e40af;font-weight:600}
+    .chat-chip-rm{background:none;border:none;cursor:pointer;color:#64748b;font-size:11px;padding:0;margin-left:3px;line-height:1}
+
+    /* Saved replies panel */
+    .saved-replies-panel{position:absolute;bottom:100%;left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.12);z-index:100;display:none}
+    .saved-replies-panel.open{display:block}
+    .saved-reply-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s}
+    .saved-reply-item:last-child{border-bottom:none}
+    .saved-reply-item:hover{background:#f0f7ff}
+    .sr-label{font-size:13px;font-weight:700;color:var(--ink-900)}
+    .sr-preview{font-size:12px;color:var(--ink-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+
+    /* Right sidebar panels */
+    .chat-sidebar-panel{border-bottom:1px solid var(--border);padding:12px 12px}
+    .chat-sidebar-panel-title{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+    .chat-sidebar-panel-title button{background:none;border:none;cursor:pointer;font-size:11px;color:var(--blue-600);font-weight:700;padding:0;font-family:inherit}
+    .info-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:12px;color:var(--ink-700)}
+    .info-row label{color:var(--ink-500);flex-shrink:0;width:60px}
+    .info-row-val{font-weight:600}
+    .info-sel{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:4px 8px;font-size:12px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;cursor:pointer;margin-bottom:6px}
+    .info-sel:focus{border-color:var(--blue-500)}
+    .chat-tag{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin:2px}
+    .chat-tag button{background:none;border:none;cursor:pointer;color:#64748b;font-size:10px;padding:0;line-height:1}
+    .note-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+    .internal-note-item{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px}
+    .internal-note-text{font-size:12.5px;color:#78350f;font-style:italic;margin-bottom:3px}
+    .internal-note-meta{font-size:11px;color:#b45309}
+    .add-note-input{width:100%;border:1.5px solid #fde68a;border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit;background:#fffef0;color:#78350f;outline:none;resize:none;min-height:56px;margin-bottom:6px}
+    .add-note-input:focus{border-color:#f59e0b}
+    .btn-sm{padding:5px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--surface);color:var(--ink-700);transition:border-color .14s,background .14s}
+    .btn-sm:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-700)}
+    .btn-sm-primary{background:var(--blue-600);color:#fff;border-color:var(--blue-600)}
+    .btn-sm-primary:hover{background:var(--blue-700);border-color:var(--blue-700);color:#fff}
+    .btn-sm-amber{background:#f59e0b;color:#fff;border-color:#f59e0b}
+    .btn-sm-amber:hover{background:#b45309;border-color:#b45309;color:#fff}
+
+    /* Status bar */
+    .chat-status-bar{padding:6px 14px;background:var(--surface-soft);border-top:1px solid var(--border);font-size:12px;color:var(--ink-500);display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .chat-status-indicator{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.6);flex-shrink:0}
+    .chat-status-indicator.offline{background:#94a3b8;box-shadow:none}
+
+    /* Responsive */
+    @media(max-width:1100px){.chat-layout{grid-template-columns:200px 300px 1fr}}
+    @media(max-width:900px){.chat-det-sidebar{display:none}.chat-layout{grid-template-columns:180px 280px 1fr}}
+  </style>
+</head>
+<body>
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Live Chat</h1>
+        <p>Real-time clinician support conversations</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-700)">
+          <span id="my-status-dot" style="width:10px;height:10px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.7)"></span>
+          <span id="my-status-txt">You are Online</span>
+        </div>
+        <button class="btn btn-blue" id="go-online-btn" style="display:none">Go Online</button>
+        <button class="btn btn-outline" id="go-offline-btn">Go Offline</button>
+      </div>
+    </header>
+
+    <div class="chat-layout" id="chat-layout">
+
+      <!-- -- Left: Category Sidebar ----------------------- -->
+      <div class="chat-cats" id="chat-cats">
+        <div class="chat-cats-header">Inbox</div>
+        <button class="chat-cat-item active" data-filter="all" aria-pressed="true">
+          💬 All Conversations <span class="chat-cat-count" id="cnt-all">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="active" aria-pressed="false">
+          🟢 Active Now <span class="chat-cat-count" id="cnt-active">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="unread" aria-pressed="false">
+          📬 Unread <span class="chat-cat-count" id="cnt-unread">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="urgent" aria-pressed="false">
+          🔴 Urgent <span class="chat-cat-count red" id="cnt-urgent">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="mine" aria-pressed="false">
+          👤 Assigned to Me <span class="chat-cat-count" id="cnt-mine">0</span>
+        </button>
+        <div class="chat-cats-divider"></div>
+        <button class="chat-cat-item" data-filter="waiting-client" aria-pressed="false">
+          ⏳ Waiting on Client <span class="chat-cat-count amber" id="cnt-wc">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="waiting-support" aria-pressed="false">
+          🕐 Waiting on Support <span class="chat-cat-count amber" id="cnt-ws">0</span>
+        </button>
+        <button class="chat-cat-item" data-filter="escalated" aria-pressed="false">
+          ⬆️ Escalated <span class="chat-cat-count red" id="cnt-esc">0</span>
+        </button>
+        <div class="chat-cats-divider"></div>
+        <button class="chat-cat-item" data-filter="closed" aria-pressed="false">
+          ✅ Closed Today <span class="chat-cat-count" id="cnt-closed">0</span>
+        </button>
+      </div>
+
+      <!-- -- Middle: Conversation List -------------------- -->
+      <div class="chat-convs" id="chat-convs-col">
+        <div class="chat-convs-bar">
+          <input type="search" class="chat-search" id="chat-search" placeholder="Search conversations…" aria-label="Search conversations">
+        </div>
+        <div class="chat-convs-list" id="chat-convs-list">
+          <div class="chat-convs-empty" id="convs-empty">
+            <div class="chat-convs-empty-icon" aria-hidden="true">💬</div>
+            Loading conversations…
+          </div>
+        </div>
+      </div>
+
+      <!-- -- Right: Conversation Detail ------------------- -->
+      <div class="chat-detail" id="chat-detail">
+        <div class="chat-detail-empty" id="chat-no-conv">
+          <div style="font-size:3rem" aria-hidden="true">💬</div>
+          <div style="font-size:14px;font-weight:700;color:var(--ink-700)">Select a conversation</div>
+          <div style="font-size:13px;color:var(--ink-500);text-align:center">Choose a conversation from the left to view messages and respond</div>
+        </div>
+
+        <!-- Detail view (shown when a conversation is selected) -->
+        <div id="chat-det-inner" style="display:none;flex-direction:column;height:100%">
+
+          <!-- Header -->
+          <div class="chat-det-hdr">
+            <div class="chat-det-avatar" id="det-avatar" aria-hidden="true"></div>
+            <div class="chat-det-info">
+              <div class="chat-det-name" id="det-name"></div>
+              <div class="chat-det-sub" id="det-sub"></div>
+            </div>
+            <div class="chat-det-actions">
+              <button id="btn-assign-me">Assign to Me</button>
+              <button id="btn-waiting">⏳ Waiting</button>
+              <button id="btn-to-ticket" title="Convert to support ticket" aria-label="Convert to support ticket">🎟️ Ticket</button>
+              <button class="success-btn" id="btn-close">✅ Close</button>
+              <button class="danger" id="btn-archive">Archive</button>
+            </div>
+          </div>
+
+          <!-- Body: messages + right sidebar -->
+          <div class="chat-det-body">
+            <div class="chat-det-msgs-col">
+              <!-- Messages -->
+              <div class="chat-det-msgs" id="chat-det-msgs"></div>
+
+              <!-- Compose area -->
+              <div class="chat-compose" style="position:relative">
+                <div class="compose-mode-bar" id="compose-mode-bar">📝 Internal Note — Not visible to clinician</div>
+                <div class="chat-file-chips" id="compose-file-chips"></div>
+                <div class="chat-compose-toolbar">
+                  <button id="btn-saved-replies" title="Saved replies">💬 Saved Reply</button>
+                  <button id="btn-attach" title="Attach file" aria-label="Attach file">📎 Attach</button>
+                  <button class="note-toggle" id="note-toggle-btn">📝 Internal Note</button>
+                  <button id="btn-escalate" style="border-color:#fca5a5;color:#b91c1c">⬆️ Escalate</button>
+                  <button id="btn-mark-urgent" style="border-color:#fde68a;color:#92400e">⚠️ Urgent</button>
+                </div>
+                <!-- Saved replies dropdown -->
+                <div class="saved-replies-panel" id="saved-replies-panel">
+                  <!-- populated by JS -->
+                </div>
+                <div class="chat-compose-row">
+                  <textarea class="chat-compose-ta" id="compose-ta" placeholder="Type a reply&hellip;" rows="2" aria-label="Message"></textarea>
+                  <button class="chat-send-btn" id="compose-send" disabled aria-label="Send message">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                  </button>
+                </div>
+                <input type="file" id="compose-file-input" multiple accept="image/*,application/pdf,.doc,.docx" style="display:none" aria-label="Attach files">
+              </div>
+            </div>
+
+            <!-- Right sidebar -->
+            <div class="chat-det-sidebar" id="chat-det-sidebar">
+
+              <!-- Status & Priority -->
+              <div class="chat-sidebar-panel">
+                <div class="chat-sidebar-panel-title">Status &amp; Priority</div>
+                <select class="info-sel" id="conv-status-sel" aria-label="Conversation status">
+                  <option value="Open">Open</option>
+                  <option value="Assigned">Assigned</option>
+                  <option value="Waiting on Client">Waiting on Client</option>
+                  <option value="Waiting on Support">Waiting on Support</option>
+                  <option value="Waiting on Insurance">Waiting on Insurance</option>
+                  <option value="Escalated">Escalated</option>
+                  <option value="Closed">Closed</option>
+                </select>
+                <select class="info-sel" id="conv-priority-sel" aria-label="Conversation priority">
+                  <option value="Routine">Routine</option>
+                  <option value="High Priority">High Priority</option>
+                  <option value="Urgent">Urgent</option>
+                </select>
+                <select class="info-sel" id="conv-topic-sel" aria-label="Conversation topic">
+                  <option value="">Select topic&hellip;</option>
+                  <option>Billing</option>
+                  <option>Credentialing</option>
+                  <option>Coding</option>
+                  <option>Claims</option>
+                  <option>Denials</option>
+                  <option>Payments</option>
+                  <option>Technical Support</option>
+                  <option>Subscription Question</option>
+                  <option>General Question</option>
+                </select>
+              </div>
+
+              <!-- User Info -->
+              <div class="chat-sidebar-panel">
+                <div class="chat-sidebar-panel-title">User Info</div>
+                <div class="info-row"><label>Name</label><span class="info-row-val" id="si-name"></span></div>
+                <div class="info-row"><label>Email</label><span class="info-row-val" id="si-email" style="font-size:11.5px;word-break:break-all"></span></div>
+                <div class="info-row"><label>Practice</label><span class="info-row-val" id="si-practice"></span></div>
+                <div class="info-row"><label>Plan</label><span class="info-row-val" id="si-plan"></span></div>
+                <div class="info-row"><label>Online</label><span class="info-row-val" id="si-online"></span></div>
+              </div>
+
+              <!-- Linked Ticket -->
+              <div class="chat-sidebar-panel">
+                <div class="chat-sidebar-panel-title">Linked Ticket <button id="btn-link-ticket" aria-label="Link ticket">+ Link</button></div>
+                <div id="si-linked-ticket" style="font-size:12px;color:var(--ink-500)">None</div>
+              </div>
+
+              <!-- Tags -->
+              <div class="chat-sidebar-panel">
+                <div class="chat-sidebar-panel-title">Tags <button id="btn-add-tag" aria-label="Add tag">+ Add</button></div>
+                <div id="si-tags" style="margin-top:4px"></div>
+              </div>
+
+              <!-- Internal Notes -->
+              <div class="chat-sidebar-panel">
+                <div class="chat-sidebar-panel-title">Internal Notes</div>
+                <div class="note-list" id="si-notes"></div>
+                <textarea class="add-note-input" id="add-note-ta" placeholder="Add a private note&hellip;"></textarea>
+                <button class="btn-sm btn-sm-amber" id="btn-save-note" style="width:100%">Save Note</button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Status bar -->
+          <div class="chat-status-bar" id="chat-status-bar">
+            <span class="chat-status-indicator offline" id="client-status-dot"></span>
+            <span id="client-status-txt">Client status unknown</span>
+            <span style="margin-left:auto;font-weight:600" id="det-conv-id"></span>
+          </div>
+        </div><!-- /chat-det-inner -->
+      </div>
+
+    </div><!-- /chat-layout -->
+  </main>
+</div>
+
+<script>
+/* ----------------------------------------------------------
+   ADMIN LIVE CHAT — admin-chat.html
+   ---------------------------------------------------------- */
+
+var SAVED_REPLIES = [
+  { id:'sr1', label:'Reviewing request',       text:'We are currently reviewing your request and will respond shortly.' },
+  { id:'sr2', label:'Need documentation',      text:'We need additional documentation to process your request. Please upload the relevant files.' },
+  { id:'sr3', label:'Upload EOB',              text:'Please upload the Explanation of Benefits (EOB) for the claim in question so we can review and assist.' },
+  { id:'sr4', label:'Upload denial letter',    text:'Please upload the denial letter you received so we can review and help you respond.' },
+  { id:'sr5', label:'Escalated to specialist', text:'Your request has been escalated to our specialist team. You will hear from us shortly.' },
+  { id:'sr6', label:'Claim corrected & resubmitted', text:'We have corrected and resubmitted the claim. Please allow 5–10 business days for processing.' },
+  { id:'sr7', label:'Contacted payer',         text:'We have contacted the payer on your behalf and are awaiting their response.' },
+  { id:'sr8', label:'Waiting on insurance',    text:'We are currently waiting on a response from the insurance company. We will follow up as soon as we hear back.' },
+  { id:'sr9', label:'Request completed',       text:'Your support request has been completed. Please let us know if you need further assistance.' },
+  { id:'sr10',label:'Converted to ticket',     text:'This conversation has been converted into a support ticket. You will receive email updates regarding your case.' },
+];
+
+/* -- State ----------------------------------------------- */
+var state = {
+  user:             null,
+  userRole:         null,
+  allConvs:         [],
+  activeFilter:     'all',
+  searchQuery:      '',
+  activeConvId:     null,
+  activeConvMsgs:   [],
+  internalNotes:    [],
+  realtimeChannel:  null,
+  convListChannel:  null,
+  presenceChannel:  null,
+  presenceState:    {},  /* userId -> presence data */
+  myStatus:         'online',
+  isNoteMode:       false,
+  pendingFiles:     [],
+};
+
+/* -- Helpers --------------------------------------------- */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+/* Safe date parser — returns a Date or null (never throws). */
+function toTime(iso) {
+  if (!iso) return null;
+  try { var d = new Date(iso); return isNaN(d.getTime()) ? null : d; } catch(e) { return null; }
+}
+function fmtTime(iso) {
+  var d = toTime(iso);
+  if (!d) return '';
+  return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+}
+function fmtRel(iso) {
+  var d = toTime(iso);
+  if (!d) return '';
+  var diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60)    return 'Just now';
+  if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function initials(s) {
+  if (!s) return '?';
+  var parts = String(s).trim().split(/\s+/);
+  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : s.slice(0, 2)).toUpperCase();
+}
+function getConvFromId(id){ return state.allConvs.find(function(c){ return c.id===id; }); }
+
+/* -- Auth & Init ----------------------------------------- */
+document.addEventListener('DOMContentLoaded', async function() {
+  if (typeof initDashboard === 'function') {
+    try { initDashboard(typeof ADMIN_ROLES !== 'undefined' ? ADMIN_ROLES : []); }
+    catch(e) { console.error('[chat] initDashboard failed', e); }
+  }
+  setupEventListeners();
+  try {
+    var res = await supabaseClient.auth.getUser();
+    if (res && res.data && res.data.user) {
+      state.user     = res.data.user;
+      state.userRole = (res.data.user.user_metadata || {}).role || 'admin';
+    }
+  } catch(e) { console.warn('[chat] auth lookup failed', e); }
+
+  await loadConversations();
+  setupPresenceChannel();
+  setupConvListChannel();
+  updateCounts();
+  renderConvList();
+});
+
+/* -- Event Listener Wiring ------------------------------- */
+function setupEventListeners() {
+  /* Category sidebar — delegated */
+  var cats = document.getElementById('chat-cats');
+  if (cats) {
+    cats.addEventListener('click', function(e) {
+      var btn = e.target.closest('.chat-cat-item');
+      if (!btn || !btn.dataset.filter) return;
+      setFilter(btn.dataset.filter);
+    });
+  }
+
+  /* Search */
+  var searchEl = document.getElementById('chat-search');
+  if (searchEl) searchEl.addEventListener('input', filterSearch);
+
+  /* Conversation list — delegated */
+  var convList = document.getElementById('chat-convs-list');
+  if (convList) {
+    convList.addEventListener('click', function(e) {
+      var item = e.target.closest('[data-conv-id]');
+      if (item) openConversation(item.dataset.convId);
+    });
+    convList.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        var item = e.target.closest('[data-conv-id]');
+        if (item) { e.preventDefault(); openConversation(item.dataset.convId); }
+      }
+    });
+  }
+
+  /* Header action buttons */
+  function wireBtn(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  }
+  wireBtn('btn-assign-me',  assignToMe);
+  wireBtn('btn-waiting',    function() { changeConvStatus('Waiting on Client'); });
+  wireBtn('btn-to-ticket',  convertToTicket);
+  wireBtn('btn-close',      closeConversation);
+  wireBtn('btn-archive',    archiveConversation);
+
+  /* Compose */
+  var ta = document.getElementById('compose-ta');
+  if (ta) { ta.addEventListener('keydown', composeKeydown); ta.addEventListener('input', composeInput); }
+  wireBtn('compose-send',   sendReply);
+  wireBtn('btn-saved-replies', openSavedReplies);
+  wireBtn('btn-attach',     function() { document.getElementById('compose-file-input').click(); });
+  wireBtn('note-toggle-btn', toggleNoteMode);
+  wireBtn('btn-escalate',   escalateConv);
+  wireBtn('btn-mark-urgent', markUrgent);
+
+  var fileInput = document.getElementById('compose-file-input');
+  if (fileInput) fileInput.addEventListener('change', function() { handleComposeFiles(this.files); this.value = ''; });
+
+  /* Saved replies dropdown — delegated */
+  var srPanel = document.getElementById('saved-replies-panel');
+  if (srPanel) {
+    srPanel.addEventListener('click', function(e) {
+      var item = e.target.closest('[data-reply-id]');
+      if (item) applySavedReply(item.dataset.replyId);
+    });
+  }
+
+  /* Sidebar selects */
+  ['conv-status-sel', 'conv-priority-sel', 'conv-topic-sel'].forEach(function(id) {
+    var sel = document.getElementById(id);
+    if (sel) sel.addEventListener('change', updateConvMeta);
+  });
+
+  /* Sidebar buttons */
+  wireBtn('btn-link-ticket', linkTicket);
+  wireBtn('btn-add-tag',     addTag);
+  wireBtn('btn-save-note',   addInternalNote);
+
+  /* Tags — delegated */
+  var tagsEl = document.getElementById('si-tags');
+  if (tagsEl) {
+    tagsEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-tag-idx]');
+      if (btn) removeTag(parseInt(btn.dataset.tagIdx, 10));
+    });
+  }
+
+  /* File chips — delegated */
+  var chipsEl = document.getElementById('compose-file-chips');
+  if (chipsEl) {
+    chipsEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-file-idx]');
+      if (btn) removePendingFile(parseInt(btn.dataset.fileIdx, 10));
+    });
+  }
+
+  /* Status buttons */
+  wireBtn('go-online-btn',  function() { setMyStatus('online'); });
+  wireBtn('go-offline-btn', function() { setMyStatus('offline'); });
+}
+
+/* -- Load Conversations ---------------------------------- */
+async function loadConversations() {
+  try {
+    var { data, error } = await supabaseClient.from('conversations')
+      .select('*, messages(count)')
+      .order('updated_at', { ascending: false });
+    if (!error && data) {
+      state.allConvs = data;
+      return;
+    }
+  } catch(e) {}
+  /* Fallback: collect from localStorage across all users */
+  state.allConvs = getDemoConversations();
+}
+
+function getDemoConversations() {
+  /* Gather any clinician chat data stored by chat-widget.js */
+  var convs = [];
+  for (var i = 0; i < localStorage.length; i++) {
+    var key = localStorage.key(i);
+    if (key && key.startsWith('tchat_v1_')) {
+      try {
+        var d = JSON.parse(localStorage.getItem(key));
+        if (d && d.conv) {
+          var c = Object.assign({}, d.conv);
+          c._localMsgs = d.messages || [];
+          c._localKey  = key;
+          convs.push(c);
+        }
+      } catch(e) {}
+    }
+  }
+  return convs;
+}
+
+/* -- Realtime: Listen for new conversations -------------- */
+function setupConvListChannel() {
+  try {
+    state.convListChannel = supabaseClient.channel('admin-conv-list')
+      .on('postgres_changes', {
+        event:'*', schema:'public', table:'conversations'
+      }, function(payload) {
+        if (payload.eventType === 'INSERT') {
+          state.allConvs.unshift(payload.new);
+          updateCounts();
+          renderConvList();
+          if (payload.new.is_urgent || payload.new.priority === 'Urgent') {
+            showNotif('New urgent conversation', payload.new.topic + ' — ' + (payload.new.user_email || 'Clinician'));
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          var idx = state.allConvs.findIndex(function(c){ return c.id===payload.new.id; });
+          if (idx >= 0) { state.allConvs[idx] = Object.assign(state.allConvs[idx], payload.new); }
+          updateCounts();
+          renderConvList();
+        }
+      })
+      .subscribe();
+  } catch(e) {}
+}
+
+/* -- Presence Channel ------------------------------------ */
+function setupPresenceChannel() {
+  try {
+    state.presenceChannel = supabaseClient.channel('therassistant:support-presence')
+      .on('presence', { event:'sync' }, function() {
+        state.presenceState = state.presenceChannel.presenceState();
+        updateClientStatusUI();
+      })
+      .on('presence', { event:'join' }, function(e) {
+        if (e.newPresences) {
+          e.newPresences.forEach(function(p) {
+            if (p.role === 'clinician') {
+              showNotif('Clinician online', (p.email||'A clinician')+' is now online');
+            }
+          });
+        }
+        state.presenceState = state.presenceChannel.presenceState();
+      })
+      .subscribe(async function(status) {
+        if (status === 'SUBSCRIBED' && state.user) {
+          await state.presenceChannel.track({
+            user_id: state.user.id,
+            email:   state.user.email,
+            role:    state.userRole || 'admin',
+            page:    'admin-chat',
+            status:  state.myStatus,
+          });
+        }
+      });
+  } catch(e) {}
+}
+
+function setMyStatus(s) {
+  state.myStatus = s;
+  if (state.presenceChannel && state.user) {
+    state.presenceChannel.track({
+      user_id: state.user.id,
+      email:   state.user.email,
+      role:    state.userRole || 'admin',
+      page:    'admin-chat',
+      status:  s,
+    });
+  }
+  var dot = document.getElementById('my-status-dot');
+  var txt = document.getElementById('my-status-txt');
+  var onBtn  = document.getElementById('go-online-btn');
+  var offBtn = document.getElementById('go-offline-btn');
+  if (s === 'online') {
+    if (dot) { dot.style.background='#4ade80'; dot.style.boxShadow='0 0 6px rgba(74,222,128,.7)'; }
+    if (txt) txt.textContent = 'You are Online';
+    if (onBtn) onBtn.style.display = 'none';
+    if (offBtn) offBtn.style.display = '';
+  } else {
+    if (dot) { dot.style.background='#94a3b8'; dot.style.boxShadow='none'; }
+    if (txt) txt.textContent = 'You are Offline';
+    if (onBtn) onBtn.style.display = '';
+    if (offBtn) offBtn.style.display = 'none';
+  }
+}
+
+function getClientPresence(userId) {
+  if (!userId || !state.presenceState) return null;
+  var keys = Object.keys(state.presenceState);
+  for (var i=0; i<keys.length; i++) {
+    var ps = state.presenceState[keys[i]];
+    for (var j=0; j<ps.length; j++) {
+      if (ps[j].user_id === userId) return ps[j];
+    }
+  }
+  return null;
+}
+
+function updateClientStatusUI() {
+  if (!state.activeConvId) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv) return;
+  var p = getClientPresence(conv.user_id);
+  var dot = document.getElementById('client-status-dot');
+  var txt = document.getElementById('client-status-txt');
+  if (!dot || !txt) return;
+  /* Reset inline background so CSS class rules apply cleanly */
+  dot.style.background = '';
+  if (p && p.status === 'online') {
+    dot.className = 'chat-status-indicator';
+    txt.textContent = p.activity || 'Client online';
+  } else if (p && p.status === 'idle') {
+    dot.className = 'chat-status-indicator';
+    dot.style.background = '#fbbf24';
+    txt.textContent = 'Client idle';
+  } else {
+    dot.className = 'chat-status-indicator offline';
+    txt.textContent = 'Client offline';
+  }
+}
+
+/* -- Filter / Search ------------------------------------- */
+function setFilter(filter) {
+  state.activeFilter = filter;
+  document.querySelectorAll('.chat-cat-item').forEach(function(b) {
+    var active = b.dataset.filter === filter;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  renderConvList();
+}
+
+function filterSearch() {
+  state.searchQuery = document.getElementById('chat-search').value.toLowerCase();
+  renderConvList();
+}
+
+function applyFilters(convs) {
+  var f = state.activeFilter;
+  var q = state.searchQuery;
+  var todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  var todayMs = todayStart.getTime();
+
+  return convs.filter(function(c) {
+    var pres = getClientPresence(c.user_id);
+    if (f === 'active'          && !(pres && pres.status === 'online'))       return false;
+    if (f === 'unread'          && !(c.unread_count_staff > 0))               return false;
+    if (f === 'urgent'          && !(c.is_urgent || c.priority === 'Urgent')) return false;
+    if (f === 'mine'            && c.assigned_staff_id !== (state.user && state.user.id)) return false;
+    if (f === 'waiting-client'  && c.status !== 'Waiting on Client')         return false;
+    if (f === 'waiting-support' && c.status !== 'Waiting on Support')        return false;
+    if (f === 'escalated'       && c.status !== 'Escalated')                 return false;
+    if (f === 'closed') {
+      if (c.status !== 'Closed') return false;
+      var closedAt = toTime(c.closed_at);
+      if (!closedAt || closedAt.getTime() < todayMs) return false;
+    }
+    if (q) {
+      var blob = [c.user_email || '', c.topic || '', c.last_message_preview || '', c.id || ''].join(' ').toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function updateCounts() {
+  var convs = state.allConvs;
+  var todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  var todayMs = todayStart.getTime();
+
+  function cnt(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = convs.filter(fn).length;
+  }
+  cnt('cnt-all',    function()  { return true; });
+  cnt('cnt-active', function(c) { var p = getClientPresence(c.user_id); return !!(p && p.status === 'online'); });
+  cnt('cnt-unread', function(c) { return c.unread_count_staff > 0; });
+  cnt('cnt-urgent', function(c) { return !!(c.is_urgent || c.priority === 'Urgent'); });
+  cnt('cnt-mine',   function(c) { return c.assigned_staff_id === (state.user && state.user.id); });
+  cnt('cnt-wc',     function(c) { return c.status === 'Waiting on Client'; });
+  cnt('cnt-ws',     function(c) { return c.status === 'Waiting on Support'; });
+  cnt('cnt-esc',    function(c) { return c.status === 'Escalated'; });
+  cnt('cnt-closed', function(c) {
+    if (c.status !== 'Closed') return false;
+    var d = toTime(c.closed_at);
+    return !!(d && d.getTime() >= todayMs);
+  });
+}
+
+/* -- Render Conversation List ---------------------------- */
+function renderConvList() {
+  var filtered = applyFilters(state.allConvs);
+  var container = document.getElementById('chat-convs-list');
+  if (!container) return;
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="chat-convs-empty"><div class="chat-convs-empty-icon" aria-hidden="true">💬</div>No conversations match this filter</div>';
+    return;
+  }
+  container.innerHTML = filtered.map(function(c) {
+    var pres  = getClientPresence(c.user_id);
+    var isOnline = pres && pres.status === 'online';
+    var isIdle   = pres && pres.status === 'idle';
+    var dotClass = isOnline ? 'online' : (isIdle ? 'idle' : '');
+    var displayName = c.user_display_name || c.user_email || 'Clinician';
+    var priClass = c.priority === 'Urgent' ? 'urgent' : (c.priority === 'High Priority' ? 'high' : 'routine');
+    var isActive = c.id === state.activeConvId;
+    return [
+      '<div class="chat-conv-item' + (isActive ? ' active' : '') + '" data-conv-id="' + esc(c.id) + '" role="button" tabindex="0" aria-label="Conversation with ' + esc(displayName) + '">',
+        '<div class="chat-conv-avatar" aria-hidden="true">', esc(initials(displayName)),
+          '<span class="conv-online-dot ' + dotClass + '" aria-hidden="true"></span>',
+        '</div>',
+        '<div class="chat-conv-body">',
+          '<div class="chat-conv-row1">',
+            '<span class="chat-conv-name">' + esc(displayName) + '</span>',
+            '<span class="chat-conv-time">' + fmtRel(c.last_message_at || c.updated_at || c.created_at) + '</span>',
+          '</div>',
+          '<div class="chat-conv-preview">' + esc((c.last_message_preview || 'No messages yet').slice(0, 70)) + '</div>',
+          '<div class="chat-conv-row3">',
+            c.topic ? '<span class="chat-topic-badge">' + esc(c.topic) + '</span>' : '',
+            (c.is_urgent || c.priority === 'Urgent') ? '<span class="chat-priority-badge urgent">🔴 Urgent</span>' : (c.priority === 'High Priority' ? '<span class="chat-priority-badge high">High</span>' : ''),
+            c.unread_count_staff > 0 ? '<span class="chat-unread-badge" aria-label="' + c.unread_count_staff + ' unread">' + c.unread_count_staff + '</span>' : '',
+          '</div>',
+        '</div>',
+      '</div>',
+    ].join('');
+  }).join('');
+}
+
+/* -- Open Conversation ----------------------------------- */
+async function openConversation(convId) {
+  state.activeConvId  = convId;
+  state.activeConvMsgs = [];
+  state.pendingFiles  = [];
+
+  /* Update active highlight in list */
+  document.querySelectorAll('.chat-conv-item').forEach(function(el) { el.classList.remove('active'); });
+  var convEl = document.querySelector('[data-conv-id="' + CSS.escape(convId) + '"]');
+  if (convEl) convEl.classList.add('active');
+
+  /* Show detail panel */
+  document.getElementById('chat-no-conv').style.display = 'none';
+  var inner = document.getElementById('chat-det-inner');
+  inner.style.display = 'flex';
+
+  var conv = getConvFromId(convId);
+  if (!conv) return;
+
+  /* Populate header */
+  var displayName = conv.user_display_name || conv.user_email || 'Clinician';
+  document.getElementById('det-avatar').textContent = initials(displayName);
+  document.getElementById('det-name').textContent   = displayName;
+  document.getElementById('det-sub').innerHTML = [
+    conv.topic    ? '<span class="chat-topic-badge">' + esc(conv.topic) + '</span>'    : '',
+    conv.status   ? '<span style="font-size:12px;color:var(--ink-500)">' + esc(conv.status) + '</span>' : '',
+    conv.priority && conv.priority !== 'Routine' ? '<span class="chat-priority-badge ' + (conv.priority==='Urgent'?'urgent':'high') + '">' + esc(conv.priority) + '</span>' : '',
+  ].join('');
+
+  /* Sidebar: status/priority/topic */
+  setSelectVal('conv-status-sel',   conv.status   || 'Open');
+  setSelectVal('conv-priority-sel', conv.priority || 'Routine');
+  setSelectVal('conv-topic-sel',    conv.topic    || '');
+
+  /* Sidebar: user info */
+  document.getElementById('si-name').textContent    = conv.user_display_name || '';
+  document.getElementById('si-email').textContent   = conv.user_email        || '';
+  document.getElementById('si-practice').textContent= conv.practice_name     || '';
+  document.getElementById('si-plan').textContent    = conv.plan_name         || '';
+
+  /* Sidebar: linked ticket */
+  document.getElementById('si-linked-ticket').textContent = conv.linked_ticket_id || 'None';
+
+  /* Sidebar: tags */
+  renderTags(conv.tags || []);
+
+  /* Sidebar: internal notes */
+  state.internalNotes = [];
+  document.getElementById('si-notes').innerHTML = '';
+  loadInternalNotes(convId);
+
+  /* conversaion ID in status bar */
+  document.getElementById('det-conv-id').textContent = 'ID: ' + convId.slice(0,8);
+
+  /* Presence */
+  updateClientStatusUI();
+
+  /* Load messages */
+  await loadMessages(convId, conv);
+
+  /* Mark as read */
+  markConvRead(convId);
+
+  /* Subscribe to new messages */
+  if (state.realtimeChannel) { state.realtimeChannel.unsubscribe(); }
+  subscribeToConvMessages(convId);
+}
+
+function setSelectVal(id, val) {
+  var sel = document.getElementById(id);
+  if (sel) sel.value = val;
+}
+
+async function loadMessages(convId, conv) {
+  var msgs = [];
+  /* Try Supabase */
+  try {
+    var { data, error } = await supabaseClient.from('messages')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('sent_at', { ascending: true });
+    if (!error && data) msgs = data;
+  } catch(e) {}
+
+  /* Fallback to localStorage */
+  if (msgs.length === 0 && conv && conv._localMsgs) {
+    msgs = conv._localMsgs;
+  }
+
+  state.activeConvMsgs = msgs;
+  renderMessages(msgs);
+}
+
+function renderMessages(msgs) {
+  var container = document.getElementById('chat-det-msgs');
+  if (!container) return;
+  if (msgs.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ink-500);font-size:13px">No messages yet</div>';
+    return;
+  }
+  container.innerHTML = msgs.map(function(m){ return msgHTML(m); }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function msgHTML(m) {
+  var isStaff  = m.sender_role === 'support' || m.sender_role === 'admin';
+  var isSystem = m.sender_role === 'system'  || m.message_type === 'system' || m.message_type === 'ticket_created';
+  var cls = isSystem ? 'system' : (isStaff ? 'mine' : 'client');
+  var avClass = isStaff ? 'staff' : 'client';
+  var avTxt   = isStaff ? (state.user ? initials(state.user.email) : 'S') : '?';
+  return [
+    '<div class="chat-msg ' + cls + '">',
+      !isSystem ? '<div class="chat-msg-av ' + avClass + '">' + esc(avTxt) + '</div>' : '',
+      '<div class="chat-msg-body">',
+        '<div class="chat-msg-bubble">' + esc(m.content) + '</div>',
+        m.file_name ? '<div class="chat-attach-pill" aria-label="Attachment">📎 ' + esc(m.file_name) + '</div>' : '',
+        !isSystem ? '<div class="chat-msg-meta">' + (isStaff ? 'You (staff)' : 'Client') + ' — ' + fmtTime(m.sent_at) + (m.read_at ? ' — Read' : '') + '</div>' : '',
+      '</div>',
+    '</div>',
+  ].join('');
+}
+
+function appendMsgDOM(m) {
+  var c = document.getElementById('chat-det-msgs');
+  if (!c) return;
+  var d = document.createElement('div');
+  d.innerHTML = msgHTML(m);
+  c.appendChild(d.firstChild);
+  c.scrollTop = c.scrollHeight;
+}
+
+/* -- Subscribe to Messages ------------------------------- */
+function subscribeToConvMessages(convId) {
+  try {
+    state.realtimeChannel = supabaseClient.channel('admin-conv:' + convId)
+      .on('postgres_changes', {
+        event:'INSERT', schema:'public', table:'messages',
+        filter:'conversation_id=eq.' + convId
+      }, function(payload) {
+        var m = payload.new;
+        if (m.sender_role === 'support') return; /* own message */
+        state.activeConvMsgs.push(m);
+        appendMsgDOM(m);
+        /* Update list preview */
+        var conv = getConvFromId(convId);
+        if (conv) {
+          conv.last_message_preview = m.content.slice(0,60);
+          conv.last_message_at      = m.sent_at;
+        }
+        renderConvList();
+        showNotif('New message from ' + ((getConvFromId(convId)||{}).user_email||'client'), m.content.slice(0,80));
+      })
+      .subscribe();
+  } catch(e) {}
+}
+
+/* -- Send Reply ------------------------------------------ */
+async function sendReply() {
+  var ta   = document.getElementById('compose-ta');
+  var text = ta ? ta.value.trim() : '';
+  if (!text && !state.pendingFiles.length) return;
+  if (!state.activeConvId) return;
+
+  var convId = state.activeConvId;
+  var now    = new Date().toISOString();
+  var isNote = state.isNoteMode;
+
+  /* File messages */
+  state.pendingFiles.forEach(function(f) {
+    var m = {
+      id:              'local-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+      conversation_id: convId,
+      sender_id:       state.user && state.user.id,
+      sender_role:     'support',
+      message_type:    'file',
+      content:         '📎 Staff attached: ' + f.name,
+      file_name:        f.name,
+      sent_at:         now,
+    };
+    if (!isNote) {
+      state.activeConvMsgs.push(m);
+      appendMsgDOM(m);
+      saveMessageToDb(m);
+    } else {
+      saveInternalNoteToDb(convId, '📎 Attached: ' + f.name);
+    }
+  });
+
+  if (text) {
+    if (isNote) {
+      /* Internal note */
+      saveInternalNoteToDb(convId, text);
+      var noteEl = { id:'ln-'+Date.now(), content:text, created_at:now, is_local:true };
+      state.internalNotes.push(noteEl);
+      renderInternalNotesList();
+    } else {
+      /* Regular reply */
+      var msg = {
+        id:              'local-' + Date.now(),
+        conversation_id: convId,
+        sender_id:       state.user && state.user.id,
+        sender_role:     'support',
+        message_type:    'text',
+        content:         text,
+        sent_at:         now,
+      };
+      state.activeConvMsgs.push(msg);
+      appendMsgDOM(msg);
+      saveMessageToDb(msg);
+      /* Update conv preview */
+      var conv = getConvFromId(convId);
+      if (conv) {
+        conv.last_message_preview = text.slice(0,60);
+        conv.last_message_at      = now;
+        conv.unread_count_staff   = 0;
+      }
+      renderConvList();
+    }
+  }
+
+  state.pendingFiles = [];
+  renderComposeFileChips();
+  if (ta) { ta.value = ''; ta.style.height='auto'; }
+  document.getElementById('compose-send').disabled = true;
+}
+
+async function saveMessageToDb(m) {
+  /* -- localStorage fallback: write reply into the clinician's own localStorage entry -- */
+  var conv = getConvFromId(m.conversation_id);
+  if (conv && conv._localKey) {
+    try {
+      var raw    = localStorage.getItem(conv._localKey);
+      var stored = raw ? JSON.parse(raw) : { conv: conv, messages: [] };
+      stored.messages = stored.messages || [];
+      stored.messages.push(m);
+      if (stored.conv) {
+        stored.conv.last_message_at       = m.sent_at;
+        stored.conv.last_message_preview  = m.content.slice(0, 120);
+        stored.conv.unread_count_clinician = (stored.conv.unread_count_clinician || 0) + 1;
+      }
+      localStorage.setItem(conv._localKey, JSON.stringify(stored));
+    } catch(e) {}
+    return; /* local conv — skip Supabase */
+  }
+  /* -- Supabase path --------------------------------------------------- */
+  try {
+    await supabaseClient.from('messages').insert({
+      conversation_id: m.conversation_id,
+      sender_id:       m.sender_id,
+      sender_role:     m.sender_role,
+      content:         m.content,
+      message_type:    m.message_type || 'text',
+      is_urgent:       false,
+      sent_at:         m.sent_at,
+    });
+    if (m.conversation_id) {
+      await supabaseClient.from('conversations').update({
+        last_message_at:      m.sent_at,
+        last_message_preview: m.content.slice(0,120),
+        updated_at:           new Date().toISOString(),
+        unread_count_clinician: 1,
+      }).eq('id', m.conversation_id);
+    }
+  } catch(e) {}
+}
+
+function composeKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
+}
+
+function composeInput() {
+  var ta = document.getElementById('compose-ta');
+  if (ta) { ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px'; }
+  var btn = document.getElementById('compose-send');
+  if (btn) btn.disabled = !ta.value.trim() && !state.pendingFiles.length;
+}
+
+/* -- Note Mode ------------------------------------------- */
+function toggleNoteMode() {
+  state.isNoteMode = !state.isNoteMode;
+  var btn = document.getElementById('note-toggle-btn');
+  var bar = document.getElementById('compose-mode-bar');
+  var ta  = document.getElementById('compose-ta');
+  if (btn) btn.classList.toggle('active', state.isNoteMode);
+  if (bar) { bar.classList.toggle('visible', state.isNoteMode); }
+  if (ta) {
+    ta.classList.toggle('note-mode', state.isNoteMode);
+    ta.placeholder = state.isNoteMode ? 'Add an internal note (not visible to clinician)…' : 'Type a reply…';
+    ta.focus();
+  }
+}
+
+/* -- Saved Replies --------------------------------------- */
+function openSavedReplies() {
+  var panel = document.getElementById('saved-replies-panel');
+  if (!panel) return;
+  panel.innerHTML = SAVED_REPLIES.map(function(r) {
+    return '<div class="saved-reply-item" data-reply-id="' + esc(r.id) + '" role="option" tabindex="0">' +
+      '<div class="sr-label">' + esc(r.label) + '</div>' +
+      '<div class="sr-preview">' + esc(r.text) + '</div></div>';
+  }).join('');
+  var willOpen = !panel.classList.contains('open');
+  panel.classList.toggle('open', willOpen);
+  if (willOpen) {
+    setTimeout(function() {
+      document.addEventListener('click', closeSavedRepliesOnBlur, { once: true });
+    }, 0);
+  }
+}
+
+function closeSavedRepliesOnBlur(e) {
+  var panel = document.getElementById('saved-replies-panel');
+  if (panel && !panel.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+}
+
+function applySavedReply(id) {
+  var r = SAVED_REPLIES.find(function(x){ return x.id===id; });
+  if (!r) return;
+  var ta = document.getElementById('compose-ta');
+  if (ta) {
+    ta.value = r.text;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    ta.focus();
+  }
+  document.getElementById('compose-send').disabled = false;
+  document.getElementById('saved-replies-panel').classList.remove('open');
+}
+
+/* -- Internal Notes -------------------------------------- */
+async function loadInternalNotes(convId) {
+  try {
+    var { data } = await supabaseClient.from('chat_internal_notes')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('created_at', { ascending: true });
+    if (data) {
+      state.internalNotes = data;
+      renderInternalNotesList();
+    }
+  } catch(e) {}
+}
+
+async function saveInternalNoteToDb(convId, content) {
+  try {
+    await supabaseClient.from('chat_internal_notes').insert({
+      conversation_id: convId,
+      staff_id:        state.user && state.user.id,
+      content:         content,
+    });
+  } catch(e) {}
+}
+
+function addInternalNote() {
+  var ta = document.getElementById('add-note-ta');
+  if (!ta || !ta.value.trim()) return;
+  var convId = state.activeConvId;
+  if (!convId) return;
+  var note = { id:'ln-'+Date.now(), content:ta.value.trim(), created_at:new Date().toISOString(), is_local:true };
+  state.internalNotes.push(note);
+  renderInternalNotesList();
+  saveInternalNoteToDb(convId, note.content);
+  ta.value = '';
+}
+
+function renderInternalNotesList() {
+  var container = document.getElementById('si-notes');
+  if (!container) return;
+  if (!state.internalNotes.length) { container.innerHTML='<div style="font-size:12px;color:var(--ink-500)">No notes yet</div>'; return; }
+  container.innerHTML = state.internalNotes.map(function(n) {
+    return '<div class="internal-note-item"><div class="internal-note-text">'+esc(n.content)+'</div><div class="internal-note-meta">'+fmtRel(n.created_at)+'</div></div>';
+  }).join('');
+}
+
+/* -- Tags ------------------------------------------------ */
+function renderTags(tags) {
+  var container = document.getElementById('si-tags');
+  if (!container) return;
+  if (!tags || !tags.length) { container.innerHTML = '<span style="font-size:12px;color:var(--ink-500)">No tags</span>'; return; }
+  container.innerHTML = tags.map(function(t, i) {
+    return '<span class="chat-tag">' + esc(t) + '<button data-tag-idx="' + i + '" aria-label="Remove tag ' + esc(t) + '">&#215;</button></span>';
+  }).join('');
+}
+
+function addTag() {
+  var t = prompt('Add tag:');
+  if (!t || !t.trim()) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv) return;
+  conv.tags = conv.tags || [];
+  conv.tags.push(t.trim());
+  renderTags(conv.tags);
+  updateConvMeta();
+}
+
+function removeTag(i) {
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv || !conv.tags) return;
+  conv.tags.splice(i, 1);
+  renderTags(conv.tags);
+  updateConvMeta();
+}
+
+/* -- Conv Actions ---------------------------------------- */
+function assignToMe() {
+  if (!state.activeConvId || !state.user) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (conv) {
+    conv.assigned_staff_id = state.user.id;
+    conv.status = 'Assigned';
+    setSelectVal('conv-status-sel', 'Assigned');
+  }
+  updateConvMeta();
+  alert('Conversation assigned to you.');
+}
+
+function changeConvStatus(s) {
+  var conv = getConvFromId(state.activeConvId);
+  if (conv) { conv.status = s; setSelectVal('conv-status-sel', s); }
+  updateConvMeta();
+}
+
+function closeConversation() {
+  if (!confirm('Close this conversation?')) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (conv) { conv.status = 'Closed'; conv.closed_at = new Date().toISOString(); setSelectVal('conv-status-sel','Closed'); }
+  updateConvMeta();
+  updateCounts();
+  renderConvList();
+}
+
+function archiveConversation() {
+  if (!confirm('Archive this conversation? It will be moved out of all active views.')) return;
+  state.allConvs = state.allConvs.filter(function(c){ return c.id!==state.activeConvId; });
+  state.activeConvId = null;
+  document.getElementById('chat-no-conv').style.display='flex';
+  document.getElementById('chat-det-inner').style.display='none';
+  updateCounts();
+  renderConvList();
+}
+
+function convertToTicket() {
+  if (!state.activeConvId) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv) return;
+  var ticketId = 'TKT-' + Date.now();
+  var transcript = state.activeConvMsgs.map(function(m) {
+    return '[' + fmtTime(m.sent_at) + '] ' + (m.sender_role === 'clinician' ? 'Client' : 'Staff') + ': ' + m.content;
+  }).join('\n');
+  var ticket = {
+    id:          ticketId,
+    subject:     (conv.topic || 'General') + ' \u2014 Converted from Live Chat',
+    description: 'Converted from live chat conversation.\n\n' + transcript,
+    topic:       conv.topic || 'General Question',
+    priority:    conv.priority || 'Routine',
+    status:      'Open',
+    user_id:     conv.user_id || null,
+    created_at:  new Date().toISOString(),
+  };
+  try {
+    var stored = JSON.parse(localStorage.getItem('therassistant_sc_tickets_v1') || '[]');
+    stored.unshift(ticket);
+    localStorage.setItem('therassistant_sc_tickets_v1', JSON.stringify(stored));
+  } catch(e) {}
+  conv.linked_ticket_id = ticketId;
+  conv.status = 'Escalated';
+  setSelectVal('conv-status-sel', 'Escalated');
+  var linkedEl = document.getElementById('si-linked-ticket');
+  if (linkedEl) linkedEl.textContent = ticketId;
+  updateConvMeta();
+  alert('Ticket ' + ticketId + ' created and linked to this conversation.');
+}
+
+function linkTicket() {
+  var id = prompt('Enter ticket ID to link (e.g. TKT-123456):');
+  if (!id||!id.trim()) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (conv) conv.linked_ticket_id = id.trim();
+  document.getElementById('si-linked-ticket').textContent = id.trim();
+  updateConvMeta();
+}
+
+function escalateConv() {
+  changeConvStatus('Escalated');
+  updateCounts();
+  renderConvList();
+  alert('Conversation escalated.');
+}
+
+function markUrgent() {
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv) return;
+  conv.is_urgent = !conv.is_urgent;
+  conv.priority  = conv.is_urgent ? 'Urgent' : 'Routine';
+  setSelectVal('conv-priority-sel', conv.priority);
+  updateConvMeta();
+  renderConvList();
+}
+
+async function updateConvMeta() {
+  if (!state.activeConvId) return;
+  var conv = getConvFromId(state.activeConvId);
+  if (!conv) return;
+  var status   = document.getElementById('conv-status-sel')   ? document.getElementById('conv-status-sel').value   : conv.status;
+  var priority = document.getElementById('conv-priority-sel') ? document.getElementById('conv-priority-sel').value : conv.priority;
+  var topic    = document.getElementById('conv-topic-sel')    ? document.getElementById('conv-topic-sel').value    : conv.topic;
+  Object.assign(conv, { status:status, priority:priority, topic:topic });
+  renderConvList();
+  try {
+    await supabaseClient.from('conversations').update({
+      status:status, priority:priority, topic:topic,
+      tags:conv.tags||[], linked_ticket_id:conv.linked_ticket_id||null,
+      assigned_staff_id:conv.assigned_staff_id||null,
+      updated_at:new Date().toISOString(),
+    }).eq('id', state.activeConvId);
+  } catch(e){}
+}
+
+function markConvRead(convId) {
+  var conv = getConvFromId(convId);
+  if (conv) conv.unread_count_staff = 0;
+  try {
+    supabaseClient.from('conversations').update({ unread_count_staff:0 }).eq('id',convId).then(function(){});
+  } catch(e) {}
+}
+
+/* -- File Handling --------------------------------------- */
+function handleComposeFiles(files) {
+  var MAX_SIZE = 20 * 1024 * 1024; /* 20 MB */
+  var existing = new Set(state.pendingFiles.map(function(f) { return f.name; }));
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (f.size > MAX_SIZE) { alert('File \"' + f.name + '\" exceeds 20 MB.'); continue; }
+    if (existing.has(f.name)) continue; /* deduplicate */
+    state.pendingFiles.push(f);
+    existing.add(f.name);
+  }
+  renderComposeFileChips();
+  var ta = document.getElementById('compose-ta');
+  var btn = document.getElementById('compose-send');
+  if (btn) btn.disabled = !state.pendingFiles.length && !(ta && ta.value.trim());
+}
+
+function renderComposeFileChips() {
+  var c = document.getElementById('compose-file-chips');
+  if (!c) return;
+  c.innerHTML = state.pendingFiles.map(function(f, i) {
+    var displayName = f.name.length > 22 ? f.name.slice(0, 20) + '…' : f.name;
+    return '<span class="chat-file-chip">' + esc(displayName) +
+      '<button class="chat-chip-rm" data-file-idx="' + i + '" aria-label="Remove ' + esc(f.name) + '">&#215;</button></span>';
+  }).join('');
+}
+
+function removePendingFile(i) {
+  state.pendingFiles.splice(i, 1);
+  renderComposeFileChips();
+  /* re-evaluate send-button state */
+  var ta = document.getElementById('compose-ta');
+  var btn = document.getElementById('compose-send');
+  if (btn) btn.disabled = !state.pendingFiles.length && !(ta && ta.value.trim());
+}
+
+/* -- Notifications --------------------------------------- */
+function showNotif(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    try { new Notification('THERASSISTANT — '+title, { body:body, icon:'/favicon.ico', tag:'admin-chat' }); } catch(e) {}
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+/* Track page visibility — update my presence status */
+document.addEventListener('visibilitychange', function() {
+  if (state.presenceChannel && state.user) {
+    var s = document.hidden ? 'idle' : state.myStatus;
+    state.presenceChannel.track({
+      user_id: state.user.id,
+      email:   state.user.email,
+      role:    state.userRole||'admin',
+      page:    'admin-chat',
+      status:  s,
+    });
+  }
+});
+
+window.addEventListener('beforeunload', function() {
+  if (state.presenceChannel) state.presenceChannel.unsubscribe();
+  if (state.realtimeChannel) state.realtimeChannel.unsubscribe();
+  if (state.convListChannel) state.convListChannel.unsubscribe();
+});
+</script>
+</body>
+</html>

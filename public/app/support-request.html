@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Help &amp; Support</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .sr-card{background:var(--surface);border-radius:20px;border:1px solid var(--border);box-shadow:var(--shadow-md);padding:32px 36px;max-width:720px;margin:0 auto;position:relative;z-index:1;animation:fadeSlideUp 380ms ease-out both}
+    .sr-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+    .sr-field{display:flex;flex-direction:column;gap:5px}
+    .sr-field.full{grid-column:span 2}
+    .sr-field label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .sr-field input,.sr-field select,.sr-field textarea{border:1px solid var(--border);background:#f7fbff;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;color:var(--ink-900);outline:none;transition:border-color .15s,box-shadow .15s}
+    .sr-field input:focus,.sr-field select:focus,.sr-field textarea:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .sr-field textarea{resize:vertical;min-height:100px}
+    .sr-upload{border:2px dashed var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;background:#f7fbff;transition:border-color .15s,background .15s}
+    .sr-upload:hover{border-color:var(--blue-500);background:#eef5ff}
+    .sr-upload input{display:none}
+    .sr-file-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+    .sr-file-item{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-700);background:#edf4ff;border-radius:7px;padding:5px 10px}
+    .sr-ticket-id{font-family:"Sora",sans-serif;font-size:1.3rem;font-weight:700;color:var(--blue-800)}
+    .sr-success{display:none;background:#def7ee;border:1px solid #b3e8d2;border-radius:16px;padding:24px 28px;margin-top:20px;text-align:center}
+    .sr-success-icon{font-size:2.5rem;margin-bottom:10px}
+    .sr-success h3{font-family:"Sora",sans-serif;color:#065f46;font-size:1.2rem;margin-bottom:8px}
+    .sr-success p{color:#0c694e;font-size:14px;margin:0}
+    @media(max-width:600px){.sr-form-grid{grid-template-columns:1fr}.sr-field.full{grid-column:span 1}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Help &amp; Support</h1>
+        <p>Submit a support request and our team will get back to you promptly.</p>
+      </div>
+      <a class="btn btn-ghost" href="dashboard.html">&#8592; Back to Dashboard</a>
+    </header>
+
+    <div class="sr-card">
+      <div class="content-card-title" style="margin-bottom:20px">Submit a Support Request</div>
+
+      <div id="ticketForm">
+        <div class="sr-form-grid">
+          <div class="sr-field">
+            <label>Your Name *</label>
+            <input type="text" id="srRequestor" placeholder="Full name" required>
+          </div>
+          <div class="sr-field">
+            <label>Practice Name</label>
+            <input type="text" id="srPractice" placeholder="Practice name">
+          </div>
+          <div class="sr-field">
+            <label>Provider Name</label>
+            <input type="text" id="srProvider" placeholder="Provider full name">
+          </div>
+          <div class="sr-field">
+            <label>Client Name</label>
+            <input type="text" id="srClient" placeholder="Client full name (optional)">
+          </div>
+          <div class="sr-field">
+            <label>Insurance Company</label>
+            <input type="text" id="srInsurance" placeholder="Insurance company (if applicable)">
+          </div>
+          <div class="sr-field">
+            <label>Category *</label>
+            <select id="srCategory" required>
+              <option value="">Select a category...</option>
+              <option>Claim Status</option>
+              <option>Coding</option>
+              <option>Correspondence</option>
+              <option>Eligibility Check</option>
+              <option>Patient Balance</option>
+              <option>Payments</option>
+            </select>
+          </div>
+          <div class="sr-field">
+            <label>Priority *</label>
+            <select id="srPriority" required>
+              <option value="">Select priority...</option>
+              <option>Routine</option>
+              <option>High Priority</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+          <div class="sr-field full">
+            <label>Issue Description *</label>
+            <textarea id="srDescription" placeholder="Please describe your issue in detail..." required></textarea>
+          </div>
+          <div class="sr-field full">
+            <label>Attachments</label>
+            <div class="sr-upload" onclick="document.getElementById('srFiles').click()">
+              <input type="file" id="srFiles" multiple onchange="handleSRFiles(event)">
+              <div style="font-size:13px;color:var(--ink-500)">&#128206; Click to attach files (EOBs, denial letters, etc.)</div>
+            </div>
+            <div class="sr-file-list" id="srFileList"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button class="btn btn-blue" onclick="submitSRTicket()">&#10003; Submit Request</button>
+          <button class="btn btn-ghost" onclick="resetForm()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Success message shown after submission -->
+      <div class="sr-success" id="srSuccess">
+        <div class="sr-success-icon">&#10003;</div>
+        <h3>Request Submitted!</h3>
+        <p>Your support ticket has been created. Ticket ID: <span class="sr-ticket-id" id="srTicketIdDisplay"></span></p>
+        <p style="margin-top:8px;font-size:13px">Our team will review your request and follow up shortly.</p>
+        <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="resetForm()">Submit Another</button>
+          <a class="btn btn-ghost btn-sm" href="dashboard.html">Return to Dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ / Help Topics -->
+    <div style="max-width:720px;margin:24px auto 0">
+      <div class="content-card-title" style="margin-bottom:14px;font-size:14px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em">Common Topics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="content-card" style="padding:16px 18px;cursor:default">
+          <div style="font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:4px">Billing &amp; Coding Questions</div>
+          <div style="font-size:12.5px;color:var(--ink-500)">Questions about H0001, H0031, H0032, or CPT codes</div>
+        </div>
+        <div class="content-card" style="padding:16px 18px;cursor:default">
+          <div style="font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:4px">Claim Status &amp; Denials</div>
+          <div style="font-size:12.5px;color:var(--ink-500)">Track submitted claims or appeal a denial</div>
+        </div>
+        <div class="content-card" style="padding:16px 18px;cursor:default">
+          <div style="font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:4px">Eligibility Verification</div>
+          <div style="font-size:12.5px;color:var(--ink-500)">Insurance eligibility and coverage questions</div>
+        </div>
+        <div class="content-card" style="padding:16px 18px;cursor:default">
+          <div style="font-weight:700;font-size:13.5px;color:var(--ink-900);margin-bottom:4px">Payment &amp; Account Issues</div>
+          <div style="font-size:12.5px;color:var(--ink-500)">Patient balances, EOBs, or payment posting</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+let srFiles = [];
+
+function handleSRFiles(e) {
+  Array.from(e.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      srFiles.push({ name: file.name, dataUrl: ev.target.result, mimeType: file.type });
+      renderSRFileList();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderSRFileList() {
+  document.getElementById('srFileList').innerHTML = srFiles.map((f, i) =>
+    `<div class="sr-file-item">${escapeHtml(f.name)}
+      <span onclick="srFiles.splice(${i},1);renderSRFileList()" style="margin-left:auto;cursor:pointer;color:var(--ink-500)">&#10005;</span>
+    </div>`
+  ).join('');
+}
+
+function genTicketId() {
+  try {
+    const tickets = JSON.parse(localStorage.getItem('docusistant_sc_tickets_v1') || '[]');
+    const max = tickets.reduce((m, t) => {
+      const n = parseInt((t.id||'TKT-0000').replace('TKT-',''), 10);
+      return n > m ? n : m;
+    }, 0);
+    return 'TKT-' + String(max + 1).padStart(4, '0');
+  } catch { return 'TKT-' + Date.now(); }
+}
+
+function submitSRTicket() {
+  const requestor   = document.getElementById('srRequestor').value.trim();
+  const category    = document.getElementById('srCategory').value;
+  const priority    = document.getElementById('srPriority').value;
+  const description = document.getElementById('srDescription').value.trim();
+
+  if (!requestor || !category || !priority || !description) {
+    alert('Please fill in all required fields (marked with *).'); return;
+  }
+
+  const now    = new Date().toISOString();
+  const ticket = {
+    id:           genTicketId(),
+    requestor,
+    practice:     document.getElementById('srPractice').value.trim(),
+    provider:     document.getElementById('srProvider').value.trim(),
+    client:       document.getElementById('srClient').value.trim(),
+    insurance:    document.getElementById('srInsurance').value.trim(),
+    category,
+    priority,
+    description,
+    assignedTo:   '',
+    status:       'New',
+    dateSubmitted: now,
+    lastUpdated:  now,
+    files:        srFiles,
+    source:       'clinician-portal'
+  };
+
+  try {
+    const tickets = JSON.parse(localStorage.getItem('docusistant_sc_tickets_v1') || '[]');
+    tickets.unshift(ticket);
+    localStorage.setItem('docusistant_sc_tickets_v1', JSON.stringify(tickets));
+  } catch (e) { alert('Error saving ticket. Please try again.'); return; }
+
+  document.getElementById('srTicketIdDisplay').textContent = ticket.id;
+  document.getElementById('ticketForm').style.display = 'none';
+  document.getElementById('srSuccess').style.display   = 'block';
+}
+
+function resetForm() {
+  srFiles = [];
+  document.getElementById('srFileList').innerHTML = '';
+  document.getElementById('srFiles').value = '';
+  ['srRequestor','srPractice','srProvider','srClient','srInsurance','srDescription'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('srCategory').value = '';
+  document.getElementById('srPriority').value = '';
+  document.getElementById('ticketForm').style.display = 'block';
+  document.getElementById('srSuccess').style.display  = 'none';
+}
+
+window.onload = async () => {
+  // Clinician-only route guard
+  const user = await initDashboard(CLINICIAN_ROLES);
+  if (!user) return;
+
+  // Pre-fill name from settings if available
+  const settings = getDocSettings();
+  if (settings.firstName) {
+    const name = [settings.firstName, settings.lastName].filter(Boolean).join(' ');
+    document.getElementById('srRequestor').value = name;
+  }
+  if (settings.practiceName) document.getElementById('srPractice').value = settings.practiceName;
+  if (settings.supervisorName || settings.firstName) {
+    document.getElementById('srProvider').value = settings.supervisorName || [settings.firstName, settings.lastName].filter(Boolean).join(' ');
+  }
+};
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

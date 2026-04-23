@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT - Team Portal Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<style>
+  /* Admin-portal-specific overrides */
+  .login-brand-panel { background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); }
+  .admin-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(99,102,241,.18); border: 1px solid rgba(99,102,241,.4);
+    color: #a5b4fc; border-radius: 999px; padding: 4px 14px;
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .admin-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #818cf8; }
+  .admin-warning {
+    background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; color: #92400e;
+    margin-bottom: 18px; line-height: 1.5;
+  }
+  .admin-warning strong { font-weight: 700; }
+  .login-card .btn-back {
+    display: block; text-align: center; margin-top: 18px;
+    font-size: 13px; color: var(--text-muted, #6b7280); text-decoration: none;
+  }
+  .login-card .btn-back:hover { color: var(--text-default, #111); }
+</style>
+
+<script>
+'use strict';
+
+const SUPABASE_URL = "https://kozdkixjhtbfhktpvzvk.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvemRraXhqaHRiZmhrdHB2enZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTczMzUsImV4cCI6MjA4ODMzMzMzNX0.Wun2eWG5vRdPdkb2c_lsSfTcQ9Y5jJ42kvWGYRgRBVc";
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Roles permitted to use the admin portal login
+const ADMIN_PORTAL_ROLES = ['super_admin', 'admin', 'billing_specialist', 'credentialing_specialist', 'supervisor', 'front_desk'];
+
+const ROLE_HOME = {
+  super_admin:              'admin-overview.html',
+  admin:                    'admin-dashboard.html',
+  clinician:                'dashboard.html',
+  billing_specialist:       'admin-financial.html',
+  credentialing_specialist: 'admin-staff.html',
+  supervisor:               'admin-qa.html',
+  front_desk:               'admin-clients.html',
+  patient:                  'patient-portal.html',
+};
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? '#dc2626' : '#16a34a';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+async function adminLogin(event) {
+  event.preventDefault();
+  setStatus('');
+
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!email || !password) {
+    setStatus('Email and password are required.', true);
+    return;
+  }
+
+  const loginBtn = document.getElementById('login-btn');
+  loginBtn.disabled = true;
+  loginBtn.textContent = 'Signing in...';
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setStatus(error.message, true);
+      return;
+    }
+
+    const user = data.user;
+    const role = (user && user.user_metadata && user.user_metadata.role) || 'clinician';
+
+    // Enforce admin-portal role restriction
+    if (!ADMIN_PORTAL_ROLES.includes(role)) {
+      // Sign them back out - clinicians and patients use login.html
+      await supabaseClient.auth.signOut();
+      setStatus('This portal is for staff accounts only. Please use the standard login page.', true);
+      return;
+    }
+
+    // Check if MFA is required before routing
+    try {
+      const { data: aal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+        window.location.href = 'mfa-verify.html';
+        return;
+      }
+    } catch (_) {}
+
+    // Record audit event
+    try {
+      const tok = data.session && data.session.access_token;
+      if (tok) {
+        await fetch('/api/auth/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+          body: JSON.stringify({ event: 'login', metadata: { portal: 'admin', role } }),
+        });
+      }
+    } catch (_) {}
+
+    window.location.href = ROLE_HOME[role] || 'admin-dashboard.html';
+
+  } catch (err) {
+    setStatus('Unexpected error. Please try again.', true);
+    console.error(err);
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Sign In to Portal';
+  }
+}
+
+async function forgotPassword(event) {
+  event.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  if (!email) {
+    setStatus('Enter your email address first, then click Forgot password.', true);
+    return;
+  }
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+  if (error) {
+    setStatus(error.message, true);
+  } else {
+    setStatus('Password reset instructions sent if this account exists.');
+  }
+}
+</script>
+  <script src="sidebar.js?v=2"></script>
+</head>
+
+<body class="login-body">
+
+<main class="login-shell">
+
+  <!-- Brand panel -->
+  <section class="login-brand-panel">
+    <div class="brand-content">
+      <div class="brand-logo">THERASSISTANT</div>
+      <h1>Team Portal</h1>
+      <p class="value-statement">Staff and administrative access for THERASSISTANT clinical operations.</p>
+      <p class="brand-description">
+        This portal is restricted to authorized staff accounts: administrators,
+        billing specialists, credentialing staff, supervisors, and front-desk personnel.
+      </p>
+      <div class="brand-pill-row">
+        <span class="brand-pill">Role-Based Access</span>
+        <span class="brand-pill">Audit Logged</span>
+        <span class="brand-pill">MFA Supported</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Login form panel -->
+  <section class="login-form-panel">
+    <div class="login-card">
+
+      <div class="admin-badge">Staff Portal</div>
+      <h2>Team Sign In</h2>
+      <p class="login-subtitle">Sign in with your staff credentials.</p>
+
+      <div class="admin-warning">
+        <strong>Restricted access.</strong> This page is for authorized THERASSISTANT staff only.
+        Unauthorized access attempts are logged.
+      </div>
+
+      <div id="status-msg" style="display:none; margin-bottom:14px; font-size:14px;"></div>
+
+      <form onsubmit="adminLogin(event)" autocomplete="on" novalidate>
+        <label class="field-label" for="email">Work Email</label>
+        <input id="email" class="field-input" type="email" placeholder="staff@clinic.org"
+               autocomplete="username" required>
+
+        <label class="field-label" for="password">Password</label>
+        <input id="password" class="field-input" type="password" placeholder="Enter your password"
+               autocomplete="current-password" required>
+
+        <div class="login-row" style="margin-bottom:18px;">
+          <span></span>
+          <a class="forgot-link" href="forgot-password.html">Forgot password?</a>
+        </div>
+
+        <button id="login-btn" class="btn-primary" type="submit">Sign In to Portal</button>
+      </form>
+
+      <a class="btn-back" href="login.html">&larr; Back to standard login</a>
+
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>

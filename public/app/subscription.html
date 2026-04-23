@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Subscription</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+</head>
+
+<body class="dashboard-body">
+
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>Subscription &amp; Billing</h1>
+        <p>Manage your plan, payment method, and billing history.</p>
+      </div>
+      <button class="btn btn-outline" onclick="openBillingPortal()">&#128196; Open Billing Portal</button>
+    </header>
+
+    <!-- Current plan banner -->
+    <div class="content-card section-gap" style="border-left: 5px solid var(--blue-600);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--ink-500);margin-bottom:6px;">Current Plan</div>
+          <div style="font-family:'Sora','Public Sans',sans-serif;font-size:26px;font-weight:700;color:var(--blue-900);">THERASSISTANT Pro <span class="badge badge-active" style="vertical-align:middle;font-size:12px;">Active</span></div>
+          <div style="font-size:14px;color:var(--ink-500);margin-top:6px;">Billed monthly &middot; Next renewal May 2, 2026</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-outline" onclick="openBillingPortal()">Upgrade to Premium</button>
+          <button class="btn btn-danger" onclick="confirmCancel()">Cancel Subscription</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+      <div class="billing-info-grid">
+        <div class="billing-info-item">
+          <label>Plan Price</label>
+          <div class="bvalue">$79 / month</div>
+        </div>
+        <div class="billing-info-item">
+          <label>Renewal Date</label>
+          <div class="bvalue">May 2, 2026</div>
+        </div>
+        <div class="billing-info-item">
+          <label>Last Payment</label>
+          <div class="bvalue">April 2, 2026</div>
+        </div>
+        <div class="billing-info-item">
+          <label>Payment Method</label>
+          <div class="bvalue">Visa &middot;&middot;&middot;&middot; 4242</div>
+        </div>
+        <div class="billing-info-item">
+          <label>Subscription ID</label>
+          <div class="bvalue" style="font-size:12px;font-family:monospace;color:var(--ink-500);">sub_1RExam&hellip;</div>
+        </div>
+        <div class="billing-info-item">
+          <label>Customer Since</label>
+          <div class="bvalue">January 15, 2026</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Usage -->
+    <div class="inner-grid-4 section-gap">
+      <div class="content-card" style="padding:18px 20px;">
+        <div class="metric-label">Sessions Used</div>
+        <div class="metric-value" style="font-size:26px;">38</div>
+        <div style="margin-top:8px;">
+          <div class="progress-bar"><div class="progress-fill" style="width:76%"></div></div>
+        </div>
+        <div class="metric-subtext" style="margin-top:6px;">of 50 this month</div>
+      </div>
+      <div class="content-card" style="padding:18px 20px;">
+        <div class="metric-label">Reports Generated</div>
+        <div class="metric-value" style="font-size:26px;">124</div>
+        <div style="margin-top:8px;">
+          <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
+        </div>
+        <div class="metric-subtext" style="margin-top:6px;">of 200 this month</div>
+      </div>
+      <div class="content-card" style="padding:18px 20px;">
+        <div class="metric-label">Notes Generated</div>
+        <div class="metric-value" style="font-size:26px;">89</div>
+        <div style="margin-top:8px;">
+          <div class="progress-bar"><div class="progress-fill" style="width:45%"></div></div>
+        </div>
+        <div class="metric-subtext" style="margin-top:6px;">of 200 this month</div>
+      </div>
+      <div class="content-card" style="padding:18px 20px;">
+        <div class="metric-label">Remaining Sessions</div>
+        <div class="metric-value" style="font-size:26px;color:var(--success);">12</div>
+        <div style="margin-top:8px;">
+          <div class="progress-bar"><div class="progress-fill" style="width:24%;background:linear-gradient(90deg,var(--success),#14b87a)"></div></div>
+        </div>
+        <div class="metric-subtext" style="margin-top:6px;">resets May 2, 2026</div>
+      </div>
+    </div>
+
+    <!-- Plan comparison -->
+    <div class="content-card section-gap">
+      <div class="content-card-title">Available Plans</div>
+      <div class="inner-grid-3" style="margin-top:4px;">
+
+        <div class="plan-card">
+          <div class="plan-name">Essentials</div>
+          <div class="plan-price">$39<span> / month</span></div>
+          <ul class="plan-features">
+            <li>25 coding sessions / month</li>
+            <li>100 reports / month</li>
+            <li>100 notes / month</li>
+            <li>H0031 + H0001 workflows</li>
+            <li>Standard note templates</li>
+            <li>Email support</li>
+          </ul>
+          <button class="btn btn-ghost" style="margin-top:auto;" onclick="openBillingPortal()">Select Essentials</button>
+        </div>
+
+        <div class="plan-card featured">
+          <div class="plan-badge">Current Plan</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$79<span> / month</span></div>
+          <ul class="plan-features">
+            <li>50 coding sessions / month</li>
+            <li>200 reports / month</li>
+            <li>200 notes / month</li>
+            <li>All H0001-H0032 workflows</li>
+            <li>SUD Coder access</li>
+            <li>Compliance alerts</li>
+            <li>Priority email support</li>
+          </ul>
+          <button class="btn btn-outline" style="margin-top:auto;" disabled>Current Plan</button>
+        </div>
+
+        <div class="plan-card">
+          <div class="plan-name">Premium</div>
+          <div class="plan-price">$129<span> / month</span></div>
+          <ul class="plan-features">
+            <li>Unlimited sessions</li>
+            <li>Unlimited reports &amp; notes</li>
+            <li>All Pro features</li>
+            <li>Multi-provider support</li>
+            <li>Custom note templates</li>
+            <li>API access</li>
+            <li>Dedicated account support</li>
+          </ul>
+          <button class="btn btn-blue" style="margin-top:auto;" onclick="openBillingPortal()">Upgrade to Premium</button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const SESSION_LIMIT = 50;
+const REPORTS_LIMIT = 200;
+const NOTES_LIMIT = 200;
+
+function setUsageStat(valueId, barId, subId, used, limit, suffix) {
+  document.querySelector(valueId).textContent = String(used);
+  document.querySelector(barId).style.width = Math.min(100, Math.round((used / limit) * 100)) + '%';
+  if (subId) document.querySelector(subId).textContent = suffix;
+}
+
+async function openBillingPortal() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { alert('Please log in first.'); return; }
+  try {
+    const resp = await fetch('/api/billing-portal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      }
+    });
+    const data = await resp.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      alert('Could not open billing portal: ' + (data.error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Error connecting to billing portal: ' + err.message);
+  }
+}
+
+function confirmCancel() {
+  if (confirm("Are you sure you want to cancel your subscription?\n\nYour access will remain active until May 2, 2026.")) {
+    openBillingPortal();
+  }
+}
+
+window.onload = async () => {
+  await initDashboard(CLINICIAN_ROLES);
+
+  const reports = getStoredCoderReports();
+  const notes = getStoredNotes();
+
+  const sessionsUsed = reports.length;
+  const reportsGen = reports.length;
+  const notesGen = notes.length;
+  const remaining = Math.max(0, SESSION_LIMIT - sessionsUsed);
+
+  // Sessions Used
+  document.querySelectorAll('.metric-value')[0].textContent = String(sessionsUsed);
+  document.querySelectorAll('.progress-fill')[0].style.width = Math.min(100, Math.round((sessionsUsed / SESSION_LIMIT) * 100)) + '%';
+  document.querySelectorAll('.metric-subtext')[0].textContent = 'of ' + SESSION_LIMIT + ' this month';
+
+  // Reports Generated
+  document.querySelectorAll('.metric-value')[1].textContent = String(reportsGen);
+  document.querySelectorAll('.progress-fill')[1].style.width = Math.min(100, Math.round((reportsGen / REPORTS_LIMIT) * 100)) + '%';
+  document.querySelectorAll('.metric-subtext')[1].textContent = 'of ' + REPORTS_LIMIT + ' this month';
+
+  // Notes Generated
+  document.querySelectorAll('.metric-value')[2].textContent = String(notesGen);
+  document.querySelectorAll('.progress-fill')[2].style.width = Math.min(100, Math.round((notesGen / NOTES_LIMIT) * 100)) + '%';
+  document.querySelectorAll('.metric-subtext')[2].textContent = 'of ' + NOTES_LIMIT + ' this month';
+
+  // Remaining Sessions
+  document.querySelectorAll('.metric-value')[3].textContent = String(remaining);
+  document.querySelectorAll('.progress-fill')[3].style.width = Math.min(100, Math.round((remaining / SESSION_LIMIT) * 100)) + '%';
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

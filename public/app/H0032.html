@@ -1,0 +1,763 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>THERASSISTANT — Treatment Plan Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+  /* Form-specific styles for this doc tool */
+  input,select,textarea{width:100%;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;font-family:inherit;color:var(--ink-900);}
+  textarea{min-height:160px;}
+  label{font-size:12px;color:var(--ink-700);display:block;margin-bottom:4px;font-weight:500;}
+  .content-card h2{font-size:14px;text-transform:uppercase;color:var(--ink-700);margin:0 0 12px;font-family:inherit;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border-bottom:1px solid var(--border);padding:8px;vertical-align:top;}
+  th{font-size:12px;color:var(--ink-700);text-align:left;}
+  .checks{display:grid;grid-template-columns:1fr;gap:6px;}
+  .checkline{display:flex;gap:8px;align-items:flex-start;font-size:13px;}
+  .checkline input{width:auto;margin-top:2px;}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;}
+  .error{background:#fee2e2;border:1px solid #fecaca;color:#7f1d1d;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px;white-space:pre-line;}
+  .invalid{border-color:#ef4444 !important;background:#fff5f5;}
+  .small{font-size:12px;color:var(--ink-500);margin-top:6px;}
+  .card{padding:16px 0;border-bottom:1px solid var(--border);}
+  .card:last-child{border-bottom:none;}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="patients.html">Patients</a>
+      <a class="nav-link" href="scheduling.html">Schedule</a>
+      <a class="nav-link" href="agenda.html">Today's Agenda</a>
+      <a class="nav-link" href="coder-home.html">Start New Session</a>
+      <a class="nav-link" href="saved-reports.html">Saved Reports</a>
+      <a class="nav-link" href="saved-notes.html">Saved Notes</a>
+      <a class="nav-link" href="clinician-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="subscription.html">Subscription</a>
+      <a class="nav-link" href="support-request.html">Help / Support</a>
+      <a class="nav-link" href="settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Treatment Plan Builder</h1>
+        <p>H0032 — Treatment plan development and review, linked to covered ICD-10 diagnoses</p>
+      </div>
+      <button class="btn btn-outline" onclick="window.location.href='Coder.html?return=1'">← Back to Report</button>
+    </header>
+
+    <div class="content-card" style="margin-top:20px">
+
+<!-- SECTION 1 -->
+<div class="card">
+  <h2>Diagnosis Index</h2>
+  <table>
+    <thead><tr><th>Dx ID</th><th>Diagnosis (Covered ICD-10)</th><th></th></tr></thead>
+    <tbody id="dxBody"></tbody>
+  </table>
+  <button class="btn btn-outline" id="addDxBtn" type="button">Add Diagnosis</button>
+
+  <div style="margin-top:12px">
+    <label for="sdoh">SDOH (optional)</label>
+    <select id="sdoh"></select>
+  </div>
+</div>
+
+<!-- SECTION 2 -->
+<div class="card">
+  <h2>Goals (Category-Group Linked)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Dx</th>
+        <th>ICD Category Group</th>
+        <th>Goal Area</th>
+        <th>Intervention Modality</th>
+        <th>Goal Focus</th>
+        <th>Functional Impact</th>
+        <th>Timeframe</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="goalBody"></tbody>
+  </table>
+  <button class="btn btn-outline" id="addGoalBtn" type="button">Add Goal</button>
+  <div class="small">Dx changes automatically refresh Category Group, Goal Area, and Modality suggestions.</div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="card">
+  <h2>Screening Measures (Optional)</h2>
+
+  <label>GAD-7 Score</label>
+  <select id="gad7">
+    <option value="">— Not administered —</option>
+    <option value="Mild">5–9 (Mild)</option>
+    <option value="Moderate">10–14 (Moderate)</option>
+    <option value="Severe">15–21 (Severe)</option>
+  </select>
+
+  <label style="margin-top:10px">PHQ-9 Score</label>
+  <select id="phq9">
+    <option value="">— Not administered —</option>
+    <option value="Moderate">10–14 (Moderate)</option>
+    <option value="ModSevere">15–19 (Moderately Severe)</option>
+    <option value="Severe">20–27 (Severe)</option>
+  </select>
+</div>
+
+<!-- SECTION 4 -->
+<div class="card">
+  <h2>Reason for Treatment Planning</h2>
+  <div class="checks" id="planReasons">
+    <label class="checkline"><input type="checkbox" value="change in symptom presentation">Change in symptom presentation</label>
+    <label class="checkline"><input type="checkbox" value="functional impairment identified or increased">Functional impairment identified or increased</label>
+    <label class="checkline"><input type="checkbox" value="progress plateau or regression">Progress plateau or regression</label>
+    <label class="checkline"><input type="checkbox" value="new clinical focus required">New clinical focus required</label>
+  </div>
+
+  <label style="margin-top:10px">Planning Decision</label>
+  <select id="planningDecision">
+    <option value="">— Select —</option>
+    <option>New goals established</option>
+    <option>Goals revised</option>
+    <option>Goals confirmed as appropriate</option>
+  </select>
+</div>
+
+<!-- OUTPUT -->
+<div class="card">
+  <h2>Generated H0032 Treatment Plan</h2>
+  <div id="errorBox" class="error" style="display:none"></div>
+  <textarea id="output" class="mono"></textarea>
+  <button class="btn btn-blue" id="generateBtn" type="button">Generate Plan</button>
+  <button class="btn btn-ghost" id="saveNoteBtn" type="button" style="margin-top:8px">&#128190; Save to Saved Notes</button>
+</div>
+
+    </div><!-- close content-card -->
+  </main>
+</div><!-- close dashboard-shell -->
+<script>
+const $ = (sel, root=document) => root.querySelector(sel);
+
+/* ===== Covered ICD library (ONLY) ===== */
+const ICD_MAP = {
+  "F20–F29 Psychotic disorders": [
+    "F20.0 — Paranoid schizophrenia","F20.1 — Disorganized schizophrenia","F20.2 — Catatonic schizophrenia",
+    "F20.3 — Undifferentiated schizophrenia","F20.5 — Residual schizophrenia","F20.81 — Schizophreniform disorder",
+    "F20.89 — Other schizophrenia","F20.9 — Schizophrenia, unspecified","F21 — Schizotypal disorder",
+    "F22 — Delusional disorders","F23 — Brief psychotic disorder","F24 — Shared psychotic disorder",
+    "F25.0 — Schizoaffective disorder, bipolar type","F25.1 — Schizoaffective disorder, depressive type",
+    "F25.8 — Other schizoaffective disorders","F25.9 — Schizoaffective disorder, unspecified",
+    "F28 — Other psychotic disorder not due to a substance or known physiological condition",
+    "F29 — Unspecified psychosis not due to a substance or known physiological condition"
+  ],
+  "F30–F39 Mood (affective) disorders": [
+    "F30.10 — Manic episode without psychotic symptoms, unspecified",
+    "F30.11 — Manic episode without psychotic symptoms, mild",
+    "F30.12 — Manic episode without psychotic symptoms, moderate",
+    "F30.13 — Manic episode, severe, without psychotic symptoms",
+    "F30.2 — Manic episode, severe with psychotic symptoms",
+    "F30.3 — Manic episode in partial remission",
+    "F30.4 — Manic episode in full remission",
+    "F30.8 — Other manic episodes","F30.9 — Manic episode, unspecified",
+    "F31.0 — Bipolar disorder, current episode hypomanic",
+    "F31.10 — Bipolar disorder, current episode manic without psychotic features, unspecified",
+    "F31.11 — Bipolar disorder, current episode manic without psychotic features, mild",
+    "F31.12 — Bipolar disorder, current episode manic without psychotic features, moderate",
+    "F31.13 — Bipolar disorder, current episode manic without psychotic features, severe",
+    "F31.2 — Bipolar disorder, current episode manic severe with psychotic features",
+    "F31.30 — Bipolar disorder, current episode depressed, mild or moderate severity, unspecified",
+    "F31.31 — Bipolar disorder, current episode depressed, mild",
+    "F31.32 — Bipolar disorder, current episode depressed, moderate",
+    "F31.4 — Bipolar disorder, current episode depressed, severe, without psychotic features",
+    "F31.5 — Bipolar disorder, current episode depressed, severe, with psychotic features",
+    "F31.60 — Bipolar disorder, current episode mixed, unspecified",
+    "F31.61 — Bipolar disorder, current episode mixed, mild",
+    "F31.62 — Bipolar disorder, current episode mixed, moderate",
+    "F31.63 — Bipolar disorder, current episode mixed, severe, without psychotic features",
+    "F31.64 — Bipolar disorder, current episode mixed, severe, with psychotic features",
+    "F31.70 — Bipolar disorder, currently in remission, most recent episode unspecified",
+    "F31.71 — Bipolar disorder, in partial remission, most recent episode hypomanic",
+    "F31.72 — Bipolar disorder, in full remission, most recent episode hypomanic",
+    "F31.73 — Bipolar disorder, in partial remission, most recent episode manic",
+    "F31.74 — Bipolar disorder, in full remission, most recent episode manic",
+    "F31.75 — Bipolar disorder, in partial remission, most recent episode depressed",
+    "F31.76 — Bipolar disorder, in full remission, most recent episode depressed",
+    "F31.77 — Bipolar disorder, in partial remission, most recent episode mixed",
+    "F31.78 — Bipolar disorder, in full remission, most recent episode mixed",
+    "F31.81 — Bipolar II disorder","F31.89 — Other bipolar disorder","F31.9 — Bipolar disorder, unspecified",
+    "F32.0 — Major depressive disorder, single episode, mild","F32.1 — Major depressive disorder, single episode, moderate",
+    "F32.2 — Major depressive disorder, single episode, severe without psychotic features",
+    "F32.3 — Major depressive disorder, single episode, severe with psychotic features",
+    "F32.4 — Major depressive disorder, single episode, in partial remission",
+    "F32.5 — Major depressive disorder, single episode, in full remission",
+    "F32.81 — Premenstrual dysphoric disorder","F32.89 — Other specified depressive episodes","F32.9 — Major depressive disorder, single episode, unspecified","F32.A — Depression, unspecified",
+    "F33.0 — Major depressive disorder, recurrent, mild","F33.1 — Major depressive disorder, recurrent, moderate",
+    "F33.2 — Major depressive disorder, recurrent severe without psychotic features",
+    "F33.3 — Major depressive disorder, recurrent, severe with psychotic symptoms",
+    "F33.40 — Major depressive disorder, recurrent, in remission, unspecified",
+    "F33.41 — Major depressive disorder, recurrent, in partial remission",
+    "F33.42 — Major depressive disorder, recurrent, in full remission",
+    "F33.8 — Other recurrent depressive disorders","F33.9 — Major depressive disorder, recurrent, unspecified",
+    "F34.0 — Cyclothymic disorder","F34.1 — Dysthymic disorder","F34.81 — Disruptive mood dysregulation disorder",
+    "F34.89 — Other specified persistent mood disorders","F34.9 — Persistent mood [affective] disorder, unspecified","F39 — Unspecified mood [affective] disorder"
+  ],
+  "F40–F48 Anxiety, stress-related & somatoform": [
+    "F40.00 — Agoraphobia, unspecified","F40.01 — Agoraphobia with panic disorder","F40.02 — Agoraphobia without panic disorder",
+    "F40.10 — Social phobia, unspecified","F40.11 — Social phobia, generalized",
+    "F40.210 — Arachnophobia","F40.218 — Other animal type phobia","F40.220 — Fear of thunderstorms","F40.228 — Other natural environment type phobia",
+    "F40.230 — Fear of blood","F40.231 — Fear of injections and transfusions","F40.232 — Fear of other medical care","F40.233 — Fear of injury",
+    "F40.240 — Claustrophobia","F40.241 — Acrophobia","F40.242 — Fear of bridges","F40.243 — Fear of flying",
+    "F40.248 — Other situational type phobia","F40.290 — Androphobia","F40.291 — Gynephobia","F40.298 — Other specified phobia",
+    "F40.8 — Other phobic anxiety disorders","F40.9 — Phobic anxiety disorder, unspecified",
+    "F41.0 — Panic disorder [episodic paroxysmal anxiety]","F41.1 — Generalized anxiety disorder","F41.3 — Other mixed anxiety disorders",
+    "F41.8 — Other specified anxiety disorders","F41.9 — Anxiety disorder, unspecified",
+    "F42.2 — Mixed obsessional thoughts and acts","F42.3 — Hoarding disorder","F42.4 — Excoriation (skin-picking) disorder",
+    "F42.8 — Other obsessive-compulsive disorder","F42.9 — Obsessive-compulsive disorder, unspecified",
+    "F43.0 — Acute stress reaction","F43.10 — Post-traumatic stress disorder, unspecified","F43.11 — Post-traumatic stress disorder, acute","F43.12 — Post-traumatic stress disorder, chronic",
+    "F43.20 — Adjustment disorder, unspecified","F43.21 — Adjustment disorder with depressed mood","F43.22 — Adjustment disorder with anxiety","F43.23 — Adjustment disorder with mixed anxiety and depressed mood",
+    "F43.24 — Adjustment disorder with disturbance of conduct","F43.25 — Adjustment disorder with mixed disturbance of emotions and conduct","F43.29 — Adjustment disorder with other symptoms",
+    "F43.81 — Prolonged grief disorder","F43.89 — Other reactions to severe stress","F43.9 — Reaction to severe stress, unspecified",
+    "F44.0 — Dissociative amnesia","F44.1 — Dissociative fugue","F44.2 — Dissociative stupor",
+    "F44.4 — Conversion disorder with motor symptom or deficit","F44.5 — Conversion disorder with seizures or convulsions",
+    "F44.6 — Conversion disorder with sensory symptom or deficit","F44.7 — Conversion disorder with mixed symptom presentation",
+    "F44.81 — Dissociative identity disorder","F44.89 — Other dissociative and conversion disorders","F44.9 — Dissociative and conversion disorder, unspecified",
+    "F45.0 — Somatization disorder","F45.1 — Undifferentiated somatoform disorder","F45.20 — Hypochondriacal disorder, unspecified","F45.21 — Hypochondriasis","F45.22 — Body dysmorphic disorder","F45.29 — Other hypochondriacal disorders",
+    "F45.41 — Pain disorder exclusively related to psychological factors","F45.42 — Pain disorder with related psychological factors",
+    "F45.8 — Other somatoform disorders","F45.9 — Somatoform disorder, unspecified",
+    "F48.1 — Depersonalization-derealization syndrome","F48.2 — Pseudobulbar affect",
+    "F48.8 — Other specified nonpsychotic mental disorders","F48.9 — Nonpsychotic mental disorder, unspecified"
+  ],
+  "F50–F59 Eating, sleep, sexual & other behavioral": [
+    "F50.00 — Anorexia nervosa, unspecified","F50.010 — Anorexia nervosa, restricting type, mild","F50.011 — ... moderate",
+    "F50.012 — ... severe","F50.013 — ... extreme","F50.014 — ... in remission","F50.019 — ... unspecified",
+    "F50.020 — Anorexia nervosa, binge eating/purging type, mild","F50.021 — ... moderate","F50.022 — ... severe",
+    "F50.023 — ... extreme","F50.024 — ... in remission","F50.029 — ... unspecified",
+    "F50.20 — Bulimia nervosa, unspecified","F50.21 — Bulimia nervosa, mild","F50.22 — Bulimia nervosa, moderate",
+    "F50.23 — Bulimia nervosa, severe","F50.24 — Bulimia nervosa, extreme","F50.25 — Bulimia nervosa, in remission",
+    "F50.810 — Binge eating disorder, mild","F50.811 — ... moderate","F50.812 — ... severe","F50.813 — ... extreme",
+    "F50.814 — ... in remission","F50.819 — Binge eating disorder, unspecified","F50.82 — Avoidant/restrictive food intake disorder",
+    "F50.83 — Pica in adults","F50.84 — Rumination disorder in adults","F50.89 — Other specified eating disorder","F50.9 — Eating disorder, unspecified",
+    "F51.01 — Primary insomnia","F51.02 — Adjustment insomnia","F51.03 — Paradoxical insomnia","F51.04 — Psychophysiologic insomnia",
+    "F51.05 — Insomnia due to other mental disorder","F51.09 — Other insomnia not due to a substance or known physiological condition",
+    "F51.11 — Primary hypersomnia","F51.12 — Insufficient sleep syndrome","F51.13 — Hypersomnia due to other mental disorder",
+    "F51.19 — Other hypersomnia not due to a substance or known physiological condition","F51.3 — Sleepwalking [somnambulism]",
+    "F51.4 — Sleep terrors [night terrors]","F51.5 — Nightmare disorder","F51.8 — Other sleep disorders not due to a substance or known physiological condition",
+    "F51.9 — Sleep disorder not due to a substance or known physiological condition, unspecified",
+    "F52.0 — Hypoactive sexual desire disorder","F52.1 — Sexual aversion disorder","F52.21 — Male erectile disorder",
+    "F52.22 — Female sexual arousal disorder","F52.31 — Female orgasmic disorder","F52.32 — Male orgasmic disorder",
+    "F52.4 — Premature ejaculation","F52.5 — Vaginismus not due to a substance or known physiological condition",
+    "F52.6 — Dyspareunia not due to a substance or known physiological condition","F52.8 — Other sexual dysfunction not due to a substance or known physiological condition",
+    "F52.9 — Unspecified sexual dysfunction not due to a substance or known physiological condition",
+    "F53.0 — Postpartum depression","F53.1 — Puerperal psychosis","F54 — Psychological and behavioral factors associated with disorders or diseases classified elsewhere",
+    "F55.0 — Abuse of antacids","F55.1 — Abuse of herbal or folk remedies","F55.2 — Abuse of laxatives","F55.3 — Abuse of steroids or hormones",
+    "F55.4 — Abuse of vitamins","F55.8 — Abuse of other non-psychoactive substances","F59 — Unspecified behavioral syndromes associated with physiological disturbances and physical factors"
+  ],
+  "F60–F69 Personality & behavior": [
+    "F60.0 — Paranoid personality disorder","F60.1 — Schizoid personality disorder","F60.2 — Antisocial personality disorder",
+    "F60.3 — Borderline personality disorder","F60.4 — Histrionic personality disorder","F60.5 — Obsessive-compulsive personality disorder",
+    "F60.6 — Avoidant personality disorder","F60.7 — Dependent personality disorder","F60.81 — Narcissistic personality disorder",
+    "F60.89 — Other specific personality disorders","F60.9 — Personality disorder, unspecified",
+    "F63.0 — Pathological gambling","F63.1 — Pyromania","F63.2 — Kleptomania","F63.3 — Trichotillomania","F63.81 — Intermittent explosive disorder",
+    "F63.89 — Other impulse disorders","F63.9 — Impulse disorder, unspecified",
+    "F64.0 — Transsexualism","F64.1 — Dual role transvestism","F64.2 — Gender identity disorder of childhood","F64.8 — Other gender identity disorders",
+    "F64.9 — Gender identity disorder, unspecified",
+    "F65.0 — Fetishism","F65.1 — Transvestic fetishism","F65.2 — Exhibitionism","F65.3 — Voyeurism","F65.4 — Pedophilia",
+    "F65.50 — Sadomasochism, unspecified","F65.51 — Sexual masochism","F65.52 — Sexual sadism","F65.81 — Frotteurism","F65.89 — Other paraphilias","F65.9 — Paraphilia, unspecified",
+    "F66 — Other sexual disorders",
+    "F68.10 — Factitious disorder imposed on self, unspecified","F68.11 — ... with predominantly psychological signs and symptoms",
+    "F68.12 — ... with predominantly physical signs and symptoms","F68.13 — ... with combined psychological and physical signs and symptoms",
+    "F68.8 — Other specified disorders of adult personality and behavior","F68.A — Factitious disorder imposed on another",
+    "F69 — Unspecified disorder of adult personality and behavior"
+  ],
+  "F70–F79 Intellectual disabilities": [
+    "F70 — Mild intellectual disabilities","F71 — Moderate intellectual disabilities","F72 — Severe intellectual disabilities",
+    "F73 — Profound intellectual disabilities","F78.A1 — SYNGAP1-related intellectual disability","F78.A9 — Other genetic related intellectual disability","F79 — Unspecified intellectual disabilities"
+  ],
+  "F80–F89 Developmental & pervasive": [
+    "F80.0 — Phonological disorder","F80.1 — Expressive language disorder","F80.2 — Mixed receptive-expressive language disorder",
+    "F80.4 — Speech and language development delay due to hearing loss","F80.81 — Childhood onset fluency disorder","F80.82 — Social pragmatic communication disorder",
+    "F80.89 — Other developmental disorders of speech and language","F80.9 — Developmental disorder of speech and language, unspecified",
+    "F81.0 — Specific reading disorder","F81.2 — Mathematics disorder","F81.81 — Disorder of written expression","F81.89 — Other developmental disorders of scholastic skills","F81.9 — Developmental disorder of scholastic skills, unspecified",
+    "F82 — Specific developmental disorder of motor function",
+    "F84.0 — Autistic disorder","F84.2 — Rett's syndrome","F84.3 — Other childhood disintegrative disorder","F84.5 — Asperger's syndrome","F84.8 — Other pervasive developmental disorders","F84.9 — Pervasive developmental disorder, unspecified",
+    "F88 — Other disorders of psychological development","F89 — Unspecified disorder of psychological development"
+  ],
+  "F90–F98 Childhood/adolescence disorders": [
+    "F90.0 — Attention-deficit hyperactivity disorder, predominantly inattentive type","F90.1 — ... predominantly hyperactive type",
+    "F90.2 — ... combined type","F90.8 — ... other type","F90.9 — ... unspecified type",
+    "F91.0 — Conduct disorder confined to family context","F91.1 — Conduct disorder, childhood-onset type","F91.2 — Conduct disorder, adolescent-onset type","F91.3 — Oppositional defiant disorder",
+    "F91.8 — Other conduct disorders","F91.9 — Conduct disorder, unspecified",
+    "F93.0 — Separation anxiety disorder of childhood","F93.8 — Other childhood emotional disorders","F93.9 — Childhood emotional disorder, unspecified",
+    "F94.0 — Selective mutism","F94.1 — Reactive attachment disorder of childhood","F94.2 — Disinhibited attachment disorder of childhood","F94.8 — Other childhood disorders of social functioning","F94.9 — Childhood disorder of social functioning, unspecified",
+    "F95.0 — Transient tic disorder","F95.1 — Chronic motor or vocal tic disorder","F95.2 — Tourette's disorder","F95.8 — Other tic disorders","F95.9 — Tic disorder, unspecified",
+    "F98.0 — Enuresis not due to a substance or known physiological condition","F98.1 — Encopresis not due to a substance or known physiological condition",
+    "F98.21 — Rumination disorder of infancy and childhood","F98.29 — Other feeding disorders of infancy and early childhood","F98.3 — Pica of infancy and childhood",
+    "F98.4 — Stereotyped movement disorders","F98.5 — Adult onset fluency disorder","F98.8 — Other specified behavioral and emotional disorders with onset usually occurring in childhood and adolescence","F98.9 — Unspecified behavioral and emotional disorders with onset usually occurring in childhood and adolescence"
+  ],
+  "F99 Other mental disorder": [ "F99 — Mental disorder, not otherwise specified" ],
+  "R45 — Symptoms of emotional state": [
+    "R45.0 — Nervousness","R45.1 — Restlessness and agitation","R45.2 — Unhappiness","R45.3 — Demoralization and apathy",
+    "R45.4 — Irritability and anger","R45.5 — Hostility","R45.6 — Violent behavior","R45.7 — State of emotional shock and stress, unspecified",
+    "R45.81 — Low self-esteem","R45.82 — Worries","R45.83 — Excessive crying of child, adolescent or adult","R45.84 — Anhedonia",
+    "R45.850 — Homicidal ideations","R45.851 — Suicidal ideations","R45.86 — Emotional lability","R45.87 — Impulsiveness","R45.88 — Nonsuicidal self-harm","R45.89 — Other symptoms and signs involving emotional state"
+  ]
+};
+
+const COVERED_SET = new Set(Object.values(ICD_MAP).flat());
+
+/* ===== Group-linked rules (edit these freely) ===== */
+const GROUP_RULES = {
+  "F20–F29 Psychotic disorders": {
+    goalAreas: ["Reality Testing & Symptom Management","Medication/Tx Adherence & Support","Safety Planning & Functional Stability"],
+    modalities: ["CBT for psychosis (CBTp)","Psychoeducation","Skills training","Family support/coordination of care"]
+  },
+  "F30–F39 Mood (affective) disorders": {
+    goalAreas: ["Mood Stability & Symptom Reduction","Behavioral Activation & Daily Functioning","Relapse Prevention & Coping Skills"],
+    modalities: ["CBT","Behavioral Activation","Interpersonal Therapy (IPT)","Psychoeducation"]
+  },
+  "F40–F48 Anxiety, stress-related & somatoform": {
+    goalAreas: ["Anxiety/Stress Management","Distress Tolerance & Emotional Regulation","Exposure/Coping & Functional Improvement"],
+    modalities: ["CBT","Exposure-based interventions","Mindfulness/skills training","Psychoeducation"]
+  },
+  "F50–F59 Eating, sleep, sexual & other behavioral": {
+    goalAreas: ["Health Behaviors & Self-Care","Sleep/Eating Pattern Stabilization","Body/Somatic Coping & Daily Functioning"],
+    modalities: ["CBT","Skills training","Psychoeducation","Care coordination/support planning"]
+  },
+  "F60–F69 Personality & behavior": {
+    goalAreas: ["Interpersonal Effectiveness","Impulse Control & Safety","Emotional Regulation & Adaptive Coping"],
+    modalities: ["DBT","Schema-focused approaches","Mentalization-based strategies","Skills training"]
+  },
+  "F70–F79 Intellectual disabilities": {
+    goalAreas: ["Adaptive Skills & Daily Living","Communication & Social Functioning","Support Planning & Skill Generalization"],
+    modalities: ["Skills training","Caregiver coaching","Behavioral supports","Support planning"]
+  },
+  "F80–F89 Developmental & pervasive": {
+    goalAreas: ["Skill Building & Supports","Social/Communication Functioning","Behavioral Regulation & Daily Functioning"],
+    modalities: ["Skills training","Behavioral supports","Psychoeducation","Support planning"]
+  },
+  "F90–F98 Childhood/adolescence disorders": {
+    goalAreas: ["Executive Functioning & Organization","Attention/Focus & Task Completion","Impulse Control & Behavioral Skills"],
+    modalities: ["Skills training (organization/time mgmt)","Behavioral interventions","CBT for ADHD","Parent/caregiver coaching"]
+  },
+  "F99 Other mental disorder": {
+    goalAreas: ["Symptom Management","Functional Improvement","Coping Skills & Support Planning"],
+    modalities: ["CBT","Skills training","Psychoeducation","Support planning"]
+  },
+  "R45 — Symptoms of emotional state": {
+    goalAreas: ["Emotional State Stabilization","Coping Skills Development","Functional Improvement & Safety"],
+    modalities: ["CBT","Skills training","Supportive counseling","Psychoeducation"]
+  }
+};
+
+const DEFAULT_RULES = {
+  goalAreas: ["Symptom Management","Coping Skills Development","Functional Improvement"],
+  modalities: ["CBT","Skills training","Psychoeducation","Support planning"]
+};
+
+/* ===== SDOH ===== */
+const SDOH = [
+  ["","— Select —"],
+  ["Z55.9 — Education and literacy problem, unspecified","Z55.9 — Education and literacy problem, unspecified"],
+  ["Z56.0 — Unemployment","Z56.0 — Unemployment"],
+  ["Z56.6 — Work-related stress","Z56.6 — Work-related stress"],
+  ["Z59.0 — Homelessness","Z59.0 — Homelessness"],
+  ["Z59.6 — Low income","Z59.6 — Low income"],
+  ["Z59.81 — Housing instability, housed","Z59.81 — Housing instability, housed"],
+  ["Z59.82 — Transportation insecurity","Z59.82 — Transportation insecurity"],
+  ["Z59.86 — Financial insecurity","Z59.86 — Financial insecurity"],
+  ["Z60.2 — Problems related to living alone","Z60.2 — Problems related to living alone"],
+  ["Z63.0 — Problems in relationship with spouse/partner","Z63.0 — Problems in relationship with spouse/partner"],
+  ["Z63.5 — Disruption by separation/divorce","Z63.5 — Disruption by separation/divorce"],
+  ["Z65.4 — Victim of crime and terrorism","Z65.4 — Victim of crime and terrorism"]
+];
+
+/* ===== State ===== */
+let dxCounter = 0;
+
+/* ===== ICD helpers ===== */
+function findGroupForIcd(code){
+  if (!code) return "";
+  for (const [group, codes] of Object.entries(ICD_MAP)){
+    if (codes.includes(code)) return group;
+  }
+  return "";
+}
+
+function extractPrefix3(code){
+  const m = (code || "").match(/^[A-Z]\d{2}/);
+  return m ? m[0] : "";
+}
+
+/* ===== UI builders ===== */
+function buildSDOH(){
+  const sel = $("#sdoh");
+  sel.innerHTML = "";
+  for (const [v, t] of SDOH){
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    sel.appendChild(o);
+  }
+}
+
+function makeICDSelect(){
+  const sel = document.createElement("select");
+  sel.className = "dxSelect";
+
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = "— Select —";
+  sel.appendChild(first);
+
+  for (const [group, codes] of Object.entries(ICD_MAP)){
+    const og = document.createElement("optgroup");
+    og.label = group;
+    for (const code of codes){
+      const o = document.createElement("option");
+      o.value = code;
+      o.textContent = code;
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+
+  sel.addEventListener("change", refreshDxMaps);
+  return sel;
+}
+
+/* ===== Dx model ===== */
+function getDxEntries(){
+  return [...document.querySelectorAll("#dxBody tr")].map(tr => {
+    const dxId = tr.dataset.dxId || "";
+    const code = tr.querySelector(".dxSelect")?.value || "";
+    const group = code ? findGroupForIcd(code) : "";
+    return { dxId, code, group };
+  });
+}
+
+function getSelectedDxEntries(){
+  return getDxEntries().filter(d => d.dxId && d.code && COVERED_SET.has(d.code));
+}
+
+function getDxById(dxId){
+  const found = getDxEntries().find(d => d.dxId === dxId);
+  return found || { dxId, code: "", group: "" };
+}
+
+/* ===== Goal Dx options ===== */
+function buildDxOptionsById(){
+  const entries = getSelectedDxEntries();
+  let html = `<option value="">— Select Dx —</option>`;
+  for (const { dxId, code } of entries){
+    html += `<option value="${dxId}">${dxId} — ${code}</option>`;
+  }
+  return html;
+}
+
+/* ===== Validation ===== */
+function clearInvalid(){
+  document.querySelectorAll(".invalid").forEach(el => el.classList.remove("invalid"));
+}
+
+function markInvalid(el){
+  if (el) el.classList.add("invalid");
+}
+
+function showErrors(messages){
+  const box = $("#errorBox");
+  if (!messages.length){
+    box.style.display = "none";
+    box.textContent = "";
+    return;
+  }
+  box.style.display = "block";
+  box.textContent = messages.map(m => `• ${m}`).join("\n");
+}
+
+/* ===== Group-linked dropdown loaders ===== */
+function getRulesForGroup(group){
+  return GROUP_RULES[group] || DEFAULT_RULES;
+}
+
+function setSelectOptions(selectEl, options, placeholder){
+  const current = selectEl.value;
+  selectEl.innerHTML = "";
+
+  if (placeholder){
+    const p = document.createElement("option");
+    p.value = "";
+    p.textContent = placeholder;
+    selectEl.appendChild(p);
+  }
+
+  for (const opt of options){
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    selectEl.appendChild(o);
+  }
+
+  if ([...selectEl.options].some(o => o.value === current)) selectEl.value = current;
+}
+
+function refreshGoalRowDerived(row){
+  const dxMapSel = row.querySelector(".dxMap");
+  const dxId = dxMapSel?.value || "";
+  const { code, group } = dxId ? getDxById(dxId) : { code: "", group: "" };
+
+  const groupCell = row.querySelector(".groupCell");
+  groupCell.textContent = group || "—";
+
+  const areaSel = row.querySelector(".goalArea");
+  const modSel = row.querySelector(".modality");
+
+  if (!dxId){
+    setSelectOptions(areaSel, [], "— Select Dx first —");
+    setSelectOptions(modSel, [], "— Select Dx first —");
+    return;
+  }
+  if (!code || !COVERED_SET.has(code)){
+    setSelectOptions(areaSel, [], "— Dx not selected / not covered —");
+    setSelectOptions(modSel, [], "— Dx not selected / not covered —");
+    return;
+  }
+
+  const rules = getRulesForGroup(group);
+  setSelectOptions(areaSel, rules.goalAreas, "");
+  setSelectOptions(modSel, rules.modalities, "");
+}
+
+/* ===== Keep Goals synced to Dx changes ===== */
+function refreshDxMaps(){
+  document.querySelectorAll(".dxMap").forEach(sel => {
+    const currentDxId = sel.value;
+    sel.innerHTML = buildDxOptionsById();
+
+    if ([...sel.options].some(o => o.value === currentDxId)){
+      sel.value = currentDxId;
+    } else if (currentDxId){
+      const orphan = document.createElement("option");
+      orphan.value = currentDxId;
+      orphan.textContent = `${currentDxId} — (removed or not selected)`;
+      sel.appendChild(orphan);
+      sel.value = currentDxId;
+    }
+  });
+
+  document.querySelectorAll("#goalBody tr").forEach(row => refreshGoalRowDerived(row));
+}
+
+/* ===== Rows ===== */
+function addDx(){
+  const tr = document.createElement("tr");
+  const idTd = document.createElement("td");
+  const dxTd = document.createElement("td");
+  const rmTd = document.createElement("td");
+
+  const dxId = `Dx-${++dxCounter}`;
+  tr.dataset.dxId = dxId;
+  idTd.textContent = dxId;
+
+  const icdSel = makeICDSelect();
+  dxTd.appendChild(icdSel);
+
+  const rmBtn = document.createElement("button");
+  rmBtn.type = "button";
+  rmBtn.textContent = "Remove";
+  rmBtn.addEventListener("click", () => {
+    tr.remove();
+    refreshDxMaps();
+  });
+  rmTd.appendChild(rmBtn);
+
+  tr.appendChild(idTd);
+  tr.appendChild(dxTd);
+  tr.appendChild(rmTd);
+
+  $("#dxBody").appendChild(tr);
+  refreshDxMaps();
+}
+
+function addGoal(){
+  const dxSelected = getSelectedDxEntries();
+  if (dxSelected.length === 0){
+    showErrors(["Select at least one covered Diagnosis before adding a goal."]);
+    return;
+  }
+
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><select class="dxMap"></select></td>
+    <td class="groupCell">—</td>
+    <td><select class="goalArea"></select></td>
+    <td><select class="modality"></select></td>
+    <td><input class="focus" placeholder="e.g., reduce excessive worry"></td>
+    <td>
+      <select class="impact">
+        <option>impacts sleep, energy, or self-care routines</option>
+        <option>impacts occupational/academic performance</option>
+        <option>impacts interpersonal functioning</option>
+      </select>
+    </td>
+    <td><select class="timeframe"><option>30 days</option><option>60 days</option></select></td>
+    <td><select class="status"><option>New</option><option>Revised</option></select></td>
+    <td><button type="button" class="rmGoal">Remove</button></td>
+  `;
+
+  const dxMapSel = tr.querySelector(".dxMap");
+  dxMapSel.innerHTML = buildDxOptionsById();
+  dxMapSel.addEventListener("change", () => refreshGoalRowDerived(tr));
+
+  const firstReal = dxMapSel.querySelectorAll("option")[1];
+  if (firstReal) dxMapSel.value = firstReal.value;
+
+  tr.querySelector(".rmGoal").addEventListener("click", () => tr.remove());
+
+  $("#goalBody").appendChild(tr);
+  refreshGoalRowDerived(tr);
+  showErrors([]);
+}
+
+/* ===== Validation & generation ===== */
+function validateForm(){
+  clearInvalid();
+  const messages = [];
+
+  const dxSelected = getSelectedDxEntries();
+  if (dxSelected.length === 0){
+    messages.push("Add and select at least one covered Diagnosis in the Diagnosis Index.");
+  }
+
+  const goalRows = [...document.querySelectorAll("#goalBody tr")];
+  if (goalRows.length === 0){
+    messages.push("Add at least one Goal.");
+    return { ok: false, messages };
+  }
+
+  goalRows.forEach((r, idx) => {
+    const rowNum = idx + 1;
+    const dxSel = r.querySelector(".dxMap");
+    const dxId = dxSel.value;
+    const dx = dxId ? getDxById(dxId) : { code: "", group: "" };
+
+    const areaSel = r.querySelector(".goalArea");
+    const modSel = r.querySelector(".modality");
+    const focusEl = r.querySelector(".focus");
+
+    if (!dxId || !dx.code || !COVERED_SET.has(dx.code)){
+      messages.push(`Goal #${rowNum}: select a valid covered Dx.`);
+      markInvalid(dxSel);
+    }
+    if (!areaSel.value){
+      messages.push(`Goal #${rowNum}: select a Goal Area.`);
+      markInvalid(areaSel);
+    }
+    if (!modSel.value){
+      messages.push(`Goal #${rowNum}: select an Intervention Modality.`);
+      markInvalid(modSel);
+    }
+    if (!(focusEl.value || "").trim()){
+      messages.push(`Goal #${rowNum}: enter a Goal Focus.`);
+      markInvalid(focusEl);
+    }
+  });
+
+  return { ok: messages.length === 0, messages };
+}
+
+function generatePlan(){
+  const out = $("#output");
+  const { ok, messages } = validateForm();
+  showErrors(messages);
+  if (!ok) return;
+
+  localStorage.setItem('docusistant_doc_completed_H0032', '1');
+
+  const reasons = [...document.querySelectorAll("#planReasons input:checked")].map(r => r.value);
+  const planningDecision = $("#planningDecision").value || "—";
+  const gad7Val = $("#gad7").value;
+  const phq9Val = $("#phq9").value;
+
+  const dxSelected = getSelectedDxEntries();
+  const dxIndex = dxSelected
+    .map(({ dxId, code, group }) => `${dxId} — ${code}\n  Category Group: ${group}`)
+    .join("\n");
+
+  const goals = [...document.querySelectorAll("#goalBody tr")].map(r => {
+    const dxId = r.querySelector(".dxMap").value;
+    const { code, group } = getDxById(dxId);
+
+    const area = r.querySelector(".goalArea").value || "—";
+    const modality = r.querySelector(".modality").value || "—";
+    const focus = (r.querySelector(".focus").value || "—").trim() || "—";
+    const impact = r.querySelector(".impact").value || "—";
+    const timeframe = r.querySelector(".timeframe").value || "—";
+    const status = r.querySelector(".status").value || "New";
+
+    const prefix3 = extractPrefix3(code);
+    let measure = "functional improvement";
+    if (prefix3 === "F41" && gad7Val) measure = "GAD-7 score improvement";
+    if (prefix3 === "F33" && phq9Val) measure = "PHQ-9 score improvement";
+
+    const reasonText = reasons.length ? reasons.join(", ") : "clinical review and care progression";
+
+    return `• ${dxId} — ${code}
+Category Group: ${group}
+Goal Area: ${area}
+Intervention Modality: ${modality}
+Goal Statement: The client will address ${focus}, which currently ${impact}. This goal has been ${status.toLowerCase()} as part of treatment planning due to ${reasonText} and is expected to show measurable improvement within ${timeframe}, as evidenced by ${measure}.`;
+  }).join("\n\n");
+
+  const sdoh = $("#sdoh").value ? `\nSDOH FACTOR\n${$("#sdoh").value}\n` : "";
+
+  out.value =
+`DIAGNOSIS INDEX
+${dxIndex}
+
+GOALS (CATEGORY-GROUP LINKED)
+${goals}
+
+REASON FOR TREATMENT PLANNING
+The treatment plan was reviewed due to ${reasons.length ? reasons.join(", ") : "clinical review and care progression"}.
+
+PLANNING DECISION
+${planningDecision}
+${sdoh}MEDICAL NECESSITY & H0032 JUSTIFICATION
+The client presents with behavioral health diagnoses contributing to functional impairment. Category-group-linked goals were developed or revised through structured treatment planning, requiring clinical analysis beyond psychotherapy services and supporting H0032 billing.`;
+}
+
+/* ===== Init ===== */
+document.addEventListener("DOMContentLoaded", () => {
+  buildSDOH();
+  $("#addDxBtn").addEventListener("click", addDx);
+  $("#addGoalBtn").addEventListener("click", addGoal);
+  $("#generateBtn").addEventListener("click", generatePlan);
+  $("#saveNoteBtn").addEventListener("click", function() {
+    const content = $("#output").value || '';
+    if (!content.trim()) { alert('Generate a plan first, then save.'); return; }
+    saveDocNote('H0032 Treatment Plan', content);
+  });
+  initDashboard(CLINICIAN_ROLES);
+});
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

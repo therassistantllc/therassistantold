@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT &mdash; Billing Alerts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* -- Stats Bar ---------------------------------------- */
+    .ba-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .ba-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;animation:fadeSlideUp .38s ease both}
+    .ba-stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .ba-stat.amber::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .ba-stat.red::after{background:linear-gradient(180deg,#dc2626,#991b1b)}
+    .ba-stat.green::after{background:linear-gradient(180deg,#059669,#047857)}
+    .ba-stat-num{font-family:'Sora',sans-serif;font-size:1.9rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:4px}
+    .ba-stat.amber .ba-stat-num{color:#b45309}
+    .ba-stat.red .ba-stat-num{color:#dc2626}
+    .ba-stat.green .ba-stat-num{color:#059669}
+    .ba-stat-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    /* -- Status Tabs -------------------------------------- */
+    .ba-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:0}
+    .ba-tab{border:none;background:none;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;transition:color .14s,border-color .14s;font-family:inherit;white-space:nowrap}
+    .ba-tab:hover{color:var(--ink-900)}
+    .ba-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .ba-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;border-radius:99px;font-size:10px;font-weight:800;padding:0 4px;margin-left:5px;background:var(--blue-100,#dbeafe);color:var(--blue-700)}
+    .ba-tab.active .ba-tab-count{background:var(--blue-600);color:#fff}
+    /* -- Toolbar ------------------------------------------ */
+    .ba-toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+    .ba-search{flex:1;min-width:200px;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13.5px;font-family:inherit;background:var(--surface-soft,#f7fbff);color:var(--ink-900);outline:none}
+    .ba-search:focus{border-color:var(--blue-500)}
+    .ba-filter-sel{border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;font-size:13px;font-family:inherit;background:var(--surface-soft,#f7fbff);color:var(--ink-700);outline:none;cursor:pointer}
+    .ba-filter-sel:focus{border-color:var(--blue-500)}
+    /* -- Alert Cards -------------------------------------- */
+    .ba-list{display:flex;flex-direction:column;gap:10px}
+    .ba-card{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:18px 20px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;animation:fadeSlideUp .38s ease both;display:flex;gap:16px;align-items:flex-start}
+    .ba-card:hover{border-color:var(--blue-400,#60a5fa);box-shadow:0 6px 24px rgba(13,53,94,.12);transform:translateY(-1px)}
+    .ba-card.urgent-card{border-left:3px solid #dc2626}
+    .ba-card-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:52px}
+    .ba-type-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af}
+    .ba-type-icon.denial{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .ba-type-icon.recoupment{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .ba-type-icon.auth{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+    .ba-type-icon.balance{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .ba-type-icon.cred{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .ba-card-body{flex:1;min-width:0}
+    .ba-card-row1{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+    .ba-card-id{font-size:11.5px;font-weight:700;color:var(--blue-700);letter-spacing:.04em}
+    .ba-card-patient{font-size:14px;font-weight:700;color:var(--ink-900);flex:1}
+    .ba-card-type{font-size:12.5px;color:var(--ink-500);margin-bottom:5px}
+    .ba-card-row3{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-500)}
+    .ba-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+    .ba-btn-view{border:1.5px solid var(--blue-500);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--blue-700);background:var(--surface);cursor:pointer;font-family:inherit;transition:background .14s,color .14s;white-space:nowrap}
+    .ba-btn-view:hover{background:#eaf3fd;color:var(--blue-800)}
+    /* -- Priority / Status Badges ------------------------- */
+    .ba-badge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+    .ba-badge-urgent{background:#fee2e2;color:#b91c1c}
+    .ba-badge-high{background:#fef3c7;color:#92400e}
+    .ba-badge-routine{background:#f1f5f9;color:#475569}
+    .ba-badge-new{background:#dbeafe;color:#1e40af}
+    .ba-badge-viewed{background:#e0e7ff;color:#3730a3}
+    .ba-badge-inprog{background:#d1fae5;color:#065f46}
+    .ba-badge-waiting{background:#fef3c7;color:#92400e}
+    .ba-badge-resolved{background:#dcfce7;color:#15803d}
+    .ba-badge-archived{background:#f1f5f9;color:#64748b}
+    .ba-due-overdue{color:#dc2626;font-weight:700}
+    .ba-due-soon{color:#b45309;font-weight:600}
+    /* -- Empty State -------------------------------------- */
+    .ba-empty{text-align:center;padding:50px 20px;color:var(--ink-500);background:var(--surface);border-radius:16px;border:1px solid var(--border)}
+    .ba-empty-icon{font-size:3rem;margin-bottom:10px}
+    .ba-empty h3{font-family:'Sora',sans-serif;font-size:1.1rem;color:var(--ink-700);margin-bottom:6px}
+    /* -- Detail View -------------------------------------- */
+    .ba-detail{display:none;animation:fadeSlideUp .32s ease both}
+    .ba-detail.visible{display:block}
+    .ba-detail-back{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+    .ba-back-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface);font-size:13px;font-weight:700;color:var(--ink-700);cursor:pointer;font-family:inherit;transition:border-color .14s}
+    .ba-back-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .ba-detail-hdr{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px 24px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+    .ba-det-row1{display:flex;align-items:flex-start;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+    .ba-det-id-block{display:flex;flex-direction:column;gap:3px}
+    .ba-det-id{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--blue-800)}
+    .ba-det-created{font-size:11.5px;color:var(--ink-500)}
+    .ba-det-meta{flex:1;min-width:0}
+    .ba-det-patient{font-size:1.05rem;font-weight:700;color:var(--ink-900);margin-bottom:3px}
+    .ba-det-payer{font-size:13px;color:var(--ink-500)}
+    .ba-det-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .ba-det-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 20px;margin-bottom:12px}
+    @media(max-width:700px){.ba-det-grid{grid-template-columns:1fr 1fr}}
+    .ba-det-field{display:flex;flex-direction:column;gap:2px}
+    .ba-det-field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)}
+    .ba-det-field span{font-size:13.5px;font-weight:600;color:var(--ink-900)}
+    /* -- Action Buttons ----------------------------------- */
+    .ba-actions{background:var(--surface-soft,#f7fbff);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .ba-action-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-right:4px;flex-shrink:0}
+    .ba-act-btn{border:1.5px solid var(--border);border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--surface);color:var(--ink-700);transition:border-color .14s,background .14s,color .14s;white-space:nowrap}
+    .ba-act-btn:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-700)}
+    .ba-act-btn.inprog{border-color:#a7f3d0;color:#065f46}
+    .ba-act-btn.inprog:hover{background:#d1fae5}
+    .ba-act-btn.waiting{border-color:#fde68a;color:#92400e}
+    .ba-act-btn.waiting:hover{background:#fef3c7}
+    .ba-act-btn.resolve{border-color:#6ee7b7;color:#047857;font-weight:800}
+    .ba-act-btn.resolve:hover{background:#d1fae5}
+    .ba-act-btn.danger{border-color:#fca5a5;color:#b91c1c}
+    .ba-act-btn.danger:hover{background:#fee2e2}
+    .ba-act-btn.support{border-color:var(--blue-400,#60a5fa);color:var(--blue-700)}
+    .ba-act-btn.support:hover{background:#dbeafe}
+    /* -- Detail Tabs -------------------------------------- */
+    .ba-detail-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px}
+    .ba-dtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;transition:color .14s,border-color .14s}
+    .ba-dtab:hover{color:var(--ink-900)}
+    .ba-dtab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .ba-dtab-pane{display:none}
+    .ba-dtab-pane.active{display:block;animation:fadeSlideUp .26s ease both}
+    /* -- Overview Tab ------------------------------------- */
+    .ba-ov-section{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+    .ba-ov-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .ba-ov-text{font-size:13.5px;color:var(--ink-700);line-height:1.6}
+    .ba-ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px}
+    @media(max-width:600px){.ba-ov-grid{grid-template-columns:1fr}}
+    .ba-ov-field{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--border)}
+    .ba-ov-field:last-child{border-bottom:none}
+    .ba-ov-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .ba-ov-field span{font-size:13.5px;color:var(--ink-900);font-weight:500}
+    .ba-staff-note{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-top:8px}
+    .ba-staff-note-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;margin-bottom:5px}
+    .ba-staff-note-text{font-size:13.5px;color:#78350f;line-height:1.55;font-style:italic}
+    /* -- Comments Tab ------------------------------------- */
+    .ba-comment-list{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+    .ba-comment{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+    .ba-comment.staff-note{background:#fffbeb;border-color:#fde68a}
+    .ba-comment.reply{margin-left:28px;border-left:3px solid var(--blue-200,#bfdbfe)}
+    .ba-comment-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+    .ba-comment-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+    .ba-comment-avatar.clinician{background:linear-gradient(135deg,var(--blue-600),var(--blue-800))}
+    .ba-comment-avatar.staff{background:linear-gradient(135deg,#10b981,#047857)}
+    .ba-comment-avatar.system{background:#94a3b8}
+    .ba-comment-author{font-weight:700;font-size:13px;color:var(--ink-900)}
+    .ba-comment-role{font-size:11px;color:var(--ink-500);padding:1px 7px;border-radius:99px;background:var(--surface-soft,#f7fbff);border:1px solid var(--border)}
+    .ba-comment-role.staff{background:#d1fae5;border-color:#a7f3d0;color:#065f46}
+    .ba-comment-time{font-size:11px;color:var(--ink-500);margin-left:auto}
+    .ba-comment-body{font-size:13.5px;color:var(--ink-700);line-height:1.58;white-space:pre-wrap;word-break:break-word}
+    .ba-comment-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .ba-cmt-btn{border:none;background:none;font-size:12px;color:var(--blue-600);cursor:pointer;font-weight:700;padding:0;font-family:inherit}
+    .ba-cmt-btn:hover{text-decoration:underline}
+    .ba-cmt-btn.del{color:#dc2626}
+    .ba-attach-chip{display:inline-flex;align-items:center;gap:5px;background:#dbeafe;border-radius:7px;padding:3px 9px;font-size:11.5px;color:#1e40af;font-weight:600;margin-right:4px;margin-top:4px}
+    /* New comment form */
+    .ba-comment-form{background:var(--surface-soft,#f7fbff);border:1.5px solid var(--border);border-radius:14px;padding:16px}
+    .ba-comment-form h4{font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:10px}
+    .ba-comment-ta{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13.5px;font-family:inherit;resize:vertical;min-height:80px;background:#fff;color:var(--ink-900);outline:none;box-sizing:border-box}
+    .ba-comment-ta:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .ba-comment-form-row{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+    .ba-reply-to-bar{background:#eaf3fd;border-radius:8px;padding:6px 12px;font-size:12.5px;color:var(--blue-700);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;display:none}
+    .ba-reply-to-bar.visible{display:flex}
+    /* -- Attachments Tab ---------------------------------- */
+    .ba-attach-list{display:flex;flex-direction:column;gap:10px}
+    .ba-attach-item{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+    .ba-attach-icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+    .ba-attach-info{flex:1;min-width:0}
+    .ba-attach-name{font-weight:700;font-size:13.5px;color:var(--ink-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ba-attach-meta{font-size:12px;color:var(--ink-500);margin-top:2px}
+    .ba-upload-zone{border:2px dashed var(--border);border-radius:14px;padding:28px 20px;text-align:center;cursor:pointer;background:var(--surface-soft,#f7fbff);transition:border-color .15s,background .15s;margin-top:14px}
+    .ba-upload-zone:hover{border-color:var(--blue-500);background:#eaf3fd}
+    .ba-upload-icon{font-size:2rem;margin-bottom:6px}
+    .ba-upload-label{font-size:14px;font-weight:600;color:var(--ink-700)}
+    .ba-upload-sub{font-size:12.5px;color:var(--ink-500)}
+    /* -- Related Tab -------------------------------------- */
+    .ba-related-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;font-size:13.5px;color:var(--ink-700)}
+    .ba-related-icon{font-size:1.1rem;flex-shrink:0;width:30px;text-align:center}
+    .ba-related-info{flex:1;min-width:0}
+    .ba-related-title{font-weight:700;color:var(--ink-900);font-size:13px}
+    .ba-related-sub{font-size:12px;color:var(--ink-500);margin-top:1px}
+    .ba-related-link{font-size:12px;font-weight:700;color:var(--blue-600);text-decoration:none}
+    .ba-related-link:hover{text-decoration:underline}
+    /* -- Timeline Tab ------------------------------------- */
+    .ba-timeline{display:flex;flex-direction:column;gap:0;position:relative;padding-left:20px}
+    .ba-timeline::before{content:"";position:absolute;left:7px;top:12px;bottom:12px;width:2px;background:var(--border)}
+    .ba-tl-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;position:relative}
+    .ba-tl-dot{width:14px;height:14px;border-radius:50%;background:var(--blue-600);border:2px solid #fff;box-shadow:0 0 0 2px var(--blue-300,#93c5fd);flex-shrink:0;margin-left:-20px;margin-top:3px}
+    .ba-tl-dot.green{background:#059669;box-shadow:0 0 0 2px #a7f3d0}
+    .ba-tl-dot.amber{background:#d97706;box-shadow:0 0 0 2px #fde68a}
+    .ba-tl-dot.red{background:#dc2626;box-shadow:0 0 0 2px #fca5a5}
+    .ba-tl-dot.gray{background:#94a3b8;box-shadow:0 0 0 2px #e2e8f0}
+    .ba-tl-body{flex:1;min-width:0}
+    .ba-tl-action{font-size:13.5px;font-weight:600;color:var(--ink-900)}
+    .ba-tl-by{font-size:12px;color:var(--ink-500);margin-top:2px}
+    .ba-tl-notes{font-size:12.5px;color:var(--ink-700);margin-top:3px;font-style:italic}
+    /* -- Misc --------------------------------------------- */
+    .page-tip{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-size:13px;color:#1e40af;margin-bottom:16px}
+    @media(max-width:800px){.ba-stats{grid-template-columns:1fr 1fr}.ba-card{flex-direction:column}.ba-card-right{flex-direction:row;align-items:center;flex-wrap:wrap}}
+    @media(max-width:500px){.ba-stats{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <!-- -- List View --------------------------------------- -->
+    <div id="ba-list-view">
+      <header class="dashboard-header" style="margin-bottom:20px">
+        <div>
+          <h1>Billing Alerts</h1>
+          <p>Review and respond to billing alerts from your support team.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-ghost" href="support-request.html">Request Support</a>
+        </div>
+      </header>
+
+      <!-- Stats -->
+      <div class="ba-stats" id="ba-stats-row">
+        <div class="ba-stat">
+          <div class="ba-stat-num" id="stat-total">0</div>
+          <div class="ba-stat-label">Total Open</div>
+        </div>
+        <div class="ba-stat red">
+          <div class="ba-stat-num" id="stat-urgent">0</div>
+          <div class="ba-stat-label">Urgent</div>
+        </div>
+        <div class="ba-stat amber">
+          <div class="ba-stat-num" id="stat-due-today">0</div>
+          <div class="ba-stat-label">Due Today</div>
+        </div>
+        <div class="ba-stat green">
+          <div class="ba-stat-num" id="stat-new">0</div>
+          <div class="ba-stat-label">New (Unviewed)</div>
+        </div>
+      </div>
+
+      <!-- Status Tabs -->
+      <nav class="ba-tabs" id="ba-status-tabs">
+        <button class="ba-tab active" data-status="all" onclick="setStatus('all',this)">All <span class="ba-tab-count" id="tab-all">0</span></button>
+        <button class="ba-tab" data-status="New" onclick="setStatus('New',this)">New <span class="ba-tab-count" id="tab-New">0</span></button>
+        <button class="ba-tab" data-status="Viewed" onclick="setStatus('Viewed',this)">Viewed <span class="ba-tab-count" id="tab-Viewed">0</span></button>
+        <button class="ba-tab" data-status="In Progress" onclick="setStatus('In Progress',this)">In Progress <span class="ba-tab-count" id="tab-In Progress">0</span></button>
+        <button class="ba-tab" data-status="Waiting on Patient" onclick="setStatus('Waiting on Patient',this)">Waiting <span class="ba-tab-count" id="tab-Waiting on Patient">0</span></button>
+        <button class="ba-tab" data-status="Waiting on Insurance" onclick="setStatus('Waiting on Insurance',this)">Waiting on Insurance <span class="ba-tab-count" id="tab-Waiting on Insurance">0</span></button>
+        <button class="ba-tab" data-status="Resolved" onclick="setStatus('Resolved',this)">Resolved <span class="ba-tab-count" id="tab-Resolved">0</span></button>
+        <button class="ba-tab" data-status="Archived" onclick="setStatus('Archived',this)">Archived <span class="ba-tab-count" id="tab-Archived">0</span></button>
+      </nav>
+
+      <!-- Toolbar -->
+      <div class="ba-toolbar">
+        <input type="search" class="ba-search" id="ba-search" placeholder="Search by patient, alert ID, or type..." oninput="renderAlertList()">
+        <select class="ba-filter-sel" id="prio-filter" onchange="renderAlertList()">
+          <option value="">All Priorities</option>
+          <option value="Urgent">Urgent</option>
+          <option value="High Priority">High Priority</option>
+          <option value="Routine">Routine</option>
+        </select>
+        <select class="ba-filter-sel" id="type-filter" onchange="renderAlertList()">
+          <option value="">All Types</option>
+          <option>Claim Denial</option>
+          <option>Payment Recoupment</option>
+          <option>Authorization Required</option>
+          <option>Balance Due</option>
+          <option>Credentialing Issue</option>
+          <option>EOB Discrepancy</option>
+          <option>Coding Error</option>
+          <option>Insurance Verification</option>
+          <option>Coordination of Benefits</option>
+          <option>Late Filing</option>
+          <option>Appeals Required</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div id="ba-list-container"></div>
+    </div><!-- /ba-list-view -->
+
+    <!-- -- Detail View -------------------------------------- -->
+    <div class="ba-detail" id="ba-detail-view">
+      <!-- populated dynamically by openDetail() -->
+    </div>
+
+  </main>
+</div>
+<input type="file" id="ba-file-input" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" style="display:none" onchange="handleFileUpload(this.files)">
+
+<script>
+/* ----------------------------------------------------------
+   BILLING ALERTS - clinician-billing-alerts.html
+   ---------------------------------------------------------- */
+
+var STORAGE_KEY  = 'docusistant_billing_alerts_v1';
+var TICKET_KEY   = 'docusistant_sc_tickets_v1';
+
+var ALERT_TYPES = [
+  'Claim Denial','Payment Recoupment','Authorization Required','Balance Due',
+  'Credentialing Issue','EOB Discrepancy','Coding Error','Insurance Verification',
+  'Coordination of Benefits','Late Filing','Appeals Required','Other'
+];
+
+var STATUSES = [
+  'New','Viewed','In Progress','Waiting on Patient',
+  'Waiting on Insurance','Waiting on Clinician','Waiting on Staff','Resolved','Archived'
+];
+
+var STATUS_BADGE = {
+  'New':                  'ba-badge-new',
+  'Viewed':               'ba-badge-viewed',
+  'In Progress':          'ba-badge-inprog',
+  'Waiting on Patient':   'ba-badge-waiting',
+  'Waiting on Insurance': 'ba-badge-waiting',
+  'Waiting on Clinician': 'ba-badge-waiting',
+  'Waiting on Staff':     'ba-badge-waiting',
+  'Resolved':             'ba-badge-resolved',
+  'Archived':             'ba-badge-archived',
+};
+
+var TYPE_ICON = {
+  'Claim Denial':       {cls:'denial', icon:'??'},
+  'Payment Recoupment': {cls:'recoupment', icon:'??'},
+  'Authorization Required':{cls:'auth', icon:'??'},
+  'Balance Due':        {cls:'balance', icon:'??'},
+  'Credentialing Issue':{cls:'cred', icon:'??'},
+  'EOB Discrepancy':    {cls:'recoupment', icon:'??'},
+  'Coding Error':       {cls:'auth', icon:'??'},
+  'Insurance Verification':{cls:'cred', icon:'??'},
+  'Coordination of Benefits':{cls:'denial', icon:'??'},
+  'Late Filing':        {cls:'recoupment', icon:'??'},
+  'Appeals Required':   {cls:'denial', icon:'??'},
+  'Other':              {cls:'', icon:'??'},
+};
+
+/* -- State ----------------------------------------------- */
+var currentUser   = null;
+var activeStatus  = 'all';
+var activeAlertId = null;
+var replyToId     = null;
+var activeTab     = 'overview';
+var pendingFiles  = [];
+
+/* -- Helpers --------------------------------------------- */
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function uid(){ return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7); }
+function fmtDate(iso){ if(!iso) return '--'; try{ return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch(e){ return iso; } }
+function fmtDateTime(iso){ if(!iso) return '--'; try{ return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
+function fmtRelative(iso){ if(!iso) return ''; var diff=(Date.now()-new Date(iso).getTime())/1000; if(diff<60) return 'just now'; if(diff<3600) return Math.floor(diff/60)+'m ago'; if(diff<86400) return Math.floor(diff/3600)+'h ago'; return fmtDate(iso); }
+function isDueToday(d){ if(!d) return false; var t=new Date().toISOString().slice(0,10); return d===t; }
+function isOverdue(d){ if(!d) return false; return d<new Date().toISOString().slice(0,10); }
+function isSoon(d){ if(!d) return false; var t=new Date(); var due=new Date(d+'T23:59:59'); return due>t && (due-t)<3*24*60*60*1000; }
+function initials(name){ if(!name) return '?'; var p=(name||'').trim().split(/\s+/); return p.length>1?(p[0][0]+p[p.length-1][0]).toUpperCase():name.slice(0,2).toUpperCase(); }
+
+/* -- LocalStorage ---------------------------------------- */
+function loadAlerts(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); }catch(e){ return []; } }
+function saveAlerts(a){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(a)); }catch(e){} }
+function getAlert(id){ return loadAlerts().find(function(a){ return a.id===id; }); }
+function updateAlert(updated){
+  var alerts=loadAlerts();
+  var idx=alerts.findIndex(function(a){ return a.id===updated.id; });
+  if(idx>=0){ alerts[idx]=updated; saveAlerts(alerts); }
+}
+
+/* -- Demo Seed ------------------------------------------- */
+function seedDemoAlerts(){
+  var existing=loadAlerts();
+  if(existing.length>0) return;
+  var today=new Date().toISOString().slice(0,10);
+  var tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  var in3days=new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+  var demos=[
+    {
+      id:'BA-2026-001', created_at:new Date(Date.now()-3*86400000).toISOString(),
+      updated_at:new Date(Date.now()-2*3600000).toISOString(),
+      patient_name:'Jane Smith', alert_type:'Claim Denial', priority:'Urgent', status:'New',
+      due_date:tomorrow, assigned_staff:'Sarah M.', payer_name:'Colorado Access',
+      insurance_id:'CA-8823491', patient_balance:425.00, insurance_status:'Denied - Under Appeal',
+      related_claim_id:'CLM-89234', related_ticket_id:'', related_chat_id:'',
+      description:'Claim #CLM-89234 for date of service March 15, 2026 was denied by Colorado Access. Denial reason code: PR-4 (Incorrect modifier). The claim was originally submitted on March 15, 2026 with modifier 59 which was flagged as inconsistent with the billed procedure code H0031.',
+      action_needed:'Review denial reason code PR-4. Correct modifier from 59 to the appropriate modifier for H0031, then resubmit the claim. Please upload the corrected CMS-1500 form and the payer denial letter to this alert.',
+      staff_notes:'Reviewed the EOB. The H0031 procedure was billed alongside H0001 on the same date, which triggered the modifier denial. Clinician should rebill H0031 separately. We have drafted a corrected claim - please review and confirm the date of service before resubmission.',
+      appointment_dates:['2026-03-15'],
+      payment_info:'Original billed amount: $425.00. Payer paid: $0. Patient balance: $425.00.',
+      comments:[
+        {id:'c1',author:'Sarah M.',author_type:'staff',content:'Hi, your claim was denied due to an incorrect modifier. I have reviewed the EOB and identified the issue. Please see the action needed section above and upload the denial letter so we can resubmit promptly.',created_at:new Date(Date.now()-2*3600000).toISOString(),parent_id:null,attachments:[]}
+      ],
+      attachments:[],
+      activity:[
+        {id:'a1',ts:new Date(Date.now()-3*86400000).toISOString(),user:'System',action:'Billing Alert created',notes:'Auto-generated from claim denial CO-ACCESS-2026-0315'},
+        {id:'a2',ts:new Date(Date.now()-2*86400000).toISOString(),user:'Sarah M.',action:'Status changed to New',notes:'Alert reviewed and assigned to billing team'},
+        {id:'a3',ts:new Date(Date.now()-2*3600000).toISOString(),user:'Sarah M.',action:'Comment added',notes:'Provided guidance on resubmission process'}
+      ]
+    },
+    {
+      id:'BA-2026-002', created_at:new Date(Date.now()-7*86400000).toISOString(),
+      updated_at:new Date(Date.now()-1*86400000).toISOString(),
+      patient_name:'Robert Johnson', alert_type:'Payment Recoupment', priority:'High Priority', status:'In Progress',
+      due_date:in3days, assigned_staff:'Marcus T.', payer_name:'Health Colorado',
+      insurance_id:'HC-77412', patient_balance:0, insurance_status:'Recoupment Notice Sent',
+      related_claim_id:'CLM-77401', related_ticket_id:'TKT-2026-038',
+      description:'Health Colorado has issued a recoupment notice for claim #CLM-77401 for dates of service Feb 3-Feb 17, 2026. Total recoupment amount: $1,240.00. Reason: Medical necessity documentation insufficient for H0032 group therapy services.',
+      action_needed:'Upload session notes for the cited dates (Feb 3, 7, 10, 14, 17). Documentation must demonstrate medical necessity per ASAM criteria. Due date for response is 15 days from notice receipt.',
+      staff_notes:'Our billing team has drafted a medical necessity appeal letter. We are waiting on the session notes from the clinician to attach to the appeal. Please upload ASAP.',
+      appointment_dates:['2026-02-03','2026-02-07','2026-02-10','2026-02-14','2026-02-17'],
+      payment_info:'Recoupment amount: $1,240.00. Health Colorado will offset from future claims if appeal is unsuccessful.',
+      comments:[
+        {id:'c2',author:'Marcus T.',author_type:'staff',content:'We have received the recoupment notice. I need the session notes for Feb 3, 7, 10, 14, and 17. Please upload them here as soon as possible.',created_at:new Date(Date.now()-6*86400000).toISOString(),parent_id:null,attachments:[]},
+        {id:'c3',author:'You',author_type:'clinician',content:'I will pull the session notes today and upload them. Do you need the treatment plan as well?',created_at:new Date(Date.now()-5*86400000).toISOString(),parent_id:'c2',attachments:[]},
+        {id:'c4',author:'Marcus T.',author_type:'staff',content:'Yes, please include the treatment plan - it will strengthen the medical necessity argument.',created_at:new Date(Date.now()-4*86400000).toISOString(),parent_id:'c3',attachments:[]}
+      ],
+      attachments:[
+        {id:'att1',name:'HC-Recoupment-Notice-2026.pdf',type:'application/pdf',size:234102,uploaded_by:'Marcus T.',uploaded_at:new Date(Date.now()-6*86400000).toISOString()}
+      ],
+      activity:[
+        {id:'a1',ts:new Date(Date.now()-7*86400000).toISOString(),user:'System',action:'Billing Alert created',notes:'Recoupment notice received from Health Colorado'},
+        {id:'a2',ts:new Date(Date.now()-6*86400000).toISOString(),user:'Marcus T.',action:'Assigned to Marcus T.',notes:''},
+        {id:'a3',ts:new Date(Date.now()-5*86400000).toISOString(),user:'Marcus T.',action:'Status changed to In Progress',notes:'Working with clinician on session note upload'},
+        {id:'a4',ts:new Date(Date.now()-4*86400000).toISOString(),user:'System',action:'Ticket linked',notes:'Linked to support ticket TKT-2026-038'}
+      ]
+    },
+    {
+      id:'BA-2026-003', created_at:new Date(Date.now()-2*86400000).toISOString(),
+      updated_at:new Date(Date.now()-4*3600000).toISOString(),
+      patient_name:'Maria Garcia', alert_type:'Authorization Required', priority:'Routine', status:'Waiting on Insurance',
+      due_date:in3days, assigned_staff:'Lisa K.', payer_name:'Denver Health Colorado Access',
+      insurance_id:'DHCA-3391482', patient_balance:0, insurance_status:'Prior Authorization Pending',
+      related_claim_id:'', related_ticket_id:'',
+      description:'Denver Health Colorado Access requires prior authorization for H0031 Level of Care Assessment services for this patient. Authorization request was submitted on April 2, 2026. Expected response time is 3-5 business days.',
+      action_needed:'No action needed from you at this time. We are waiting on Denver Health Colorado Access to respond to the prior authorization request. We will update this alert when a decision is received.',
+      staff_notes:'PA submitted. Tracking number: DHCA-PA-2026-3312. If we do not receive a response by April 8, we will call the payer.',
+      appointment_dates:['2026-04-10'],
+      payment_info:'Services pending authorization. No billing submitted yet.',
+      comments:[
+        {id:'c5',author:'Lisa K.',author_type:'staff',content:'Prior authorization request has been submitted to Denver Health Colorado Access. PA tracking number: DHCA-PA-2026-3312. We will update this alert once a decision is received.',created_at:new Date(Date.now()-4*3600000).toISOString(),parent_id:null,attachments:[]}
+      ],
+      attachments:[],
+      activity:[
+        {id:'a1',ts:new Date(Date.now()-2*86400000).toISOString(),user:'Lisa K.',action:'Billing Alert created',notes:'PA required for H0031 services'},
+        {id:'a2',ts:new Date(Date.now()-1*86400000).toISOString(),user:'Lisa K.',action:'Status changed to Waiting on Insurance',notes:'PA submitted, awaiting payer decision'}
+      ]
+    }
+  ];
+  saveAlerts(demos);
+}
+
+/* -- Render Stats ---------------------------------------- */
+function renderStats(){
+  var alerts=loadAlerts().filter(function(a){ return a.status!=='Archived'; });
+  var open=alerts.filter(function(a){ return a.status!=='Resolved'&&a.status!=='Archived'; });
+  var urgent=open.filter(function(a){ return a.priority==='Urgent'; });
+  var dueToday=open.filter(function(a){ return isDueToday(a.due_date); });
+  var newAlerts=alerts.filter(function(a){ return a.status==='New'; });
+
+  var set=function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+  set('stat-total',open.length);
+  set('stat-urgent',urgent.length);
+  set('stat-due-today',dueToday.length);
+  set('stat-new',newAlerts.length);
+
+  /* Tab counts */
+  var all=loadAlerts();
+  var statusMap={'all':all.filter(function(a){return a.status!=='Archived';}).length};
+  STATUSES.forEach(function(s){
+    statusMap[s]=all.filter(function(a){return a.status===s;}).length;
+  });
+  var setTab=function(id,v){ var e=document.getElementById('tab-'+id); if(e) e.textContent=v; };
+  setTab('all',statusMap['all']);
+  STATUSES.forEach(function(s){ setTab(s,statusMap[s]); });
+}
+
+/* -- Set Status Filter ----------------------------------- */
+function setStatus(s,el){
+  activeStatus=s;
+  document.querySelectorAll('.ba-tab').forEach(function(b){ b.classList.remove('active'); });
+  if(el) el.classList.add('active');
+  renderAlertList();
+}
+
+/* -- Render Alert List ----------------------------------- */
+function renderAlertList(){
+  var alerts=loadAlerts();
+  var q=(document.getElementById('ba-search')||{}).value||'';
+  var prioF=(document.getElementById('prio-filter')||{}).value||'';
+  var typeF=(document.getElementById('type-filter')||{}).value||'';
+  q=q.toLowerCase();
+
+  var filtered=alerts.filter(function(a){
+    if(activeStatus!=='all'&&a.status!==activeStatus) return false;
+    if(activeStatus==='all'&&a.status==='Archived') return false;
+    if(prioF&&a.priority!==prioF) return false;
+    if(typeF&&a.alert_type!==typeF) return false;
+    if(q){
+      var blob=[a.id,a.patient_name,a.alert_type,a.payer_name,a.description].join(' ').toLowerCase();
+      if(!blob.includes(q)) return false;
+    }
+    return true;
+  });
+
+  /* Sort: urgent first, then by due date, then by created */
+  filtered.sort(function(a,b){
+    var pw={Urgent:0,'High Priority':1,Routine:2};
+    if(pw[a.priority]!==pw[b.priority]) return pw[a.priority]-pw[b.priority];
+    if(a.due_date&&b.due_date) return a.due_date>b.due_date?1:-1;
+    if(a.due_date&&!b.due_date) return -1;
+    if(!a.due_date&&b.due_date) return 1;
+    return (b.created_at||'')>(a.created_at||'')?1:-1;
+  });
+
+  var container=document.getElementById('ba-list-container');
+  if(!container) return;
+  if(!filtered.length){
+    container.innerHTML='<div class="ba-empty"><div class="ba-empty-icon">?</div><h3>No Billing Alerts</h3><p>No alerts match the current filter. Your billing team will notify you when action is needed.</p></div>';
+    return;
+  }
+  container.innerHTML='<div class="ba-list">'+filtered.map(alertCardHTML).join('')+'</div>';
+}
+
+function alertCardHTML(a){
+  var ti=TYPE_ICON[a.alert_type]||{cls:'',icon:'??'};
+  var prioBadge=a.priority==='Urgent'?'ba-badge-urgent':(a.priority==='High Priority'?'ba-badge-high':'ba-badge-routine');
+  var statusBadge=STATUS_BADGE[a.status]||'ba-badge-routine';
+  var dueStr='';
+  var dueClass='';
+  if(a.due_date){
+    if(isOverdue(a.due_date)&&a.status!=='Resolved'&&a.status!=='Archived'){
+      dueStr='?? Due: '+fmtDate(a.due_date); dueClass='ba-due-overdue';
+    } else if(isDueToday(a.due_date)){
+      dueStr='?? Due Today'; dueClass='ba-due-soon';
+    } else if(isSoon(a.due_date)){
+      dueStr='? Due: '+fmtDate(a.due_date); dueClass='ba-due-soon';
+    } else {
+      dueStr='Due: '+fmtDate(a.due_date);
+    }
+  }
+  var commentCount=(a.comments||[]).filter(function(c){ return !c.is_internal; }).length;
+  var attachCount=(a.attachments||[]).length;
+  return [
+    '<div class="ba-card'+(a.priority==='Urgent'?' urgent-card':'')+'" onclick="openDetail(\''+esc(a.id)+'\')">',
+      '<div class="ba-card-left">',
+        '<div class="ba-type-icon '+esc(ti.cls)+'">'+ti.icon+'</div>',
+      '</div>',
+      '<div class="ba-card-body">',
+        '<div class="ba-card-row1">',
+          '<span class="ba-card-id">'+esc(a.id)+'</span>',
+          '<span class="ba-card-patient">'+esc(a.patient_name)+'</span>',
+          '<span class="ba-badge '+prioBadge+'">'+esc(a.priority)+'</span>',
+          '<span class="ba-badge '+statusBadge+'">'+esc(a.status)+'</span>',
+        '</div>',
+        '<div class="ba-card-type">'+esc(a.alert_type)+(a.payer_name?' - '+esc(a.payer_name):'')+'</div>',
+        '<div class="ba-card-row3">',
+          dueStr?'<span class="'+dueClass+'">'+esc(dueStr)+'</span>':'',
+          a.assigned_staff?'<span>?? '+esc(a.assigned_staff)+'</span>':'',
+          commentCount?'<span>?? '+commentCount+' comment'+(commentCount!==1?'s':'')+'</span>':'',
+          attachCount?'<span>?? '+attachCount+' file'+(attachCount!==1?'s':'')+'</span>':'',
+          '<span style="margin-left:auto;font-size:11.5px">Updated '+fmtRelative(a.updated_at)+'</span>',
+        '</div>',
+      '</div>',
+      '<div class="ba-card-right">',
+        '<button class="ba-btn-view" onclick="event.stopPropagation();openDetail(\''+esc(a.id)+'\')">View Details &rsaquo;</button>',
+      '</div>',
+    '</div>',
+  ].join('');
+}
+
+/* ----------------------------------------------------------
+   DETAIL VIEW
+   ---------------------------------------------------------- */
+function openDetail(id){
+  var a=getAlert(id);
+  if(!a) return;
+  activeAlertId=id;
+  activeTab='overview';
+  replyToId=null;
+  pendingFiles=[];
+
+  /* Mark as Viewed if New */
+  if(a.status==='New'){
+    a.status='Viewed';
+    a.updated_at=new Date().toISOString();
+    a.activity=a.activity||[];
+    a.activity.push({id:uid(),ts:new Date().toISOString(),user:'You',action:'Status changed: New ? Viewed',notes:'Alert opened',dot:'gray'});
+    updateAlert(a);
+    renderStats();
+  }
+
+  document.getElementById('ba-list-view').style.display='none';
+  var det=document.getElementById('ba-detail-view');
+  det.innerHTML=buildDetailHTML(a);
+  det.classList.add('visible');
+  switchDetailTab('overview');
+  renderComments(a);
+  renderAttachments(a);
+  renderRelated(a);
+  renderTimeline(a);
+}
+
+function closeDetail(){
+  document.getElementById('ba-detail-view').innerHTML='';
+  document.getElementById('ba-detail-view').classList.remove('visible');
+  document.getElementById('ba-list-view').style.display='';
+  activeAlertId=null;
+  renderStats();
+  renderAlertList();
+}
+
+function buildDetailHTML(a){
+  var prioBadge=a.priority==='Urgent'?'ba-badge-urgent':(a.priority==='High Priority'?'ba-badge-high':'ba-badge-routine');
+  var statusBadge=STATUS_BADGE[a.status]||'ba-badge-routine';
+  var commentCount=(a.comments||[]).filter(function(c){ return !c.is_internal; }).length;
+  var attachCount=(a.attachments||[]).length;
+  return [
+    '<div class="ba-detail-back">',
+      '<button class="ba-back-btn" onclick="closeDetail()">&#8592; Back to Billing Alerts</button>',
+      '<span style="font-size:12.5px;color:var(--ink-500)">/ '+esc(a.id)+'</span>',
+    '</div>',
+
+    /* Header card */
+    '<div class="ba-detail-hdr">',
+      '<div class="ba-det-row1">',
+        '<div class="ba-det-id-block">',
+          '<div class="ba-det-id">'+esc(a.id)+'</div>',
+          '<div class="ba-det-created">Created '+fmtDate(a.created_at)+'</div>',
+        '</div>',
+        '<div class="ba-det-meta">',
+          '<div class="ba-det-patient">'+esc(a.patient_name)+'</div>',
+          '<div class="ba-det-payer">'+esc(a.alert_type)+(a.payer_name?' - '+esc(a.payer_name):'')+'</div>',
+        '</div>',
+        '<div class="ba-det-badges">',
+          '<span class="ba-badge '+prioBadge+'">'+esc(a.priority)+'</span>',
+          '<span class="ba-badge '+statusBadge+'" id="det-status-badge">'+esc(a.status)+'</span>',
+        '</div>',
+      '</div>',
+      '<div class="ba-det-grid">',
+        '<div class="ba-det-field"><label>Due Date</label><span id="det-due" class="'+(isOverdue(a.due_date)&&a.status!=='Resolved'?'ba-due-overdue':'')+'">'+fmtDate(a.due_date)+'</span></div>',
+        '<div class="ba-det-field"><label>Assigned Staff</label><span>'+esc(a.assigned_staff||'Unassigned')+'</span></div>',
+        '<div class="ba-det-field"><label>Last Updated</label><span>'+fmtRelative(a.updated_at)+'</span></div>',
+        '<div class="ba-det-field"><label>Payer</label><span>'+esc(a.payer_name||'--')+'</span></div>',
+        '<div class="ba-det-field"><label>Insurance ID</label><span>'+esc(a.insurance_id||'--')+'</span></div>',
+        '<div class="ba-det-field"><label>Related Claim</label><span>'+esc(a.related_claim_id||'--')+'</span></div>',
+      '</div>',
+    '</div>',
+
+    /* Action buttons */
+    '<div class="ba-actions">',
+      '<span class="ba-action-label">Actions:</span>',
+      '<button class="ba-act-btn inprog" onclick="changeStatus(\'In Progress\')">? Mark In Progress</button>',
+      '<button class="ba-act-btn waiting" onclick="changeStatus(\'Waiting on Patient\')">? Waiting on Patient</button>',
+      '<button class="ba-act-btn waiting" onclick="changeStatus(\'Waiting on Insurance\')">?? Waiting on Insurance</button>',
+      '<button class="ba-act-btn resolve" onclick="changeStatus(\'Resolved\')">? Mark Resolved</button>',
+      '<button class="ba-act-btn support" onclick="requestSupport()">?? Request Support</button>',
+      '<button class="ba-act-btn support" onclick="convertToTicket()">?? Convert to Ticket</button>',
+      '<button class="ba-act-btn support" onclick="openChatForAlert()">?? Live Chat</button>',
+      '<button class="ba-act-btn danger" onclick="archiveAlert()">Archive</button>',
+    '</div>',
+
+    /* Detail tabs */
+    '<div class="ba-detail-tabs">',
+      '<button class="ba-dtab active" data-tab="overview" onclick="switchDetailTab(\'overview\')">Overview</button>',
+      '<button class="ba-dtab" data-tab="comments" onclick="switchDetailTab(\'comments\')">Comments <span class="ba-tab-count" id="det-comment-count">'+commentCount+'</span></button>',
+      '<button class="ba-dtab" data-tab="attachments" onclick="switchDetailTab(\'attachments\')">Attachments <span class="ba-tab-count" id="det-attach-count">'+attachCount+'</span></button>',
+      '<button class="ba-dtab" data-tab="related" onclick="switchDetailTab(\'related\')">Related</button>',
+      '<button class="ba-dtab" data-tab="timeline" onclick="switchDetailTab(\'timeline\')">Timeline</button>',
+    '</div>',
+
+    /* Tab panes */
+    '<div id="det-pane-overview" class="ba-dtab-pane active"></div>',
+    '<div id="det-pane-comments" class="ba-dtab-pane"></div>',
+    '<div id="det-pane-attachments" class="ba-dtab-pane"></div>',
+    '<div id="det-pane-related" class="ba-dtab-pane"></div>',
+    '<div id="det-pane-timeline" class="ba-dtab-pane"></div>',
+  ].join('');
+}
+
+function switchDetailTab(tab){
+  activeTab=tab;
+  document.querySelectorAll('.ba-dtab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===tab); });
+  document.querySelectorAll('.ba-dtab-pane').forEach(function(p){ p.classList.remove('active'); });
+  var pane=document.getElementById('det-pane-'+tab);
+  if(pane) pane.classList.add('active');
+
+  if(tab==='overview') renderOverview(getAlert(activeAlertId));
+  if(tab==='comments') renderComments(getAlert(activeAlertId));
+  if(tab==='attachments') renderAttachments(getAlert(activeAlertId));
+  if(tab==='related') renderRelated(getAlert(activeAlertId));
+  if(tab==='timeline') renderTimeline(getAlert(activeAlertId));
+}
+
+/* -- Overview Tab ---------------------------------------- */
+function renderOverview(a){
+  var pane=document.getElementById('det-pane-overview');
+  if(!pane||!a) return;
+  pane.innerHTML=[
+    '<div class="ba-ov-section">',
+      '<div class="ba-ov-title">?? Issue Description</div>',
+      '<div class="ba-ov-text">'+esc(a.description||'No description provided.')+'</div>',
+    '</div>',
+    '<div class="ba-ov-section">',
+      '<div class="ba-ov-title">? Action Needed</div>',
+      '<div class="ba-ov-text" style="color:#92400e;background:#fffbeb;border-radius:8px;padding:12px 14px;font-weight:600;">'+esc(a.action_needed||'No action needed at this time.')+'</div>',
+    '</div>',
+    '<div class="ba-ov-section">',
+      '<div class="ba-ov-title">?? Billing Details</div>',
+      '<div class="ba-ov-grid">',
+        '<div class="ba-ov-field"><label>Patient Balance</label><span>'+(a.patient_balance!=null?'$'+Number(a.patient_balance).toFixed(2):'--')+'</span></div>',
+        '<div class="ba-ov-field"><label>Insurance Status</label><span>'+esc(a.insurance_status||'--')+'</span></div>',
+        '<div class="ba-ov-field"><label>Payer Name</label><span>'+esc(a.payer_name||'--')+'</span></div>',
+        '<div class="ba-ov-field"><label>Insurance ID</label><span>'+esc(a.insurance_id||'--')+'</span></div>',
+        '<div class="ba-ov-field"><label>Related Claim</label><span>'+esc(a.related_claim_id||'--')+'</span></div>',
+        '<div class="ba-ov-field"><label>Payment Info</label><span>'+esc(a.payment_info||'--')+'</span></div>',
+      '</div>',
+    '</div>',
+    a.appointment_dates&&a.appointment_dates.length?
+    '<div class="ba-ov-section"><div class="ba-ov-title">?? Related Appointment Dates</div><div class="ba-ov-text">'+
+    a.appointment_dates.map(function(d){ return fmtDate(d); }).join(', ')+
+    '</div></div>':'',
+    a.staff_notes?
+    '<div class="ba-staff-note"><div class="ba-staff-note-label">?? Staff Note - Visible to You</div><div class="ba-staff-note-text">'+esc(a.staff_notes)+'</div></div>':'',
+  ].join('');
+}
+
+/* -- Comments Tab ---------------------------------------- */
+function renderComments(a){
+  var pane=document.getElementById('det-pane-comments');
+  if(!pane||!a) return;
+  var comments=(a.comments||[]).filter(function(c){ return !c.is_internal&&!c.parent_id; });
+  var allComments=a.comments||[];
+  function commentHTML(c, isReply){
+    var replies=allComments.filter(function(r){ return r.parent_id===c.id&&!r.is_internal; });
+    var avClass=c.author_type==='staff'?'staff':(c.author_type==='system'?'system':'clinician');
+    return [
+      '<div class="ba-comment'+(isReply?' reply':'')+(c.author_type==='staff'?' ':'')+'">',
+        '<div class="ba-comment-hdr">',
+          '<div class="ba-comment-avatar '+avClass+'">'+esc(initials(c.author))+'</div>',
+          '<span class="ba-comment-author">'+esc(c.author)+'</span>',
+          '<span class="ba-comment-role '+avClass+'">'+(c.author_type==='staff'?'Staff':'You')+'</span>',
+          '<span class="ba-comment-time">'+fmtRelative(c.created_at)+'</span>',
+        '</div>',
+        '<div class="ba-comment-body">'+esc(c.content)+'</div>',
+        (c.attachments||[]).length?'<div>'+c.attachments.map(function(att){ return '<span class="ba-attach-chip">?? '+esc(att)+'</span>'; }).join('')+'</div>':'',
+        '<div class="ba-comment-actions">',
+          c.author_type!=='system'?'<button class="ba-cmt-btn" onclick="startReply(\''+esc(c.id)+'\',\''+esc(c.author)+'\')">? Reply</button>':'',
+          c.author_type==='clinician'||c.author===((currentUser&&currentUser.email)||'You')?'<button class="ba-cmt-btn del" onclick="deleteComment(\''+esc(c.id)+'\')">Delete</button>':'',
+        '</div>',
+        replies.length?'<div>'+replies.map(function(r){ return commentHTML(r,true); }).join('')+'</div>':'',
+      '</div>',
+    ].join('');
+  }
+
+  var formId='det-comment-form';
+  pane.innerHTML=[
+    comments.length?'<div class="ba-comment-list">'+comments.map(function(c){ return commentHTML(c,false); }).join('')+'</div>'
+    :'<div style="text-align:center;padding:24px;color:var(--ink-500);font-size:13px">No comments yet. Add the first comment below.</div>',
+    '<div class="ba-comment-form">',
+      '<h4>Add a Comment</h4>',
+      '<div class="ba-reply-to-bar" id="ba-reply-bar">',
+        '<span id="ba-reply-text">Replying to...</span>',
+        '<button class="ba-cmt-btn" onclick="cancelReply()">Cancel</button>',
+      '</div>',
+      '<textarea class="ba-comment-ta" id="ba-comment-ta" placeholder="Write your comment or response here...\n\nYou can use **bold**, *italic*, and - bullet points."></textarea>',
+      '<div class="ba-comment-form-row">',
+        '<button class="btn btn-blue" onclick="submitComment()">Post Comment</button>',
+        '<button class="btn btn-ghost" onclick="triggerFileForComment()">?? Attach File</button>',
+        '<span id="ba-pending-files-label" style="font-size:12px;color:var(--ink-500)"></span>',
+      '</div>',
+    '</div>',
+  ].join('');
+
+  /* Restore reply bar if active */
+  if(replyToId){
+    var replyBar=document.getElementById('ba-reply-bar');
+    var rt=document.getElementById('ba-reply-text');
+    if(replyBar) replyBar.classList.add('visible');
+    if(rt){
+      var parent=allComments.find(function(c){ return c.id===replyToId; });
+      if(parent) rt.textContent='Replying to '+parent.author+'--';
+    }
+  }
+}
+
+function startReply(commentId, authorName){
+  replyToId=commentId;
+  var replyBar=document.getElementById('ba-reply-bar');
+  var rt=document.getElementById('ba-reply-text');
+  if(replyBar) replyBar.classList.add('visible');
+  if(rt) rt.textContent='Replying to '+authorName+'--';
+  var ta=document.getElementById('ba-comment-ta');
+  if(ta) ta.focus();
+}
+
+function cancelReply(){
+  replyToId=null;
+  var replyBar=document.getElementById('ba-reply-bar');
+  if(replyBar) replyBar.classList.remove('visible');
+}
+
+function submitComment(){
+  var ta=document.getElementById('ba-comment-ta');
+  if(!ta||!ta.value.trim()) return;
+  var a=getAlert(activeAlertId);
+  if(!a) return;
+  var comment={
+    id:uid(),
+    author:(currentUser&&currentUser.user_metadata&&currentUser.user_metadata.full_name)||(currentUser&&currentUser.email)||'You',
+    author_type:'clinician',
+    content:ta.value.trim(),
+    created_at:new Date().toISOString(),
+    parent_id:replyToId||null,
+    is_internal:false,
+    attachments:pendingFiles.map(function(f){ return f.name; }),
+  };
+  a.comments=a.comments||[];
+  a.comments.push(comment);
+  a.activity=a.activity||[];
+  a.activity.push({id:uid(),ts:new Date().toISOString(),user:'You',action:'Comment added',notes:comment.content.slice(0,80)+(comment.content.length>80?'--':''),dot:'blue'});
+  a.updated_at=new Date().toISOString();
+  pendingFiles=[];
+  replyToId=null;
+  updateAlert(a);
+  ta.value='';
+  var cnt=document.getElementById('det-comment-count');
+  if(cnt) cnt.textContent=a.comments.filter(function(c){return !c.is_internal;}).length;
+  renderComments(a);
+  switchDetailTab('comments');
+}
+
+function deleteComment(commentId){
+  if(!confirm('Delete this comment?')) return;
+  var a=getAlert(activeAlertId);
+  if(!a) return;
+  a.comments=(a.comments||[]).filter(function(c){ return c.id!==commentId; });
+  a.updated_at=new Date().toISOString();
+  updateAlert(a);
+  renderComments(a);
+}
+
+function triggerFileForComment(){
+  document.getElementById('ba-file-input').click();
+}
+
+/* -- Attachments Tab ------------------------------------- */
+function renderAttachments(a){
+  var pane=document.getElementById('det-pane-attachments');
+  if(!pane||!a) return;
+  var atts=a.attachments||[];
+  var rows=atts.length?atts.map(function(att){
+    var icon=att.type&&att.type.includes('image')?'???':att.type&&att.type.includes('pdf')?'??':'??';
+    var size=att.size?((att.size/1024).toFixed(0)+' KB'):'';
+    return [
+      '<div class="ba-attach-item">',
+        '<div class="ba-attach-icon">'+icon+'</div>',
+        '<div class="ba-attach-info">',
+          '<div class="ba-attach-name">'+esc(att.name)+'</div>',
+          '<div class="ba-attach-meta">Uploaded by '+esc(att.uploaded_by)+(size?' - '+size:'')+'</div>',
+          '<div class="ba-attach-meta">'+fmtDateTime(att.uploaded_at)+'</div>',
+        '</div>',
+      '</div>',
+    ].join('');
+  }).join(''):'<div style="text-align:center;padding:16px;color:var(--ink-500);font-size:13px">No attachments yet.</div>';
+
+  pane.innerHTML=[
+    '<div class="ba-attach-list">'+rows+'</div>',
+    '<div class="ba-upload-zone" onclick="triggerFileUpload()">',
+      '<div class="ba-upload-icon">??</div>',
+      '<div class="ba-upload-label">Click to upload a file</div>',
+      '<div class="ba-upload-sub">Supports PDF, images, Word and Excel documents - Max 20MB</div>',
+    '</div>',
+    '<div id="ba-pending-attach-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>',
+    '<div id="ba-upload-action" style="display:none;margin-top:10px">',
+      '<button class="btn btn-blue" onclick="confirmUpload()">Upload Files</button>',
+      '<button class="btn btn-ghost" onclick="cancelUpload()" style="margin-left:8px">Cancel</button>',
+    '</div>',
+  ].join('');
+}
+
+function triggerFileUpload(){
+  document.getElementById('ba-file-input').click();
+}
+
+function handleFileUpload(files){
+  pendingFiles=[];
+  for(var i=0;i<files.length;i++){
+    if(files[i].size>20*1024*1024){ alert('File "'+files[i].name+'" exceeds 20MB.'); continue; }
+    pendingFiles.push(files[i]);
+  }
+  if(!pendingFiles.length) return;
+
+  /* If on attachments tab, show pending chips + confirm */
+  if(activeTab==='attachments'){
+    var chips=document.getElementById('ba-pending-attach-chips');
+    var action=document.getElementById('ba-upload-action');
+    if(chips) chips.innerHTML=pendingFiles.map(function(f){ return '<span class="ba-badge ba-badge-new">?? '+esc(f.name.length>22?f.name.slice(0,20)+'--':f.name)+'</span>'; }).join('');
+    if(action) action.style.display='';
+  } else {
+    /* If on comments tab, update pending label */
+    var lab=document.getElementById('ba-pending-files-label');
+    if(lab) lab.textContent=pendingFiles.length+' file'+(pendingFiles.length!==1?'s':'')+' ready to attach';
+  }
+}
+
+function confirmUpload(){
+  var a=getAlert(activeAlertId);
+  if(!a||!pendingFiles.length) return;
+  a.attachments=a.attachments||[];
+  pendingFiles.forEach(function(f){
+    a.attachments.push({
+      id:uid(), name:f.name, type:f.type, size:f.size,
+      uploaded_by:(currentUser&&currentUser.email)||'You',
+      uploaded_at:new Date().toISOString()
+    });
+  });
+  a.activity=a.activity||[];
+  a.activity.push({id:uid(),ts:new Date().toISOString(),user:'You',action:pendingFiles.length+' file(s) uploaded',notes:pendingFiles.map(function(f){ return f.name; }).join(', '),dot:'blue'});
+  a.updated_at=new Date().toISOString();
+  updateAlert(a);
+  pendingFiles=[];
+  var cnt=document.getElementById('det-attach-count');
+  if(cnt) cnt.textContent=a.attachments.length;
+  renderAttachments(a);
+}
+
+function cancelUpload(){
+  pendingFiles=[];
+  var chips=document.getElementById('ba-pending-attach-chips');
+  var action=document.getElementById('ba-upload-action');
+  if(chips) chips.innerHTML='';
+  if(action) action.style.display='none';
+}
+
+/* -- Related Tab ----------------------------------------- */
+function renderRelated(a){
+  var pane=document.getElementById('det-pane-related');
+  if(!pane||!a) return;
+  var items=[];
+  if(a.related_claim_id) items.push({icon:'??',title:'Claim '+a.related_claim_id,sub:'Linked claim record',link:''});
+  if(a.related_ticket_id) items.push({icon:'??',title:'Support Ticket '+a.related_ticket_id,sub:'Linked support ticket',link:'support-request.html'});
+  if(a.related_chat_id) items.push({icon:'??',title:'Live Chat '+a.related_chat_id,sub:'Linked support chat',link:'admin-chat.html'});
+
+  pane.innerHTML=[
+    items.length?items.map(function(it){
+      return '<div class="ba-related-item"><div class="ba-related-icon">'+it.icon+'</div><div class="ba-related-info"><div class="ba-related-title">'+esc(it.title)+'</div><div class="ba-related-sub">'+esc(it.sub)+'</div></div>'+(it.link?'<a class="ba-related-link" href="'+esc(it.link)+'">View &rsaquo;</a>':'')+'</div>';
+    }).join(''):'<div style="text-align:center;padding:16px;color:var(--ink-500);font-size:13px">No related items linked.</div>',
+    '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">',
+      '<button class="ba-act-btn support" onclick="convertToTicket()">?? Convert to Support Ticket</button>',
+      '<button class="ba-act-btn support" onclick="openChatForAlert()">?? Open Live Chat</button>',
+    '</div>',
+  ].join('');
+}
+
+/* -- Timeline Tab ---------------------------------------- */
+function renderTimeline(a){
+  var pane=document.getElementById('det-pane-timeline');
+  if(!pane||!a) return;
+  var activity=(a.activity||[]).slice().sort(function(x,y){ return (y.ts||'')>(x.ts||'')?1:-1; });
+  if(!activity.length){
+    pane.innerHTML='<div style="text-align:center;padding:16px;color:var(--ink-500);font-size:13px">No activity recorded.</div>';
+    return;
+  }
+  var dotClass=function(item){
+    if(item.dot) return item.dot;
+    var a=item.action||'';
+    if(a.includes('Resolved')||a.includes('resolved')) return 'green';
+    if(a.includes('Urgent')||a.includes('denied')) return 'red';
+    if(a.includes('Waiting')||a.includes('Archived')) return 'amber';
+    if(a.includes('created')) return 'gray';
+    return 'blue';
+  };
+  pane.innerHTML='<div class="ba-timeline">'+activity.map(function(item){
+    return [
+      '<div class="ba-tl-item">',
+        '<div class="ba-tl-dot '+dotClass(item)+'"></div>',
+        '<div class="ba-tl-body">',
+          '<div class="ba-tl-action">'+esc(item.action)+'</div>',
+          '<div class="ba-tl-by">'+esc(item.user||'System')+' - '+fmtDateTime(item.ts)+'</div>',
+          item.notes?'<div class="ba-tl-notes">'+esc(item.notes)+'</div>':'',
+        '</div>',
+      '</div>',
+    ].join('');
+  }).join('')+'</div>';
+}
+
+/* -- Status Changes -------------------------------------- */
+function changeStatus(newStatus){
+  var a=getAlert(activeAlertId);
+  if(!a) return;
+  var old=a.status;
+  if(old===newStatus){
+    alert('Status is already '+newStatus+'.');
+    return;
+  }
+  if(newStatus==='Resolved'){
+    if(!confirm('Mark this Billing Alert as Resolved?')) return;
+    a.resolved_at=new Date().toISOString();
+  }
+  var oldStatus=a.status;
+  a.status=newStatus;
+  a.updated_at=new Date().toISOString();
+  a.activity=a.activity||[];
+  a.activity.push({id:uid(),ts:new Date().toISOString(),user:'You',action:'Status changed: '+oldStatus+' ? '+newStatus,notes:'',dot:newStatus==='Resolved'?'green':(newStatus.includes('Waiting')?'amber':'blue')});
+  updateAlert(a);
+
+  /* Update badge in detail header */
+  var badge=document.getElementById('det-status-badge');
+  if(badge){ badge.className='ba-badge '+(STATUS_BADGE[newStatus]||'ba-badge-routine'); badge.textContent=newStatus; }
+
+  renderTimeline(a);
+  if(newStatus==='Resolved'||newStatus==='Archived') closeDetail();
+}
+
+/* -- Other Actions --------------------------------------- */
+function requestSupport(){
+  var a=getAlert(activeAlertId);
+  if(!a) return;
+  var url='support-request.html?alert='+encodeURIComponent(a.id)+'&patient='+encodeURIComponent(a.patient_name||'');
+  window.location.href=url;
+}
+
+function convertToTicket(){
+  var a=getAlert(activeAlertId);
+  if(!a) return;
+  var ticketId='TKT-'+Date.now();
+  var ticket={
+    id:ticketId,
+    subject:'Billing Alert '+a.id+' - '+a.alert_type+(a.patient_name?' ('+a.patient_name+')':''),
+    description:'Converted from Billing Alert '+a.id+'.\n\n'+a.description+'\n\nAction Needed:\n'+a.action_needed,
+    topic:'Billing',
+    priority:a.priority,
+    status:'Open',
+    is_urgent:a.priority==='Urgent',
+    related_alert_id:a.id,
+    created_at:new Date().toISOString(),
+    user_id:currentUser&&currentUser.id,
+  };
+  try{
+    var ex=JSON.parse(localStorage.getItem(TICKET_KEY)||'[]');
+    ex.unshift(ticket);
+    localStorage.setItem(TICKET_KEY,JSON.stringify(ex));
+  }catch(e){}
+  a.related_ticket_id=ticketId;
+  a.activity=a.activity||[];
+  a.activity.push({id:uid(),ts:new Date().toISOString(),user:'You',action:'Converted to support ticket '+ticketId,notes:'',dot:'blue'});
+  a.updated_at=new Date().toISOString();
+  updateAlert(a);
+  renderRelated(a);
+  alert('Support ticket '+ticketId+' created and linked to this Billing Alert.');
+}
+
+function openChatForAlert(){
+  if(typeof window.THERASSISTANTChat !== 'undefined'){
+    var a=getAlert(activeAlertId);
+    if(a&&window.THERASSISTANTChat.state){
+      window.THERASSISTANTChat.state.selectedTopic='Billing';
+    }
+    window.THERASSISTANTChat.open();
+  } else {
+    window.location.href='support-request.html';
+  }
+}
+
+function archiveAlert(){
+  if(!confirm('Archive this Billing Alert? It will be moved to your Archived tab.')) return;
+  changeStatus('Archived');
+}
+
+/* -- Page Init ------------------------------------------- */
+document.addEventListener('DOMContentLoaded', async function(){
+  initDashboard(CLINICIAN_ROLES);
+  try{
+    var res=await supabaseClient.auth.getUser();
+    if(res&&res.data&&res.data.user) currentUser=res.data.user;
+  }catch(e){}
+
+  seedDemoAlerts();
+  renderStats();
+  renderAlertList();
+
+  /* Try to load from Supabase */
+  try{
+    var { data }=await supabaseClient.from('billing_alerts').select('*').order('updated_at',{ascending:false});
+    if(data&&data.length>0){
+      /* Merge with any local data - prefer fresh Supabase records */
+      var local=loadAlerts();
+      var localIds=local.map(function(a){ return a.id; });
+      data.forEach(function(rec){
+        if(!localIds.includes(rec.id)) local.push(rec);
+      });
+      saveAlerts(local);
+      renderStats();
+      renderAlertList();
+    }
+  }catch(e){}
+});
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

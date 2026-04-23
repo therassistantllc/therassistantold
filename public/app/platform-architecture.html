@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Platform Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js?v=2"></script>
+  <style>
+    /* ── Page-level layout ─────────────────────────────────────── */
+    .arch-main { max-width: 1300px; }
+
+    /* ── Section label ─────────────────────────────────────────── */
+    .section-eyebrow {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--blue-600); margin-bottom: 6px;
+    }
+    .section-title {
+      font-family: "Sora", sans-serif; font-size: 22px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 4px;
+    }
+    .section-sub {
+      font-size: 13.5px; color: var(--ink-500); margin-bottom: 22px; max-width: 680px;
+    }
+
+    /* ── Module card ───────────────────────────────────────────── */
+    .mod-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 18px;
+      margin-bottom: 32px;
+    }
+    .mod-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .mod-header {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mod-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .mod-icon.blue   { background: #dbeafe; }
+    .mod-icon.teal   { background: #ccfbf1; }
+    .mod-icon.amber  { background: #fef3c7; }
+    .mod-icon.green  { background: #dcfce7; }
+    .mod-icon.purple { background: #ede9fe; }
+    .mod-icon.rose   { background: #ffe4e6; }
+    .mod-icon.slate  { background: #e2e8f0; }
+    .mod-name {
+      font-family: "Sora", sans-serif; font-size: 15.5px; font-weight: 700;
+      color: var(--ink-900); margin-bottom: 3px;
+    }
+    .mod-purpose {
+      font-size: 12.5px; color: var(--ink-500); line-height: 1.5;
+    }
+    .mod-body { padding: 16px 22px 20px; }
+
+    /* row inside card */
+    .mod-row { display: flex; gap: 14px; margin-bottom: 14px; }
+    .mod-col { flex: 1; min-width: 0; }
+    .mod-col:only-child { flex: none; width: 100%; }
+
+    .mod-label {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--ink-500); margin-bottom: 7px;
+    }
+
+    /* feature pills */
+    .feat-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .feat-pill {
+      background: var(--surface-soft); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 10px;
+      font-size: 11.5px; color: var(--ink-700); font-weight: 500;
+    }
+    .feat-pill.blue   { background: #eff8ff; border-color: #c3dffb; color: #1e5fa3; }
+    .feat-pill.teal   { background: #f0fdfb; border-color: #99f6e4; color: #0d7060; }
+    .feat-pill.amber  { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .feat-pill.green  { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .feat-pill.purple { background: #faf5ff; border-color: #ddd6fe; color: #5b21b6; }
+    .feat-pill.rose   { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+    .feat-pill.slate  { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
+
+    /* user badge */
+    .user-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .user-badge {
+      background: #edf1f5; border-radius: 999px;
+      padding: 3px 9px; font-size: 11px; font-weight: 600; color: var(--ink-700);
+    }
+
+    /* dep list */
+    .dep-list { list-style: none; margin: 0; padding: 0; }
+    .dep-list li {
+      font-size: 12px; color: var(--ink-700); padding: 3px 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dep-list li::before {
+      content: ""; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--blue-500); flex-shrink: 0;
+    }
+
+    /* ── Data flow diagram ─────────────────────────────────────── */
+    .flow-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      padding: 28px 28px 24px;
+      margin-bottom: 32px;
+      overflow-x: auto;
+    }
+    .flow-diagram {
+      display: grid;
+      grid-template-columns: 1fr 32px 1fr 32px 1fr;
+      grid-template-rows: auto 32px auto 32px auto;
+      gap: 0;
+      min-width: 780px;
+      align-items: center;
+    }
+    .flow-node {
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      font-size: 12.5px; font-weight: 600; text-align: center;
+      background: var(--surface-soft); color: var(--ink-900);
+    }
+    .flow-node.patient { background: #eff8ff; border-color: #c3dffb; }
+    .flow-node.ehr     { background: #f0fdfb; border-color: #99f6e4; }
+    .flow-node.coding  { background: #fffbeb; border-color: #fde68a; }
+    .flow-node.billing { background: #f0fdf4; border-color: #bbf7d0; }
+    .flow-node.cred    { background: #faf5ff; border-color: #ddd6fe; }
+    .flow-node.report  { background: #fff1f2; border-color: #fecdd3; }
+    .flow-node.ext     { background: #f8fafc; border-color: #cbd5e1; }
+    .flow-arrow {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--ink-500); line-height: 1;
+    }
+    .flow-arrow.down { writing-mode: horizontal-tb; transform: rotate(90deg); }
+
+    /* Full-width flow row */
+    .flow-full { grid-column: 1 / -1; }
+    .flow-row-nodes {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      align-items: center; justify-content: center;
+    }
+    .flow-row-nodes .flow-node { flex: 1; min-width: 140px; }
+    .flow-center-arrow {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: var(--blue-500); padding: 6px 0;
+      grid-column: 1 / -1;
+    }
+    .flow-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--ink-500); margin-bottom: 8px;
+    }
+
+    /* ── Data flow table ───────────────────────────────────────── */
+    .flow-table-wrap { overflow-x: auto; margin-bottom: 32px; }
+    .flow-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px; min-width: 700px;
+    }
+    .flow-table th {
+      background: var(--surface-soft); border-bottom: 1.5px solid var(--border);
+      text-align: left; padding: 10px 14px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-500);
+    }
+    .flow-table td {
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      vertical-align: top; color: var(--ink-700); line-height: 1.5;
+    }
+    .flow-table tr:last-child td { border-bottom: none; }
+    .flow-table tr:hover td { background: var(--surface-soft); }
+    .flow-from { font-weight: 700; color: var(--ink-900); }
+    .flow-to-pill {
+      display: inline-block; background: var(--surface-soft);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 2px 8px; font-size: 11px; font-weight: 600;
+      color: var(--ink-700); margin: 2px 3px 2px 0;
+    }
+
+    /* ── Roles table ───────────────────────────────────────────── */
+    .roles-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 800px; }
+    .roles-table th {
+      background: var(--surface-soft); border-bottom: 1.5px solid var(--border);
+      padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-500); text-align: center;
+    }
+    .roles-table th:first-child { text-align: left; }
+    .roles-table td {
+      padding: 9px 12px; border-bottom: 1px solid var(--border);
+      text-align: center; color: var(--ink-700);
+    }
+    .roles-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-900); }
+    .roles-table tr:last-child td { border-bottom: none; }
+    .roles-table tr:hover td { background: var(--surface-soft); }
+    .perm-full  { color: #166534; font-size: 15px; }
+    .perm-read  { color: #0369a1; font-size: 15px; }
+    .perm-none  { color: #cbd5e1; font-size: 15px; }
+    .perm-own   { color: #92400e; font-size: 13px; font-weight: 700; }
+
+    /* ── Summary bar ───────────────────────────────────────────── */
+    .arch-summary-bar {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;
+      margin-bottom: 28px;
+    }
+    .arch-sum-cell {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 12px; text-align: center; box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+    }
+    .arch-sum-cell::after {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    }
+    .arch-sum-cell.col-blue::after   { background: linear-gradient(180deg,#3c90d1,#1a5f98); }
+    .arch-sum-cell.col-teal::after   { background: linear-gradient(180deg,#14b8a6,#0d7060); }
+    .arch-sum-cell.col-amber::after  { background: linear-gradient(180deg,#f59e0b,#b45309); }
+    .arch-sum-cell.col-green::after  { background: linear-gradient(180deg,#22c55e,#15803d); }
+    .arch-sum-cell.col-purple::after { background: linear-gradient(180deg,#a78bfa,#6d28d9); }
+    .arch-sum-cell.col-rose::after   { background: linear-gradient(180deg,#fb7185,#be123c); }
+    .arch-sum-cell.col-slate::after  { background: linear-gradient(180deg,#94a3b8,#475569); }
+    .arch-sum-num {
+      font-family: "Sora", sans-serif; font-size: 1.5rem; font-weight: 700;
+      color: var(--ink-900); line-height: 1;
+    }
+    .arch-sum-lbl {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--ink-500); margin-top: 4px;
+    }
+    .arch-sum-icon { font-size: 18px; margin-bottom: 6px; }
+
+    @media(max-width:900px) {
+      .mod-grid { grid-template-columns: 1fr; }
+      .arch-summary-bar { grid-template-columns: repeat(4,1fr); }
+      .mod-row { flex-direction: column; gap: 10px; }
+    }
+    @media(max-width:600px) {
+      .arch-summary-bar { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- ════════════════ SIDEBAR ════════════════ -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">Platform Architecture</div>
+    <nav class="sidebar-nav" style="margin-top:18px">
+      <a class="nav-link" href="#modules" style="font-size:12px">Module Definitions</a>
+      <a class="nav-link" href="#dataflow" style="font-size:12px">Data Flow Map</a>
+      <a class="nav-link" href="#roles" style="font-size:12px">Role Permissions</a>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:10px 0">
+      <a class="nav-link" href="admin-overview.html" style="font-size:12px">← Admin Overview</a>
+      <a class="nav-link" href="dashboard.html" style="font-size:12px">← Clinician Home</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- ════════════════ MAIN ════════════════ -->
+  <main class="dashboard-main arch-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <div class="section-eyebrow">System Design · v1.0 · April 2026</div>
+        <h1 style="font-family:'Sora',sans-serif;font-size:26px;font-weight:800;margin-bottom:4px">Platform Architecture</h1>
+        <p style="font-size:14px;color:var(--ink-500)">
+          THERASSISTANT — Behavioral Health EHR + Revenue Cycle Management · 7 primary modules · Role-based · SaaS-ready
+        </p>
+      </div>
+    </header>
+
+    <!-- ── Summary bar ──────────────────────────────────────── -->
+    <div class="arch-summary-bar">
+      <div class="arch-sum-cell col-blue">
+        <div class="arch-sum-icon">🏥</div>
+        <div class="arch-sum-num">7</div>
+        <div class="arch-sum-lbl">Modules</div>
+      </div>
+      <div class="arch-sum-cell col-teal">
+        <div class="arch-sum-icon">👤</div>
+        <div class="arch-sum-num">7</div>
+        <div class="arch-sum-lbl">Role Types</div>
+      </div>
+      <div class="arch-sum-cell col-amber">
+        <div class="arch-sum-icon">⚡</div>
+        <div class="arch-sum-num">30+</div>
+        <div class="arch-sum-lbl">Integrations</div>
+      </div>
+      <div class="arch-sum-cell col-green">
+        <div class="arch-sum-icon">📋</div>
+        <div class="arch-sum-num">60+</div>
+        <div class="arch-sum-lbl">Features</div>
+      </div>
+      <div class="arch-sum-cell col-purple">
+        <div class="arch-sum-icon">🔒</div>
+        <div class="arch-sum-num">HIPAA</div>
+        <div class="arch-sum-lbl">Compliant</div>
+      </div>
+      <div class="arch-sum-cell col-rose">
+        <div class="arch-sum-icon">🌐</div>
+        <div class="arch-sum-num">Multi</div>
+        <div class="arch-sum-lbl">State Ready</div>
+      </div>
+      <div class="arch-sum-cell col-slate">
+        <div class="arch-sum-icon">🏢</div>
+        <div class="arch-sum-num">SaaS</div>
+        <div class="arch-sum-lbl">White-label</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 1 — MODULE DEFINITIONS
+    ═══════════════════════════════════════════════════════════ -->
+    <a id="modules"></a>
+    <div class="section-eyebrow">Section 1</div>
+    <div class="section-title">Module Definitions</div>
+    <p class="section-sub">Each module is independently deployable with defined boundaries, data ownership, and role access. Modules communicate via internal service events and a shared data layer.</p>
+
+    <div class="mod-grid">
+
+      <!-- ── 1. Patient Portal ──────────────────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon blue">🏥</div>
+          <div>
+            <div class="mod-name">1 · Patient Portal</div>
+            <div class="mod-purpose">Patient-facing layer for intake, communication, payments, and self-service health management.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill blue">Intake Forms</span>
+            <span class="feat-pill blue">Demographics</span>
+            <span class="feat-pill blue">Insurance Entry</span>
+            <span class="feat-pill blue">Appointment Requests</span>
+            <span class="feat-pill blue">Secure Messaging</span>
+            <span class="feat-pill blue">Telehealth Links</span>
+            <span class="feat-pill blue">Billing Statements</span>
+            <span class="feat-pill blue">Credit Card on File</span>
+            <span class="feat-pill blue">Document Upload</span>
+            <span class="feat-pill blue">PHQ-9 / GAD-7</span>
+            <span class="feat-pill blue">PCL-5 / ASRS</span>
+            <span class="feat-pill blue">ACE / C-SSRS</span>
+            <span class="feat-pill blue">Consent Forms</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Patient</span>
+                <span class="user-badge">Front Desk</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">patient_profiles, intake_submissions, screening_scores, appointments_requests</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>EHR Core — patient record linkage, appointment confirmation</li>
+            <li>Billing Engine — statement generation, payment capture via Stripe</li>
+            <li>External — Zoom (telehealth), Stripe (payments)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 2. EHR Core ────────────────────────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon teal">📋</div>
+          <div>
+            <div class="mod-name">2 · EHR Core</div>
+            <div class="mod-purpose">Central clinical record system. Source of truth for all patient encounters, treatment, and clinical documentation.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill teal">Patient Records</span>
+            <span class="feat-pill teal">Scheduling</span>
+            <span class="feat-pill teal">Appointment Calendar</span>
+            <span class="feat-pill teal">Recurring Appointments</span>
+            <span class="feat-pill teal">Treatment Plans</span>
+            <span class="feat-pill teal">Progress Notes</span>
+            <span class="feat-pill teal">Intake Assessments</span>
+            <span class="feat-pill teal">Group Notes</span>
+            <span class="feat-pill teal">Family Session Notes</span>
+            <span class="feat-pill teal">Psychiatric Evaluations</span>
+            <span class="feat-pill teal">Telehealth Tracking</span>
+            <span class="feat-pill teal">Locked / Finalized Records</span>
+            <span class="feat-pill teal">Supervisor Signatures</span>
+            <span class="feat-pill teal">Addendum Workflows</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Clinician</span>
+                <span class="user-badge">Supervisor</span>
+                <span class="user-badge">Front Desk</span>
+                <span class="user-badge">Admin</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">encounters, progress_notes, treatment_plans, appointments, diagnoses</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>Patient Portal — intake data, demographics, screening scores</li>
+            <li>Coding & Revenue — triggers coding engine on note save/finalize</li>
+            <li>External — Google Calendar (sync), Zoom (session links)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 3. Coding & Revenue Capture ───────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon amber">⚡</div>
+          <div>
+            <div class="mod-name">3 · Coding &amp; Revenue Capture</div>
+            <div class="mod-purpose">Autonomous coding layer that analyzes clinical data and surfaces CPT/HCPCS/ICD-10 recommendations, missed codes, and documentation gaps.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill amber">CPT Support</span>
+            <span class="feat-pill amber">HCPCS Support</span>
+            <span class="feat-pill amber">ICD-10 Support</span>
+            <span class="feat-pill amber">Smart Charge Suggestions</span>
+            <span class="feat-pill amber">Trigger Logic Engine</span>
+            <span class="feat-pill amber">Medical Necessity Prompts</span>
+            <span class="feat-pill amber">Revenue Capture Prompts</span>
+            <span class="feat-pill amber">Charge Review Queue</span>
+            <span class="feat-pill amber">Charge Capture</span>
+            <span class="feat-pill amber">Doc Support Prompts</span>
+            <span class="feat-pill amber">Missed Code Detection</span>
+            <span class="feat-pill amber">Audit-Ready Reports</span>
+            <span class="feat-pill amber">Colorado Medicaid Rules</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Clinician</span>
+                <span class="user-badge">Billing Specialist</span>
+                <span class="user-badge">Admin</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">coding_reports, charge_items, code_trigger_rules, revenue_capture_events</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>EHR Core — session data, note type, diagnostic codes, modifiers</li>
+            <li>Billing Engine — sends approved charges for claim creation</li>
+            <li>Credentialing — validates provider NPI / taxonomy before charge capture</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 4. Billing Engine ──────────────────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon green">💳</div>
+          <div>
+            <div class="mod-name">4 · Billing Engine</div>
+            <div class="mod-purpose">Full revenue cycle management from eligibility verification through payment posting, denials, patient balances, and write-offs.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill green">Eligibility Verification</span>
+            <span class="feat-pill green">Deductible / Copay Check</span>
+            <span class="feat-pill green">Prior Authorization</span>
+            <span class="feat-pill green">Referral Tracking</span>
+            <span class="feat-pill green">Claim Creation</span>
+            <span class="feat-pill green">Claim Scrubbing</span>
+            <span class="feat-pill green">Batch Submission</span>
+            <span class="feat-pill green">Claim Status Monitoring</span>
+            <span class="feat-pill green">ERA Posting</span>
+            <span class="feat-pill green">EFT Tracking</span>
+            <span class="feat-pill green">Denials &amp; Appeals</span>
+            <span class="feat-pill green">Patient Balances</span>
+            <span class="feat-pill green">Payment Plans</span>
+            <span class="feat-pill green">Auto-Pay</span>
+            <span class="feat-pill green">Statements</span>
+            <span class="feat-pill green">Refunds &amp; Write-offs</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Billing Specialist</span>
+                <span class="user-badge">Admin</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">claims, era_imports, payments, patient_balances, prior_auths, eft_records</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>Coding & Revenue — approved charge items to create claims</li>
+            <li>EHR Core — encounter dates, provider NPI, place of service</li>
+            <li>External — Availity, Office Ally, Stripe, Colorado Medicaid, payer EDI</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 5. Credentialing & Compliance ─────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon purple">🛡️</div>
+          <div>
+            <div class="mod-name">5 · Credentialing &amp; Compliance</div>
+            <div class="mod-purpose">Tracks provider enrollment, license expiration, malpractice coverage, contract status, HIPAA compliance, and audit readiness.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill purple">Provider Enrollment</span>
+            <span class="feat-pill purple">Credentialing Status</span>
+            <span class="feat-pill purple">Recredentialing Reminders</span>
+            <span class="feat-pill purple">CAQH Tracking</span>
+            <span class="feat-pill purple">License Expiration</span>
+            <span class="feat-pill purple">DEA Expiration</span>
+            <span class="feat-pill purple">Malpractice Tracking</span>
+            <span class="feat-pill purple">Contract Status</span>
+            <span class="feat-pill purple">HIPAA Compliance</span>
+            <span class="feat-pill purple">Audit Logs</span>
+            <span class="feat-pill purple">ROI Tracking</span>
+            <span class="feat-pill purple">Consent Tracking</span>
+            <span class="feat-pill purple">Medicaid Compliance</span>
+            <span class="feat-pill purple">CO Mental Health Law</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Credentialing Spec.</span>
+                <span class="user-badge">Admin</span>
+                <span class="user-badge">Supervisor</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">providers, credentials, licenses, contracts, audit_logs, consent_records</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>External — CAQH, PECOS, NPPES, state licensing boards</li>
+            <li>Billing Engine — validates active enrollment before claim submission</li>
+            <li>Reporting — feeds compliance dashboard and expiration alerts</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 6. Reporting & Analytics ───────────────────────── -->
+      <div class="mod-card">
+        <div class="mod-header">
+          <div class="mod-icon rose">📊</div>
+          <div>
+            <div class="mod-name">6 · Reporting &amp; Analytics</div>
+            <div class="mod-purpose">Cross-module intelligence layer providing revenue dashboards, clinical outcomes, compliance metrics, and operational reporting.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+
+          <div class="mod-label">Core Features</div>
+          <div class="feat-list" style="margin-bottom:14px">
+            <span class="feat-pill rose">Revenue Dashboards</span>
+            <span class="feat-pill rose">Productivity Dashboards</span>
+            <span class="feat-pill rose">Claims Aging</span>
+            <span class="feat-pill rose">Auth Expiration Reports</span>
+            <span class="feat-pill rose">Revenue by Provider</span>
+            <span class="feat-pill rose">Revenue by Payer</span>
+            <span class="feat-pill rose">Outstanding Balances</span>
+            <span class="feat-pill rose">Patient Retention</span>
+            <span class="feat-pill rose">No-Show Tracking</span>
+            <span class="feat-pill rose">Screening Score Trends</span>
+            <span class="feat-pill rose">Audit Findings</span>
+            <span class="feat-pill rose">Compliance Reports</span>
+            <span class="feat-pill rose">Saved Reports</span>
+          </div>
+
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Primary Users</div>
+              <div class="user-list">
+                <span class="user-badge">Admin</span>
+                <span class="user-badge">Billing Specialist</span>
+                <span class="user-badge">Supervisor</span>
+                <span class="user-badge">Credentialing</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Data Owner</div>
+              <div style="font-size:12.5px;color:var(--ink-700)">report_definitions, saved_reports, analytics_snapshots (read from all modules)</div>
+            </div>
+          </div>
+
+          <div class="mod-label">Depends On</div>
+          <ul class="dep-list">
+            <li>All modules — read-only aggregation; no write-back to source modules</li>
+            <li>Billing Engine — claims, ERA, payment, denial data</li>
+            <li>EHR Core — encounter volume, screening trends, no-shows</li>
+            <li>Credentialing — compliance status, expiration timelines</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 7. External Integrations ──────────────────────── -->
+      <div class="mod-card" style="grid-column: 1 / -1">
+        <div class="mod-header">
+          <div class="mod-icon slate">🔌</div>
+          <div>
+            <div class="mod-name">7 · External Integrations</div>
+            <div class="mod-purpose">Managed integration layer. All third-party connections are routed through adapter services with auth, retry, and audit logging. No module calls external systems directly.</div>
+          </div>
+        </div>
+        <div class="mod-body">
+          <div class="mod-row">
+            <div class="mod-col">
+              <div class="mod-label">Colorado Medicaid</div>
+              <div class="feat-list" style="margin-bottom:10px">
+                <span class="feat-pill slate">HCPF</span>
+                <span class="feat-pill slate">Colorado Access</span>
+                <span class="feat-pill slate">CCHA</span>
+                <span class="feat-pill slate">RMHP</span>
+              </div>
+              <div class="mod-label">Commercial Payers</div>
+              <div class="feat-list" style="margin-bottom:10px">
+                <span class="feat-pill slate">Aetna</span>
+                <span class="feat-pill slate">BCBS</span>
+                <span class="feat-pill slate">Cigna</span>
+                <span class="feat-pill slate">UHC</span>
+                <span class="feat-pill slate">Kaiser</span>
+                <span class="feat-pill slate">TriWest</span>
+                <span class="feat-pill slate">Medicare Advantage</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Credentialing &amp; Provider</div>
+              <div class="feat-list" style="margin-bottom:10px">
+                <span class="feat-pill slate">CAQH</span>
+                <span class="feat-pill slate">PECOS</span>
+                <span class="feat-pill slate">NPPES</span>
+                <span class="feat-pill slate">State Licensing Boards</span>
+              </div>
+              <div class="mod-label">Clearinghouses &amp; Payments</div>
+              <div class="feat-list" style="margin-bottom:10px">
+                <span class="feat-pill slate">Availity</span>
+                <span class="feat-pill slate">Office Ally</span>
+                <span class="feat-pill slate">Stripe</span>
+              </div>
+            </div>
+            <div class="mod-col">
+              <div class="mod-label">Clinical &amp; Practice Ops</div>
+              <div class="feat-list" style="margin-bottom:10px">
+                <span class="feat-pill slate">Google Calendar</span>
+                <span class="feat-pill slate">Zoom</span>
+                <span class="feat-pill slate">SimplePractice Import</span>
+              </div>
+              <div class="mod-label">Architecture Notes</div>
+              <ul class="dep-list">
+                <li>All integrations use OAuth 2.0 or API key vault storage</li>
+                <li>Webhook receivers are isolated and rate-limited</li>
+                <li>EDI 270/271 (eligibility), 837 (claims), 835 (ERA) supported</li>
+                <li>Failure queues with admin alert and retry logic</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /mod-grid -->
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 2 — DATA FLOW MAP
+    ═══════════════════════════════════════════════════════════ -->
+    <a id="dataflow"></a>
+    <div class="section-eyebrow">Section 2</div>
+    <div class="section-title">Data Flow Map</div>
+    <p class="section-sub">Shows how data moves between modules for the primary clinical-to-payment workflow and for cross-cutting concerns.</p>
+
+    <!-- Visual flow diagram -->
+    <div class="flow-wrap">
+      <div class="flow-label">Primary Clinical-to-Payment Flow</div>
+      <!-- Row 1: Patient Portal -->
+      <div style="display:flex;justify-content:center;margin-bottom:6px">
+        <div class="flow-node patient" style="min-width:240px;text-align:center">
+          🏥 <strong>Patient Portal</strong><br>
+          <span style="font-size:11px;font-weight:400;color:var(--ink-500)">Intake · Demographics · Insurance · Consent</span>
+        </div>
+      </div>
+      <div class="flow-center-arrow">↓ <span style="font-size:11px;color:var(--ink-500);margin-left:6px">patient record created, portal data ingested</span></div>
+
+      <!-- Row 2: EHR Core -->
+      <div style="display:flex;justify-content:center;margin-bottom:6px">
+        <div class="flow-node ehr" style="min-width:340px;text-align:center">
+          📋 <strong>EHR Core</strong><br>
+          <span style="font-size:11px;font-weight:400;color:var(--ink-500)">Schedule → Session → Note Finalized / Signed</span>
+        </div>
+      </div>
+      <div class="flow-center-arrow">↓ <span style="font-size:11px;color:var(--ink-500);margin-left:6px">note.finalized event → session metadata sent to coder</span></div>
+
+      <!-- Row 3: Coding & Revenue (center) with Credentialing branching -->
+      <div style="display:flex;gap:16px;justify-content:center;align-items:flex-start;margin-bottom:6px">
+        <div class="flow-node cred" style="min-width:180px;text-align:center;margin-top:6px">
+          🛡️ <strong>Credentialing</strong><br>
+          <span style="font-size:11px;font-weight:400;color:var(--ink-500)">Provider validated before charge capture</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div class="flow-node coding" style="min-width:300px;text-align:center">
+            ⚡ <strong>Coding &amp; Revenue Capture</strong><br>
+            <span style="font-size:11px;font-weight:400;color:var(--ink-500)">CPT / HCPCS / ICD-10 → Charge Review → Charge Approved</span>
+          </div>
+        </div>
+        <div class="flow-node report" style="min-width:180px;text-align:center;margin-top:6px">
+          📊 <strong>Reporting</strong><br>
+          <span style="font-size:11px;font-weight:400;color:var(--ink-500)">Reads coding events for revenue capture metrics</span>
+        </div>
+      </div>
+      <div class="flow-center-arrow">↓ <span style="font-size:11px;color:var(--ink-500);margin-left:6px">approved charges → claim.create event</span></div>
+
+      <!-- Row 4: Billing Engine -->
+      <div style="display:flex;justify-content:center;margin-bottom:6px">
+        <div class="flow-node billing" style="min-width:480px;text-align:center">
+          💳 <strong>Billing Engine</strong><br>
+          <span style="font-size:11px;font-weight:400;color:var(--ink-500)">Eligibility → Claim Created → Scrubbed → Submitted → ERA Posted → Balance Resolved</span>
+        </div>
+      </div>
+      <div class="flow-center-arrow">↕ <span style="font-size:11px;color:var(--ink-500);margin-left:6px">EDI 837 out / 835 ERA in · patient balance back to portal</span></div>
+
+      <!-- Row 5: External -->
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <div class="flow-node ext" style="flex:1;min-width:110px;text-align:center;font-size:11.5px">Availity<br>Office Ally</div>
+        <div class="flow-node ext" style="flex:1;min-width:110px;text-align:center;font-size:11.5px">CO Medicaid<br>HCPF / CCHA</div>
+        <div class="flow-node ext" style="flex:1;min-width:110px;text-align:center;font-size:11.5px">Commercial<br>Payers</div>
+        <div class="flow-node ext" style="flex:1;min-width:110px;text-align:center;font-size:11.5px">Stripe<br>Payments</div>
+        <div class="flow-node ext" style="flex:1;min-width:110px;text-align:center;font-size:11.5px">CAQH<br>PECOS / NPPES</div>
+      </div>
+    </div>
+
+    <!-- Data flow table -->
+    <div class="section-eyebrow" style="margin-top:8px">Cross-Module Data Flows</div>
+    <div class="flow-table-wrap">
+      <table class="flow-table">
+        <thead>
+          <tr>
+            <th style="width:175px">From Module</th>
+            <th style="width:175px">To Module(s)</th>
+            <th>Data Transferred</th>
+            <th style="width:150px">Trigger / Event</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="flow-from">Patient Portal</td>
+            <td>
+              <span class="flow-to-pill">EHR Core</span>
+              <span class="flow-to-pill">Billing Engine</span>
+            </td>
+            <td>Demographics, insurance info, consent forms, intake screening scores, appointment requests</td>
+            <td>Patient submits intake / books appointment</td>
+          </tr>
+          <tr>
+            <td class="flow-from">EHR Core</td>
+            <td>
+              <span class="flow-to-pill">Coding & Revenue</span>
+            </td>
+            <td>Session type, duration, modality, diagnoses, note content flags, provider NPI, place of service</td>
+            <td>Progress note saved or finalized</td>
+          </tr>
+          <tr>
+            <td class="flow-from">EHR Core</td>
+            <td>
+              <span class="flow-to-pill">Billing Engine</span>
+            </td>
+            <td>Encounter dates, CPT modifiers, service location, rendering provider</td>
+            <td>Note finalized + charge approved</td>
+          </tr>
+          <tr>
+            <td class="flow-from">EHR Core</td>
+            <td>
+              <span class="flow-to-pill">Reporting</span>
+            </td>
+            <td>Encounter volume, appointment outcomes, no-shows, screening score trends</td>
+            <td>Nightly aggregation snapshot</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Coding &amp; Revenue</td>
+            <td>
+              <span class="flow-to-pill">Billing Engine</span>
+            </td>
+            <td>Approved charge items: CPT, HCPCS, ICD-10, units, modifiers, revenue code</td>
+            <td>Charge review completed / auto-approved</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Coding &amp; Revenue</td>
+            <td>
+              <span class="flow-to-pill">Reporting</span>
+            </td>
+            <td>Coding audit events, missed code flags, revenue capture opportunities, audit report data</td>
+            <td>Coding report generated</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Credentialing</td>
+            <td>
+              <span class="flow-to-pill">Coding & Revenue</span>
+              <span class="flow-to-pill">Billing Engine</span>
+            </td>
+            <td>Active provider status, NPI, taxonomy codes, payer enrollment status, contract effective dates</td>
+            <td>Provider validation check at charge capture and claim creation</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Billing Engine</td>
+            <td>
+              <span class="flow-to-pill">Patient Portal</span>
+            </td>
+            <td>Patient balance, statement, payment plan status, EOB summary, auto-pay receipts</td>
+            <td>ERA posted / payment applied / statement generated</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Billing Engine</td>
+            <td>
+              <span class="flow-to-pill">Reporting</span>
+            </td>
+            <td>Claims aging, ERA details, payer payment trends, denial reasons, write-off amounts</td>
+            <td>Nightly aggregation snapshot</td>
+          </tr>
+          <tr>
+            <td class="flow-from">Credentialing</td>
+            <td>
+              <span class="flow-to-pill">Reporting</span>
+            </td>
+            <td>License expiration timeline, enrollment gaps, HIPAA audit log entries, compliance flags</td>
+            <td>Credential record updated / expiration alert fired</td>
+          </tr>
+          <tr>
+            <td class="flow-from">External (ERA 835)</td>
+            <td>
+              <span class="flow-to-pill">Billing Engine</span>
+            </td>
+            <td>EOB line items, payer-assigned amounts, adjustment codes, CAS/REF segments</td>
+            <td>ERA file received from clearinghouse</td>
+          </tr>
+          <tr>
+            <td class="flow-from">External (Stripe)</td>
+            <td>
+              <span class="flow-to-pill">Billing Engine</span>
+              <span class="flow-to-pill">Patient Portal</span>
+            </td>
+            <td>Payment confirmation, refund events, card-on-file status, payment plan installment results</td>
+            <td>Stripe webhook: payment_intent.succeeded / refund.created</td>
+          </tr>
+          <tr>
+            <td class="flow-from">External (Google Cal / Zoom)</td>
+            <td>
+              <span class="flow-to-pill">EHR Core</span>
+              <span class="flow-to-pill">Patient Portal</span>
+            </td>
+            <td>Appointment sync, telehealth join links, calendar event status, cancellations</td>
+            <td>Appointment created / modified / cancelled</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 3 — ROLE PERMISSIONS
+    ═══════════════════════════════════════════════════════════ -->
+    <a id="roles"></a>
+    <div class="section-eyebrow">Section 3</div>
+    <div class="section-title">Role-Based Access Matrix</div>
+    <p class="section-sub">
+      ● Full access &nbsp;|&nbsp; <span style="color:#0369a1">◉</span> Read-only &nbsp;|&nbsp;
+      <span style="color:#92400e">OWN</span> Own records only &nbsp;|&nbsp;
+      <span style="color:#cbd5e1">○</span> No access
+    </p>
+
+    <div class="flow-table-wrap" style="margin-bottom:32px">
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th style="min-width:180px">Module / Feature</th>
+            <th>Admin</th>
+            <th>Clinician</th>
+            <th>Billing&nbsp;Spec.</th>
+            <th>Credentialing</th>
+            <th>Supervisor</th>
+            <th>Front&nbsp;Desk</th>
+            <th>Patient</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">Patient Portal</td>
+          </tr>
+          <tr>
+            <td>Intake Forms / Demographics</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+          </tr>
+          <tr>
+            <td>Billing Statements / Payments</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-own">OWN</span></td>
+          </tr>
+          <tr>
+            <td>Screening Forms (PHQ-9 etc.)</td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-own">OWN</span></td>
+          </tr>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">EHR Core</td>
+          </tr>
+          <tr>
+            <td>Patient Records (view)</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Progress Notes (create/edit)</td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Scheduling / Calendar</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Supervisor Signature / Co-sign</td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">Coding &amp; Revenue Capture</td>
+          </tr>
+          <tr>
+            <td>Coding Reports (view)</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Charge Review / Approval</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Code Rule Configuration</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">Billing Engine</td>
+          </tr>
+          <tr>
+            <td>Claims (create / submit)</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>ERA Posting / Payment Posting</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Denials &amp; Appeals</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Prior Auth Tracking</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">Credentialing &amp; Compliance</td>
+          </tr>
+          <tr>
+            <td>Provider Credentials (manage)</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Audit Logs (view)</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>HIPAA / Compliance Reports</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td style="background:var(--surface-soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)" colspan="8">Reporting &amp; Analytics</td>
+          </tr>
+          <tr>
+            <td>Revenue Dashboards</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-read">◉</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Productivity Dashboards</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+          <tr>
+            <td>Saved / Scheduled Reports</td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-own">OWN</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-full">●</span></td>
+            <td><span class="perm-none">○</span></td>
+            <td><span class="perm-none">○</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- footer -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:32px;display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Architecture version:</strong> 1.0 — April 2026</div>
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Scope:</strong> Colorado Medicaid · Multi-state ready · Multi-location group practice · White-label SaaS</div>
+      <div style="font-size:12px;color:var(--ink-500)"><strong style="color:var(--ink-700)">Compliance targets:</strong> HIPAA · 42 CFR Part 2 · Colorado Mental Health Law · CMS Conditions of Participation</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Auth guard reuse from shared.js pattern
+  if(typeof requireAuth === 'function') requireAuth();
+  if(typeof bindLogout === 'function') bindLogout('logoutBtn');
+  // Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const t = document.querySelector(a.getAttribute('href'));
+      if(t){ e.preventDefault(); t.scrollIntoView({behavior:'smooth',block:'start'}); }
+    });
+  });
+</script>
+</body>
+</html>

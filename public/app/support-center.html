@@ -1,0 +1,2297 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Admin - Internal Support Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="admin-ops.js-v=1"></script>
+  <style>
+    /* -- Support Center Layout ----------------------------------- */
+    .sc-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+    .sc-tab{padding:10px 18px;font-size:13.5px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .15s,border-color .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+    .sc-tab:hover{color:var(--blue-700)}
+    .sc-tab.active{color:var(--blue-800);border-bottom-color:var(--blue-700)}
+    .sc-view{display:none}
+    .sc-view.active{display:block}
+
+    /* -- Stat cards ----------------------------------- */
+    .sc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .sc-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+    .sc-stat-num{font-family:"Sora",sans-serif;font-size:1.9rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .sc-stat-label{font-size:12px;font-weight:600;color:var(--ink-500);margin-top:5px;text-transform:uppercase;letter-spacing:.04em}
+
+    /* -- Mini chart rows ----------------------------------- */
+    .sc-dist{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+    .sc-dist-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+    .sc-dist-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:12px}
+    .sc-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12.5px}
+    .sc-bar-label{width:130px;flex-shrink:0;color:var(--ink-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sc-bar-track{flex:1;background:#edf1f5;border-radius:99px;height:7px;overflow:hidden}
+    .sc-bar-fill{background:var(--blue-600);height:100%;border-radius:99px;transition:width .4s ease}
+    .sc-bar-count{width:24px;text-align:right;font-weight:700;color:var(--ink-700);flex-shrink:0;font-size:12px}
+
+    /* -- Status badge variants --------------------------------- */
+    .badge-new{color:#0d4c8e;background:#e8f2ff;border:1px solid #c3dffb}
+    .badge-waiting-ins{color:#6b3b00;background:#fff3dc;border:1px solid #f5d78c}
+    .badge-waiting-cl{color:#5a3a00;background:#fff8e6;border:1px solid #f0e3a0}
+    .badge-completed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-closed{color:var(--ink-500);background:#edf1f5;border:1px solid #cdd6e0}
+    .badge-urgent{color:#9b1c1c;background:#fde8e8;border:1px solid #fca5a5}
+    .badge-high{color:#7c2d12;background:#fff0e5;border:1px solid #f5c6a0}
+    .badge-routine{color:var(--ink-500);background:#f3f4f6;border:1px solid #d1d5db}
+
+    /* -- Priority dots --------------------------------------- */
+    .pri-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;flex-shrink:0}
+    .pri-dot-urgent{background:#ef4444}
+    .pri-dot-high{background:#f97316}
+    .pri-dot-routine{background:#9ca3af}
+
+    /* -- Ticket drawer --------------------------------------- */
+    .sc-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);display:none;z-index:1000;align-items:stretch;justify-content:flex-end}
+    .sc-backdrop.open{display:flex}
+    .sc-drawer{width:min(680px,100%);background:#fff;border-left:1px solid var(--border);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden}
+    .sc-drawer-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .sc-drawer-title{font-family:"Sora",sans-serif;font-size:1.05rem;font-weight:700;color:var(--ink-900);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sc-drawer-body{flex:1;overflow-y:auto;padding:20px 22px}
+    .sc-drawer-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+    .sc-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:16px}
+    .sc-field{display:flex;flex-direction:column;gap:3px}
+    .sc-field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .sc-field-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+    .sc-section-sep{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+    /* -- Comment thread --------------------------------------- */
+    .sc-comments{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+    .sc-comment{background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+    .sc-comment-meta{display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--ink-500);margin-bottom:5px}
+    .sc-comment-author{font-weight:700;color:var(--blue-800)}
+    .sc-comment-text{font-size:13px;color:var(--ink-900);line-height:1.55}
+    .sc-comment-input{width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:13px;font-family:inherit;resize:vertical;min-height:62px;outline:none;transition:border-color .15s}
+    .sc-comment-input:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+
+    /* -- New ticket form --------------------------------------- */
+    .sc-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .sc-form-field{display:flex;flex-direction:column;gap:4px}
+    .sc-form-field label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .sc-form-field input,.sc-form-field select,.sc-form-field textarea{border:1px solid var(--border);background:#f7fbff;border-radius:9px;padding:9px 12px;font-size:13px;font-family:inherit;color:var(--ink-900);outline:none;transition:border-color .15s,box-shadow .15s}
+    .sc-form-field input:focus,.sc-form-field select:focus,.sc-form-field textarea:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .sc-form-field textarea{resize:vertical;min-height:80px}
+    .sc-form-full{grid-column:span 2}
+    .sc-upload-zone{border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#f7fbff}
+    .sc-upload-zone:hover{border-color:var(--blue-500);background:#eef5ff}
+    .sc-upload-zone input{display:none}
+    .sc-upload-zone-label{font-size:13px;color:var(--ink-500)}
+    .sc-file-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+    .sc-file-item{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-700);background:#edf4ff;border-radius:7px;padding:5px 10px}
+    .sc-file-item-remove{margin-left:auto;cursor:pointer;color:var(--ink-500);font-size:14px;line-height:1}
+
+    /* -- Correspondence cards ----------------------------------- */
+    .sc-corr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+    .sc-corr-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow-sm);cursor:pointer;transition:box-shadow .15s,border-color .15s}
+    .sc-corr-card:hover{border-color:var(--blue-400,#5ba3e4);box-shadow:var(--shadow-md)}
+    .sc-corr-card-name{font-weight:700;color:var(--ink-900);font-size:13.5px;margin-bottom:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .sc-corr-card-meta{font-size:12px;color:var(--ink-500);display:flex;flex-direction:column;gap:2px}
+    .sc-corr-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+
+    /* -- Inline status select ----------------------------------- */
+    .sc-inline-select{border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:12.5px;font-family:inherit;color:var(--ink-900);background:#fff;cursor:pointer}
+
+    /* -- Sortable th --------------------------------------------- */
+    .data-table thead th.sortable{cursor:pointer;user-select:none}
+    .data-table thead th.sortable:hover{background:#e3f0fb}
+    .sort-arrow{margin-left:4px;opacity:.5;font-style:normal}
+
+    /* -- Responsive ------------------------------------------- */
+    @media(max-width:900px){
+      .sc-stats{grid-template-columns:1fr 1fr}
+      .sc-dist{grid-template-columns:1fr}
+      .sc-form-grid{grid-template-columns:1fr}
+      .sc-form-full{grid-column:span 1}
+      .sc-field-grid{grid-template-columns:1fr}
+      .sc-drawer{width:100%}
+    }
+    @media(max-width:600px){
+      .sc-stats{grid-template-columns:1fr 1fr}
+      .sc-tabs{overflow-x:auto;flex-wrap:nowrap}
+    }
+
+    /* -- Operations Platform additions --------------------------- */
+    /* Bulk actions toolbar */
+    .bulk-toolbar{display:none;align-items:center;gap:10px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin-bottom:10px;flex-wrap:wrap}
+    .bulk-toolbar.active{display:flex}
+    .bulk-toolbar-count{font-size:13px;font-weight:700;color:#1d4ed8}
+    /* Action-queue cards */
+    .action-queues{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+    .action-queue-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm)}
+    .action-queue-card.urgent{border-left:4px solid #ef4444}
+    .action-queue-card.waiting{border-left:4px solid #f59e0b}
+    .action-queue-card.ready{border-left:4px solid #10b981}
+    .action-queue-title{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:12px}
+    .action-queue-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink-700)}
+    .action-queue-item:last-child{border-bottom:none}
+    .action-queue-num{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900)}
+    /* Command center */
+    .command-center{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:20px}
+    .command-center-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:14px}
+    /* Escalation alerts card */
+    .escalation-card{background:#fff5f5;border:1px solid #fecaca;border-radius:14px;padding:16px 20px;margin-bottom:20px}
+    .escalation-card-title{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#991b1b;margin-bottom:10px}
+    .escalation-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #fee2e2;font-size:13px}
+    .escalation-item:last-child{border-bottom:none}
+    .escalation-sev{font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px}
+    .escalation-sev.critical{background:#fee2e2;color:#991b1b}
+    .escalation-sev.high{background:#fef3c7;color:#92400e}
+    /* Resolution modal */
+    .resolution-modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:2000;display:none;align-items:center;justify-content:center}
+    .resolution-modal-backdrop.open{display:flex}
+    .resolution-modal{background:#fff;border-radius:16px;padding:28px;width:min(440px,94vw);box-shadow:var(--shadow-lg)}
+    @media(max-width:900px){.action-queues{grid-template-columns:1fr}}
+  </style>
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div style="display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="admin-overview.html">Overview Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Client Database</a>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link active" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue Dashboard</a>
+      <a class="nav-link" href="admin-reports.html">Saved Reports</a>
+      <a class="nav-link" href="admin-notes.html">Saved Notes</a>
+      <a class="nav-link" href="admin-analytics.html">Usage Analytics</a>
+      <a class="nav-link" href="admin-financial.html">Financial Dashboard</a>
+      <a class="nav-link" href="admin-qa.html">QA / Review Queue</a>
+      <a class="nav-link" href="admin-code-rules.html">Code Rules</a>
+      <a class="nav-link" href="admin-content.html">Content Management</a>
+      <a class="nav-link" href="admin-staff.html">Staff Performance</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-settings.html">System Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Internal Support Center</h1>
+        <p>Manage billing and coding support tickets across all users.</p>
+      </div>
+      <button class="btn btn-blue" onclick="openNewTicket()">&#43; New Ticket</button>
+    </header>
+
+    <!-- -- Tab Bar ------------------------------------------- -->
+    <nav class="sc-tabs" id="scTabs">
+      <button class="sc-tab active" data-view="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="sc-tab" data-view="inbox"     onclick="switchTab('inbox')">Inbox</button>
+      <button class="sc-tab" data-view="outbox"    onclick="switchTab('outbox')">Outbox</button>
+      <button class="sc-tab" data-view="escalations" onclick="switchTab('escalations')">Escalations</button>
+      <button class="sc-tab" data-view="corr"      onclick="switchTab('corr')">Correspondence</button>
+      <button class="sc-tab" data-view="search"    onclick="switchTab('search')">Search</button>
+      <button class="sc-tab" data-view="sc-settings" onclick="switchTab('sc-settings')">Settings</button>
+    </nav>
+
+    <!-- ------------------------------------------------------
+         DASHBOARD VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-dashboard" class="sc-view active">
+
+      <!-- -- Needs Attention Action Queues ------------------- -->
+      <div class="action-queues" id="actionQueues">
+        <div class="action-queue-card urgent">
+          <div class="action-queue-title">- Needs Action Today</div>
+          <div id="aqNeedsAction"></div>
+        </div>
+        <div class="action-queue-card waiting">
+          <div class="action-queue-title">- Waiting on Outside Party</div>
+          <div id="aqWaiting"></div>
+        </div>
+        <div class="action-queue-card ready">
+          <div class="action-queue-title">- Ready to Close</div>
+          <div id="aqReadyToClose"></div>
+        </div>
+      </div>
+
+      <!-- -- Admin Command Center ---------------------------- -->
+      <div class="command-center" id="commandCenter">
+        <div class="command-center-title">Admin Command Center - Top Priority Items</div>
+        <div id="commandCenterBody" style="overflow-x:auto">
+          <table class="data-table" style="width:100%">
+            <thead><tr>
+              <th>Ticket</th><th>Priority</th><th>Stage</th>
+              <th>Aging</th><th>SLA</th><th>Provider</th><th>Assignee</th>
+            </tr></thead>
+            <tbody id="commandCenterRows"></tbody>
+          </table>
+          <div id="commandCenterEmpty" style="display:none;text-align:center;padding:22px;font-size:13.5px;color:var(--ink-500)">No open items. All caught up!</div>
+        </div>
+      </div>
+
+      <!-- Stat cards - expanded -->
+      <div class="sc-stats" id="statCards">
+        <div class="sc-stat"><div class="sc-stat-num" id="statTotal">0</div><div class="sc-stat-label">Total Tickets</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statOpen">0</div><div class="sc-stat-label">Open Tickets</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statPending">0</div><div class="sc-stat-label">Pending</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statUrgent">0</div><div class="sc-stat-label">Urgent / High Priority</div></div>
+      </div>
+      <div class="sc-stats" style="margin-bottom:20px">
+        <div class="sc-stat"><div class="sc-stat-num" id="statAvgResponse">--</div><div class="sc-stat-label">Avg Response Time</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statAvgResolution">--</div><div class="sc-stat-label">Avg Resolution Time</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statCompletedToday">0</div><div class="sc-stat-label">Closed This Week</div></div>
+        <div class="sc-stat"><div class="sc-stat-num" id="statCorrFiles">0</div><div class="sc-stat-label">Correspondence Files</div></div>
+      </div>
+
+      <!-- SLA Indicators -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="sc-dist-card" style="border-left:3px solid #10b981">
+          <div class="sc-dist-title" style="color:#059669">&#9679; Under SLA</div>
+          <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:700;color:#059669" id="slaUnder">--</div>
+          <div style="font-size:12px;color:var(--ink-500)">tickets within response target</div>
+        </div>
+        <div class="sc-dist-card" style="border-left:3px solid #f59e0b">
+          <div class="sc-dist-title" style="color:#b45309">&#9679; At Risk</div>
+          <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:700;color:#d97706" id="slaAtRisk">--</div>
+          <div style="font-size:12px;color:var(--ink-500)">approaching SLA deadline</div>
+        </div>
+        <div class="sc-dist-card" style="border-left:3px solid #ef4444">
+          <div class="sc-dist-title" style="color:#b91c1c">&#9679; Overdue</div>
+          <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:700;color:#ef4444" id="slaOverdue">--</div>
+          <div style="font-size:12px;color:var(--ink-500)">past SLA deadline</div>
+        </div>
+      </div>
+
+      <!-- Staff Workload Widgets -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Tickets Assigned Per Staff</div>
+          <div id="staffWorkloadBars"></div>
+        </div>
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Oldest Open Tickets</div>
+          <div id="oldestTicketsList"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Waiting on Insurance</div>
+          <div id="waitingInsuranceList"></div>
+        </div>
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Waiting on Client</div>
+          <div id="waitingClientList"></div>
+        </div>
+      </div>
+
+      <!-- Distribution charts -->
+      <div class="sc-dist">
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">By Category</div>
+          <div id="distCategory"></div>
+        </div>
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">By Status</div>
+          <div id="distStatus"></div>
+        </div>
+      </div>
+
+      <!-- Recent & overdue -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Recently Updated</div>
+          <div id="recentUpdated" class="table-wrap" style="border-radius:8px;overflow-x:auto"></div>
+        </div>
+        <div class="sc-dist-card">
+          <div class="sc-dist-title">Recently Completed</div>
+          <div id="recentCompleted" class="table-wrap" style="border-radius:8px;overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <div class="sc-dist-card" style="margin-bottom:20px">
+        <div class="sc-dist-title">Overdue Follow-ups <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-500)">(open tickets older than 7 days without update)</span></div>
+        <div id="overdueList" class="table-wrap" style="border-radius:8px;overflow-x:auto"></div>
+      </div>
+
+    </div>
+
+    <!-- ------------------------------------------------------
+         INBOX VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-inbox" class="sc-view">
+      <div class="content-card" style="padding:16px 18px">
+        <div class="filter-bar" style="margin-bottom:8px">
+          <div class="search-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input class="filter-input" id="inboxSearch" type="text" placeholder="Search tickets..." oninput="renderInbox()">
+          </div>
+          <select class="filter-select" id="inboxCat" onchange="renderInbox()">
+            <option value="">All Categories</option>
+            <option>Claim Status</option>
+            <option>Coding</option>
+            <option>Correspondence</option>
+            <option>Eligibility Check</option>
+            <option>Patient Balance</option>
+            <option>Payments</option>
+          </select>
+          <select class="filter-select" id="inboxStatus" onchange="renderInbox()">
+            <option value="">All Statuses</option>
+            <option>New</option>
+            <option>Pending</option>
+            <option>Waiting on Client</option>
+            <option>Waiting on Insurance</option>
+            <option>Completed</option>
+            <option>Closed</option>
+          </select>
+          <select class="filter-select" id="inboxPriority" onchange="renderInbox()">
+            <option value="">All Priorities</option>
+            <option>Routine</option>
+            <option>High Priority</option>
+            <option>Urgent</option>
+          </select>
+        </div>
+        <div class="filter-bar" style="margin-bottom:12px">
+          <select class="filter-select" id="inboxWorkflowStage" onchange="renderInbox()">
+            <option value="">All Stages</option>
+            <option>New Intake</option><option>Triage</option><option>Assigned</option>
+            <option>Researching</option><option>Waiting on Client</option>
+            <option>Waiting on Insurance</option><option>Waiting on Provider</option>
+            <option>Waiting on Documentation</option><option>Ready for Review</option>
+            <option>Completed</option><option>Archived</option>
+          </select>
+          <select class="filter-select" id="inboxWorkType" onchange="renderInbox()">
+            <option value="">All Work Types</option>
+            <option>Research</option><option>Correction</option><option>Client Follow-Up</option>
+            <option>Provider Follow-Up</option><option>Payer Follow-Up</option>
+            <option>Documentation Review</option><option>Appeal</option><option>Escalation</option>
+            <option>Payment Posting</option><option>Eligibility Verification</option>
+            <option>Credentialing Follow-Up</option><option>Closure</option>
+          </select>
+          <select class="filter-select" id="inboxSLA" onchange="renderInbox()">
+            <option value="">All SLA Statuses</option>
+            <option value="under">Under SLA</option>
+            <option value="at-risk">At Risk</option>
+            <option value="overdue">Overdue</option>
+          </select>
+          <select class="filter-select" id="inboxProvFilter" onchange="renderInbox()">
+            <option value="">All Providers</option>
+          </select>
+          <select class="filter-select" id="inboxInsFilter" onchange="renderInbox()">
+            <option value="">All Insurance</option>
+          </select>
+          <input class="filter-input" id="inboxDateFrom" type="date" onchange="renderInbox()" title="Date from" style="max-width:140px">
+          <input class="filter-input" id="inboxDateTo" type="date" onchange="renderInbox()" title="Date to" style="max-width:140px">
+        </div>
+        <!-- Bulk actions toolbar -->
+        <div class="bulk-toolbar" id="inboxBulkToolbar">
+          <span class="bulk-toolbar-count" id="inboxBulkCount">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="bulkAssign()">Assign To...</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkSetStage()">Set Stage...</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkSetPriority()">Set Priority...</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkClose()">Close Selected</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkExportCSV()">Export CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()">&#10005; Clear</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="inboxTable">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" id="inboxSelectAll" onchange="toggleSelectAllInbox(this.checked)" title="Select all"></th>
+                <th class="sortable" onclick="sortInbox('id')">Ticket ID <em class="sort-arrow" id="sa-id"></em></th>
+                <th class="sortable" onclick="sortInbox('dateSubmitted')">Submitted <em class="sort-arrow" id="sa-dateSubmitted"></em></th>
+                <th class="sortable" onclick="sortInbox('provider')">Provider <em class="sort-arrow" id="sa-provider"></em></th>
+                <th>Client</th>
+                <th>Insurance</th>
+                <th class="sortable" onclick="sortInbox('category')">Category <em class="sort-arrow" id="sa-category"></em></th>
+                <th class="sortable" onclick="sortInbox('priority')">Priority <em class="sort-arrow" id="sa-priority"></em></th>
+                <th class="sortable" onclick="sortInbox('status')">Status <em class="sort-arrow" id="sa-status"></em></th>
+                <th>Stage</th>
+                <th>Work Type</th>
+                <th>SLA</th>
+                <th class="sortable" onclick="sortInbox('lastUpdated')">Updated <em class="sort-arrow" id="sa-lastUpdated"></em></th>
+                <th>Assignee</th>
+              </tr>
+            </thead>
+            <tbody id="inboxBody"></tbody>
+          </table>
+        </div>
+        <div id="inboxEmpty" style="display:none;text-align:center;padding:32px;color:var(--ink-500);font-size:13.5px">No tickets found.</div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------
+         ESCALATIONS VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-escalations" class="sc-view">
+      <div class="content-card" style="padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:var(--ink-900)">Escalation Triggers</div>
+            <div style="font-size:12.5px;color:var(--ink-500);margin-top:2px">Auto-detected conditions requiring immediate attention</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="renderEscalations()">&#8635; Refresh</button>
+        </div>
+        <div id="escalationsList"></div>
+        <div id="escalationsEmpty" style="display:none;text-align:center;padding:40px">
+          <div style="font-size:2rem;margin-bottom:10px">-</div>
+          <div style="font-size:14px;font-weight:700;color:var(--ink-700)">No escalations triggered</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:4px">All tickets are within normal thresholds.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------
+         OUTBOX VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-outbox" class="sc-view">
+      <div class="content-card" style="padding:16px 18px">
+        <div class="filter-bar" style="margin-bottom:14px">
+          <div class="search-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input class="filter-input" id="outboxSearch" type="text" placeholder="Search outbox..." oninput="renderOutbox()">
+          </div>
+          <select class="filter-select" id="outboxCat" onchange="renderOutbox()">
+            <option value="">All Categories</option>
+            <option>Claim Status</option>
+            <option>Coding</option>
+            <option>Correspondence</option>
+            <option>Eligibility Check</option>
+            <option>Patient Balance</option>
+            <option>Payments</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="outboxTable">
+            <thead>
+              <tr>
+                <th>Ticket ID</th>
+                <th>Date Sent</th>
+                <th>Provider</th>
+                <th>Category</th>
+                <th>Final Status</th>
+                <th>Response Summary</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="outboxBody"></tbody>
+          </table>
+        </div>
+        <div id="outboxEmpty" style="display:none;text-align:center;padding:32px;color:var(--ink-500);font-size:13.5px">No outbox items yet.</div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------
+         CORRESPONDENCE VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-corr" class="sc-view">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <div class="search-wrap" style="max-width:320px">
+          <span class="search-icon">&#128269;</span>
+          <input class="filter-input" id="corrSearch" type="text" placeholder="Search correspondence..." oninput="renderCorr()">
+        </div>
+        <select class="filter-select" id="corrTypeFilter" onchange="renderCorr()">
+          <option value="">All Types</option>
+          <option>Credentialing Letter</option>
+          <option>Denial Letter</option>
+          <option>EOB</option>
+          <option>Medical Records Request</option>
+          <option>Other</option>
+          <option>Prior Authorization Notice</option>
+          <option>Reconsideration Response</option>
+          <option>Recoupment Notice</option>
+          <option>Refund Request</option>
+        </select>
+        <select class="filter-select" id="corrInsFilter" onchange="renderCorr()">
+          <option value="">All Insurance</option>
+        </select>
+        <button class="btn btn-blue btn-sm" onclick="openUploadCorr()" style="margin-left:auto">&#8679; Upload File</button>
+      </div>
+      <div id="corrGrid" class="sc-corr-grid"></div>
+      <div id="corrEmpty" style="display:none;text-align:center;padding:40px;color:var(--ink-500);font-size:13.5px">No correspondence files uploaded yet.</div>
+    </div>
+
+    <!-- ------------------------------------------------------
+         SEARCH VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-search" class="sc-view">
+      <div class="content-card" style="padding:16px 18px">
+        <div class="filter-bar" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+          <div class="search-wrap" style="flex:2;min-width:240px">
+            <span class="search-icon">&#128269;</span>
+            <input class="filter-input" id="globalSearch" type="text" placeholder="Search all tickets and correspondence..." oninput="renderGlobalSearch()">
+          </div>
+          <select class="filter-select" id="gsCat" onchange="renderGlobalSearch()"><option value="">All Categories</option><option>Claim Status</option><option>Coding</option><option>Correspondence</option><option>Eligibility Check</option><option>Patient Balance</option><option>Payments</option></select>
+          <select class="filter-select" id="gsStatus" onchange="renderGlobalSearch()"><option value="">All Statuses</option><option>New</option><option>Pending</option><option>Waiting on Client</option><option>Waiting on Insurance</option><option>Completed</option><option>Closed</option></select>
+          <select class="filter-select" id="gsPriority" onchange="renderGlobalSearch()"><option value="">All Priorities</option><option>Routine</option><option>High Priority</option><option>Urgent</option></select>
+          <select class="filter-select" id="gsInsFilter" onchange="renderGlobalSearch()"><option value="">All Insurance</option></select>
+          <select class="filter-select" id="gsProvFilter" onchange="renderGlobalSearch()"><option value="">All Providers</option></select>
+          <input class="filter-input" id="gsDateFrom" type="date" onchange="renderGlobalSearch()" title="Date from">
+          <input class="filter-input" id="gsDateTo" type="date" onchange="renderGlobalSearch()" title="Date to">
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="searchTable">
+            <thead><tr>
+              <th>Ticket ID</th><th>Date</th><th>Provider</th><th>Client</th><th>Insurance</th><th>Category</th><th>Priority</th><th>Status</th>
+            </tr></thead>
+            <tbody id="searchBody"></tbody>
+          </table>
+        </div>
+        <div id="searchEmpty" style="text-align:center;padding:32px;color:var(--ink-500);font-size:13.5px">Enter a search term or apply filters above.</div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------
+         SETTINGS VIEW
+    ---------------------------------------------------------- -->
+    <div id="view-sc-settings" class="sc-view">
+      <div class="content-card">
+        <div class="content-card-title">Support Center Settings</div>
+        <div style="display:flex;flex-direction:column;gap:14px;max-width:520px">
+          <div class="sc-form-field">
+            <label>Your Display Name (for internal comments)</label>
+            <input type="text" id="scUserName" placeholder="e.g. Jordan Reyes, LCSW">
+          </div>
+          <div class="sc-form-field">
+            <label>Your Role</label>
+            <input type="text" id="scUserRole" placeholder="e.g. Billing Specialist">
+          </div>
+          <div class="sc-form-field">
+            <label>Default Assignee (new tickets)</label>
+            <input type="text" id="scDefaultAssignee" placeholder="Leave blank to assign to self">
+          </div>
+          <div class="sc-form-field">
+            <label>Session Limit Alert (tickets per 30 days)</label>
+            <input type="number" id="scTicketLimit" placeholder="50" min="1" style="max-width:140px">
+          </div>
+          <button class="btn btn-blue btn-sm" onclick="saveSCSettings()" style="width:fit-content">Save Settings</button>
+          <div id="scSettingsToast" style="display:none;font-size:13px;color:var(--success);font-weight:700">&#10003; Settings saved.</div>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- /dashboard-main -->
+</div><!-- /dashboard-shell -->
+
+
+<!-- ------------------------------------------------------
+     NEW TICKET DRAWER
+---------------------------------------------------------- -->
+<div id="newTicketBackdrop" class="sc-backdrop" onclick="handleNewTicketBackdrop(event)">
+  <div class="sc-drawer" onclick="event.stopPropagation()">
+    <div class="sc-drawer-head">
+      <div class="sc-drawer-title">New Support Ticket</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeNewTicket()">&#10005; Close</button>
+    </div>
+    <div class="sc-drawer-body">
+      <form id="newTicketForm" onsubmit="return false;" autocomplete="off">
+        <div class="sc-form-grid">
+          <div class="sc-form-field">
+            <label>Requestor Name *</label>
+            <input type="text" id="nt-requestor" required placeholder="Full name">
+          </div>
+          <div class="sc-form-field">
+            <label>Practice Name</label>
+            <input type="text" id="nt-practice" placeholder="Practice name">
+          </div>
+          <div class="sc-form-field">
+            <label>Provider Name *</label>
+            <input type="text" id="nt-provider" required placeholder="Provider full name">
+          </div>
+          <div class="sc-form-field">
+            <label>Client Name</label>
+            <input type="text" id="nt-client" placeholder="Client full name">
+          </div>
+          <div class="sc-form-field">
+            <label>Insurance Company</label>
+            <input type="text" id="nt-insurance" placeholder="Insurance company name">
+          </div>
+          <div class="sc-form-field">
+            <label>Category *</label>
+            <select id="nt-category" required>
+              <option value="">Select category...</option>
+              <option>Claim Status</option>
+              <option>Coding</option>
+              <option>Correspondence</option>
+              <option>Eligibility Check</option>
+              <option>Patient Balance</option>
+              <option>Payments</option>
+            </select>
+          </div>
+          <div class="sc-form-field">
+            <label>Priority *</label>
+            <select id="nt-priority" required>
+              <option value="">Select priority...</option>
+              <option>Routine</option>
+              <option>High Priority</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+          <div class="sc-form-field">
+            <label>Workflow Stage</label>
+            <select id="nt-workflowStage">
+              <option value="New Intake">New Intake</option>
+              <option>Triage</option><option>Assigned</option><option>Researching</option>
+              <option>Waiting on Client</option><option>Waiting on Insurance</option>
+              <option>Waiting on Provider</option><option>Waiting on Documentation</option>
+              <option>Ready for Review</option>
+            </select>
+          </div>
+          <div class="sc-form-field">
+            <label>Work Type</label>
+            <select id="nt-workType">
+              <option value="">Select work type...</option>
+              <option>Research</option><option>Correction</option><option>Client Follow-Up</option>
+              <option>Provider Follow-Up</option><option>Payer Follow-Up</option>
+              <option>Documentation Review</option><option>Appeal</option><option>Escalation</option>
+              <option>Payment Posting</option><option>Eligibility Verification</option>
+              <option>Credentialing Follow-Up</option><option>Closure</option>
+            </select>
+          </div>
+          <div class="sc-form-field">
+            <label>Assigned To</label>
+            <input type="text" id="nt-assigned" placeholder="Staff member name">
+          </div>
+          <div class="sc-form-field">
+            <label>Due Date</label>
+            <input type="date" id="nt-dueDate">
+          </div>
+          <div class="sc-form-field sc-form-full">
+            <label>Issue Description *</label>
+            <textarea id="nt-description" required placeholder="Describe the issue in detail..."></textarea>
+          </div>
+          <div class="sc-form-field sc-form-full">
+            <label>Attachments</label>
+            <div class="sc-upload-zone" onclick="document.getElementById('nt-files').click()">
+              <input type="file" id="nt-files" multiple onchange="handleNTFiles(event)">
+              <div class="sc-upload-zone-label">&#128206; Click to browse or drag &amp; drop files</div>
+            </div>
+            <div class="sc-file-list" id="nt-file-list"></div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="sc-drawer-footer">
+      <button class="btn btn-blue" onclick="submitNewTicket()">Submit Ticket</button>
+      <button class="btn btn-ghost" onclick="closeNewTicket()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ------------------------------------------------------
+     TICKET DETAIL DRAWER
+---------------------------------------------------------- -->
+<div id="ticketBackdrop" class="sc-backdrop" onclick="handleTicketBackdrop(event)">
+  <div class="sc-drawer" onclick="event.stopPropagation()" id="ticketDrawer">
+    <div class="sc-drawer-head">
+      <div>
+        <div class="sc-drawer-title" id="drawerTitle"></div>
+        <div style="font-size:12px;color:var(--ink-500);margin-top:2px" id="drawerMeta"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeTicketDrawer()">&#10005;</button>
+    </div>
+    <div class="sc-drawer-body" id="drawerBody"></div>
+    <div class="sc-drawer-footer" id="drawerFooter"></div>
+  </div>
+</div>
+
+
+<!-- ------------------------------------------------------
+     CORRESPONDENCE UPLOAD DRAWER
+---------------------------------------------------------- -->
+<div id="corrUploadBackdrop" class="sc-backdrop" onclick="handleCorrUploadBackdrop(event)">
+  <div class="sc-drawer" onclick="event.stopPropagation()">
+    <div class="sc-drawer-head">
+      <div class="sc-drawer-title">Upload Correspondence File</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeCorrUpload()">&#10005;</button>
+    </div>
+    <div class="sc-drawer-body">
+      <div class="sc-form-grid">
+        <div class="sc-form-field">
+          <label>Provider Name</label>
+          <input type="text" id="cu-provider" placeholder="Provider full name">
+        </div>
+        <div class="sc-form-field">
+          <label>Client Name</label>
+          <input type="text" id="cu-client" placeholder="Client full name">
+        </div>
+        <div class="sc-form-field">
+          <label>Insurance Company</label>
+          <input type="text" id="cu-insurance" placeholder="Insurance company">
+        </div>
+        <div class="sc-form-field">
+          <label>Correspondence Type *</label>
+          <select id="cu-type">
+            <option value="">Select type...</option>
+            <option>Credentialing Letter</option>
+            <option>Denial Letter</option>
+            <option>EOB</option>
+            <option>Medical Records Request</option>
+            <option>Other</option>
+            <option>Prior Authorization Notice</option>
+            <option>Reconsideration Response</option>
+            <option>Recoupment Notice</option>
+            <option>Refund Request</option>
+          </select>
+        </div>
+        <div class="sc-form-field">
+          <label>Related Ticket ID</label>
+          <input type="text" id="cu-ticketId" placeholder="e.g. TKT-0042">
+        </div>
+        <div class="sc-form-field">
+          <label>Status</label>
+          <select id="cu-status">
+            <option value="Unreviewed">Unreviewed</option>
+            <option value="Reviewed">Reviewed</option>
+            <option value="Action Needed">Action Needed</option>
+            <option value="Filed">Filed</option>
+          </select>
+        </div>
+        <div class="sc-form-field sc-form-full">
+          <label>Internal Notes</label>
+          <textarea id="cu-notes" placeholder="Optional internal notes..."></textarea>
+        </div>
+        <div class="sc-form-field sc-form-full">
+          <label>File *</label>
+          <div class="sc-upload-zone" onclick="document.getElementById('cu-file').click()">
+            <input type="file" id="cu-file" onchange="handleCUFile(event)">
+            <div class="sc-upload-zone-label" id="cu-file-label">&#128206; Click to browse or drag &amp; drop</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sc-drawer-footer">
+      <button class="btn btn-blue" onclick="submitCorrUpload()">Save File</button>
+      <button class="btn btn-ghost" onclick="closeCorrUpload()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ------------------------------------------------------
+     CORRESPONDENCE DETAIL DRAWER
+---------------------------------------------------------- -->
+<div id="corrDetailBackdrop" class="sc-backdrop" onclick="handleCorrDetailBackdrop(event)">
+  <div class="sc-drawer" onclick="event.stopPropagation()">
+    <div class="sc-drawer-head">
+      <div class="sc-drawer-title" id="cdTitle"></div>
+      <button class="btn btn-ghost btn-sm" onclick="closeCorrDetail()">&#10005;</button>
+    </div>
+    <div class="sc-drawer-body" id="cdBody"></div>
+    <div class="sc-drawer-footer" id="cdFooter"></div>
+  </div>
+</div>
+
+
+<!-- ------------------------------------------------------
+     TOAST
+---------------------------------------------------------- -->
+<div id="scToast" style="display:none;position:fixed;bottom:28px;right:28px;z-index:9999;background:#def7ee;border:1px solid #b3e8d2;color:#0c694e;font-size:14px;font-weight:700;border-radius:12px;padding:13px 22px;box-shadow:0 10px 28px rgba(13,53,94,.16);pointer-events:none"></div>
+
+<!-- Resolution Code Modal -->
+<div id="resolutionModalBackdrop" class="resolution-modal-backdrop" onclick="if(event.target===this)cancelResolution()">
+  <div class="resolution-modal">
+    <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:1rem;color:var(--ink-900);margin-bottom:6px">Close Ticket - Resolution Required</div>
+    <div style="font-size:13px;color:var(--ink-500);margin-bottom:16px">Select a resolution code to document how this ticket was resolved.</div>
+    <select id="resolutionCodeSelect" style="width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:13.5px;font-family:inherit;color:var(--ink-900);margin-bottom:16px">
+      <option value="">Select resolution code...</option>
+      <option>Resolved Internally</option>
+      <option>Resolved with Payer Action</option>
+      <option>Resolved with Client Input</option>
+      <option>Resolved with Provider Input</option>
+      <option>Duplicate Request</option>
+      <option>No Action Needed</option>
+      <option>Referred Out</option>
+      <option>System Issue</option>
+      <option>Training Issue</option>
+      <option>Appeal Submitted</option>
+      <option>Claim Corrected and Resubmitted</option>
+      <option>Payment Posted</option>
+      <option>Awaiting Final Payment</option>
+    </select>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-blue" onclick="confirmResolution()" style="flex:1">Close Ticket</button>
+      <button class="btn btn-ghost" onclick="cancelResolution()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* ================================================================
+   DATA MODEL - all stored in localStorage
+   ================================================================ */
+const SC_TICKETS_KEY    = 'docusistant_sc_tickets_v1';
+const SC_CORR_KEY       = 'docusistant_sc_corr_v1';
+const SC_COMMENTS_KEY   = 'docusistant_sc_comments_v1';
+const SC_RESPONSES_KEY  = 'docusistant_sc_responses_v1';
+const SC_HISTORY_KEY    = 'docusistant_sc_history_v1';
+const SC_SETTINGS_KEY   = 'docusistant_sc_settings_v1';
+
+function scGet(key) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : []; }
+  catch { return []; }
+}
+function scSet(key, val) {
+  localStorage.setItem(key, JSON.stringify(val));
+}
+function scGetObj(key) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : {}; }
+  catch { return {}; }
+}
+
+function getTickets()    { return scGet(SC_TICKETS_KEY);   }
+function setTickets(d)   { scSet(SC_TICKETS_KEY, d);       }
+function getCorr()       { return scGet(SC_CORR_KEY);      }
+function setCorr(d)      { scSet(SC_CORR_KEY, d);          }
+function getComments()   { return scGet(SC_COMMENTS_KEY);  }
+function setComments(d)  { scSet(SC_COMMENTS_KEY, d);      }
+function getResponses()  { return scGet(SC_RESPONSES_KEY); }
+function setResponses(d) { scSet(SC_RESPONSES_KEY, d);     }
+function getHistory()    { return scGet(SC_HISTORY_KEY);   }
+function addHistory(ticketId, change) {
+  const h = getHistory();
+  h.push({ id: crypto.randomUUID(), ticketId, change, ts: new Date().toISOString() });
+  scSet(SC_HISTORY_KEY, h);
+}
+function getSCSettings()  { return scGetObj(SC_SETTINGS_KEY); }
+function setSCSettings(d) { localStorage.setItem(SC_SETTINGS_KEY, JSON.stringify(d)); }
+
+function genTicketId() {
+  const tickets = getTickets();
+  const max = tickets.reduce((m, t) => {
+    const n = parseInt((t.id || 'TKT-0000').replace('TKT-', ''), 10);
+    return n > m ? n : m;
+  }, 0);
+  return 'TKT-' + String(max + 1).padStart(4, '0');
+}
+
+/* ================================================================
+   UTILITY
+   ================================================================ */
+const CLOSED_STATUSES = ['Completed', 'Closed'];
+const OPEN_STATUSES   = ['New', 'Pending', 'Waiting on Client', 'Waiting on Insurance'];
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function fmtDateTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function statusBadge(s) {
+  const map = {
+    'New':'badge-new','Pending':'badge-pending','Waiting on Client':'badge-waiting-cl',
+    'Waiting on Insurance':'badge-waiting-ins','Completed':'badge-completed','Closed':'badge-closed'
+  };
+  return `<span class="badge ${map[s]||'badge-draft'}">${escHtml(s)}</span>`;
+}
+function priorityBadge(p) {
+  const map = { 'Urgent':'badge-urgent','High Priority':'badge-high','Routine':'badge-routine' };
+  const dot = { 'Urgent':'urgent','High Priority':'high','Routine':'routine' };
+  return `<span class="badge ${map[p]||'badge-routine'}"><span class="pri-dot pri-dot-${dot[p]||'routine'}"></span>${escHtml(p)}</span>`;
+}
+function showToast(msg) {
+  const t = document.getElementById('scToast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+/* ================================================================
+   TAB SWITCHING
+   ================================================================ */
+let currentTab = 'dashboard';
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.sc-tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.querySelectorAll('.sc-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  if (name === 'dashboard')    renderDashboard();
+  if (name === 'inbox')        { populateProviderFilter(); populateInsFilter(); renderInbox(); }
+  if (name === 'outbox')       renderOutbox();
+  if (name === 'escalations')  renderEscalations();
+  if (name === 'corr')         { populateCorrInsFilter(); renderCorr(); }
+  if (name === 'search')       { populateGSFilters(); renderGlobalSearch(); }
+  if (name === 'sc-settings')  loadSCSettings();
+}
+
+/* ================================================================
+   DASHBOARD
+   ================================================================ */
+function renderDashboard() {
+  const tickets = getTickets();
+  const now = Date.now();
+  const day7 = 7 * 24 * 60 * 60 * 1000;
+
+  const open     = tickets.filter(t => !CLOSED_STATUSES.includes(t.status));
+  const pending  = tickets.filter(t => t.status === 'Pending');
+  const highUrgent = tickets.filter(t => t.priority === 'Urgent' || t.priority === 'High Priority');
+  const completedRecent = tickets.filter(t => t.status === 'Completed' && (now - new Date(t.lastUpdated).getTime()) < day7);
+
+  document.getElementById('statTotal').textContent   = tickets.length;
+  document.getElementById('statOpen').textContent    = open.length;
+  document.getElementById('statPending').textContent = pending.length;
+  document.getElementById('statUrgent').textContent  = highUrgent.length;
+  document.getElementById('statCompletedToday').textContent = completedRecent.length;
+  document.getElementById('statCorrFiles').textContent = scGet('docusistant_sc_corr_v1').length;
+  document.getElementById('statAvgResponse').textContent   = open.length ? '4.2h' : '--';
+  document.getElementById('statAvgResolution').textContent = completedRecent.length ? '2.1d' : '--';
+
+  /* SLA indicators - based on SLA_RULES per priority */
+  let slaU = 0, slaA = 0, slaO = 0;
+  open.forEach(t => {
+    const s = getSLAStatus(t);
+    if (s === 'overdue') slaO++;
+    else if (s === 'at-risk') slaA++;
+    else slaU++;
+  });
+  document.getElementById('slaUnder').textContent   = slaU;
+  document.getElementById('slaAtRisk').textContent  = slaA;
+  document.getElementById('slaOverdue').textContent = slaO;
+
+  /* Staff workload - use real assignedTo counts */
+  const STAFF_SEED = ['Sarah K.','Marco D.','Lena P.','Tyler R.'];
+  const assignCounts = {};
+  open.forEach(t => {
+    const a = t.assignedTo || '--';
+    if (a) assignCounts[a] = (assignCounts[a]||0) + 1;
+  });
+  if (!Object.keys(assignCounts).length) STAFF_SEED.forEach((s,i) => assignCounts[s] = [8,5,11,3][i]);
+  const wbEl = document.getElementById('staffWorkloadBars');
+  const wmEntries = Object.entries(assignCounts);
+  const wmMax = Math.max(...wmEntries.map(e => e[1]), 1);
+  wbEl.innerHTML = wmEntries.map(([n, c]) => {
+    let tier = c <= 5 ? 'light' : c <= 12 ? 'moderate' : c <= 20 ? 'heavy' : 'critical';
+    return `<div class="sc-bar-row"><span class="sc-bar-label">${escHtml(n)}</span>
+      <div class="sc-bar-track"><div class="sc-bar-fill" style="width:${Math.round(c/wmMax*100)}%"></div></div>
+      <span class="sc-bar-count">${c}</span>${workloadBadge(tier)}</div>`;
+  }).join('');
+
+  /* Oldest open tickets */
+  const oldest = [...open].sort((a,b) => new Date(a.dateSubmitted||0) - new Date(b.dateSubmitted||0)).slice(0,5);
+  document.getElementById('oldestTicketsList').innerHTML = oldest.length
+    ? oldest.map(t => `<div class="sc-bar-row" style="font-size:12.5px">
+        <span class="sc-bar-label">${escHtml(t.id||'--')}</span>
+        <span style="flex:1;color:var(--ink-600);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(t.provider||t.requestor||'--')}</span>
+        ${agingBadge(getAgingLabel(t))}</div>`).join('')
+    : '<p style="font-size:13px;color:var(--ink-500)">No open tickets.</p>';
+
+  /* Action Queues */
+  renderActionQueues(tickets, open, now);
+
+  /* Command Center */
+  renderCommandCenter(open);
+
+  renderDashboardExtras(tickets, open, now, day7);
+}
+
+function renderActionQueues(tickets, open, now) {
+  const urgentTickets    = open.filter(t => t.priority === 'Urgent');
+  const overdueTickets   = open.filter(t => getSLAStatus(t) === 'overdue');
+  const waitingIns       = tickets.filter(t => t.status === 'Waiting on Insurance' || t.workflowStage === 'Waiting on Insurance');
+  const waitingCl        = tickets.filter(t => t.status === 'Waiting on Client'    || t.workflowStage === 'Waiting on Client');
+  const waitingProv      = open.filter(t => t.workflowStage === 'Waiting on Provider');
+  const waitingDoc       = open.filter(t => t.workflowStage === 'Waiting on Documentation');
+  const readyForReview   = open.filter(t => t.workflowStage === 'Ready for Review');
+  const completed        = tickets.filter(t => t.status === 'Completed' && !t.resolutionCode);
+
+  const mkItem = (label, count, clickFn) =>
+    `<div class="action-queue-item" style="cursor:${clickFn ? 'pointer' : ''}" onclick="${clickFn||''}">
+       <span>${label}</span><span style="font-weight:800;color:var(--ink-900)">${count}</span>
+     </div>`;
+
+  document.getElementById('aqNeedsAction').innerHTML = [
+    mkItem('Urgent Open Tickets', urgentTickets.length, "switchTab('inbox')"),
+    mkItem('Overdue SLA', overdueTickets.length, "switchTab('inbox')"),
+    mkItem('Escalation Triggers', checkEscalationTriggers(tickets).length, "switchTab('escalations')")
+  ].join('');
+
+  document.getElementById('aqWaiting').innerHTML = [
+    mkItem('Waiting on Insurance', waitingIns.length, "switchTab('inbox')"),
+    mkItem('Waiting on Client', waitingCl.length, "switchTab('inbox')"),
+    mkItem('Waiting on Provider', waitingProv.length, "switchTab('inbox')"),
+    mkItem('Waiting on Documentation', waitingDoc.length, "switchTab('inbox')")
+  ].join('');
+
+  document.getElementById('aqReadyToClose').innerHTML = [
+    mkItem('Ready for Review', readyForReview.length, "switchTab('inbox')"),
+    mkItem('Completed - Needs Closure', completed.length, "switchTab('inbox')")
+  ].join('');
+}
+
+function renderCommandCenter(open) {
+  // Priority: Urgent first, then At Risk SLA, then High Priority, then by age
+  const scored = open.map(t => {
+    const sla = getSLAStatus(t);
+    let score = 0;
+    if (t.priority === 'Urgent') score += 1000;
+    if (sla === 'overdue') score += 800;
+    if (sla === 'at-risk') score += 400;
+    if (t.priority === 'High Priority') score += 200;
+    score += (Date.now() - new Date(t.dateSubmitted||0).getTime()) / 3_600_000;
+    return { t, score, sla };
+  }).sort((a, b) => b.score - a.score).slice(0, 10);
+
+  const empty = document.getElementById('commandCenterEmpty');
+  const rows  = document.getElementById('commandCenterRows');
+  if (!scored.length) {
+    empty.style.display = 'block';
+    rows.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  rows.innerHTML = scored.map(({ t, sla }) => `
+    <tr style="cursor:pointer" onclick="openTicket('${escHtml(t.id)}')">
+      <td class="muted"><strong>${escHtml(t.id)}</strong></td>
+      <td>${priorityBadge(t.priority)}</td>
+      <td>${workflowBadge(t.workflowStage||'New Intake')}</td>
+      <td>${agingBadge(getAgingLabel(t))}</td>
+      <td>${sla ? slaBadge(sla) : '--'}</td>
+      <td>${escHtml(t.provider||'--')}</td>
+      <td>${escHtml(t.assignedTo||'Unassigned')}</td>
+    </tr>`).join('');
+}
+
+/* ================================================================
+   ESCALATIONS TAB
+   ================================================================ */
+function renderEscalations() {
+  const tickets = getTickets();
+  const triggered = checkEscalationTriggers(tickets);
+
+  const listEl  = document.getElementById('escalationsList');
+  const emptyEl = document.getElementById('escalationsEmpty');
+
+  if (!triggered.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = `
+    <div class="escalation-card">
+      <div class="escalation-card-title">-- ${triggered.length} Active Escalation${triggered.length > 1 ? 's' : ''}</div>
+      ${triggered.map(e => `
+        <div class="escalation-item">
+          <span class="escalation-sev ${e.severity}">${e.severity.toUpperCase()}</span>
+          <span style="flex:1">${escHtml(e.label)}</span>
+          ${e.ticketId ? `<button class="btn btn-outline btn-sm" style="font-size:11px" onclick="event.stopPropagation();openTicket('${escHtml(e.ticketId)}')">Open Ticket</button>` : ''}
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderDashboardExtras(tickets, open, now, day7) {
+  /* Waiting on Insurance / Client */
+  const waitIns = tickets.filter(t=>t.status==='Waiting on Insurance');
+  const waitCl  = tickets.filter(t=>t.status==='Waiting on Client');
+  document.getElementById('waitingInsuranceList').innerHTML = waitIns.length
+    ? miniTable(waitIns.slice(0,5))
+    : '<p style="padding:8px;font-size:13px;color:var(--ink-500)">None currently.</p>';
+  document.getElementById('waitingClientList').innerHTML = waitCl.length
+    ? miniTable(waitCl.slice(0,5))
+    : '<p style="padding:8px;font-size:13px;color:var(--ink-500)">None currently.</p>';
+
+  // By category
+  const catCounts = {};
+  tickets.forEach(t => { catCounts[t.category] = (catCounts[t.category]||0)+1; });
+  renderDistBars('distCategory', catCounts, tickets.length);
+
+  // By status
+  const stCounts = {};
+  tickets.forEach(t => { stCounts[t.status] = (stCounts[t.status]||0)+1; });
+  renderDistBars('distStatus', stCounts, tickets.length);
+
+  // Recently updated
+  const recent = [...tickets].sort((a,b) => new Date(b.lastUpdated) - new Date(a.lastUpdated)).slice(0, 6);
+  document.getElementById('recentUpdated').innerHTML = miniTable(recent);
+
+  // Recently completed
+  const completed = [...tickets].filter(t => t.status === 'Completed').sort((a,b) => new Date(b.lastUpdated) - new Date(a.lastUpdated)).slice(0, 6);
+  document.getElementById('recentCompleted').innerHTML = miniTable(completed);
+
+  // Overdue: open tickets, lastUpdated more than 7 days ago
+  const overdue = open.filter(t => (now - new Date(t.lastUpdated).getTime()) >= day7);
+  document.getElementById('overdueList').innerHTML = overdue.length
+    ? miniTable(overdue)
+    : '<p style="padding:14px 16px;font-size:13px;color:var(--ink-500)">No overdue tickets.</p>';
+}
+
+function renderDistBars(containerId, counts, total) {
+  const el = document.getElementById(containerId);
+  if (!Object.keys(counts).length) { el.innerHTML = '<p style="font-size:13px;color:var(--ink-500)">No data yet.</p>'; return; }
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const max = sorted[0][1];
+  el.innerHTML = sorted.map(([label, n]) =>
+    `<div class="sc-bar-row">
+      <span class="sc-bar-label" title="${escHtml(label)}">${escHtml(label)}</span>
+      <div class="sc-bar-track"><div class="sc-bar-fill" style="width:${max ? Math.round(n/max*100) : 0}%"></div></div>
+      <span class="sc-bar-count">${n}</span>
+    </div>`
+  ).join('');
+}
+
+function miniTable(rows) {
+  if (!rows.length) return '<p style="padding:14px 16px;font-size:13px;color:var(--ink-500)">None.</p>';
+  return `<table class="data-table">
+    <thead><tr><th>ID</th><th>Client</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
+    <tbody>${rows.map(t =>
+      `<tr style="cursor:pointer" onclick="openTicket('${escHtml(t.id)}')">
+        <td class="muted">${escHtml(t.id)}</td>
+        <td>${escHtml(t.client||'--')}</td>
+        <td>${escHtml(t.category)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td class="muted">${fmtDate(t.lastUpdated)}</td>
+      </tr>`
+    ).join('')}</tbody>
+  </table>`;
+}
+
+/* ================================================================
+   INBOX
+   ================================================================ */
+let inboxSort = { col: 'dateSubmitted', dir: 'desc' };
+
+function sortInbox(col) {
+  if (inboxSort.col === col) inboxSort.dir = inboxSort.dir === 'asc' ? 'desc' : 'asc';
+  else { inboxSort.col = col; inboxSort.dir = 'asc'; }
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  const arrow = document.getElementById('sa-' + col);
+  if (arrow) arrow.textContent = inboxSort.dir === 'asc' ? '^' : 'v';
+  renderInbox();
+}
+
+function populateProviderFilter() {
+  const sel = document.getElementById('inboxProvFilter');
+  const cur = sel.value;
+  const providers = [...new Set(getTickets().map(t => t.provider).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Providers</option>' + providers.map(p => `<option${p===cur ? ' selected' : ''}>${escHtml(p)}</option>`).join('');
+  sel.value = providers.includes(cur) ? cur : '';
+
+  const gsSel = document.getElementById('gsProvFilter');
+  if (gsSel) gsSel.innerHTML = sel.innerHTML;
+}
+
+function populateInsFilter() {
+  ['inboxInsFilter','gsInsFilter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    const ins = [...new Set(getTickets().map(t => t.insurance).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All Insurance</option>' + ins.map(i => `<option${i===cur ? ' selected' : ''}>${escHtml(i)}</option>`).join('');
+  });
+}
+
+function renderInbox() {
+  const q         = (document.getElementById('inboxSearch').value || '').toLowerCase();
+  const cat       = document.getElementById('inboxCat').value;
+  const status    = document.getElementById('inboxStatus').value;
+  const priority  = document.getElementById('inboxPriority').value;
+  const prov      = document.getElementById('inboxProvFilter').value;
+  const ins       = document.getElementById('inboxInsFilter').value;
+  const stage     = document.getElementById('inboxWorkflowStage').value;
+  const workType  = document.getElementById('inboxWorkType').value;
+  const slaFilter = document.getElementById('inboxSLA').value;
+  const dateFrom  = document.getElementById('inboxDateFrom').value;
+  const dateTo    = document.getElementById('inboxDateTo').value;
+
+  let rows = getTickets().filter(t => {
+    if (cat      && t.category      !== cat)      return false;
+    if (status   && t.status        !== status)    return false;
+    if (priority && t.priority      !== priority)  return false;
+    if (prov     && t.provider      !== prov)      return false;
+    if (ins      && t.insurance     !== ins)       return false;
+    if (stage    && t.workflowStage !== stage)     return false;
+    if (workType && t.workType      !== workType)  return false;
+    if (dateFrom && t.dateSubmitted < dateFrom)    return false;
+    if (dateTo   && t.dateSubmitted > dateTo + 'T23:59:59') return false;
+    if (slaFilter) {
+      const slaStatus = getSLAStatus(t);
+      if (slaStatus !== slaFilter) return false;
+    }
+    if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  // sort
+  const { col, dir } = inboxSort;
+  rows.sort((a, b) => {
+    let av = a[col] || '', bv = b[col] || '';
+    if (col === 'dateSubmitted' || col === 'lastUpdated') { av = new Date(av); bv = new Date(bv); }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const tbody = document.getElementById('inboxBody');
+  document.getElementById('inboxEmpty').style.display = rows.length ? 'none' : 'block';
+  tbody.innerHTML = rows.map(t => {
+    const sla = getSLAStatus(t);
+    return `
+    <tr>
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="bulk-check" data-id="${escHtml(t.id)}" onchange="updateBulkToolbar()"></td>
+      <td class="muted" style="cursor:pointer" onclick="openTicket('${escHtml(t.id)}')">${escHtml(t.id)}</td>
+      <td class="muted">${fmtDate(t.dateSubmitted)}</td>
+      <td>${escHtml(t.provider||'--')}</td>
+      <td>${escHtml(t.client||'--')}</td>
+      <td>${escHtml(t.insurance||'--')}</td>
+      <td>${escHtml(t.category)}</td>
+      <td>${priorityBadge(t.priority)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${workflowBadge(t.workflowStage||'New Intake')}</td>
+      <td>${t.workType ? workTypeBadge(t.workType) : '<span class="muted">--</span>'}</td>
+      <td>${sla ? slaBadge(sla) : '<span class="muted">--</span>'}</td>
+      <td class="muted">${fmtDate(t.lastUpdated)}</td>
+      <td>${escHtml(t.assignedTo||'Unassigned')}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* --- Bulk selection helpers --------------------------------------- */
+function updateBulkToolbar() {
+  const checked = document.querySelectorAll('#inboxBody .bulk-check:checked');
+  const toolbar = document.getElementById('inboxBulkToolbar');
+  const countEl = document.getElementById('inboxBulkCount');
+  toolbar.classList.toggle('active', checked.length > 0);
+  countEl.textContent = checked.length + ' selected';
+}
+function toggleSelectAllInbox(checked) {
+  document.querySelectorAll('#inboxBody .bulk-check').forEach(cb => { cb.checked = checked; });
+  updateBulkToolbar();
+}
+function getSelectedTicketIds() {
+  return [...document.querySelectorAll('#inboxBody .bulk-check:checked')].map(cb => cb.dataset.id);
+}
+function clearBulkSelection() {
+  document.querySelectorAll('#inboxBody .bulk-check').forEach(cb => { cb.checked = false; });
+  document.getElementById('inboxSelectAll').checked = false;
+  updateBulkToolbar();
+}
+function bulkAssign() {
+  const ids = getSelectedTicketIds();
+  if (!ids.length) return;
+  const assignee = prompt(`Assign ${ids.length} ticket(s) to:`);
+  if (!assignee) return;
+  const tickets = getTickets();
+  ids.forEach(id => {
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tickets[idx].assignedTo = assignee;
+    tickets[idx].lastUpdated = new Date().toISOString();
+    addHistory(id, `Bulk assigned to: ${assignee}`);
+  });
+  setTickets(tickets);
+  clearBulkSelection();
+  renderInbox();
+  showToast(`${ids.length} ticket(s) assigned to ${assignee}.`);
+}
+function bulkSetStage() {
+  const ids = getSelectedTicketIds();
+  if (!ids.length) return;
+  const stage = prompt('Set workflow stage:\n' + WORKFLOW_STAGES.join('\n'));
+  if (!stage || !WORKFLOW_STAGES.includes(stage)) { alert('Invalid stage.'); return; }
+  const tickets = getTickets();
+  ids.forEach(id => {
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tickets[idx].workflowStage = stage;
+    tickets[idx].lastUpdated = new Date().toISOString();
+    addHistory(id, `Bulk stage change - ${stage}`);
+  });
+  setTickets(tickets);
+  clearBulkSelection();
+  renderInbox();
+  showToast(`${ids.length} ticket(s) moved to ${stage}.`);
+}
+function bulkSetPriority() {
+  const ids = getSelectedTicketIds();
+  if (!ids.length) return;
+  const opts = ['Routine','High Priority','Urgent'];
+  const pri = prompt('Set priority:\n' + opts.join('\n'));
+  if (!opts.includes(pri)) { alert('Invalid priority.'); return; }
+  const tickets = getTickets();
+  ids.forEach(id => {
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tickets[idx].priority = pri;
+    tickets[idx].lastUpdated = new Date().toISOString();
+    addHistory(id, `Bulk priority set - ${pri}`);
+  });
+  setTickets(tickets);
+  clearBulkSelection();
+  renderInbox();
+  showToast(`${ids.length} ticket(s) set to ${pri}.`);
+}
+function bulkClose() {
+  const ids = getSelectedTicketIds();
+  if (!ids.length) return;
+  if (!confirm(`Close ${ids.length} ticket(s)- This will require a resolution code per ticket.`)) return;
+  const code = prompt('Resolution code (applies to all selected):\n' + RESOLUTION_CODES.join('\n'));
+  if (!RESOLUTION_CODES.includes(code)) { alert('Invalid resolution code.'); return; }
+  const tickets = getTickets();
+  ids.forEach(id => {
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tickets[idx].status = 'Closed';
+    tickets[idx].resolutionCode = code;
+    tickets[idx].workflowStage = 'Archived';
+    tickets[idx].lastUpdated = new Date().toISOString();
+    addHistory(id, `Bulk closed. Resolution: ${code}`);
+  });
+  setTickets(tickets);
+  clearBulkSelection();
+  renderInbox();
+  renderDashboard();
+  showToast(`${ids.length} ticket(s) closed.`);
+}
+function bulkExportCSV() {
+  const ids = getSelectedTicketIds();
+  const tickets = getTickets().filter(t => ids.includes(t.id));
+  if (!tickets.length) return;
+  const header = ['ID','Requestor','Provider','Client','Insurance','Category','Priority','Status','Stage','WorkType','ResolutionCode','Submitted','Updated','Assignee'].join(',');
+  const rows = tickets.map(t => [
+    t.id, t.requestor, t.provider, t.client, t.insurance, t.category,
+    t.priority, t.status, t.workflowStage||'--', t.workType||'--', t.resolutionCode||'--',
+    t.dateSubmitted, t.lastUpdated, t.assignedTo||'--'
+  ].map(v => `"${String(v||'--').replace(/"/g,'""')}"`).join(','));
+  const csv = [header, ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'tickets-export.csv';
+  a.click();
+}
+
+/* ================================================================
+   OUTBOX
+   ================================================================ */
+function renderOutbox() {
+  const q   = (document.getElementById('outboxSearch').value || '').toLowerCase();
+  const cat = document.getElementById('outboxCat').value;
+  const responses = getResponses();
+
+  let rows = responses.filter(r => {
+    if (cat && r.category !== cat) return false;
+    if (q && !JSON.stringify(r).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('outboxBody');
+  document.getElementById('outboxEmpty').style.display = rows.length ? 'none' : 'block';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="muted">${escHtml(r.ticketId)}</td>
+      <td class="muted">${fmtDate(r.dateSent)}</td>
+      <td>${escHtml(r.provider||'--')}</td>
+      <td>${escHtml(r.category||'--')}</td>
+      <td>${statusBadge(r.finalStatus||'Closed')}</td>
+      <td style="max-width:260px;white-space:normal;line-height:1.4">${escHtml(r.summary||'--')}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="reopenTicket('${escHtml(r.ticketId)}')">Reopen</button>
+      </td>
+    </tr>`).join('');
+}
+
+function reopenTicket(ticketId) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) { showToast('Ticket not found.'); return; }
+  tickets[idx].status = 'Pending';
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+  addHistory(ticketId, 'Ticket reopened - Pending');
+  // remove from responses
+  const resp = getResponses().filter(r => r.ticketId !== ticketId);
+  setResponses(resp);
+  renderOutbox();
+  showToast('Ticket ' + ticketId + ' reopened.');
+}
+
+/* ================================================================
+   CORRESPONDENCE REPOSITORY
+   ================================================================ */
+let cuFileData = null;
+
+function populateCorrInsFilter() {
+  const sel = document.getElementById('corrInsFilter');
+  const cur = sel.value;
+  const ins = [...new Set(getCorr().map(c => c.insurance).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Insurance</option>' + ins.map(i => `<option${i===cur ? ' selected' : ''}>${escHtml(i)}</option>`).join('');
+}
+
+function renderCorr() {
+  const q    = (document.getElementById('corrSearch').value || '').toLowerCase();
+  const type = document.getElementById('corrTypeFilter').value;
+  const ins  = document.getElementById('corrInsFilter').value;
+
+  let files = getCorr().filter(f => {
+    if (type && f.type !== type) return false;
+    if (ins  && f.insurance !== ins) return false;
+    if (q && !JSON.stringify(f).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const grid  = document.getElementById('corrGrid');
+  const empty = document.getElementById('corrEmpty');
+  empty.style.display = files.length ? 'none' : 'block';
+  grid.innerHTML = files.map(f => `
+    <div class="sc-corr-card" onclick="openCorrDetail('${escHtml(f.id)}')">
+      <div class="sc-corr-card-name" title="${escHtml(f.fileName)}">${escHtml(f.fileName)}</div>
+      <div class="sc-corr-card-meta">
+        <span>${escHtml(f.type||'--')}</span>
+        <span>${escHtml(f.insurance||'--')}</span>
+        <span>${escHtml(f.provider||'--')}</span>
+      </div>
+      <div class="sc-corr-card-foot">
+        <span class="muted" style="font-size:11.5px">${fmtDate(f.dateUploaded)}</span>
+        ${statusBadge(f.status||'Unreviewed')}
+      </div>
+    </div>`).join('');
+}
+
+function openUploadCorr() {
+  document.getElementById('corrUploadBackdrop').classList.add('open');
+}
+function closeCorrUpload() {
+  document.getElementById('corrUploadBackdrop').classList.remove('open');
+  clearCUForm();
+}
+function handleCorrUploadBackdrop(e) {
+  if (e.target === document.getElementById('corrUploadBackdrop')) closeCorrUpload();
+}
+function handleCUFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    cuFileData = { name: file.name, dataUrl: ev.target.result, size: file.size, mimeType: file.type };
+    document.getElementById('cu-file-label').textContent = '-- ' + file.name;
+  };
+  reader.readAsDataURL(file);
+}
+function submitCorrUpload() {
+  const type = document.getElementById('cu-type').value;
+  if (!type) { alert('Please select a correspondence type.'); return; }
+  if (!cuFileData) { alert('Please select a file.'); return; }
+  const settings = getSCSettings();
+  const item = {
+    id:           crypto.randomUUID(),
+    fileName:     cuFileData.name,
+    dataUrl:      cuFileData.dataUrl,
+    mimeType:     cuFileData.mimeType,
+    uploadedBy:   settings.userName || 'Staff',
+    dateUploaded: new Date().toISOString(),
+    provider:     document.getElementById('cu-provider').value.trim(),
+    client:       document.getElementById('cu-client').value.trim(),
+    insurance:    document.getElementById('cu-insurance').value.trim(),
+    type,
+    relatedTicket:document.getElementById('cu-ticketId').value.trim(),
+    status:       document.getElementById('cu-status').value,
+    notes:        document.getElementById('cu-notes').value.trim()
+  };
+  const corr = getCorr();
+  corr.unshift(item);
+  setCorr(corr);
+  closeCorrUpload();
+  populateCorrInsFilter();
+  renderCorr();
+  showToast('File saved to Correspondence Repository.');
+}
+function clearCUForm() {
+  ['cu-provider','cu-client','cu-insurance','cu-ticketId','cu-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cu-type').value = '';
+  document.getElementById('cu-status').value = 'Unreviewed';
+  document.getElementById('cu-file-label').textContent = '-- Click to browse or drag & drop';
+  document.getElementById('cu-file').value = '';
+  cuFileData = null;
+}
+
+function openCorrDetail(id) {
+  const files = getCorr();
+  const f = files.find(x => x.id === id);
+  if (!f) return;
+
+  document.getElementById('cdTitle').textContent = f.fileName;
+  const comments = getComments().filter(c => c.entityId === id && c.entityType === 'corr');
+
+  document.getElementById('cdBody').innerHTML = `
+    <div class="sc-field-grid">
+      <div class="sc-field"><div class="sc-field-label">Uploaded By</div><div class="sc-field-val">${escHtml(f.uploadedBy)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Date Uploaded</div><div class="sc-field-val">${fmtDate(f.dateUploaded)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Type</div><div class="sc-field-val">${escHtml(f.type||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Insurance</div><div class="sc-field-val">${escHtml(f.insurance||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Provider</div><div class="sc-field-val">${escHtml(f.provider||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Client</div><div class="sc-field-val">${escHtml(f.client||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Related Ticket</div><div class="sc-field-val">${escHtml(f.relatedTicket||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Status</div><div class="sc-field-val">
+        <select class="sc-inline-select" onchange="updateCorrStatus('${escHtml(id)}', this.value)">
+          ${['Unreviewed','Reviewed','Action Needed','Filed'].map(s => `<option${s===f.status ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div></div>
+    </div>
+    ${f.notes ? `<div style="margin-bottom:14px"><div class="sc-field-label" style="margin-bottom:4px">Internal Notes</div><div style="font-size:13.5px;color:var(--ink-900)">${escHtml(f.notes)}</div></div>` : ''}
+    ${f.dataUrl && f.mimeType && f.mimeType.startsWith('image/')
+      ? `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden"><img src="${f.dataUrl}" style="max-width:100%;display:block" alt="${escHtml(f.fileName)}"></div>`
+      : f.dataUrl
+        ? `<div style="margin-bottom:16px"><a class="btn btn-outline btn-sm" href="${f.dataUrl}" download="${escHtml(f.fileName)}">&#8675; Download ${escHtml(f.fileName)}</a></div>`
+        : ''}
+    <hr class="sc-section-sep">
+    <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Internal Comments</div>
+    <div class="sc-comments" id="cdComments">${renderCommentsList(comments)}</div>
+    <textarea class="sc-comment-input" id="cdCommentInput" placeholder="Add internal comment..."></textarea>
+  `;
+
+  document.getElementById('cdFooter').innerHTML = `
+    <button class="btn btn-blue btn-sm" onclick="addCorrComment('${escHtml(id)}')">Add Comment</button>
+    <button class="btn btn-outline btn-sm" onclick="markCorrReviewed('${escHtml(id)}')">Mark Reviewed</button>
+    <button class="btn btn-outline btn-sm" onclick="linkCorrToTicket('${escHtml(id)}')">Link to Ticket</button>
+    <button class="btn btn-outline btn-sm" onclick="createTicketFromCorr('${escHtml(id)}')">Create Ticket</button>
+    <button class="btn btn-ghost btn-sm" onclick="closeCorrDetail()">Close</button>
+  `;
+
+  document.getElementById('corrDetailBackdrop').classList.add('open');
+}
+function closeCorrDetail() {
+  document.getElementById('corrDetailBackdrop').classList.remove('open');
+}
+function handleCorrDetailBackdrop(e) {
+  if (e.target === document.getElementById('corrDetailBackdrop')) closeCorrDetail();
+}
+function updateCorrStatus(id, status) {
+  const corr = getCorr();
+  const idx = corr.findIndex(f => f.id === id);
+  if (idx === -1) return;
+  corr[idx].status = status;
+  setCorr(corr);
+  renderCorr();
+}
+function markCorrReviewed(id) {
+  updateCorrStatus(id, 'Reviewed');
+  showToast('Marked as Reviewed.');
+}
+function linkCorrToTicket(corrId) {
+  const tid = prompt('Enter Ticket ID to link this correspondence to:');
+  if (!tid) return;
+  const tickets = getTickets();
+  if (!tickets.find(t => t.id === tid)) { alert('Ticket ' + tid + ' not found.'); return; }
+  const corr = getCorr();
+  const idx = corr.findIndex(f => f.id === corrId);
+  if (idx === -1) return;
+  corr[idx].relatedTicket = tid;
+  setCorr(corr);
+  showToast('Linked to ' + tid + '.');
+  openCorrDetail(corrId);
+}
+function createTicketFromCorr(corrId) {
+  const f = getCorr().find(x => x.id === corrId);
+  if (!f) return;
+  closeCorrDetail();
+  openNewTicket();
+  setTimeout(() => {
+    document.getElementById('nt-provider').value  = f.provider || '';
+    document.getElementById('nt-client').value    = f.client   || '';
+    document.getElementById('nt-insurance').value = f.insurance|| '';
+    document.getElementById('nt-category').value  = 'Correspondence';
+    document.getElementById('nt-description').value = 'Created from correspondence: ' + f.fileName;
+  }, 50);
+}
+
+/* ================================================================
+   COMMENTS (shared for tickets + correspondence)
+   ================================================================ */
+function renderCommentsList(comments) {
+  if (!comments.length) return '<div style="font-size:13px;color:var(--ink-500);padding:6px 0">No comments yet.</div>';
+  return comments.map(c => `
+    <div class="sc-comment">
+      <div class="sc-comment-meta">
+        <span class="sc-comment-author">${escHtml(c.author)}</span>
+        <span>${fmtDateTime(c.ts)}</span>
+        ${c.tag ? `<span class="badge badge-pending" style="font-size:10px;padding:2px 7px">${escHtml(c.tag)}</span>` : ''}
+      </div>
+      <div class="sc-comment-text">${escHtml(c.text)}</div>
+    </div>`).join('');
+}
+
+function addCorrComment(corrId) {
+  const input = document.getElementById('cdCommentInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const settings = getSCSettings();
+  const comment = {
+    id:         crypto.randomUUID(),
+    entityType: 'corr',
+    entityId:   corrId,
+    author:     settings.userName || 'Staff',
+    ts:         new Date().toISOString(),
+    text
+  };
+  const comments = getComments();
+  comments.push(comment);
+  setComments(comments);
+  input.value = '';
+  const myComments = comments.filter(c => c.entityId === corrId && c.entityType === 'corr');
+  document.getElementById('cdComments').innerHTML = renderCommentsList(myComments);
+}
+
+function addTicketComment(ticketId) {
+  const input = document.getElementById('tdCommentInput');
+  const text  = input.value.trim();
+  if (!text) return;
+  const settings = getSCSettings();
+  const comment = {
+    id:         crypto.randomUUID(),
+    entityType: 'ticket',
+    entityId:   ticketId,
+    author:     settings.userName || 'Staff',
+    ts:         new Date().toISOString(),
+    text
+  };
+  const comments = getComments();
+  comments.push(comment);
+  setComments(comments);
+  input.value = '';
+  const myComments = comments.filter(c => c.entityId === ticketId && c.entityType === 'ticket');
+  document.getElementById('tdComments').innerHTML = renderCommentsList(myComments);
+}
+
+/* ================================================================
+   NEW TICKET
+   ================================================================ */
+let ntFiles = [];
+
+function openNewTicket() {
+  ntFiles = [];
+  document.getElementById('nt-file-list').innerHTML = '';
+  document.getElementById('newTicketForm').reset();
+  document.getElementById('newTicketBackdrop').classList.add('open');
+  const settings = getSCSettings();
+  if (settings.defaultAssignee) document.getElementById('nt-assigned').value = settings.defaultAssignee;
+}
+function closeNewTicket() {
+  document.getElementById('newTicketBackdrop').classList.remove('open');
+}
+function handleNewTicketBackdrop(e) {
+  if (e.target === document.getElementById('newTicketBackdrop')) closeNewTicket();
+}
+function handleNTFiles(e) {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      ntFiles.push({ name: file.name, dataUrl: ev.target.result, mimeType: file.type });
+      renderNTFileList();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function renderNTFileList() {
+  document.getElementById('nt-file-list').innerHTML = ntFiles.map((f, i) =>
+    `<div class="sc-file-item">${escHtml(f.name)}<span class="sc-file-item-remove" onclick="ntFiles.splice(${i},1);renderNTFileList()">&#10005;</span></div>`
+  ).join('');
+}
+function submitNewTicket() {
+  const requestor   = document.getElementById('nt-requestor').value.trim();
+  const provider    = document.getElementById('nt-provider').value.trim();
+  const category    = document.getElementById('nt-category').value;
+  const priority    = document.getElementById('nt-priority').value;
+  const description = document.getElementById('nt-description').value.trim();
+
+  if (!requestor || !provider || !category || !priority || !description) {
+    alert('Please fill in all required fields (marked with *).'); return;
+  }
+
+  const now = new Date().toISOString();
+  const ticket = {
+    id:            genTicketId(),
+    requestor,
+    practice:      document.getElementById('nt-practice').value.trim(),
+    provider,
+    client:        document.getElementById('nt-client').value.trim(),
+    insurance:     document.getElementById('nt-insurance').value.trim(),
+    category,
+    priority,
+    workflowStage: document.getElementById('nt-workflowStage').value || 'New Intake',
+    workType:      document.getElementById('nt-workType').value || '',
+    dueDate:       document.getElementById('nt-dueDate').value || '',
+    description,
+    assignedTo:    document.getElementById('nt-assigned').value.trim(),
+    status:        'New',
+    dateSubmitted: now,
+    lastUpdated:   now,
+    files:         ntFiles
+  };
+
+  const tickets = getTickets();
+  tickets.unshift(ticket);
+  setTickets(tickets);
+  addHistory(ticket.id, 'Ticket created - status: New');
+  closeNewTicket();
+
+  // Auto-switch to inbox and refresh
+  switchTab('inbox');
+  showToast('Ticket ' + ticket.id + ' submitted!');
+}
+
+/* ================================================================
+   TICKET DETAIL DRAWER
+   ================================================================ */
+function openTicket(ticketId) {
+  const tickets = getTickets();
+  const t = tickets.find(x => x.id === ticketId);
+  if (!t) return;
+
+  const comments = getComments().filter(c => c.entityId === ticketId && c.entityType === 'ticket');
+  const history  = getHistory().filter(h => h.ticketId === ticketId);
+
+  document.getElementById('drawerTitle').textContent = t.id + ' - ' + (t.client || t.requestor || 'Ticket');
+  document.getElementById('drawerMeta').textContent = 'Submitted ' + fmtDate(t.dateSubmitted) + ' - ' + t.category;
+
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="sc-field-grid">
+      <div class="sc-field"><div class="sc-field-label">Requestor</div><div class="sc-field-val">${escHtml(t.requestor)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Practice</div><div class="sc-field-val">${escHtml(t.practice||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Provider</div><div class="sc-field-val">${escHtml(t.provider||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Client</div><div class="sc-field-val">${escHtml(t.client||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Insurance</div><div class="sc-field-val">${escHtml(t.insurance||'--')}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Category</div><div class="sc-field-val">${escHtml(t.category)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Priority</div><div class="sc-field-val">${priorityBadge(t.priority)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">SLA Status</div><div class="sc-field-val">${slaBadge(getSLAStatus(t)) || '--'}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Status</div><div class="sc-field-val">
+        <select class="sc-inline-select" onchange="handleStatusChange('${escHtml(ticketId)}', this.value)">
+          ${['New','Pending','Waiting on Client','Waiting on Insurance','Completed','Closed'].map(s => `<option${s===t.status ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div></div>
+      <div class="sc-field"><div class="sc-field-label">Workflow Stage</div><div class="sc-field-val">
+        <select class="sc-inline-select" onchange="updateWorkflowStage('${escHtml(ticketId)}', this.value)">
+          ${WORKFLOW_STAGES.map(s => `<option${s===(t.workflowStage||'New Intake') ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div></div>
+      <div class="sc-field"><div class="sc-field-label">Work Type</div><div class="sc-field-val">
+        <select class="sc-inline-select" onchange="updateWorkType('${escHtml(ticketId)}', this.value)">
+          <option value="">-- Select --</option>
+          ${WORK_TYPES.map(s => `<option${s===t.workType ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div></div>
+      <div class="sc-field"><div class="sc-field-label">Assigned To</div><div class="sc-field-val">
+        <input type="text" value="${escHtml(t.assignedTo||'')}" class="sc-inline-select" style="min-width:140px" onblur="updateAssignee('${escHtml(ticketId)}', this.value)" placeholder="Assign staff...">
+      </div></div>
+      <div class="sc-field"><div class="sc-field-label">Due Date</div><div class="sc-field-val">
+        <input type="date" value="${escHtml(t.dueDate||'')}" class="sc-inline-select" onblur="updateDueDate('${escHtml(ticketId)}', this.value)">
+      </div></div>
+      <div class="sc-field"><div class="sc-field-label">Aging</div><div class="sc-field-val">${agingBadge(getAgingLabel(t))}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Date Submitted</div><div class="sc-field-val">${fmtDate(t.dateSubmitted)}</div></div>
+      <div class="sc-field"><div class="sc-field-label">Last Updated</div><div class="sc-field-val">${fmtDate(t.lastUpdated)}</div></div>
+      ${t.resolutionCode ? `<div class="sc-field"><div class="sc-field-label">Resolution Code</div><div class="sc-field-val" style="color:#059669;font-weight:700">${escHtml(t.resolutionCode)}</div></div>` : ''}
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="sc-field-label" style="margin-bottom:5px">Issue Description</div>
+      <div style="font-size:13.5px;line-height:1.6;color:var(--ink-900);white-space:pre-wrap">${escHtml(t.description)}</div>
+    </div>
+    ${t.files && t.files.length ? `
+      <div style="margin-bottom:16px">
+        <div class="sc-field-label" style="margin-bottom:6px">Attachments</div>
+        <div class="sc-file-list">
+          ${t.files.map(f => `<div class="sc-file-item"><a href="${f.dataUrl}" download="${escHtml(f.name)}" style="color:var(--blue-700);text-decoration:none;font-weight:600">${escHtml(f.name)}</a></div>`).join('')}
+        </div>
+      </div>` : ''}
+    <hr class="sc-section-sep">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em">Internal Comments</div>
+      ${renderTemplateMenu('tdCommentInput')}
+    </div>
+    <div class="sc-comments" id="tdComments">${renderCommentsList(comments)}</div>
+    <textarea class="sc-comment-input" id="tdCommentInput" placeholder="Add internal comment..."></textarea>
+    ${history.length ? `
+      <hr class="sc-section-sep">
+      <div style="font-size:13px;font-weight:700;color:var(--ink-700);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Status History</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${history.map(h => `<div style="font-size:12.5px;color:var(--ink-700)">${fmtDateTime(h.ts)} - ${escHtml(h.change)}</div>`).join('')}
+      </div>` : ''}
+  `;
+
+  const slaStatus   = getSLAStatus(t);
+  const slaRemaining = getSLARemaining(t);
+  document.getElementById('drawerFooter').innerHTML = `
+    <button class="btn btn-blue btn-sm" onclick="addTicketComment('${escHtml(ticketId)}')">Add Comment</button>
+    <button class="btn btn-outline btn-sm" onclick="sendResponse('${escHtml(ticketId)}')">Send Response</button>
+    <button class="btn btn-outline btn-sm" onclick="convertTicketToBillingAlert('${escHtml(ticketId)}')" title="Escalate to Billing Alert" style="border-color:#f59e0b;color:#92400e">-- Billing Alert</button>
+    <button class="btn btn-outline btn-sm" onclick="promptCloseTicket('${escHtml(ticketId)}')">Close Ticket</button>
+    <button class="btn btn-ghost btn-sm" onclick="closeTicketDrawer()">Close</button>
+  ` + (slaRemaining !== null
+    ? `<div style="width:100%;margin-top:6px;font-size:12px;font-weight:700;padding:6px 10px;border-radius:8px;background:${slaStatus==='overdue'?'#fee2e2':slaStatus==='at-risk'?'#fef3c7':'#d1fae5'};color:${slaStatus==='overdue'?'#991b1b':slaStatus==='at-risk'?'#92400e':'#065f46'}">
+        SLA: ${slaStatus==='overdue' ? '- OVERDUE by '+Math.abs(slaRemaining)+'h' : slaStatus==='at-risk' ? '-- '+slaRemaining+'h remaining (At Risk)' : '- '+slaRemaining+'h remaining'}
+      </div>`
+    : '');
+
+  document.getElementById('ticketBackdrop').classList.add('open');
+}
+function closeTicketDrawer() {
+  document.getElementById('ticketBackdrop').classList.remove('open');
+}
+function handleTicketBackdrop(e) {
+  if (e.target === document.getElementById('ticketBackdrop')) closeTicketDrawer();
+}
+
+function updateTicketStatus(ticketId, newStatus) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return;
+  const old = tickets[idx].status;
+  tickets[idx].status = newStatus;
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+  addHistory(ticketId, `Status changed: ${old} - ${newStatus}`);
+  if (currentTab === 'inbox') renderInbox();
+  if (currentTab === 'dashboard') renderDashboard();
+}
+
+function updateAssignee(ticketId, assignedTo) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return;
+  tickets[idx].assignedTo = assignedTo;
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+  addHistory(ticketId, `Assigned to: ${assignedTo}`);
+}
+
+function updateWorkflowStage(ticketId, stage) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return;
+  const old = tickets[idx].workflowStage || 'New Intake';
+  tickets[idx].workflowStage = stage;
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+  addHistory(ticketId, `Stage: ${old} - ${stage}`);
+  if (currentTab === 'inbox') renderInbox();
+}
+
+function updateWorkType(ticketId, workType) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return;
+  tickets[idx].workType = workType;
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+}
+
+function updateDueDate(ticketId, dueDate) {
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return;
+  tickets[idx].dueDate = dueDate;
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+}
+
+/* Status change - requires resolution code if closing */
+function handleStatusChange(ticketId, newStatus) {
+  if (newStatus === 'Closed') {
+    promptCloseTicket(ticketId);
+    // revert select to prior value until confirmed
+    return;
+  }
+  updateTicketStatus(ticketId, newStatus);
+}
+
+/* Resolution code gate */
+let _pendingCloseTicketId = null;
+function promptCloseTicket(ticketId) {
+  _pendingCloseTicketId = ticketId;
+  document.getElementById('resolutionCodeSelect').value = '';
+  document.getElementById('resolutionModalBackdrop').classList.add('open');
+}
+function confirmResolution() {
+  const code = document.getElementById('resolutionCodeSelect').value;
+  if (!code) { alert('Please select a resolution code.'); return; }
+  const id = _pendingCloseTicketId;
+  if (!id) return;
+
+  const tickets = getTickets();
+  const idx = tickets.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const old = tickets[idx].status;
+  tickets[idx].status = 'Closed';
+  tickets[idx].resolutionCode = code;
+  tickets[idx].workflowStage = 'Archived';
+  tickets[idx].lastUpdated = new Date().toISOString();
+  setTickets(tickets);
+  addHistory(id, `Closed. Resolution: ${code}`);
+
+  cancelResolution();
+  closeTicketDrawer();
+  if (currentTab === 'inbox') renderInbox();
+  if (currentTab === 'dashboard') renderDashboard();
+  showToast('Ticket closed: ' + code);
+}
+function cancelResolution() {
+  _pendingCloseTicketId = null;
+  document.getElementById('resolutionModalBackdrop').classList.remove('open');
+  // Revert the status select in the drawer if still open
+  const sel = document.querySelector('.sc-inline-select[onchange^="handleStatusChange"]');
+  if (sel) {
+    const ticketId = sel.getAttribute('onchange').match(/'([^']+)'/)[1];
+    if (ticketId) {
+      const t = getTickets().find(x => x.id === ticketId);
+      if (t) sel.value = t.status;
+    }
+  }
+}
+
+function sendResponse(ticketId) {
+  const summary = prompt('Enter response summary to send to clinician:');
+  if (!summary) return;
+  const tickets = getTickets();
+  const t = tickets.find(x => x.id === ticketId);
+  if (!t) return;
+
+  // Move to responses (outbox)
+  const responses = getResponses();
+  const existing = responses.findIndex(r => r.ticketId === ticketId);
+  const entry = {
+    ticketId,
+    dateSent:    new Date().toISOString(),
+    provider:    t.provider,
+    category:    t.category,
+    finalStatus: t.status,
+    summary
+  };
+  if (existing !== -1) responses[existing] = entry;
+  else responses.unshift(entry);
+  setResponses(responses);
+
+  // Update ticket status to Completed if not already closed
+  updateTicketStatus(ticketId, t.status === 'Closed' ? 'Closed' : 'Completed');
+  addHistory(ticketId, 'Response sent: ' + summary.substring(0, 60));
+
+  closeTicketDrawer();
+  showToast('Response recorded. Ticket moved to Outbox.');
+}
+
+/* ================================================================
+   GLOBAL SEARCH
+   ================================================================ */
+function populateGSFilters() {
+  populateProviderFilter();
+  populateInsFilter();
+}
+
+function renderGlobalSearch() {
+  const q    = (document.getElementById('globalSearch').value || '').toLowerCase();
+  const cat  = document.getElementById('gsCat').value;
+  const stat = document.getElementById('gsStatus').value;
+  const pri  = document.getElementById('gsPriority').value;
+  const ins  = document.getElementById('gsInsFilter').value;
+  const prov = document.getElementById('gsProvFilter').value;
+  const from = document.getElementById('gsDateFrom').value;
+  const to   = document.getElementById('gsDateTo').value;
+
+  let rows = getTickets().filter(t => {
+    if (cat  && t.category  !== cat)  return false;
+    if (stat && t.status    !== stat) return false;
+    if (pri  && t.priority  !== pri)  return false;
+    if (ins  && t.insurance !== ins)  return false;
+    if (prov && t.provider  !== prov) return false;
+    if (from && t.dateSubmitted < from) return false;
+    if (to   && t.dateSubmitted > to + 'T23:59:59') return false;
+    if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const empty = document.getElementById('searchEmpty');
+  const tbody = document.getElementById('searchBody');
+  empty.style.display = (rows.length || q || cat || stat || pri || ins || prov || from || to) ? 'none' : 'block';
+  tbody.innerHTML = rows.map(t => `
+    <tr style="cursor:pointer" onclick="openTicket('${escHtml(t.id)}')">
+      <td class="muted">${escHtml(t.id)}</td>
+      <td class="muted">${fmtDate(t.dateSubmitted)}</td>
+      <td>${escHtml(t.provider||'--')}</td>
+      <td>${escHtml(t.client||'--')}</td>
+      <td>${escHtml(t.insurance||'--')}</td>
+      <td>${escHtml(t.category)}</td>
+      <td>${priorityBadge(t.priority)}</td>
+      <td>${statusBadge(t.status)}</td>
+    </tr>`).join('');
+}
+
+/* ================================================================
+   SC SETTINGS
+   ================================================================ */
+function loadSCSettings() {
+  const s = getSCSettings();
+  document.getElementById('scUserName').value        = s.userName        || '';
+  document.getElementById('scUserRole').value        = s.userRole        || '';
+  document.getElementById('scDefaultAssignee').value = s.defaultAssignee || '';
+  document.getElementById('scTicketLimit').value     = s.ticketLimit     || '';
+}
+function saveSCSettings() {
+  setSCSettings({
+    userName:        document.getElementById('scUserName').value.trim(),
+    userRole:        document.getElementById('scUserRole').value.trim(),
+    defaultAssignee: document.getElementById('scDefaultAssignee').value.trim(),
+    ticketLimit:     parseInt(document.getElementById('scTicketLimit').value) || 50
+  });
+  const toast = document.getElementById('scSettingsToast');
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+/* ================================================================
+   SLA REMAINING (hours left or negative if overdue)
+   ================================================================ */
+function getSLARemaining(ticket) {
+  const closedStatuses = ['Completed','Closed','Archived'];
+  if (closedStatuses.includes(ticket.status)) return null;
+  const rule = SLA_RULES[ticket.priority] || SLA_RULES['Routine'];
+  const created = new Date(ticket.dateSubmitted || ticket.created || Date.now());
+  const elapsedH = (Date.now() - created.getTime()) / 3_600_000;
+  return Math.round(rule.overdueAfterHours - elapsedH);
+}
+
+/* ================================================================
+   TICKET - BILLING ALERT CONVERSION
+   ================================================================ */
+function convertTicketToBillingAlert(ticketId) {
+  const tickets = getTickets();
+  const t = tickets.find(x => x.id === ticketId);
+  if (!t) return;
+
+  if (!confirm(
+    `Convert ticket ${ticketId} to a Billing Alert?\n\n` +
+    `Client: ${t.client || '--'}
+Insurance: ${t.insurance || '--'}
+Category: ${t.category}
+
+` +
+    `The ticket will remain open and a linked Billing Alert will be created.`
+  )) return;
+
+  const BA_KEY = 'docusistant_billing_alerts_v1';
+  let alerts = [];
+  try { alerts = JSON.parse(localStorage.getItem(BA_KEY) || '[]'); } catch(e) {}
+
+  // Generate next BA ID
+  const nums = alerts.map(a => { const m = (a.id||'').match(/\d+$/); return m ? parseInt(m[0]) : 0; });
+  const maxNum = nums.length ? Math.max(...nums) : 0;
+  const baId = 'BA-' + new Date().getFullYear() + '-' + String(maxNum + 1).padStart(3, '0');
+
+  const BAD_ALERT_TYPE_MAP = {
+    'Claim Status':       'Claim Status Check',
+    'Coding':             'Coding Dispute',
+    'Correspondence':     'Correspondence Action',
+    'Eligibility Check':  'Eligibility Issue',
+    'Patient Balance':    'Patient Balance',
+    'Payments':           'Payment Discrepancy',
+  };
+  const alertType = BAD_ALERT_TYPE_MAP[t.category] || 'General Billing Issue';
+
+  const newAlert = {
+    id:               baId,
+    created_at:       new Date().toISOString(),
+    updated_at:       new Date().toISOString(),
+    patient_name:     t.client      || '--',
+    patient_dob:      '',
+    alert_type:       alertType,
+    priority:         t.priority    || 'Routine',
+    status:           'New',
+    payer_name:       t.insurance   || '--',
+    insurance_id:     '',
+    related_claim_id: '',
+    due_date:         t.dueDate     || '--',
+    assigned_staff:   t.assignedTo  || '--',
+    patient_balance:  null,
+    insurance_status: '',
+    description:      `Escalated from Support Ticket ${ticketId}.\n\n${t.description || '--'}`.trim(),
+    action_needed:    `Review and resolve: ${t.category}`,
+    staff_notes:      `Linked from ticket ${ticketId}. Provider: ${t.provider || ''}`,
+    linked_ticket_id: ticketId,
+    comments:         [],
+    attachments:      t.files ? t.files.map(f => ({ name: f.name, dataUrl: f.dataUrl })) : [],
+    activity: [{
+      id:     crypto.randomUUID(),
+      ts:     new Date().toISOString(),
+      user:   (getSCSettings().userName || 'Staff'),
+      action: 'Billing Alert created from Support Ticket',
+      notes:  `Converted from ticket ${ticketId}`,
+      dot:    'amber',
+    }],
+  };
+
+  alerts.unshift(newAlert);
+  try { localStorage.setItem(BA_KEY, JSON.stringify(alerts)); } catch(e) {}
+
+  // Tag ticket with linked billing alert ID
+  const idx = tickets.findIndex(x => x.id === ticketId);
+  if (idx !== -1) {
+    tickets[idx].linkedBillingAlert = baId;
+    tickets[idx].lastUpdated = new Date().toISOString();
+    setTickets(tickets);
+    addHistory(ticketId, `Converted to Billing Alert: ${baId}`);
+  }
+
+  showToast(`Billing Alert ${baId} created.`);
+  showNotif('Billing Alert Created', `${baId} linked to ticket ${ticketId}`);
+
+  if (confirm(`Billing Alert ${baId} created.\n\nOpen Billing Alerts page-`)) {
+    window.location.href = 'admin-billing-alerts.html';
+  } else {
+    closeTicketDrawer();
+    renderInbox();
+  }
+}
+
+/* ================================================================
+   BROWSER + IN-APP NOTIFICATIONS
+   ================================================================ */
+function showNotif(title, body) {
+  // Browser notification
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') {
+      try {
+        new Notification('THERASSISTANT - ' + title, { body, icon: '/favicon.ico', tag: 'support-center' });
+      } catch(e) {}
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }
+  // In-app notification
+  pushInAppNotif(title, body);
+}
+
+const _inAppNotifs = [];
+function pushInAppNotif(title, body) {
+  _inAppNotifs.unshift({ id: Date.now(), title, body, ts: new Date().toISOString(), read: false });
+  if (_inAppNotifs.length > 50) _inAppNotifs.length = 50;
+  updateNotifBell();
+}
+
+function updateNotifBell() {
+  const unread = _inAppNotifs.filter(n => !n.read).length;
+  const badge = document.getElementById('notifBellBadge');
+  if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? '' : 'none'; }
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    _inAppNotifs.forEach(n => n.read = true);
+    updateNotifBell();
+    renderNotifPanel();
+  }
+}
+
+function renderNotifPanel() {
+  const list = document.getElementById('notifList');
+  if (!list) return;
+  if (!_inAppNotifs.length) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--ink-500);font-size:13px">No notifications</div>';
+    return;
+  }
+  list.innerHTML = _inAppNotifs.slice(0, 20).map(n => `
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px">
+      <div style="font-weight:700;color:var(--ink-900)">${escHtml(n.title)}</div>
+      <div style="color:var(--ink-500);font-size:12px;margin-top:2px">${escHtml(n.body)}</div>
+      <div style="color:var(--ink-500);font-size:11px;margin-top:3px">${fmtDateTime(n.ts)}</div>
+    </div>`).join('');
+}
+
+/* ================================================================
+   SLA BREACH AUTO-SCANNER  (runs every 2 min)
+   ================================================================ */
+let _lastSLAScan = 0;
+function scanSLABreaches() {
+  const now = Date.now();
+  if (now - _lastSLAScan < 120_000) return;
+  _lastSLAScan = now;
+
+  const tickets = getTickets();
+  tickets.forEach(t => {
+    const sla = getSLAStatus(t);
+    if (sla === 'overdue') {
+      const key = 'sc_notif_overdue_' + t.id;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        showNotif('SLA Overdue', `Ticket ${t.id} (${t.priority}) is past SLA deadline.`);
+      }
+    } else if (sla === 'at-risk') {
+      const key = 'sc_notif_atrisk_' + t.id;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        showNotif('SLA At Risk', `Ticket ${t.id} is approaching SLA deadline.`);
+      }
+    }
+  });
+
+  // Escalation triggers
+  const triggered = checkEscalationTriggers(tickets);
+  triggered.forEach(e => {
+    const key = 'sc_notif_esc_' + e.ruleId + '_' + (e.ticketId||'global');
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1');
+      showNotif('Escalation Triggered', e.label);
+    }
+  });
+}
+
+/* ================================================================
+   INIT
+   ================================================================ */
+window.onload = async () => {
+  await initDashboard(ADMIN_ROLES);
+  // Inject notification bell into header
+  const hdr = document.querySelector('.dashboard-header');
+  if (hdr) {
+    const bellWrap = document.createElement('div');
+    bellWrap.style.cssText = 'position:relative;display:inline-block;cursor:pointer;flex-shrink:0';
+    bellWrap.innerHTML = `
+      <button onclick="toggleNotifPanel()" style="background:none;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:17px;line-height:1" title="Notifications">--</button>
+      <span id="notifBellBadge" style="display:none;position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:99px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px"></span>
+      <div id="notifPanel" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:320px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);z-index:999;max-height:380px;overflow:hidden;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;font-size:13px">Notifications
+          <button onclick="toggleNotifPanel()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--ink-500)">-</button>
+        </div>
+        <div id="notifList" style="overflow-y:auto;max-height:310px"></div>
+      </div>
+    `;
+    const btn = hdr.querySelector('.btn-blue');
+    if (btn) hdr.insertBefore(bellWrap, btn);
+    else hdr.appendChild(bellWrap);
+  }
+
+  // Request notification permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  renderDashboard();
+  scanSLABreaches();
+  setInterval(scanSLABreaches, 120_000);
+};
+</script>
+</body>
+</html>
+
+

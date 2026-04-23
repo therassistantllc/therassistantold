@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Patients</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+.mod-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}.mod-tab{border:none;background:none;padding:10px 14px;font:600 12.5px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.mod-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)}.kpi-num{font-family:'Sora',sans-serif;font-size:1.65rem;font-weight:700;line-height:1;color:var(--ink-900)}.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-top:6px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:14px}.toolbar input,.toolbar select{padding:8px 11px;border:1px solid var(--border);border-radius:8px;font:13px inherit;background:var(--surface);color:var(--ink-900);outline:none}.toolbar input{flex:1;min-width:220px}.toolbar input:focus,.toolbar select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+.workspace{display:grid;grid-template-columns:1.35fr .85fr;gap:14px}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm)}.card-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}.card-title{font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--ink-900)}
+.table-wrap{overflow:auto}.data-table{width:100%;border-collapse:collapse;font-size:12.5px}.data-table th{background:#f5f9fe;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border)}.data-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}.data-table tr:last-child td{border-bottom:none}.data-table tbody tr{cursor:pointer;transition:background .12s}.data-table tbody tr:hover{background:rgba(60,144,209,.04)}
+.patient-cell{display:flex;align-items:center;gap:10px}.patient-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f766e,#155e75);color:#fff;font-size:12px;font-weight:700;flex-shrink:0}.patient-name{font-weight:700;color:var(--ink-900)}.patient-sub{font-size:11px;color:var(--ink-500)}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}.ins-active{background:#dcfce7;color:#166534;border-color:#86efac}.ins-pending{background:#fef3c7;color:#92400e;border-color:#fde68a}.ins-inactive{background:#f1f5f9;color:#475569;border-color:#cbd5e1}.ins-unknown{background:#f8fafc;color:#64748b;border-color:#e2e8f0}
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px}.mini{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-soft)}.mini h4{margin:0 0 4px;font-size:12px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.06em}.mini strong{font-family:'Sora',sans-serif;font-size:1.2rem;color:var(--ink-900)}
+.queue-list{padding:10px 14px 14px}.queue-item{padding:10px 0;border-bottom:1px solid var(--border)}.queue-item:last-child{border-bottom:none}.queue-item-title{font-size:13px;font-weight:700;color:var(--ink-900)}.queue-item-sub{font-size:12px;color:var(--ink-500);margin-top:3px}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(10,24,40,.4);opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}.drawer-backdrop.open{opacity:1;pointer-events:auto}.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,calc(100vw - 220px));background:#fff;box-shadow:-10px 0 36px rgba(0,0,0,.16);transform:translateX(100%);transition:transform .22s cubic-bezier(.2,.7,.2,1);z-index:901;display:flex;flex-direction:column}.drawer.open{transform:translateX(0)}
+.drawer-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}.drawer-id{font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:#0f766e}.drawer-name{font-size:15px;font-weight:700;color:var(--ink-900);margin-top:2px}.drawer-sub{font-size:12px;color:var(--ink-500);margin-top:4px}.drawer-close{margin-left:auto;border:1px solid var(--border);background:var(--surface);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;color:var(--ink-500)}
+.drawer-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:0 18px;border-bottom:1px solid var(--border)}.drawer-tab{border:none;background:none;padding:10px 8px;font:600 12px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.drawer-tab.active{color:#0f766e;border-bottom-color:#0f766e}
+.drawer-body{display:grid;grid-template-columns:1fr 240px;gap:0;flex:1;min-height:0}.drawer-main{padding:16px 18px;overflow:auto;border-right:1px solid var(--border)}.drawer-side{padding:16px;overflow:auto;background:var(--surface-soft)}.drawer-panel{display:none}.drawer-panel.active{display:block}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}.field{padding:6px 0;border-bottom:1px solid var(--border)}.field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:2px}.field span{font-size:12.5px;color:var(--ink-900);font-weight:600}
+.timeline{display:flex;flex-direction:column;gap:10px}.timeline-item{padding-left:16px;position:relative}.timeline-item::before{content:'';position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:#0f766e}.timeline-title{font-size:12.5px;font-weight:700;color:var(--ink-900)}.timeline-meta{font-size:11px;color:var(--ink-500);margin-top:2px}
+.empty{padding:26px 18px;color:var(--ink-500);font-size:13px;text-align:center}.note{font-size:12px;color:var(--ink-500);margin-top:12px}.bal-positive{color:#b91c1c;font-weight:700}.bal-zero{color:var(--ink-500)}
+@media(max-width:1100px){.workspace,.drawer-body,.kpis{grid-template-columns:1fr}}@media(max-width:700px){.drawer{width:100%}.field-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <div class="admin-badge">Admin Portal</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div>
+      <h1>Patients</h1>
+      <p>Demographics, appointments, insurance, authorizations, notes, claims, payments, and communications in one workspace.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" id="btnOpenSelected">Open Selected</button>
+      <button class="btn btn-blue btn-sm" id="btnAddPatient">+ Add Patient</button>
+    </div>
+  </header>
+  <div class="kpis" id="kpiGrid"></div>
+  <div class="mod-tabs" id="tabBar">
+    <button class="mod-tab active" data-tab="demographics">Demographics</button>
+    <button class="mod-tab" data-tab="appointments">Appointments</button>
+    <button class="mod-tab" data-tab="insurance">Insurance</button>
+    <button class="mod-tab" data-tab="authorizations">Authorizations</button>
+    <button class="mod-tab" data-tab="notes">Notes</button>
+    <button class="mod-tab" data-tab="claims">Claims</button>
+    <button class="mod-tab" data-tab="payments">Payments</button>
+    <button class="mod-tab" data-tab="communications">Communications</button>
+  </div>
+  <div class="toolbar">
+    <input type="search" id="searchInput" placeholder="Search patient, payer, member ID, clinician...">
+    <select id="clinicianFilter"><option value="">All Clinicians</option></select>
+    <select id="payerFilter"><option value="">All Payers</option></select>
+    <select id="insuranceFilter"><option value="">All Insurance Status</option></select>
+    <div style="font-size:12px;color:var(--ink-500);margin-left:auto" id="resultCount"></div>
+  </div>
+  <div class="workspace">
+    <section class="card">
+      <div class="card-head"><div class="card-title" id="tableTitle">Patient Directory</div><div style="font-size:12px;color:var(--ink-500)">Click any row to open the patient drawer</div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Patient</th><th>Payer</th><th>Insurance</th><th>Balance</th><th>Next Appt</th><th>Clinician</th><th>Alerts</th></tr></thead>
+          <tbody id="patientRows"></tbody>
+        </table>
+      </div>
+    </section>
+    <aside class="card">
+      <div class="card-head"><div class="card-title">Module Snapshot</div></div>
+      <div class="mini-grid" id="miniGrid"></div>
+      <div class="queue-list" id="queueList"></div>
+    </aside>
+  </div>
+  <p class="note">Patient selection and detail now stay inside the Patients module. Legacy patient list and detail routes can redirect here with a patient id in the query string.</p>
+</main>
+</div>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="patientDrawer" aria-label="Patient detail drawer">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-id" id="drawerId">PATIENT</div>
+      <div class="drawer-name" id="drawerName">Patient</div>
+      <div class="drawer-sub" id="drawerSub"></div>
+    </div>
+    <button class="drawer-close" id="drawerClose">×</button>
+  </div>
+  <div class="drawer-tabs" id="drawerTabs">
+    <button class="drawer-tab active" data-panel="demographics">Demographics</button>
+    <button class="drawer-tab" data-panel="appointments">Appointments</button>
+    <button class="drawer-tab" data-panel="insurance">Insurance</button>
+    <button class="drawer-tab" data-panel="authorizations">Authorizations</button>
+    <button class="drawer-tab" data-panel="notes">Notes</button>
+    <button class="drawer-tab" data-panel="claims">Claims</button>
+    <button class="drawer-tab" data-panel="payments">Payments</button>
+    <button class="drawer-tab" data-panel="communications">Communications</button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-main">
+      <section class="drawer-panel active" id="panel-demographics"><div class="field-grid" id="demographicFields"></div></section>
+      <section class="drawer-panel" id="panel-appointments"><div class="timeline" id="appointmentTimeline"></div></section>
+      <section class="drawer-panel" id="panel-insurance"><div class="field-grid" id="insuranceFields"></div></section>
+      <section class="drawer-panel" id="panel-authorizations"><div class="timeline" id="authorizationTimeline"></div></section>
+      <section class="drawer-panel" id="panel-notes"><div class="timeline" id="notesTimeline"></div></section>
+      <section class="drawer-panel" id="panel-claims"><div class="timeline" id="claimsTimeline"></div></section>
+      <section class="drawer-panel" id="panel-payments"><div class="field-grid" id="paymentFields"></div></section>
+      <section class="drawer-panel" id="panel-communications"><div class="timeline" id="communicationsTimeline"></div></section>
+    </div>
+    <aside class="drawer-side">
+      <div class="card-title" style="margin-bottom:12px">Quick Summary</div>
+      <div class="field"><label>Insurance</label><span id="sideInsurance"></span></div>
+      <div class="field"><label>Assigned Clinician</label><span id="sideClinician"></span></div>
+      <div class="field"><label>Outstanding Balance</label><span id="sideBalance"></span></div>
+      <div class="field"><label>Upcoming Appointment</label><span id="sideNext"></span></div>
+      <div class="field"><label>Billing Alerts</label><span id="sideAlerts"></span></div>
+      <div class="field"><label>Payer</label><span id="sidePayer"></span></div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+        <a class="btn btn-outline btn-sm" id="drillToClaims" href="admin-claims.html?tab=list">Open Claims</a>
+        <a class="btn btn-outline btn-sm" id="drillToPayments" href="admin-payments.html?tab=payment-posting">Open Payments</a>
+        <a class="btn btn-outline btn-sm" id="drillToComms" href="admin-communications.html?tab=patient-messages">Open Communications</a>
+      </div>
+    </aside>
+  </div>
+</aside>
+<script>
+const PATIENTS = [
+  {id:'PAT-001',name:'Maria Alvarez',dob:'1989-04-12',payer:'Colorado Medicaid',insurance:'Active',memberId:'CO-12345678',balance:0,lastAppointment:'2026-03-28',nextAppointment:'2026-04-10',alerts:2,clinician:'Dr. Sarah Mitchell',phone:'(303) 555-0142',email:'maria.alvarez@example.com',authorizations:['12 visits approved through 05/01','Renewal packet due in 10 days'],notes:['Requested telehealth on Fridays','Reminder preference: text'],claims:['2 claims pending payer response','1 corrected claim submitted'],payments:['No outstanding copay','Autopay on file'],communications:['Portal message opened today','Eligibility follow-up sent 2 days ago']},
+  {id:'PAT-002',name:'Linda Patterson',dob:'1975-11-30',payer:'Aetna Better Health',insurance:'Active',memberId:'AET-887766',balance:45,lastAppointment:'2026-03-20',nextAppointment:'2026-04-17',alerts:0,clinician:'Dr. Sarah Mitchell',phone:'(720) 555-0185',email:'linda.patterson@example.com',authorizations:['Auth current through 06/15'],notes:['Collect balance at next visit'],claims:['Claim batch closed without exceptions'],payments:['Patient balance $45','Last payment 03/25'],communications:['Statement sent by email']},
+  {id:'PAT-003',name:'Tyler Cruz',dob:'2001-06-15',payer:'Colorado Access',insurance:'Pending',memberId:'',balance:0,lastAppointment:'2026-03-15',nextAppointment:'',alerts:1,clinician:'James Holloway, LCSW',phone:'(303) 555-0160',email:'tyler.cruz@example.com',authorizations:['Coverage verification in progress'],notes:['Intake packet incomplete'],claims:['Hold new claims until eligibility confirms'],payments:['No patient balance'],communications:['Voicemail left for insurance update']},
+  {id:'PAT-004',name:'Diane Okonkwo',dob:'1968-02-08',payer:'United BH',insurance:'Active',memberId:'UBH-554433',balance:120,lastAppointment:'2026-03-10',nextAppointment:'2026-04-14',alerts:0,clinician:'Dr. Sarah Mitchell',phone:'(719) 555-0132',email:'diane.okonkwo@example.com',authorizations:['Authorization current'],notes:['Prefers afternoon appointments'],claims:['One secondary claim queued'],payments:['Balance plan requested','Statement due this week'],communications:['Balance reminder sent 4 days ago']},
+  {id:'PAT-005',name:'Marcus Webb',dob:'1993-08-22',payer:'Self-Pay',insurance:'Inactive',memberId:'',balance:250,lastAppointment:'2026-02-28',nextAppointment:'2026-04-21',alerts:1,clinician:'James Holloway, LCSW',phone:'(970) 555-0174',email:'marcus.webb@example.com',authorizations:['No authorization required'],notes:['Self-pay discount applied'],claims:['No insurance claims'],payments:['Balance $250 outstanding','Card retry scheduled'],communications:['Payment plan outreach pending']},
+  {id:'PAT-006',name:'Rosa Guerrero',dob:'1984-12-03',payer:'Rocky Mountain Health Plans',insurance:'Active',memberId:'RMHP-987654',balance:0,lastAppointment:'2026-03-25',nextAppointment:'2026-04-08',alerts:0,clinician:'Dr. Priya Nair',phone:'(303) 555-0198',email:'rosa.guerrero@example.com',authorizations:['Auth renewed yesterday'],notes:['Spanish interpreter not required'],claims:['All recent claims paid'],payments:['No patient responsibility'],communications:['Appointment reminder delivered']},
+  {id:'PAT-007',name:'Angela Kim',dob:'1972-07-29',payer:'Beacon Health Options',insurance:'Active',memberId:'BHO-441122',balance:85,lastAppointment:'2026-03-18',nextAppointment:'2026-04-15',alerts:3,clinician:'Dr. Sarah Mitchell',phone:'(303) 555-0111',email:'angela.kim@example.com',authorizations:['Visit cap warning: 3 remaining'],notes:['Caregiver joins first 10 minutes'],claims:['2 denials under review'],payments:['Copay collection missed last visit'],communications:['Secure message awaiting reply']},
+  {id:'PAT-008',name:'Brandon Flores',dob:'1998-01-11',payer:'Colorado Medicaid',insurance:'Unknown',memberId:'',balance:0,lastAppointment:'2026-01-15',nextAppointment:'',alerts:2,clinician:'James Holloway, LCSW',phone:'(720) 555-0128',email:'brandon.flores@example.com',authorizations:['Eligibility unable to verify'],notes:['Needs demographic update'],claims:['Past claims suspended for review'],payments:['No balance at present'],communications:['SMS could not be delivered']}
+];
+const STATE={tab:'demographics',query:'',clinician:'',payer:'',insurance:'',selectedId:null,drawerPanel:'demographics'};
+const $=id=>document.getElementById(id);
+const initials=s=>String(s||'?').split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase();
+const fmtDate=value=>value?new Date(value+'T00:00:00').toLocaleDateString(): 'Not scheduled';
+const fmtMoney=value=>value>0?('$'+value.toLocaleString()):'$0';
+function insuranceBadge(status){const map={Active:'ins-active',Pending:'ins-pending',Inactive:'ins-inactive',Unknown:'ins-unknown'}; return '<span class="badge '+(map[status]||'ins-unknown')+'">'+status+'</span>';}
+function filteredPatients(){return PATIENTS.filter(patient=>{if(STATE.query){const hay=[patient.name,patient.payer,patient.memberId,patient.clinician].join(' ').toLowerCase(); if(!hay.includes(STATE.query)) return false;} if(STATE.clinician&&patient.clinician!==STATE.clinician) return false; if(STATE.payer&&patient.payer!==STATE.payer) return false; if(STATE.insurance&&patient.insurance!==STATE.insurance) return false; if(STATE.tab==='appointments'&&!patient.nextAppointment) return false; if(STATE.tab==='insurance'&&patient.insurance==='Unknown') return false; if(STATE.tab==='authorizations'&&!patient.authorizations.length) return false; if(STATE.tab==='notes'&&!patient.notes.length) return false; if(STATE.tab==='claims'&&!patient.claims.length) return false; if(STATE.tab==='payments'&&(patient.balance===0&&patient.payments[0]==='No patient balance')) return false; if(STATE.tab==='communications'&&!patient.communications.length) return false; return true;});}
+function renderTabs(){document.querySelectorAll('.mod-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===STATE.tab)); const url=new URL(location.href); url.searchParams.set('tab',STATE.tab); if(STATE.selectedId) url.searchParams.set('id',STATE.selectedId); else url.searchParams.delete('id'); history.replaceState(null,'',url);}
+function renderKpis(){const active=PATIENTS.filter(p=>p.insurance==='Active').length, balances=PATIENTS.filter(p=>p.balance>0).length, appts=PATIENTS.filter(p=>p.nextAppointment).length, alerts=PATIENTS.reduce((sum,p)=>sum+p.alerts,0); $('kpiGrid').innerHTML=[['Active Insurance',active],['Balances Due',balances],['Upcoming Appointments',appts],['Billing Alerts',alerts]].map(([l,v])=>'<div class="kpi"><div class="kpi-num">'+v+'</div><div class="kpi-lbl">'+l+'</div></div>').join('');}
+function renderWorkspace(){const rows=filteredPatients(); $('resultCount').textContent=rows.length+' of '+PATIENTS.length+' patients'; $('tableTitle').textContent=({demographics:'Patient Directory',appointments:'Upcoming Patient Appointments',insurance:'Insurance and Eligibility',authorizations:'Authorization Follow-up',notes:'Patient Notes Queue',claims:'Patient Claims Context',payments:'Patient Balances and Payments',communications:'Patient Communications'})[STATE.tab]; $('patientRows').innerHTML=rows.length?rows.map(patient=>'<tr data-id="'+patient.id+'"><td><div class="patient-cell"><div class="patient-avatar">'+initials(patient.name)+'</div><div><div class="patient-name">'+patient.name+'</div><div class="patient-sub">'+patient.id+' · '+patient.memberId+'</div></div></div></td><td>'+patient.payer+'</td><td>'+insuranceBadge(patient.insurance)+'</td><td class="'+(patient.balance>0?'bal-positive':'bal-zero')+'">'+fmtMoney(patient.balance)+'</td><td>'+fmtDate(patient.nextAppointment)+'</td><td>'+patient.clinician+'</td><td>'+patient.alerts+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">No patients match this view.</td></tr>'; $('miniGrid').innerHTML=[['Patients',rows.length],['Outstanding Balance','$'+rows.reduce((sum,p)=>sum+p.balance,0).toLocaleString()],['Upcoming',rows.filter(p=>p.nextAppointment).length],['Alerts',rows.reduce((sum,p)=>sum+p.alerts,0)]].map(([l,v])=>'<div class="mini"><h4>'+l+'</h4><strong>'+v+'</strong></div>').join(''); $('queueList').innerHTML=rows.slice(0,4).map(patient=>'<div class="queue-item"><div class="queue-item-title">'+patient.name+'</div><div class="queue-item-sub">'+patient.clinician+' · '+patient.payer+' · '+(patient.communications[0]||patient.notes[0]||'No open activity')+'</div></div>').join('');}
+function renderTimeline(targetId,items){$(targetId).innerHTML=items.length?items.map((item,index)=>'<div class="timeline-item"><div class="timeline-title">'+item+'</div><div class="timeline-meta">'+(['Today','2 days ago','5 days ago','1 week ago'][index]||'Recent')+'</div></div>').join(''):'<div class="empty">No activity in this section.</div>';}
+function openDrawer(id){const patient=PATIENTS.find(p=>p.id===id); if(!patient) return; STATE.selectedId=id; $('drawerId').textContent=patient.id; $('drawerName').textContent=patient.name; $('drawerSub').textContent=patient.payer+' · '+patient.email; $('demographicFields').innerHTML=[['Date of Birth',fmtDate(patient.dob)],['Phone',patient.phone],['Email',patient.email],['Assigned Clinician',patient.clinician],['Member ID',patient.memberId||'Pending'],['Insurance',insuranceBadge(patient.insurance)],['Last Appointment',fmtDate(patient.lastAppointment)],['Next Appointment',fmtDate(patient.nextAppointment)]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+(String(v).includes('<span')?v:v)+'</span></div>').join(''); renderTimeline('appointmentTimeline',[patient.lastAppointment?'Last seen '+fmtDate(patient.lastAppointment):'No recent appointment',patient.nextAppointment?'Upcoming appointment '+fmtDate(patient.nextAppointment):'No next appointment scheduled','Scheduling note routed to clinician']); $('insuranceFields').innerHTML=[['Payer',patient.payer],['Insurance Status',patient.insurance],['Member ID',patient.memberId||'Pending'],['Billing Alerts',patient.alerts],['Authorization Count',patient.authorizations.length],['Claims Notes',patient.claims.length]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+v+'</span></div>').join(''); renderTimeline('authorizationTimeline',patient.authorizations); renderTimeline('notesTimeline',patient.notes); renderTimeline('claimsTimeline',patient.claims); $('paymentFields').innerHTML=[['Outstanding Balance',fmtMoney(patient.balance)],['Last Appointment',fmtDate(patient.lastAppointment)],['Next Appointment',fmtDate(patient.nextAppointment)],['Alerts',patient.alerts]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+v+'</span></div>').join(''); renderTimeline('communicationsTimeline',patient.communications); $('sideInsurance').innerHTML=insuranceBadge(patient.insurance); $('sideClinician').textContent=patient.clinician; $('sideBalance').textContent=fmtMoney(patient.balance); $('sideNext').textContent=fmtDate(patient.nextAppointment); $('sideAlerts').textContent=patient.alerts; $('sidePayer').textContent=patient.payer; $('drillToClaims').href='admin-claims.html?tab=list&id='+patient.id; $('drillToPayments').href='admin-payments.html?tab=payment-posting&id='+patient.id; $('drillToComms').href='admin-communications.html?tab=patient-messages&id='+patient.id; $('drawerBackdrop').classList.add('open'); $('patientDrawer').classList.add('open'); renderTabs();}
+function closeDrawer(){STATE.selectedId=null; $('drawerBackdrop').classList.remove('open'); $('patientDrawer').classList.remove('open'); renderTabs();}
+function switchDrawerPanel(panel){STATE.drawerPanel=panel; document.querySelectorAll('.drawer-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.panel===panel)); document.querySelectorAll('.drawer-panel').forEach(el=>el.classList.toggle('active',el.id==='panel-'+panel));}
+function initFilters(){[...new Set(PATIENTS.map(p=>p.clinician))].sort().forEach(value=>{const option=document.createElement('option'); option.value=value; option.textContent=value; $('clinicianFilter').appendChild(option);}); [...new Set(PATIENTS.map(p=>p.payer))].sort().forEach(value=>{const option=document.createElement('option'); option.value=value; option.textContent=value; $('payerFilter').appendChild(option);}); [...new Set(PATIENTS.map(p=>p.insurance))].sort().forEach(value=>{const option=document.createElement('option'); option.value=value; option.textContent=value; $('insuranceFilter').appendChild(option);});}
+function init(){const params=new URLSearchParams(window.location.search); const tab=params.get('tab'); if(tab) STATE.tab=tab; renderKpis(); initFilters(); renderTabs(); renderWorkspace(); const id=params.get('id'); if(id) openDrawer(id); $('tabBar').addEventListener('click',event=>{const btn=event.target.closest('.mod-tab'); if(!btn) return; STATE.tab=btn.dataset.tab; renderTabs(); renderWorkspace();}); $('searchInput').addEventListener('input',event=>{STATE.query=event.target.value.trim().toLowerCase(); renderWorkspace();}); $('clinicianFilter').addEventListener('change',event=>{STATE.clinician=event.target.value; renderWorkspace();}); $('payerFilter').addEventListener('change',event=>{STATE.payer=event.target.value; renderWorkspace();}); $('insuranceFilter').addEventListener('change',event=>{STATE.insurance=event.target.value; renderWorkspace();}); $('patientRows').addEventListener('click',event=>{const row=event.target.closest('tr[data-id]'); if(row) openDrawer(row.dataset.id);}); $('drawerBackdrop').addEventListener('click',closeDrawer); $('drawerClose').addEventListener('click',closeDrawer); $('drawerTabs').addEventListener('click',event=>{const btn=event.target.closest('.drawer-tab'); if(btn) switchDrawerPanel(btn.dataset.panel);}); $('btnOpenSelected').addEventListener('click',()=>{if(STATE.selectedId) openDrawer(STATE.selectedId); else if(filteredPatients()[0]) openDrawer(filteredPatients()[0].id);}); $('btnAddPatient').addEventListener('click',()=>{window.location.href='admin-add-client.html';}); document.addEventListener('click',event=>{const link=event.target.closest('a[href^="admin-patients.html?tab="]'); if(!link||window.location.protocol!=='file:') return; event.preventDefault(); const url=new URL(link.getAttribute('href'),window.location.href); const nextTab=url.searchParams.get('tab'); if(nextTab){STATE.tab=nextTab; if(STATE.selectedId){const nextId=url.searchParams.get('id'); if(nextId){openDrawer(nextId);}else{closeDrawer();}} renderTabs(); renderWorkspace();}});}
+window.addEventListener('load',init);
+</script>
+</body>
+</html>

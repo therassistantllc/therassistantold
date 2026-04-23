@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT &mdash; Payments &amp; Billing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* ------------------------------------------------------
+       STRIPE PAYMENTS HUB - Clinician View
+    ------------------------------------------------------ */
+
+    /* -- KPI strip ------------------------------------- */
+    .sp-kpi-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:18px}
+    .sp-kpi{background:var(--surface);border-radius:12px;border:1px solid var(--border);
+      box-shadow:0 6px 14px rgba(13,53,94,.07);padding:12px 10px;position:relative;overflow:hidden}
+    .sp-kpi::after{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+      background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .sp-kpi.green::after{background:linear-gradient(180deg,#10b981,#059669)}
+    .sp-kpi.amber::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .sp-kpi.red::after{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .sp-kpi.purple::after{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .sp-kpi.stripe::after{background:linear-gradient(180deg,#6366f1,#4f46e5)}
+    .sp-kpi-lbl{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-500);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sp-kpi-val{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:2px}
+    .sp-kpi.green .sp-kpi-val{color:#059669}
+    .sp-kpi.amber .sp-kpi-val{color:#b45309}
+    .sp-kpi.red .sp-kpi-val{color:#dc2626}
+    .sp-kpi.purple .sp-kpi-val{color:#6d28d9}
+    .sp-kpi.stripe .sp-kpi-val{color:#4f46e5}
+    .sp-kpi-sub{font-size:10px;color:var(--ink-500)}
+
+    /* -- Body layout ----------------------------------- */
+    .sp-body{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+    .sp-left{display:flex;flex-direction:column;gap:14px}
+    .sp-right{display:flex;flex-direction:column;gap:14px}
+
+    /* -- Widget shell ---------------------------------- */
+    .sp-widget{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+      box-shadow:0 8px 20px rgba(13,53,94,.08);overflow:hidden}
+    .sp-whead{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .sp-wtitle{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:var(--ink-900);display:flex;align-items:center;gap:7px}
+    .sp-wicon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);color:var(--blue-900)}
+    .sp-wicon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .sp-wicon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .sp-wicon.red{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .sp-wicon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+    .sp-wicon.stripe{background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca}
+    .sp-wlink{font-size:11.5px;font-weight:700;color:var(--blue-700);text-decoration:none;white-space:nowrap;cursor:pointer;background:none;border:none;padding:0;font-family:inherit}
+    .sp-wlink:hover{text-decoration:underline}
+    .sp-wbody{padding:0}
+
+    /* -- Table shell ----------------------------------- */
+    .sp-table-wrap{overflow-x:auto}
+    .sp-table{width:100%;border-collapse:collapse}
+    .sp-table thead th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+      color:var(--ink-500);padding:9px 12px;background:var(--surface-soft);border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+    .sp-table tbody td{padding:10px 12px;font-size:12.5px;color:var(--ink-700);border-bottom:1px solid var(--border);vertical-align:middle}
+    .sp-table tbody tr:last-child td{border-bottom:none}
+    .sp-table tbody tr:hover td{background:#f7fbff}
+    .sp-table tbody tr.clickable{cursor:pointer}
+    .sp-patient-name{font-weight:700;color:var(--ink-900)}
+    .sp-amount{font-family:'Sora',sans-serif;font-weight:700}
+    .sp-amount.collected{color:#059669}
+    .sp-amount.owed{color:#b45309}
+    .sp-amount.overdue{color:#dc2626}
+    .sp-amount.refund{color:#6d28d9}
+
+    /* -- Status badges --------------------------------- */
+    .sp-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px}
+    .sp-badge.paid{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
+    .sp-badge.pending{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+    .sp-badge.failed{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .sp-badge.declined{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .sp-badge.refunded{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+    .sp-badge.partial{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .sp-badge.overdue{background:#fff7ed;color:#9a3412;border:1px solid #fdba74}
+    .sp-badge.plan{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
+    .sp-badge.autopay{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+    .sp-badge.sent{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+    .sp-badge.void{background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0}
+
+    /* -- Filter bar ------------------------------------ */
+    .sp-filter-bar{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+    .sp-filter-bar input,.sp-filter-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none}
+    .sp-filter-bar input{flex:1;min-width:160px}
+    .sp-filter-bar input:focus,.sp-filter-bar select:focus{border-color:var(--blue-500)}
+
+    /* -- Source badge ---------------------------------- */
+    .sp-source{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--surface-soft);border:1px solid var(--border);color:var(--ink-500)}
+    .sp-method{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink-700)}
+    .sp-method-icon{font-size:.85rem}
+
+    /* -- Collect button -------------------------------- */
+    .btn-collect{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;border:none;border-radius:8px;
+      padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+      display:inline-flex;align-items:center;gap:5px;transition:opacity .14s,transform .12s;white-space:nowrap}
+    .btn-collect:hover{opacity:.88;transform:translateY(-1px)}
+    .btn-collect:active{transform:translateY(0)}
+    .btn-sm-ghost{background:none;border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;
+      font-size:11.5px;font-weight:700;color:var(--ink-700);cursor:pointer;font-family:inherit;transition:border-color .14s}
+    .btn-sm-ghost:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .btn-sm-danger{background:none;border:1.5px solid #fca5a5;border-radius:7px;padding:4px 10px;
+      font-size:11.5px;font-weight:700;color:#b91c1c;cursor:pointer;font-family:inherit;transition:background .14s}
+    .btn-sm-danger:hover{background:#fff1f2}
+
+    /* -- Stripe connect banner ------------------------- */
+    .stripe-connect-banner{background:linear-gradient(135deg,#4f46e5,#6366f1);border-radius:14px;padding:20px 24px;
+      display:flex;align-items:center;gap:16px;margin-bottom:18px;color:#fff;position:relative;overflow:hidden}
+    .stripe-connect-banner::before{content:'';position:absolute;right:-30px;top:-30px;width:200px;height:200px;
+      border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none}
+    .scb-icon{font-size:2rem;flex-shrink:0}
+    .scb-text h3{font-family:'Sora',sans-serif;font-size:15px;font-weight:700;margin:0 0 3px;color:#fff}
+    .scb-text p{font-size:12.5px;color:rgba(255,255,255,.8);margin:0}
+    .scb-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+    .btn-stripe-connect{background:#fff;color:#4f46e5;border:none;border-radius:9px;padding:9px 18px;
+      font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .14s;white-space:nowrap}
+    .btn-stripe-connect:hover{opacity:.88}
+    .stripe-connected-pill{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:99px;
+      padding:3px 12px;font-size:11px;font-weight:700;color:#fff;display:inline-flex;align-items:center;gap:5px}
+
+    /* -- Payment method card --------------------------- */
+    .pm-card{background:var(--surface-soft);border:1.5px solid var(--border);border-radius:12px;
+      padding:12px 14px;display:flex;align-items:center;gap:10px;position:relative}
+    .pm-card.default{border-color:#a7f3d0;background:#f0fdf9}
+    .pm-card-brand{width:36px;height:24px;border-radius:5px;background:linear-gradient(135deg,#1a1a2e,#16213e);
+      display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:900;color:#fff;
+      letter-spacing:.05em;flex-shrink:0}
+    .pm-card-brand.visa{background:linear-gradient(135deg,#1a1f71,#2b3593)}
+    .pm-card-brand.mc{background:linear-gradient(135deg,#eb001b,#f79e1b)}
+    .pm-card-brand.amex{background:linear-gradient(135deg,#007bc1,#00aeef)}
+    .pm-card-brand.discover{background:linear-gradient(135deg,#e65c00,#f9a825)}
+    .pm-card-info{flex:1;min-width:0}
+    .pm-card-num{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .pm-card-meta{font-size:10.5px;color:var(--ink-500)}
+    .pm-default-badge{font-size:9.5px;font-weight:700;background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;
+      padding:1px 7px;border-radius:99px;position:absolute;top:8px;right:8px}
+
+    /* -- Payment plan progress ------------------------- */
+    .plan-progress-track{flex:1;height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden}
+    .plan-progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#10b981,#34d399);transition:width .4s}
+    .plan-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+    .plan-row:last-child{border-bottom:none}
+    .plan-row:hover{background:#f7fbff}
+    .plan-name{flex:1;min-width:0}
+    .plan-patient{font-size:13px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .plan-meta{font-size:10.5px;color:var(--ink-500)}
+    .plan-amount{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:var(--ink-900);text-align:right;flex-shrink:0}
+    .plan-remaining{font-size:10.5px;color:var(--ink-500);text-align:right}
+
+    /* -- Alert row ------------------------------------- */
+    .sp-alert-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .sp-alert-row:last-child{border-bottom:none}
+    .sp-alert-row:hover{background:#f7fbff}
+    .sp-alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+    .sp-alert-dot.red{background:#dc2626}
+    .sp-alert-dot.amber{background:#f59e0b}
+    .sp-alert-dot.blue{background:var(--blue-600)}
+    .sp-alert-body{flex:1;min-width:0}
+    .sp-alert-title{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .sp-alert-sub{font-size:11px;color:var(--ink-500);margin-top:1px}
+    .sp-alert-time{font-size:10.5px;color:var(--ink-500);flex-shrink:0;white-space:nowrap}
+
+    /* -- Tabs ------------------------------------------ */
+    .sp-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 12px;flex-wrap:wrap}
+    .sp-tab{border:none;background:none;padding:10px 13px;font-size:12.5px;font-weight:600;
+      color:var(--ink-500);cursor:pointer;border-bottom:2.5px solid transparent;font-family:inherit;
+      transition:color .14s,border-color .14s;white-space:nowrap}
+    .sp-tab:hover{color:var(--ink-900)}
+    .sp-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .sp-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;
+      border-radius:99px;font-size:10px;font-weight:800;padding:0 3px;margin-left:4px;
+      background:#dbeafe;color:#1e40af}
+    .sp-tab.active .sp-tab-count{background:var(--blue-600);color:#fff}
+    .sp-tab-pane{display:none}
+    .sp-tab-pane.active{display:block}
+
+    /* -- Invoice / doc rows ---------------------------- */
+    .doc-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);transition:background .12s;cursor:pointer}
+    .doc-row:last-child{border-bottom:none}
+    .doc-row:hover{background:#f7fbff}
+    .doc-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+    .doc-icon.invoice{background:#dbeafe;color:#1e40af}
+    .doc-icon.superbill{background:#ede9fe;color:#5b21b6}
+    .doc-icon.statement{background:#d1fae5;color:#065f46}
+    .doc-icon.receipt{background:#f0fdf4;color:#15803d}
+    .doc-info{flex:1;min-width:0}
+    .doc-patient{font-size:13px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .doc-meta{font-size:10.5px;color:var(--ink-500);margin-top:1px}
+    .doc-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
+
+    /* -- Modals ---------------------------------------- */
+    .sp-modal-bg{display:none;position:fixed;inset:0;background:rgba(10,30,60,.5);z-index:9100;
+      align-items:center;justify-content:center;padding:16px}
+    .sp-modal-bg.open{display:flex}
+    .sp-modal{background:#fff;border-radius:20px;width:min(520px,100%);max-height:90vh;overflow-y:auto;
+      box-shadow:0 32px 80px rgba(10,30,60,.3);display:flex;flex-direction:column}
+    .sp-modal-hdr{padding:22px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0}
+    .sp-modal-hdr h3{font-family:'Sora',sans-serif;font-size:16px;font-weight:700;color:var(--ink-900);margin:0}
+    .sp-modal-hdr p{font-size:12.5px;color:var(--ink-500);margin:4px 0 0}
+    .sp-modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--ink-500);padding:4px;line-height:1;flex-shrink:0}
+    .sp-modal-close:hover{color:var(--ink-900)}
+    .sp-modal-body{padding:18px 24px;flex:1}
+    .sp-modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0}
+    .sp-modal-footer .btn{flex:1;text-align:center;justify-content:center}
+
+    /* Form helpers */
+    .sp-field{margin-bottom:14px}
+    .sp-field label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-700);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+    .sp-field input,.sp-field select,.sp-field textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--ink-900);background:var(--surface-soft);outline:none;box-sizing:border-box}
+    .sp-field input:focus,.sp-field select:focus,.sp-field textarea:focus{border-color:var(--blue-500);background:#fff}
+    .sp-field textarea{resize:vertical;min-height:70px}
+    .sp-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .sp-field-hint{font-size:11px;color:var(--ink-500);margin-top:4px}
+
+    .sp-divider{height:1px;background:var(--border);margin:16px 0}
+    .sp-section-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+    .sp-section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    /* Stripe card element placeholder */
+    .stripe-element-box{border:1.5px solid var(--border);border-radius:9px;padding:11px 12px;
+      background:var(--surface-soft);font-size:13px;color:var(--ink-500);
+      display:flex;align-items:center;gap:8px}
+    .stripe-element-box.active{border-color:var(--blue-500);background:#fff}
+
+    /* Summary row */
+    .sp-summary-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+    .sp-summary-row.total{font-weight:700;font-size:14px;border-top:1px solid var(--border);padding-top:10px;margin-top:6px}
+    .sp-summary-row .sp-amount{font-family:'Sora',sans-serif;font-size:14px}
+
+    /* Toast */
+    .sp-toast{position:fixed;bottom:24px;right:24px;background:var(--ink-900);color:#fff;border-radius:10px;
+      padding:12px 18px;font-size:13px;font-weight:600;z-index:9999;display:none;
+      box-shadow:0 12px 28px rgba(0,0,0,.25);max-width:320px;animation:spToastIn .22s ease-out}
+    .sp-toast.show{display:block}
+    .sp-toast.success{background:#065f46;border:1px solid #a7f3d0}
+    .sp-toast.error{background:#b91c1c;border:1px solid #fca5a5}
+    @keyframes spToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    /* Responsive */
+    @media(max-width:1100px){.sp-kpi-strip{grid-template-columns:repeat(4,1fr)}}
+    @media(max-width:900px){.sp-body{grid-template-columns:1fr}.sp-kpi-strip{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:600px){.sp-kpi-strip{grid-template-columns:repeat(2,1fr)}.sp-field-row{grid-template-columns:1fr}}
+  </style>
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <!-- -- Main ---------------------------------------------- -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:18px">
+      <div>
+        <h2 style="font-family:'Sora',sans-serif;font-size:1.35rem;font-weight:700;margin:0 0 3px">Payments &amp; Billing</h2>
+        <p style="font-size:12.5px;color:var(--ink-500);margin:0">Collect, track, and reconcile patient payments via Stripe</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm-ghost" type="button" onclick="openInvoiceModal()">?? New Invoice</button>
+        <button class="btn btn-ghost btn-sm-ghost" type="button" onclick="openStatementModal()">?? New Statement</button>
+        <button class="btn-collect" type="button" onclick="openCollectModal('manual')">?? Collect Payment</button>
+      </div>
+    </header>
+
+    <!-- -- Stripe Connect Banner ------------------------- -->
+    <div class="stripe-connect-banner" id="stripeConnectBanner">
+      <div class="scb-icon">??</div>
+      <div class="scb-text">
+        <h3>Connect your Stripe account to start collecting payments</h3>
+        <p>Accept cards, ACH, and HSA/FSA. Funds deposit directly to your bank - no middleman.</p>
+      </div>
+      <div class="scb-actions">
+        <div class="stripe-connected-pill" id="stripeConnectedPill" style="display:none">? Connected - **** 4242</div>
+        <button class="btn-stripe-connect" type="button" id="stripeConnectBtn" onclick="handleStripeConnect()">Connect with Stripe ?</button>
+        <button class="btn-stripe-connect" type="button" id="stripeDashBtn" onclick="openStripeDashboard()" style="display:none;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35)">Open Stripe Dashboard ?</button>
+      </div>
+    </div>
+
+    <!-- -- KPI Strip --------------------------------------- -->
+    <div class="sp-kpi-strip">
+      <div class="sp-kpi green">
+        <div class="sp-kpi-lbl">Collected MTD</div>
+        <div class="sp-kpi-val" id="kpiCollected">$0</div>
+        <div class="sp-kpi-sub">This month</div>
+      </div>
+      <div class="sp-kpi amber">
+        <div class="sp-kpi-lbl">Outstanding</div>
+        <div class="sp-kpi-val" id="kpiOutstanding">$0</div>
+        <div class="sp-kpi-sub">Patient balances</div>
+      </div>
+      <div class="sp-kpi red">
+        <div class="sp-kpi-lbl">Overdue</div>
+        <div class="sp-kpi-val" id="kpiOverdue">$0</div>
+        <div class="sp-kpi-sub">&gt;30 days</div>
+      </div>
+      <div class="sp-kpi purple">
+        <div class="sp-kpi-lbl">Active Plans</div>
+        <div class="sp-kpi-val" id="kpiPlans">0</div>
+        <div class="sp-kpi-sub">Payment plans</div>
+      </div>
+      <div class="sp-kpi stripe">
+        <div class="sp-kpi-lbl">Auto-Pay On</div>
+        <div class="sp-kpi-val" id="kpiAutoPay">0</div>
+        <div class="sp-kpi-sub">Patients enrolled</div>
+      </div>
+      <div class="sp-kpi red">
+        <div class="sp-kpi-lbl">Failed / Declined</div>
+        <div class="sp-kpi-val" id="kpiFailed">0</div>
+        <div class="sp-kpi-sub">Needs action</div>
+      </div>
+      <div class="sp-kpi">
+        <div class="sp-kpi-lbl">Refunds MTD</div>
+        <div class="sp-kpi-val" id="kpiRefunds">$0</div>
+        <div class="sp-kpi-sub">Issued</div>
+      </div>
+    </div>
+
+    <!-- -- Body -------------------------------------------- -->
+    <div class="sp-body">
+      <!-- Left column -->
+      <div class="sp-left">
+
+        <!-- Payment History / Transactions -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon">??</div>Payment History</div>
+            <button class="sp-wlink" type="button" onclick="exportPayments()">Export CSV ?</button>
+          </div>
+          <div class="sp-tabs">
+            <button class="sp-tab active" type="button" onclick="switchTab(this,'tabAll')">All <span class="sp-tab-count" id="cntAll">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchTab(this,'tabPaid')">Paid <span class="sp-tab-count" id="cntPaid">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchTab(this,'tabPending')">Pending <span class="sp-tab-count" id="cntPending">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchTab(this,'tabFailed')">Failed / Declined <span class="sp-tab-count" id="cntFailed">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchTab(this,'tabRefunds')">Refunds <span class="sp-tab-count" id="cntRefunds">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchTab(this,'tabPlans')">Plans <span class="sp-tab-count" id="cntPlans">0</span></button>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="sp-filter-bar">
+            <input type="text" id="paySearch" placeholder="Search patient, invoice #, amount..." oninput="filterPayments()">
+            <select id="payDateRange" onchange="filterPayments()">
+              <option value="30">Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">This year</option>
+              <option value="all">All time</option>
+            </select>
+            <select id="paySource" onchange="filterPayments()">
+              <option value="">All sources</option>
+              <option value="agenda">Agenda</option>
+              <option value="profile">Patient Profile</option>
+              <option value="statement">Statement</option>
+              <option value="alert">Billing Alert</option>
+              <option value="portal">Patient Portal</option>
+            </select>
+          </div>
+
+          <!-- Tab panes share one table, filtered by JS -->
+          <div id="tabAll" class="sp-tab-pane active">
+            <div class="sp-table-wrap">
+              <table class="sp-table" id="paymentsTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Patient</th>
+                    <th>Description</th>
+                    <th>Method</th>
+                    <th>Source</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentsTableBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div id="tabPaid" class="sp-tab-pane"></div>
+          <div id="tabPending" class="sp-tab-pane"></div>
+          <div id="tabFailed" class="sp-tab-pane"></div>
+          <div id="tabRefunds" class="sp-tab-pane"></div>
+          <div id="tabPlans" class="sp-tab-pane"></div>
+        </div>
+
+        <!-- Invoices, Superbills, Statements, Receipts -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon purple">??</div>Documents</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-sm-ghost" type="button" onclick="openInvoiceModal()">+ Invoice</button>
+              <button class="btn-sm-ghost" type="button" onclick="openSuperbillModal()">+ Superbill</button>
+              <button class="btn-sm-ghost" type="button" onclick="openStatementModal()">+ Statement</button>
+            </div>
+          </div>
+          <div class="sp-tabs">
+            <button class="sp-tab active" type="button" onclick="switchDocTab(this,'docInvoices')">Invoices <span class="sp-tab-count" id="cntInv">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchDocTab(this,'docSuperbills')">Superbills <span class="sp-tab-count" id="cntSb">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchDocTab(this,'docStatements')">Statements <span class="sp-tab-count" id="cntStmt">0</span></button>
+            <button class="sp-tab" type="button" onclick="switchDocTab(this,'docReceipts')">Receipts <span class="sp-tab-count" id="cntRec">0</span></button>
+          </div>
+          <div id="docInvoices" class="sp-tab-pane active">
+            <div id="invoicesList"></div>
+          </div>
+          <div id="docSuperbills" class="sp-tab-pane">
+            <div id="superbillsList"></div>
+          </div>
+          <div id="docStatements" class="sp-tab-pane">
+            <div id="statementsList"></div>
+          </div>
+          <div id="docReceipts" class="sp-tab-pane">
+            <div id="receiptsList"></div>
+          </div>
+        </div>
+
+      </div><!-- /sp-left -->
+
+      <!-- Right column -->
+      <div class="sp-right">
+
+        <!-- Failed / Declined Alerts -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon red">??</div>Failed &amp; Declined</div>
+            <button class="sp-wlink" type="button" onclick="showAllAlerts()">View all</button>
+          </div>
+          <div class="sp-wbody" id="failedAlertsList">
+            <div class="sp-alert-row">
+              <div class="sp-alert-dot red"></div>
+              <div class="sp-alert-body">
+                <div class="sp-alert-title">Card declined - Sarah M.</div>
+                <div class="sp-alert-sub">$150 copay - Visa **** 4242 - Insufficient funds</div>
+              </div>
+              <div class="sp-alert-time">2h ago</div>
+            </div>
+            <div class="sp-alert-row">
+              <div class="sp-alert-dot red"></div>
+              <div class="sp-alert-body">
+                <div class="sp-alert-title">Auto-pay failed - James T.</div>
+                <div class="sp-alert-sub">$200 plan installment - MC **** 8821 - Card expired</div>
+              </div>
+              <div class="sp-alert-time">Yesterday</div>
+            </div>
+            <div class="sp-alert-row">
+              <div class="sp-alert-dot amber"></div>
+              <div class="sp-alert-body">
+                <div class="sp-alert-title">ACH returned - Dana R.</div>
+                <div class="sp-alert-sub">$320 balance - Account closed - R02</div>
+              </div>
+              <div class="sp-alert-time">2d ago</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Payment Plans -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon green">??</div>Payment Plans</div>
+            <button class="sp-wlink" type="button" onclick="openPlanModal()">+ New Plan</button>
+          </div>
+          <div class="sp-wbody" id="paymentPlansList">
+            <div class="plan-row">
+              <div class="plan-name">
+                <div class="plan-patient">Maria C.</div>
+                <div class="plan-meta">$50/mo - 4 of 8 paid - Auto-pay on</div>
+              </div>
+              <div style="width:100px">
+                <div class="plan-progress-track"><div class="plan-progress-fill" style="width:50%"></div></div>
+              </div>
+              <div>
+                <div class="plan-amount">$200</div>
+                <div class="plan-remaining">remaining</div>
+              </div>
+            </div>
+            <div class="plan-row">
+              <div class="plan-name">
+                <div class="plan-patient">Tom W.</div>
+                <div class="plan-meta">$100/mo - 2 of 6 paid - Manual</div>
+              </div>
+              <div style="width:100px">
+                <div class="plan-progress-track"><div class="plan-progress-fill" style="width:33%"></div></div>
+              </div>
+              <div>
+                <div class="plan-amount">$400</div>
+                <div class="plan-remaining">remaining</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saved Payment Methods (per-patient) -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon stripe">??</div>Saved Methods</div>
+            <button class="sp-wlink" type="button" onclick="manageSavedMethods()">Manage</button>
+          </div>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px" id="savedMethodsList">
+            <div class="pm-card default">
+              <div class="pm-card-brand visa">VISA</div>
+              <div class="pm-card-info">
+                <div class="pm-card-num">**** **** **** 4242</div>
+                <div class="pm-card-meta">Exp 12/27 - Sarah M.</div>
+              </div>
+              <div class="pm-default-badge">Default</div>
+            </div>
+            <div class="pm-card">
+              <div class="pm-card-brand mc">MC</div>
+              <div class="pm-card-info">
+                <div class="pm-card-num">**** **** **** 8821</div>
+                <div class="pm-card-meta">Exp 03/26 - James T.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Collect from Agenda -->
+        <div class="sp-widget">
+          <div class="sp-whead">
+            <div class="sp-wtitle"><div class="sp-wicon amber">??</div>Today's Agenda</div>
+            <span style="font-size:11px;color:var(--ink-500)" id="agendaDateLabel"></span>
+          </div>
+          <div class="sp-wbody" id="agendaPayList">
+            <!-- Populated by JS -->
+            <div class="doc-row" onclick="openCollectModal('agenda','Alex B.')">
+              <div class="doc-icon invoice">??</div>
+              <div class="doc-info">
+                <div class="doc-patient">Alex B.</div>
+                <div class="doc-meta">9:00 AM - Indiv Therapy - Copay $30</div>
+              </div>
+              <div class="doc-actions">
+                <span class="sp-badge paid">Paid</span>
+              </div>
+            </div>
+            <div class="doc-row" onclick="openCollectModal('agenda','Sam K.')">
+              <div class="doc-icon invoice">??</div>
+              <div class="doc-info">
+                <div class="doc-patient">Sam K.</div>
+                <div class="doc-meta">10:30 AM - Indiv Therapy - Copay $45 due</div>
+              </div>
+              <div class="doc-actions">
+                <button class="btn-collect" type="button" onclick="event.stopPropagation();openCollectModal('agenda','Sam K.')">Collect</button>
+              </div>
+            </div>
+            <div class="doc-row" onclick="openCollectModal('agenda','Dana R.')">
+              <div class="doc-icon invoice">??</div>
+              <div class="doc-info">
+                <div class="doc-patient">Dana R.</div>
+                <div class="doc-meta">2:00 PM - Group - Balance $120 overdue</div>
+              </div>
+              <div class="doc-actions">
+                <button class="btn-collect" type="button" onclick="event.stopPropagation();openCollectModal('agenda','Dana R.')">Collect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /sp-right -->
+    </div><!-- /sp-body -->
+  </main>
+</div><!-- /dashboard-shell -->
+
+<!-- ------------------------------------------------------
+     MODALS
+------------------------------------------------------ -->
+
+<!-- -- Collect Payment Modal --------------------------- -->
+<div class="sp-modal-bg" id="collectModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>?? Collect Payment</h3>
+        <p id="collectModalSubtitle">Enter payment details below</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('collectModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <!-- Source context -->
+      <div id="collectSourceContext" style="display:none;background:var(--surface-soft);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--ink-700)"></div>
+
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Patient</label>
+          <select id="collectPatient">
+            <option value="">Select patient...</option>
+            <option>Alex B.</option>
+            <option>Sam K.</option>
+            <option>Dana R.</option>
+            <option>Maria C.</option>
+            <option>James T.</option>
+            <option>Sarah M.</option>
+            <option>Tom W.</option>
+          </select>
+        </div>
+        <div class="sp-field">
+          <label>Amount ($)</label>
+          <input type="number" id="collectAmount" min="0.01" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+
+      <div class="sp-field">
+        <label>Description</label>
+        <input type="text" id="collectDesc" placeholder="e.g. Copay - 4/6/2026 session">
+      </div>
+
+      <div class="sp-field">
+        <label>Payment Method</label>
+        <select id="collectMethod" onchange="toggleMethodFields()">
+          <option value="saved">Use saved card (**** 4242)</option>
+          <option value="new_card">New card</option>
+          <option value="ach">ACH / Bank account</option>
+          <option value="hsa">HSA / FSA card</option>
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+        </select>
+      </div>
+
+      <!-- New card Stripe element -->
+      <div id="newCardFields" style="display:none">
+        <div class="sp-field">
+          <label>Card Details</label>
+          <div class="stripe-element-box active">?? Secured by Stripe - Card number, expiry &amp; CVC</div>
+          <div class="sp-field-hint">Card data is never stored on THERASSISTANT servers.</div>
+        </div>
+      </div>
+
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Apply to Invoice #</label>
+          <input type="text" id="collectInvoice" placeholder="INV-0001 (optional)">
+        </div>
+        <div class="sp-field">
+          <label>Service Date</label>
+          <input type="date" id="collectDate">
+        </div>
+      </div>
+
+      <div class="sp-field">
+        <label>Notes (internal)</label>
+        <textarea id="collectNotes" placeholder="Optional internal note..." rows="2"></textarea>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:10px 0 4px">
+        <input type="checkbox" id="collectAutoReceipt" checked style="width:auto;margin:0">
+        <label for="collectAutoReceipt" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Send receipt to patient automatically</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="collectSaveMethod" style="width:auto;margin:0">
+        <label for="collectSaveMethod" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Save payment method for future use</label>
+      </div>
+
+      <div class="sp-divider"></div>
+      <div class="sp-summary-row"><span>Amount</span><span class="sp-amount collected" id="collectSummaryAmt">$0.00</span></div>
+      <div class="sp-summary-row"><span>Processing fee (2.9% + $0.30)</span><span class="sp-amount" id="collectSummaryFee">$0.00</span></div>
+      <div class="sp-summary-row total"><span>Total charged</span><span class="sp-amount collected" id="collectSummaryTotal">$0.00</span></div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('collectModal')">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitPayment()" id="collectSubmitBtn">Collect Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Refund Modal ------------------------------------- -->
+<div class="sp-modal-bg" id="refundModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>? Issue Refund</h3>
+        <p id="refundSubtitle">Refund will be returned to original payment method</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('refundModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="sp-field">
+        <label>Payment</label>
+        <select id="refundPayment">
+          <option value="">Select payment to refund...</option>
+        </select>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Refund Amount ($)</label>
+          <input type="number" id="refundAmount" min="0.01" step="0.01" placeholder="0.00">
+          <div class="sp-field-hint">Leave blank for full refund</div>
+        </div>
+        <div class="sp-field">
+          <label>Reason</label>
+          <select id="refundReason">
+            <option value="duplicate">Duplicate charge</option>
+            <option value="fraudulent">Fraudulent</option>
+            <option value="requested_by_customer">Patient request</option>
+            <option value="insurance_adjustment">Insurance adjustment</option>
+            <option value="service_not_rendered">Service not rendered</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="sp-field">
+        <label>Internal Notes</label>
+        <textarea id="refundNotes" placeholder="Document reason for refund..." rows="3"></textarea>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:9px;padding:10px 12px;font-size:12px;color:#92400e">
+        ?? Refunds typically appear on the patient's statement within 5-10 business days.
+      </div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('refundModal')">Cancel</button>
+      <button class="btn" type="button" onclick="submitRefund()" style="flex:1;background:#b91c1c;color:#fff;border:none;border-radius:9px;padding:10px;font-size:13.5px;font-weight:700;cursor:pointer">Issue Refund</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Payment Plan Modal ------------------------------- -->
+<div class="sp-modal-bg" id="planModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>?? New Payment Plan</h3>
+        <p>Set up installment schedule for a patient balance</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('planModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="sp-field">
+        <label>Patient</label>
+        <select id="planPatient">
+          <option value="">Select patient...</option>
+          <option>Alex B.</option><option>Sam K.</option><option>Dana R.</option>
+          <option>Maria C.</option><option>James T.</option><option>Sarah M.</option>
+        </select>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Total Balance ($)</label>
+          <input type="number" id="planTotal" placeholder="0.00" oninput="calcPlan()">
+        </div>
+        <div class="sp-field">
+          <label>Installments</label>
+          <input type="number" id="planCount" min="2" max="36" placeholder="e.g. 6" oninput="calcPlan()">
+        </div>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Frequency</label>
+          <select id="planFreq" onchange="calcPlan()">
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi-weekly</option>
+            <option value="monthly" selected>Monthly</option>
+          </select>
+        </div>
+        <div class="sp-field">
+          <label>First Payment Date</label>
+          <input type="date" id="planStartDate">
+        </div>
+      </div>
+      <div id="planCalcResult" style="background:#f0fdf9;border:1px solid #a7f3d0;border-radius:9px;padding:10px 14px;font-size:12.5px;color:#065f46;display:none;margin-bottom:14px">
+      </div>
+      <div class="sp-field">
+        <label>Payment Method</label>
+        <select id="planMethod">
+          <option value="saved">Use saved card (**** 4242)</option>
+          <option value="new">Add new card</option>
+          <option value="ach">ACH / Bank account</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="planAutoPay" checked style="width:auto;margin:0">
+        <label for="planAutoPay" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Enable Auto-Pay for this plan</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="planNotifyPatient" checked style="width:auto;margin:0">
+        <label for="planNotifyPatient" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Notify patient via email / SMS when each payment processes</label>
+      </div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('planModal')">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitPlan()">Create Plan</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Invoice Modal ------------------------------------ -->
+<div class="sp-modal-bg" id="invoiceModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>?? New Invoice</h3>
+        <p>Create and send a patient invoice</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('invoiceModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Patient</label>
+          <select id="invPatient">
+            <option value="">Select patient...</option>
+            <option>Alex B.</option><option>Sam K.</option><option>Dana R.</option>
+            <option>Maria C.</option><option>James T.</option><option>Sarah M.</option>
+          </select>
+        </div>
+        <div class="sp-field">
+          <label>Service Date</label>
+          <input type="date" id="invDate">
+        </div>
+      </div>
+      <div class="sp-field">
+        <label>Line Items</label>
+        <div id="invLineItems" style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:1fr 80px 90px 32px;gap:6px;align-items:center">
+            <input type="text" placeholder="Service description" class="inv-item-desc" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+            <input type="number" placeholder="Qty" class="inv-item-qty" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+            <input type="number" placeholder="Unit $" class="inv-item-price" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+            <button type="button" onclick="removeLineItem(this)" style="background:none;border:none;color:#dc2626;font-size:1rem;cursor:pointer;padding:0">?</button>
+          </div>
+        </div>
+        <button type="button" onclick="addLineItem()" style="margin-top:8px;background:none;border:1.5px dashed var(--border);border-radius:7px;padding:6px 14px;font-size:12px;color:var(--blue-700);cursor:pointer;font-weight:700;font-family:inherit;width:100%">+ Add line item</button>
+      </div>
+      <div class="sp-field">
+        <label>Due Date</label>
+        <input type="date" id="invDue">
+      </div>
+      <div class="sp-field">
+        <label>Notes to Patient</label>
+        <textarea id="invNotes" placeholder="Optional message on invoice..." rows="2"></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="invSendNow" checked style="width:auto;margin:0">
+        <label for="invSendNow" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Send invoice to patient now (email + SMS link)</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="invPayLink" checked style="width:auto;margin:0">
+        <label for="invPayLink" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Include Stripe payment link for online payment</label>
+      </div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('invoiceModal')">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitInvoice()">Create &amp; Send Invoice</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Superbill Modal ---------------------------------- -->
+<div class="sp-modal-bg" id="superbillModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>?? Generate Superbill</h3>
+        <p>Itemized receipt for out-of-network insurance reimbursement</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('superbillModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Patient</label>
+          <select id="sbPatient">
+            <option value="">Select patient...</option>
+            <option>Alex B.</option><option>Sam K.</option><option>Dana R.</option>
+            <option>Maria C.</option><option>James T.</option><option>Sarah M.</option>
+          </select>
+        </div>
+        <div class="sp-field">
+          <label>Date Range</label>
+          <input type="date" id="sbDateFrom" placeholder="From">
+        </div>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>CPT Code(s)</label>
+          <input type="text" id="sbCPT" placeholder="90837, 90834...">
+        </div>
+        <div class="sp-field">
+          <label>ICD-10 Code(s)</label>
+          <input type="text" id="sbICD" placeholder="F32.1, F41.1...">
+        </div>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>Rendering Provider NPI</label>
+          <input type="text" id="sbNPI" placeholder="1234567890">
+        </div>
+        <div class="sp-field">
+          <label>Amount Paid</label>
+          <input type="number" id="sbPaid" placeholder="0.00">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="sbSendEmail" checked style="width:auto;margin:0">
+        <label for="sbSendEmail" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Email superbill PDF to patient</label>
+      </div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('superbillModal')">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitSuperbill()">Generate Superbill</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Statement Modal ---------------------------------- -->
+<div class="sp-modal-bg" id="statementModal">
+  <div class="sp-modal">
+    <div class="sp-modal-hdr">
+      <div>
+        <h3>?? Account Statement</h3>
+        <p>Patient account activity over a date range</p>
+      </div>
+      <button class="sp-modal-close" type="button" onclick="closeModal('statementModal')">?</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="sp-field">
+        <label>Patient</label>
+        <select id="stmtPatient">
+          <option value="">Select patient...</option>
+          <option>Alex B.</option><option>Sam K.</option><option>Dana R.</option>
+          <option>Maria C.</option><option>James T.</option><option>Sarah M.</option>
+        </select>
+      </div>
+      <div class="sp-field-row">
+        <div class="sp-field">
+          <label>From</label>
+          <input type="date" id="stmtFrom">
+        </div>
+        <div class="sp-field">
+          <label>To</label>
+          <input type="date" id="stmtTo">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="stmtIncludePayLink" checked style="width:auto;margin:0">
+        <label for="stmtIncludePayLink" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Include Stripe payment link if balance due</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+        <input type="checkbox" id="stmtSend" checked style="width:auto;margin:0">
+        <label for="stmtSend" style="font-size:12.5px;font-weight:600;color:var(--ink-700);text-transform:none;letter-spacing:0;margin:0">Send statement to patient via email / SMS</label>
+      </div>
+    </div>
+    <div class="sp-modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeModal('statementModal')">Cancel</button>
+      <button class="btn btn-blue" type="button" onclick="submitStatement()">Generate &amp; Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Toast -------------------------------------------- -->
+<div class="sp-toast" id="spToast"></div>
+
+<!-- ------------------------------------------------------
+     SCRIPTS
+------------------------------------------------------ -->
+<script>
+/* -- Auth guard --------------------------------------- */
+(function(){
+  const sess = localStorage.getItem('therassistant_session');
+  if(!sess){ window.location.href='login.html'; return; }
+  try{
+    const d = JSON.parse(sess);
+    if(d.role && d.role !== 'clinician' && d.role !== 'admin'){ window.location.href='login.html'; }
+  }catch(e){ window.location.href='login.html'; }
+})();
+
+/* -- Stripe connection state -------------------------- */
+let stripeConnected = false;
+function handleStripeConnect(){
+  /* In production: redirect to Stripe Connect OAuth flow.
+     POST /api/stripe/connect/initiate ? redirect to Stripe */
+  showToast('Redirecting to Stripe Connect...','');
+  setTimeout(()=>{
+    stripeConnected = true;
+    document.getElementById('stripeConnectBtn').style.display='none';
+    document.getElementById('stripeDashBtn').style.display='';
+    document.getElementById('stripeConnectedPill').style.display='';
+  }, 1200);
+}
+function openStripeDashboard(){
+  /* POST /api/stripe/dashboard-link ? Stripe Express dashboard URL */
+  showToast('Opening Stripe Express dashboard...','');
+}
+
+/* -- Seed data (demo) --------------------------------- */
+const DEMO_PAYMENTS = [
+  {id:'pay_001',date:'2026-04-05',patient:'Alex B.',desc:'Copay - 90837',method:'card',brand:'visa',last4:'4242',source:'agenda',amount:30,status:'paid'},
+  {id:'pay_002',date:'2026-04-04',patient:'Sam K.',desc:'Plan installment #3',method:'card',brand:'mc',last4:'8821',source:'profile',amount:100,status:'paid'},
+  {id:'pay_003',date:'2026-04-03',patient:'Dana R.',desc:'Balance - Mar statements',method:'ach',brand:'ach',last4:'',source:'statement',amount:320,status:'failed'},
+  {id:'pay_004',date:'2026-04-02',patient:'Maria C.',desc:'Auto-pay - plan installment #5',method:'card',brand:'visa',last4:'4242',source:'portal',amount:50,status:'paid'},
+  {id:'pay_005',date:'2026-04-01',patient:'James T.',desc:'Copay - 90834',method:'card',brand:'mc',last4:'8821',source:'agenda',amount:45,status:'declined'},
+  {id:'pay_006',date:'2026-03-28',patient:'Sarah M.',desc:'Superbill period payment',method:'card',brand:'visa',last4:'4242',source:'alert',amount:150,status:'refunded'},
+  {id:'pay_007',date:'2026-03-26',patient:'Tom W.',desc:'Plan installment #2',method:'card',brand:'mc',last4:'8821',source:'profile',amount:100,status:'paid'},
+  {id:'pay_008',date:'2026-03-20',patient:'Alex B.',desc:'Outstanding balance',method:'card',brand:'visa',last4:'4242',source:'statement',amount:200,status:'paid'},
+];
+
+const STATUS_FILTER = {tabAll:null, tabPaid:'paid', tabPending:'pending', tabFailed:['failed','declined'], tabRefunds:'refunded', tabPlans:'plan'};
+let activePayTab = 'tabAll';
+let activeDocTab = 'docInvoices';
+
+function initPayments(){
+  renderPayments(DEMO_PAYMENTS);
+  updateKPIs();
+  renderDocLists();
+}
+
+function renderPayments(rows){
+  const tbody = document.getElementById('paymentsTableBody');
+  const filter = STATUS_FILTER[activePayTab];
+  const search = document.getElementById('paySearch').value.toLowerCase();
+  const source = document.getElementById('paySource').value;
+  let filtered = rows.filter(r=>{
+    const statusMatch = !filter || (Array.isArray(filter)?filter.includes(r.status):r.status===filter);
+    const searchMatch = !search || r.patient.toLowerCase().includes(search)||r.desc.toLowerCase().includes(search)||r.amount.toString().includes(search);
+    const sourceMatch = !source || r.source===source;
+    return statusMatch&&searchMatch&&sourceMatch;
+  });
+  tbody.innerHTML = filtered.map(r=>`
+    <tr class="clickable" onclick="viewPayment('${r.id}')">
+      <td>${fmtDate(r.date)}</td>
+      <td><span class="sp-patient-name">${r.patient}</span></td>
+      <td>${r.desc}</td>
+      <td><span class="sp-method"><span class="sp-method-icon">${methodIcon(r.method)}</span>${r.brand.toUpperCase()}${r.last4?' ****'+r.last4:''}</span></td>
+      <td><span class="sp-source">${r.source}</span></td>
+      <td><span class="sp-amount ${r.status==='refunded'?'refund':r.status==='paid'?'collected':'overdue'}">${r.status==='refunded'?'-':''}$${r.amount.toFixed(2)}</span></td>
+      <td>${statusBadge(r.status)}</td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${r.status==='paid'?`<button class="btn-sm-ghost" type="button" onclick="event.stopPropagation();openRefundForPayment('${r.id}')">Refund</button>`:''}
+          ${['failed','declined'].includes(r.status)?`<button class="btn-collect" type="button" onclick="event.stopPropagation();openCollectModal('retry','${r.patient}')">Retry</button>`:''}
+          <button class="btn-sm-ghost" type="button" onclick="event.stopPropagation();viewReceipt('${r.id}')">Receipt</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  updateTabCounts(rows);
+}
+
+function updateTabCounts(rows){
+  document.getElementById('cntAll').textContent=rows.length;
+  document.getElementById('cntPaid').textContent=rows.filter(r=>r.status==='paid').length;
+  document.getElementById('cntPending').textContent=rows.filter(r=>r.status==='pending').length;
+  document.getElementById('cntFailed').textContent=rows.filter(r=>['failed','declined'].includes(r.status)).length;
+  document.getElementById('cntRefunds').textContent=rows.filter(r=>r.status==='refunded').length;
+  document.getElementById('cntPlans').textContent=2; // demo
+}
+
+function updateKPIs(){
+  const paid=DEMO_PAYMENTS.filter(r=>r.status==='paid').reduce((a,r)=>a+r.amount,0);
+  const failed=DEMO_PAYMENTS.filter(r=>['failed','declined'].includes(r.status)).length;
+  const refunds=DEMO_PAYMENTS.filter(r=>r.status==='refunded').reduce((a,r)=>a+r.amount,0);
+  document.getElementById('kpiCollected').textContent='$'+paid.toFixed(0);
+  document.getElementById('kpiOutstanding').textContent='$1,240';
+  document.getElementById('kpiOverdue').textContent='$480';
+  document.getElementById('kpiPlans').textContent='2';
+  document.getElementById('kpiAutoPay').textContent='3';
+  document.getElementById('kpiFailed').textContent=failed;
+  document.getElementById('kpiRefunds').textContent='$'+refunds.toFixed(0);
+}
+
+function statusBadge(s){
+  const map={paid:'paid',pending:'pending',failed:'failed',declined:'declined',refunded:'refunded',partial:'partial',overdue:'overdue',plan:'plan',autopay:'autopay'};
+  return `<span class="sp-badge ${map[s]||''}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+}
+function methodIcon(m){return{card:'??',ach:'??',hsa:'??',cash:'??',check:'??'}[m]||'??';}
+function fmtDate(d){const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+
+function switchTab(btn, tabId){
+  document.querySelectorAll('.sp-widget:first-of-type .sp-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.sp-widget:first-of-type .sp-tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  activePayTab=tabId;
+  // All panes share the same table via tabAll; just re-render
+  document.getElementById('tabAll').classList.add('active');
+  filterPayments();
+}
+
+function switchDocTab(btn, tabId){
+  btn.closest('.sp-widget').querySelectorAll('.sp-tab').forEach(t=>t.classList.remove('active'));
+  btn.closest('.sp-widget').querySelectorAll('.sp-tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+function filterPayments(){ renderPayments(DEMO_PAYMENTS); }
+
+/* -- Document lists ----------------------------------- */
+function renderDocLists(){
+  const invDocs=[
+    {id:'INV-0042',patient:'Dana R.',date:'2026-04-01',amount:320,status:'overdue'},
+    {id:'INV-0041',patient:'Sam K.',date:'2026-03-28',amount:45,status:'sent'},
+    {id:'INV-0040',patient:'Alex B.',date:'2026-03-20',amount:200,status:'paid'},
+  ];
+  const sbDocs=[
+    {id:'SB-0018',patient:'Maria C.',date:'2026-03-31',amount:360,status:'sent'},
+    {id:'SB-0017',patient:'Sarah M.',date:'2026-03-10',amount:600,status:'sent'},
+  ];
+  const stmtDocs=[
+    {id:'STMT-0009',patient:'Dana R.',date:'2026-04-01',amount:480,status:'overdue'},
+    {id:'STMT-0008',patient:'Tom W.',date:'2026-03-01',amount:400,status:'partial'},
+  ];
+  const recDocs=[
+    {id:'REC-0101',patient:'Alex B.',date:'2026-04-05',amount:30,status:'paid'},
+    {id:'REC-0100',patient:'Maria C.',date:'2026-04-01',amount:50,status:'paid'},
+    {id:'REC-0099',patient:'Tom W.',date:'2026-03-26',amount:100,status:'paid'},
+  ];
+  document.getElementById('cntInv').textContent=invDocs.length;
+  document.getElementById('cntSb').textContent=sbDocs.length;
+  document.getElementById('cntStmt').textContent=stmtDocs.length;
+  document.getElementById('cntRec').textContent=recDocs.length;
+  renderDocRows('invoicesList',invDocs,'invoice');
+  renderDocRows('superbillsList',sbDocs,'superbill');
+  renderDocRows('statementsList',stmtDocs,'statement');
+  renderDocRows('receiptsList',recDocs,'receipt');
+}
+
+function renderDocRows(containerId, docs, type){
+  const icons={invoice:'??',superbill:'??',statement:'??',receipt:'??'};
+  const el=document.getElementById(containerId);
+  el.innerHTML=docs.map(d=>`
+    <div class="doc-row">
+      <div class="doc-icon ${type}">${icons[type]}</div>
+      <div class="doc-info">
+        <div class="doc-patient">${d.patient} <span style="font-size:11px;font-weight:400;color:var(--ink-500)">${d.id}</span></div>
+        <div class="doc-meta">${fmtDate(d.date)} - $${d.amount.toFixed(2)}</div>
+      </div>
+      <div class="doc-actions">
+        ${statusBadge(d.status)}
+        <button class="btn-sm-ghost" type="button" onclick="viewDoc('${type}','${d.id}')">View</button>
+        ${type!=='receipt'&&d.status!=='paid'?`<button class="btn-collect" type="button" onclick="openCollectModal('${type}','${d.patient}')">Collect</button>`:''}
+        ${d.status==='paid'||type==='receipt'?'':''}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* -- Modal helpers ------------------------------------ */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+function openCollectModal(source, patientName){
+  const subtitles={
+    agenda:'Collecting from today\'s appointment',
+    profile:'Collecting from patient profile',
+    statement:'Collecting from account statement',
+    alert:'Collecting from billing alert',
+    portal:'Collecting via patient portal',
+    retry:'Retrying failed payment',
+    invoice:'Collecting invoice payment',
+    manual:'Manual payment collection',
+  };
+  document.getElementById('collectModalSubtitle').textContent=subtitles[source]||'Collect payment';
+  const ctx=document.getElementById('collectSourceContext');
+  if(source&&source!=='manual'){
+    ctx.style.display='';
+    ctx.innerHTML=`<strong>Source:</strong> ${source.charAt(0).toUpperCase()+source.slice(1)}${patientName?` &nbsp;&middot;&nbsp; <strong>Patient:</strong> ${patientName}`:''}`;
+  } else { ctx.style.display='none'; }
+  if(patientName){
+    const sel=document.getElementById('collectPatient');
+    for(let i=0;i<sel.options.length;i++){if(sel.options[i].text===patientName){sel.selectedIndex=i;break;}}
+  }
+  document.getElementById('collectDate').value=new Date().toISOString().slice(0,10);
+  openModal('collectModal');
+}
+function openRefundForPayment(payId){
+  const sel=document.getElementById('refundPayment');
+  sel.innerHTML='<option value="">Select payment to refund...</option>';
+  DEMO_PAYMENTS.filter(p=>p.status==='paid').forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p.id;
+    opt.textContent=`${p.id} - ${p.patient} - $${p.amount} - ${fmtDate(p.date)}`;
+    if(p.id===payId)opt.selected=true;
+    sel.appendChild(opt);
+  });
+  openModal('refundModal');
+}
+function openPlanModal(){ openModal('planModal'); document.getElementById('planStartDate').value=new Date().toISOString().slice(0,10); }
+function openInvoiceModal(){ document.getElementById('invDate').value=new Date().toISOString().slice(0,10); document.getElementById('invDue').value=''; openModal('invoiceModal'); }
+function openSuperbillModal(){ openModal('superbillModal'); }
+function openStatementModal(){
+  const now=new Date();
+  const first=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+  document.getElementById('stmtFrom').value=first;
+  document.getElementById('stmtTo').value=now.toISOString().slice(0,10);
+  openModal('statementModal');
+}
+
+function toggleMethodFields(){
+  const v=document.getElementById('collectMethod').value;
+  document.getElementById('newCardFields').style.display=v==='new_card'?'':'none';
+}
+
+function calcPlan(){
+  const total=parseFloat(document.getElementById('planTotal').value)||0;
+  const count=parseInt(document.getElementById('planCount').value)||0;
+  const freq=document.getElementById('planFreq').value;
+  const el=document.getElementById('planCalcResult');
+  if(total>0&&count>0){
+    const install=(total/count).toFixed(2);
+    el.style.display='';
+    el.innerHTML=`? ${count} installments of <strong>$${install}</strong> ${freq} - Total: <strong>$${total.toFixed(2)}</strong>`;
+  } else { el.style.display='none'; }
+}
+
+function updateCollectSummary(){
+  const amt=parseFloat(document.getElementById('collectAmount').value)||0;
+  const fee=amt*0.029+0.30;
+  const total=amt+fee;
+  document.getElementById('collectSummaryAmt').textContent='$'+amt.toFixed(2);
+  document.getElementById('collectSummaryFee').textContent='$'+fee.toFixed(2);
+  document.getElementById('collectSummaryTotal').textContent='$'+total.toFixed(2);
+}
+document.getElementById('collectAmount').addEventListener('input',updateCollectSummary);
+
+/* -- Submissions (stub ? real API in production) ------ */
+function submitPayment(){
+  const patient=document.getElementById('collectPatient').value;
+  const amount=document.getElementById('collectAmount').value;
+  if(!patient||!amount){ showToast('Please fill in required fields','error'); return; }
+  const btn=document.getElementById('collectSubmitBtn');
+  btn.textContent='Processing...'; btn.disabled=true;
+  /* POST /api/payments/collect { patient_id, amount_cents, payment_method_id, description, source } */
+  setTimeout(()=>{
+    btn.textContent='Collect Payment'; btn.disabled=false;
+    closeModal('collectModal');
+    showToast('? Payment of $'+parseFloat(amount).toFixed(2)+' collected successfully','success');
+    initPayments();
+  },1600);
+}
+
+function submitRefund(){
+  const reason=document.getElementById('refundReason').value;
+  if(!document.getElementById('refundPayment').value){ showToast('Select a payment to refund','error'); return; }
+  /* POST /api/payments/refund { payment_intent_id, amount_cents, reason, notes } */
+  setTimeout(()=>{ closeModal('refundModal'); showToast('? Refund initiated - 5-10 business days','success'); },1000);
+}
+
+function submitPlan(){
+  const patient=document.getElementById('planPatient').value;
+  const total=document.getElementById('planTotal').value;
+  if(!patient||!total){ showToast('Fill in patient and total balance','error'); return; }
+  /* POST /api/payments/plans { patient_id, total_cents, installments, frequency, start_date, auto_pay } */
+  setTimeout(()=>{ closeModal('planModal'); showToast('? Payment plan created','success'); },1000);
+}
+
+function submitInvoice(){
+  const patient=document.getElementById('invPatient').value;
+  if(!patient){ showToast('Select a patient','error'); return; }
+  /* POST /api/payments/invoices { patient_id, line_items, due_date, send_now, include_pay_link } */
+  setTimeout(()=>{ closeModal('invoiceModal'); showToast('? Invoice created and sent','success'); renderDocLists(); },1000);
+}
+
+function submitSuperbill(){
+  const patient=document.getElementById('sbPatient').value;
+  if(!patient){ showToast('Select a patient','error'); return; }
+  /* POST /api/payments/superbills { patient_id, date_range, cpt_codes, icd10_codes, npi, amount_paid } */
+  setTimeout(()=>{ closeModal('superbillModal'); showToast('? Superbill generated and sent','success'); },1000);
+}
+
+function submitStatement(){
+  const patient=document.getElementById('stmtPatient').value;
+  if(!patient){ showToast('Select a patient','error'); return; }
+  /* POST /api/payments/statements { patient_id, date_from, date_to, include_pay_link, send } */
+  setTimeout(()=>{ closeModal('statementModal'); showToast('? Statement sent to patient','success'); },1000);
+}
+
+/* -- Misc --------------------------------------------- */
+function viewPayment(id){ showToast('Opening payment '+id+'...',''); }
+function viewReceipt(id){ showToast('Generating receipt for '+id+'...',''); }
+function viewDoc(type,id){ showToast('Opening '+type+' '+id+'...',''); }
+function exportPayments(){ showToast('Preparing CSV export...',''); }
+function showAllAlerts(){ window.location.href='clinician-billing-alerts.html'; }
+function manageSavedMethods(){ showToast('Opening saved payment methods...',''); }
+function addLineItem(){
+  const wrap=document.getElementById('invLineItems');
+  const div=document.createElement('div');
+  div.style.cssText='display:grid;grid-template-columns:1fr 80px 90px 32px;gap:6px;align-items:center';
+  div.innerHTML=`<input type="text" placeholder="Service description" class="inv-item-desc" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+    <input type="number" placeholder="Qty" class="inv-item-qty" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+    <input type="number" placeholder="Unit $" class="inv-item-price" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+    <button type="button" onclick="removeLineItem(this)" style="background:none;border:none;color:#dc2626;font-size:1rem;cursor:pointer;padding:0">?</button>`;
+  wrap.appendChild(div);
+}
+function removeLineItem(btn){ btn.closest('div').remove(); }
+
+function showToast(msg,type){
+  const t=document.getElementById('spToast');
+  t.textContent=msg;
+  t.className='sp-toast show '+(type||'');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* -- Logout ------------------------------------------- */
+document.getElementById('logoutBtn').addEventListener('click',function(){
+  localStorage.removeItem('therassistant_session');
+  window.location.href='login.html';
+});
+
+/* -- Agenda date -------------------------------------- */
+document.getElementById('agendaDateLabel').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+
+/* -- Init --------------------------------------------- */
+document.addEventListener('DOMContentLoaded',initPayments);
+window.addEventListener('load',initPayments);
+
+/* -- Close modals on backdrop click ------------------- */
+document.querySelectorAll('.sp-modal-bg').forEach(bg=>{
+  bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('open'); });
+});
+</script>
+</body>
+</html>

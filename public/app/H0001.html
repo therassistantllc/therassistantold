@@ -1,0 +1,305 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>THERASSISTANT — SUD Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<style>
+/* Form-specific styles for this doc tool */
+input,select,textarea{width:100%;padding:.5rem .6rem;border:1px solid var(--border);border-radius:8px;font:inherit;background:#fff;color:var(--ink-900);font-size:14px;}
+textarea{min-height:90px;resize:vertical;}
+label{font-size:13px;color:var(--ink-700);display:block;margin-bottom:4px;font-weight:500;}
+.content-card h2{font-size:1rem;margin:1.4rem 0 .6rem;color:var(--ink-900);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:.35rem;}
+.qa{display:flex;gap:14px;margin:.55rem 0;align-items:flex-start;}
+.q{flex:0 0 40%;font-weight:600;color:var(--ink-900);padding-top:.35rem;font-size:14px;}
+.a{flex:1;}
+.checkbox-group{display:flex;flex-direction:column;gap:.3rem;}
+.checkbox-item{display:flex;align-items:center;gap:.5rem;font-size:14px;}
+.checkbox-item input{accent-color:var(--blue-700);width:1rem;height:1rem;cursor:pointer;}
+.actions{display:flex;justify-content:center;gap:.75rem;margin:1.1rem 0 1.2rem;}
+.collapse{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:1rem;}
+.collapse-h{background:var(--blue-800);color:#fff;font-weight:700;padding:.6rem .9rem;cursor:pointer;user-select:none;font-size:14px;}
+.collapse-c{display:none;background:#fff;padding:1rem;}
+.collapse-c p{margin:.5rem 0 1rem;}
+.collapse-c strong{color:var(--ink-900);}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="patients.html">Patients</a>
+      <a class="nav-link" href="scheduling.html">Schedule</a>
+      <a class="nav-link" href="agenda.html">Today's Agenda</a>
+      <a class="nav-link" href="coder-home.html">Start New Session</a>
+      <a class="nav-link" href="saved-reports.html">Saved Reports</a>
+      <a class="nav-link" href="saved-notes.html">Saved Notes</a>
+      <a class="nav-link" href="clinician-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="subscription.html">Subscription</a>
+      <a class="nav-link" href="support-request.html">Help / Support</a>
+      <a class="nav-link" href="settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>SUD Assessment</h1>
+        <p>H0001 — Substance use disorder assessment and psychotherapy documentation</p>
+      </div>
+      <button class="btn btn-outline" onclick="window.location.href='Coder.html?return=1'">← Back to Report</button>
+    </header>
+
+    <div class="content-card" style="margin-top:20px">
+
+  <!-- Administrative -->
+  <h2>Administrative</h2>
+  <div class="qa"><div class="q">Date of service</div><div class="a"><input id="dos" type="date"></div></div>
+  <div class="qa"><div class="q">Clinician (name + credentials)</div><div class="a"><input id="clinician" type="text"></div></div>
+  <div class="qa"><div class="q">Place of service</div><div class="a"><select id="pos"><option>11 — Office</option><option>02 — Telehealth</option><option>12 — Home</option></select></div></div>
+  <div class="qa"><div class="q">Start / End</div><div class="a"><div style="display:flex;gap:.5rem"><input id="start" type="time"><span>to</span><input id="end" type="time"></div></div></div>
+  <div class="qa"><div class="q">Total minutes</div><div class="a"><input id="mins" type="number" value="60" min="1"></div></div>
+
+  <!-- Diagnosis -->
+  <h2>Diagnosis (ICD-10 F10–F19)</h2>
+  <div class="qa"><div class="q">Category</div><div class="a"><select id="icdCat"></select></div></div>
+  <div class="qa"><div class="q">Specific diagnosis</div><div class="a"><select id="icdCode"></select></div></div>
+
+  <!-- Assessment (H0001 essentials) -->
+  <h2>Assessment</h2>
+
+  <div class="qa">
+    <div class="q">When did symptoms begin?</div>
+    <div class="a">
+      <select id="onsetSel">
+        <option>Within the past month</option>
+        <option>1–3 months ago</option>
+        <option>3–6 months ago</option>
+        <option>6–12 months ago</option>
+        <option>Over a year ago</option>
+        <option>Chronic / long-term</option>
+        <option value="other">Other (specify)</option>
+      </select>
+      <input id="onsetOther" type="text" placeholder="If other, specify…" style="margin-top:.4rem">
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Triggers / Aggravating factors</div>
+    <div class="a">
+      <div class="checkbox-group" id="triggers">
+        <label class="checkbox-item"><input type="checkbox" value="social stressors">Social stressors</label>
+        <label class="checkbox-item"><input type="checkbox" value="family conflict">Family conflict</label>
+        <label class="checkbox-item"><input type="checkbox" value="financial pressure">Financial pressure</label>
+        <label class="checkbox-item"><input type="checkbox" value="legal problems">Legal problems</label>
+        <label class="checkbox-item"><input type="checkbox" value="peer influence">Peer influence</label>
+        <label class="checkbox-item"><input type="checkbox" value="environmental cues">Environmental cues</label>
+        <label class="checkbox-item"><input type="checkbox" value="other">Other</label>
+      </div>
+      <input id="triggerOther" type="text" placeholder="If other, specify…" style="margin-top:.4rem">
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Helpful coping strategies</div>
+    <div class="a">
+      <div class="checkbox-group" id="coping">
+        <label class="checkbox-item"><input type="checkbox" value="exercise or physical activity">Exercise / physical activity</label>
+        <label class="checkbox-item"><input type="checkbox" value="mindfulness or relaxation">Mindfulness / relaxation</label>
+        <label class="checkbox-item"><input type="checkbox" value="social support">Social support</label>
+        <label class="checkbox-item"><input type="checkbox" value="spiritual or faith-based activities">Spiritual or faith-based activities</label>
+        <label class="checkbox-item"><input type="checkbox" value="self-help meetings">Self-help meetings (AA/NA/SMART)</label>
+        <label class="checkbox-item"><input type="checkbox" value="healthy routine / structure">Healthy routine / structure</label>
+        <label class="checkbox-item"><input type="checkbox" value="other">Other</label>
+      </div>
+      <input id="copingOther" type="text" placeholder="If other, specify…" style="margin-top:.4rem">
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Risk assessment summary</div>
+    <div class="a">
+      <select id="riskSel">
+        <option>Denies SI/HI; no acute risk</option>
+        <option>Passive suicidal ideation; no plan or intent</option>
+        <option>Active suicidal ideation; no plan</option>
+        <option>Active suicidal ideation with plan — safety plan created</option>
+        <option>Substance relapse risk elevated; no immediate danger</option>
+        <option>Substance relapse risk high; safety monitoring required</option>
+        <option value="other">Other (specify)</option>
+      </select>
+      <input id="riskOther" type="text" placeholder="If other, specify…" style="margin-top:.4rem">
+    </div>
+  </div>
+
+  <!-- ASAM + Stage of Change -->
+  <h2>ASAM Snapshot / Stage of Change</h2>
+  <div class="qa"><div class="q">ASAM Dimensions 1–3</div><div class="a">
+    <select id="asam1"><option>Acute Intox/Withdrawal — none</option><option>mild</option><option>moderate</option><option>severe</option></select>
+    <select id="asam2"><option>Biomedical — none</option><option>mild</option><option>moderate</option><option>severe</option></select>
+    <select id="asam3"><option>Emotional/Behavioral — none</option><option>mild</option><option>moderate</option><option>severe</option></select>
+  </div></div>
+  <div class="qa"><div class="q">Stage of change</div><div class="a"><select id="stage"><option>precontemplation</option><option>contemplation</option><option>preparation</option><option>action</option><option>maintenance</option></select></div></div>
+
+  <div class="actions">
+    <button class="btn btn-blue" onclick="generateNote()">Generate Note</button>
+    <button class="btn btn-outline" onclick="copyNote()">Copy</button>
+    <button class="btn btn-ghost" onclick="saveCurrentNote()">&#128190; Save to Saved Notes</button>
+  </div>
+
+  <div class="collapse">
+    <div class="collapse-h" onclick="toggleCollapse()">Generated SUD Note</div>
+    <div class="collapse-c" id="noteOut"></div>
+  </div>
+
+    </div><!-- close content-card -->
+  </main>
+</div><!-- close dashboard-shell -->
+<script>
+/* === ICD-10 Substance Use Library (F10–F19) — Full lists from your spec === */
+const ICD_MAP = {
+"F10 — Alcohol-related disorders": [
+"F10.10 Alcohol abuse, uncomplicated","F10.11 Alcohol abuse, in remission","F10.120 Alcohol abuse with intoxication, uncomplicated","F10.121 Alcohol abuse with intoxication delirium","F10.129 Alcohol abuse with intoxication, unspecified","F10.130 Alcohol abuse with withdrawal, uncomplicated","F10.131 Alcohol abuse with withdrawal delirium","F10.132 Alcohol abuse with withdrawal with perceptual disturbance","F10.139 Alcohol abuse with withdrawal, unspecified","F10.14 Alcohol abuse with alcohol-induced mood disorder","F10.150 Alcohol abuse with alcohol-induced psychotic disorder with delusions","F10.151 Alcohol abuse with alcohol-induced psychotic disorder with hallucinations","F10.159 Alcohol abuse with alcohol-induced psychotic disorder, unspecified","F10.180 Alcohol abuse with alcohol-induced anxiety disorder","F10.181 Alcohol abuse with alcohol-induced sexual dysfunction","F10.182 Alcohol abuse with alcohol-induced sleep disorder","F10.188 Alcohol abuse with other alcohol-induced disorder","F10.19 Alcohol abuse with unspecified alcohol-induced disorder","F10.20 Alcohol dependence, uncomplicated","F10.21 Alcohol dependence, in remission","F10.220 Alcohol dependence with intoxication, uncomplicated","F10.221 Alcohol dependence with intoxication delirium","F10.229 Alcohol dependence with intoxication, unspecified","F10.230 Alcohol dependence with withdrawal, uncomplicated","F10.231 Alcohol dependence with withdrawal delirium","F10.232 Alcohol dependence with withdrawal with perceptual disturbance","F10.239 Alcohol dependence with withdrawal, unspecified","F10.24 Alcohol dependence with alcohol-induced mood disorder","F10.250 Alcohol dependence with alcohol-induced psychotic disorder with delusions","F10.251 Alcohol dependence with alcohol-induced psychotic disorder with hallucinations","F10.259 Alcohol dependence with alcohol-induced psychotic disorder, unspecified","F10.26 Alcohol dependence with alcohol-induced persisting amnestic disorder","F10.27 Alcohol dependence with alcohol-induced persisting dementia","F10.280 Alcohol dependence with alcohol-induced anxiety disorder","F10.281 Alcohol dependence with alcohol-induced sexual dysfunction","F10.282 Alcohol dependence with alcohol-induced sleep disorder","F10.288 Alcohol dependence with other alcohol-induced disorder","F10.29 Alcohol dependence with unspecified alcohol-induced disorder","F10.90 Alcohol use, unspecified, uncomplicated","F10.91 Alcohol use, unspecified, in remission","F10.920 Alcohol use, unspecified with intoxication, uncomplicated","F10.921 Alcohol use, unspecified with intoxication delirium","F10.929 Alcohol use, unspecified with intoxication, unspecified","F10.930 Alcohol use, unspecified with withdrawal, uncomplicated","F10.931 Alcohol use, unspecified with withdrawal delirium","F10.932 Alcohol use, unspecified with withdrawal with perceptual disturbance","F10.939 Alcohol use, unspecified with withdrawal, unspecified","F10.94 Alcohol use, unspecified with alcohol-induced mood disorder","F10.950 Alcohol use, unspecified with alcohol-induced psychotic disorder with delusions","F10.951 Alcohol use, unspecified with alcohol-induced psychotic disorder with hallucinations","F10.959 Alcohol use, unspecified with alcohol-induced psychotic disorder, unspecified","F10.96 Alcohol use, unspecified with alcohol-induced persisting amnestic disorder","F10.97 Alcohol use, unspecified with alcohol-induced persisting dementia","F10.980 Alcohol use, unspecified with alcohol-induced anxiety disorder","F10.981 Alcohol use, unspecified with alcohol-induced sexual dysfunction","F10.982 Alcohol use, unspecified with alcohol-induced sleep disorder","F10.988 Alcohol use, unspecified with other alcohol-induced disorder","F10.99 Alcohol use, unspecified with unspecified alcohol-induced disorder"
+],
+"F11 — Opioid-related disorders": [
+"F11.10 Opioid abuse, uncomplicated","F11.11 Opioid abuse, in remission","F11.120 Opioid abuse with intoxication, uncomplicated","F11.121 Opioid abuse with intoxication delirium","F11.122 Opioid abuse with intoxication with perceptual disturbance","F11.129 Opioid abuse with intoxication, unspecified","F11.13 Opioid abuse with withdrawal","F11.14 Opioid abuse with opioid-induced mood disorder","F11.150 Opioid abuse with opioid-induced psychotic disorder with delusions","F11.151 Opioid abuse with opioid-induced psychotic disorder with hallucinations","F11.159 Opioid abuse with opioid-induced psychotic disorder, unspecified","F11.181 Opioid abuse with opioid-induced sexual dysfunction","F11.182 Opioid abuse with opioid-induced sleep disorder","F11.188 Opioid abuse with other opioid-induced disorder","F11.19 Opioid abuse with unspecified opioid-induced disorder","F11.20 Opioid dependence, uncomplicated","F11.21 Opioid dependence, in remission","F11.220 Opioid dependence with intoxication, uncomplicated","F11.221 Opioid dependence with intoxication delirium","F11.222 Opioid dependence with intoxication with perceptual disturbance","F11.229 Opioid dependence with intoxication, unspecified","F11.23 Opioid dependence with withdrawal","F11.24 Opioid dependence with opioid-induced mood disorder","F11.250 Opioid dependence with opioid-induced psychotic disorder with delusions","F11.251 Opioid dependence with opioid-induced psychotic disorder with hallucinations","F11.259 Opioid dependence with opioid-induced psychotic disorder, unspecified","F11.281 Opioid dependence with opioid-induced sexual dysfunction","F11.282 Opioid dependence with opioid-induced sleep disorder","F11.288 Opioid dependence with other opioid-induced disorder","F11.29 Opioid dependence with unspecified opioid-induced disorder","F11.90 Opioid use, unspecified, uncomplicated","F11.91 Opioid use, unspecified, in remission","F11.920 Opioid use, unspecified with intoxication, uncomplicated","F11.921 Opioid use, unspecified with intoxication delirium","F11.922 Opioid use, unspecified with intoxication with perceptual disturbance","F11.929 Opioid use, unspecified with intoxication, unspecified","F11.93 Opioid use, unspecified with withdrawal","F11.94 Opioid use, unspecified with opioid-induced mood disorder","F11.950 Opioid use, unspecified with opioid-induced psychotic disorder with delusions","F11.951 Opioid use, unspecified with opioid-induced psychotic disorder with hallucinations","F11.959 Opioid use, unspecified with opioid-induced psychotic disorder, unspecified","F11.981 Opioid use, unspecified with opioid-induced sexual dysfunction","F11.982 Opioid use, unspecified with opioid-induced sleep disorder","F11.988 Opioid use, unspecified with other opioid-induced disorder","F11.99 Opioid use, unspecified with unspecified opioid-induced disorder"
+],
+"F12 — Cannabis-related disorders": [
+"F12.10 Cannabis abuse, uncomplicated","F12.11 Cannabis abuse, in remission","F12.120 Cannabis abuse with intoxication, uncomplicated","F12.121 Cannabis abuse with intoxication delirium","F12.122 Cannabis abuse with intoxication with perceptual disturbance","F12.129 Cannabis abuse with intoxication, unspecified","F12.13 Cannabis abuse with withdrawal","F12.150 Cannabis abuse with psychotic disorder with delusions","F12.151 Cannabis abuse with psychotic disorder with hallucinations","F12.159 Cannabis abuse with psychotic disorder, unspecified","F12.180 Cannabis abuse with cannabis-induced anxiety disorder","F12.188 Cannabis abuse with other cannabis-induced disorder","F12.19 Cannabis abuse with unspecified cannabis-induced disorder","F12.20 Cannabis dependence, uncomplicated","F12.21 Cannabis dependence, in remission","F12.220 Cannabis dependence with intoxication, uncomplicated","F12.221 Cannabis dependence with intoxication delirium","F12.222 Cannabis dependence with intoxication with perceptual disturbance","F12.229 Cannabis dependence with intoxication, unspecified","F12.23 Cannabis dependence with withdrawal","F12.250 Cannabis dependence with psychotic disorder with delusions","F12.251 Cannabis dependence with psychotic disorder with hallucinations","F12.259 Cannabis dependence with psychotic disorder, unspecified","F12.280 Cannabis dependence with cannabis-induced anxiety disorder","F12.288 Cannabis dependence with other cannabis-induced disorder","F12.29 Cannabis dependence with unspecified cannabis-induced disorder","F12.90 Cannabis use, unspecified, uncomplicated","F12.91 Cannabis use, unspecified, in remission","F12.920 Cannabis use, unspecified with intoxication, uncomplicated","F12.921 Cannabis use, unspecified with intoxication delirium","F12.922 Cannabis use, unspecified with intoxication with perceptual disturbance","F12.929 Cannabis use, unspecified with intoxication, unspecified","F12.93 Cannabis use, unspecified with withdrawal","F12.950 Cannabis use, unspecified with psychotic disorder with delusions","F12.951 Cannabis use, unspecified with psychotic disorder with hallucinations","F12.959 Cannabis use, unspecified with psychotic disorder, unspecified","F12.980 Cannabis use, unspecified with anxiety disorder","F12.988 Cannabis use, unspecified with other cannabis-induced disorder","F12.99 Cannabis use, unspecified with unspecified cannabis-induced disorder"
+],
+"F13 — Sedative/hypnotic/anxiolytic disorders": [
+"F13.10 Sedative, hypnotic or anxiolytic abuse, uncomplicated","F13.11 Sedative, hypnotic or anxiolytic abuse, in remission","F13.120 Sedative, hypnotic or anxiolytic abuse with intoxication, uncomplicated","F13.121 Sedative, hypnotic or anxiolytic abuse with intoxication delirium","F13.129 Sedative, hypnotic or anxiolytic abuse with intoxication, unspecified","F13.130 Sedative, hypnotic or anxiolytic abuse with withdrawal, uncomplicated","F13.131 Sedative, hypnotic or anxiolytic abuse with withdrawal delirium","F13.132 Sedative, hypnotic or anxiolytic abuse with withdrawal with perceptual disturbance","F13.139 Sedative, hypnotic or anxiolytic abuse with withdrawal, unspecified","F13.14 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced mood disorder","F13.150 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced psychotic disorder with delusions","F13.151 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced psychotic disorder with hallucinations","F13.159 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced psychotic disorder, unspecified","F13.180 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced anxiety disorder","F13.181 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced sexual dysfunction","F13.182 Sedative, hypnotic or anxiolytic abuse with sedative, hypnotic or anxiolytic-induced sleep disorder","F13.188 Sedative, hypnotic or anxiolytic abuse with other sedative, hypnotic or anxiolytic-induced disorder","F13.19 Sedative, hypnotic or anxiolytic abuse with unspecified sedative, hypnotic or anxiolytic-induced disorder","F13.20 Sedative, hypnotic or anxiolytic dependence, uncomplicated","F13.21 Sedative, hypnotic or anxiolytic dependence, in remission","F13.220 Sedative, hypnotic or anxiolytic dependence with intoxication, uncomplicated","F13.221 Sedative, hypnotic or anxiolytic dependence with intoxication delirium","F13.229 Sedative, hypnotic or anxiolytic dependence with intoxication, unspecified","F13.230 Sedative, hypnotic or anxiolytic dependence with withdrawal, uncomplicated","F13.231 Sedative, hypnotic or anxiolytic dependence with withdrawal delirium","F13.232 Sedative, hypnotic or anxiolytic dependence with withdrawal with perceptual disturbance","F13.239 Sedative, hypnotic or anxiolytic dependence with withdrawal, unspecified","F13.24 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced mood disorder","F13.250 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced psychotic disorder with delusions","F13.251 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced psychotic disorder with hallucinations","F13.259 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced psychotic disorder, unspecified","F13.26 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced persisting amnestic disorder","F13.27 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced persisting dementia","F13.280 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced anxiety disorder","F13.281 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced sexual dysfunction","F13.282 Sedative, hypnotic or anxiolytic dependence with sedative, hypnotic or anxiolytic-induced sleep disorder","F13.288 Sedative, hypnotic or anxiolytic dependence with other sedative, hypnotic or anxiolytic-induced disorder","F13.29 Sedative, hypnotic or anxiolytic dependence with unspecified sedative, hypnotic or anxiolytic-induced disorder","F13.90 Sedative, hypnotic, or anxiolytic use, unspecified, uncomplicated","F13.91 Sedative, hypnotic or anxiolytic use, unspecified, in remission","F13.920 Sedative, hypnotic or anxiolytic use, unspecified with intoxication, uncomplicated","F13.921 Sedative, hypnotic or anxiolytic use, unspecified with intoxication delirium","F13.929 Sedative, hypnotic or anxiolytic use, unspecified with intoxication, unspecified","F13.930 Sedative, hypnotic or anxiolytic use, unspecified with withdrawal, uncomplicated","F13.931 Sedative, hypnotic or anxiolytic use, unspecified with withdrawal delirium","F13.932 Sedative, hypnotic or anxiolytic use, unspecified with withdrawal with perceptual disturbances","F13.939 Sedative, hypnotic or anxiolytic use, unspecified with withdrawal, unspecified","F13.94 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced mood disorder","F13.950 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced psychotic disorder with delusions","F13.951 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced psychotic disorder with hallucinations","F13.959 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced psychotic disorder, unspecified","F13.96 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced persisting amnestic disorder","F13.97 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced persisting dementia","F13.980 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced anxiety disorder","F13.981 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced sexual dysfunction","F13.982 Sedative, hypnotic or anxiolytic use, unspecified with sedative, hypnotic or anxiolytic-induced sleep disorder","F13.988 Sedative, hypnotic or anxiolytic use, unspecified with other sedative, hypnotic or anxiolytic-induced disorder","F13.99 Sedative, hypnotic or anxiolytic use, unspecified with unspecified sedative, hypnotic or anxiolytic-induced disorder"
+],
+"F14 — Cocaine-related disorders": [
+"F14.10 Cocaine abuse, uncomplicated","F14.11 Cocaine abuse, in remission","F14.120 Cocaine abuse with intoxication, uncomplicated","F14.121 Cocaine abuse with intoxication with delirium","F14.122 Cocaine abuse with intoxication with perceptual disturbance","F14.129 Cocaine abuse with intoxication, unspecified","F14.13 Cocaine abuse, unspecified with withdrawal","F14.14 Cocaine abuse with cocaine-induced mood disorder","F14.150 Cocaine abuse with cocaine-induced psychotic disorder with delusions","F14.151 Cocaine abuse with cocaine-induced psychotic disorder with hallucinations","F14.159 Cocaine abuse with cocaine-induced psychotic disorder, unspecified","F14.180 Cocaine abuse with cocaine-induced anxiety disorder","F14.181 Cocaine abuse with cocaine-induced sexual dysfunction","F14.182 Cocaine abuse with cocaine-induced sleep disorder","F14.188 Cocaine abuse with other cocaine-induced disorder","F14.19 Cocaine abuse with unspecified cocaine-induced disorder","F14.20 Cocaine dependence, uncomplicated","F14.21 Cocaine dependence, in remission","F14.220 Cocaine dependence with intoxication, uncomplicated","F14.221 Cocaine dependence with intoxication delirium","F14.222 Cocaine dependence with intoxication with perceptual disturbance","F14.229 Cocaine dependence with intoxication, unspecified","F14.23 Cocaine dependence with withdrawal","F14.24 Cocaine dependence with cocaine-induced mood disorder","F14.250 Cocaine dependence with cocaine-induced psychotic disorder with delusions","F14.251 Cocaine dependence with cocaine-induced psychotic disorder with hallucinations","F14.259 Cocaine dependence with cocaine-induced psychotic disorder, unspecified","F14.280 Cocaine dependence with cocaine-induced anxiety disorder","F14.281 Cocaine dependence with cocaine-induced sexual dysfunction","F14.282 Cocaine dependence with cocaine-induced sleep disorder","F14.288 Cocaine dependence with other cocaine-induced disorder","F14.29 Cocaine dependence with unspecified cocaine-induced disorder","F14.90 Cocaine use, unspecified, uncomplicated","F14.91 Cocaine use, unspecified, in remission","F14.920 Cocaine use, unspecified with intoxication, uncomplicated","F14.921 Cocaine use, unspecified with intoxication delirium","F14.922 Cocaine use, unspecified with intoxication with perceptual disturbance","F14.929 Cocaine use, unspecified with intoxication, unspecified","F14.93 Cocaine use, unspecified with withdrawal","F14.94 Cocaine use, unspecified with cocaine-induced mood disorder","F14.950 Cocaine use, unspecified with cocaine-induced psychotic disorder with delusions","F14.951 Cocaine use, unspecified with cocaine-induced psychotic disorder with hallucinations","F14.959 Cocaine use, unspecified with cocaine-induced psychotic disorder, unspecified","F14.980 Cocaine use, unspecified with cocaine-induced anxiety disorder","F14.981 Cocaine use, unspecified with cocaine-induced sexual dysfunction","F14.982 Cocaine use, unspecified with cocaine-induced sleep disorder","F14.988 Cocaine use, unspecified with other cocaine-induced disorder","F14.99 Cocaine use, unspecified with unspecified cocaine-induced disorder"
+],
+"F15 — Other stimulant-related disorders": [
+"F15.10 Other stimulant abuse, uncomplicated","F15.11 Other stimulant abuse, in remission","F15.120 Other stimulant abuse with intoxication, uncomplicated","F15.121 Other stimulant abuse with intoxication delirium","F15.122 Other stimulant abuse with intoxication with perceptual disturbance","F15.129 Other stimulant abuse with intoxication, unspecified","F15.13 Other stimulant abuse with withdrawal","F15.14 Other stimulant abuse with stimulant-induced mood disorder","F15.150 Other stimulant abuse with stimulant-induced psychotic disorder with delusions","F15.151 Other stimulant abuse with stimulant-induced psychotic disorder with hallucinations","F15.159 Other stimulant abuse with stimulant-induced psychotic disorder, unspecified","F15.180 Other stimulant abuse with stimulant-induced anxiety disorder","F15.181 Other stimulant abuse with stimulant-induced sexual dysfunction","F15.182 Other stimulant abuse with stimulant-induced sleep disorder","F15.188 Other stimulant abuse with other stimulant-induced disorder","F15.19 Other stimulant abuse with unspecified stimulant-induced disorder","F15.20 Other stimulant dependence, uncomplicated","F15.21 Other stimulant dependence, in remission","F15.220 Other stimulant dependence with intoxication, uncomplicated","F15.221 Other stimulant dependence with intoxication delirium","F15.222 Other stimulant dependence with intoxication with perceptual disturbance","F15.229 Other stimulant dependence with intoxication, unspecified","F15.23 Other stimulant dependence with withdrawal","F15.24 Other stimulant dependence with stimulant-induced mood disorder","F15.250 Other stimulant dependence with stimulant-induced psychotic disorder with delusions","F15.251 Other stimulant dependence with stimulant-induced psychotic disorder with hallucinations","F15.259 Other stimulant dependence with stimulant-induced psychotic disorder, unspecified","F15.280 Other stimulant dependence with stimulant-induced anxiety disorder","F15.281 Other stimulant dependence with stimulant-induced sexual dysfunction","F15.282 Other stimulant dependence with stimulant-induced sleep disorder","F15.288 Other stimulant dependence with other stimulant-induced disorder","F15.29 Other stimulant dependence with unspecified stimulant-induced disorder","F15.90 Other stimulant use, unspecified, uncomplicated","F15.91 Other stimulant use, unspecified, in remission","F15.920 Other stimulant use, unspecified with intoxication, uncomplicated","F15.921 Other stimulant use, unspecified with intoxication delirium","F15.922 Other stimulant use, unspecified with intoxication with perceptual disturbance","F15.929 Other stimulant use, unspecified with intoxication, unspecified","F15.93 Other stimulant use, unspecified with withdrawal","F15.94 Other stimulant use, unspecified with stimulant-induced mood disorder","F15.950 Other stimulant use, unspecified with stimulant-induced psychotic disorder with delusions","F15.951 Other stimulant use, unspecified with stimulant-induced psychotic disorder with hallucinations","F15.959 Other stimulant use, unspecified with stimulant-induced psychotic disorder, unspecified","F15.980 Other stimulant use, unspecified with stimulant-induced anxiety disorder","F15.981 Other stimulant use, unspecified with stimulant-induced sexual dysfunction","F15.982 Other stimulant use, unspecified with stimulant-induced sleep disorder","F15.988 Other stimulant use, unspecified with other stimulant-induced disorder","F15.99 Other stimulant use, unspecified with unspecified stimulant-induced disorder"
+],
+"F16 — Hallucinogen-related disorders": [
+"F16.10 Hallucinogen abuse, uncomplicated","F16.11 Hallucinogen abuse, in remission","F16.120 Hallucinogen abuse with intoxication, uncomplicated","F16.121 Hallucinogen abuse with intoxication with delirium","F16.122 Hallucinogen abuse with intoxication with perceptual disturbance","F16.129 Hallucinogen abuse with intoxication, unspecified","F16.14 Hallucinogen abuse with hallucinogen-induced mood disorder","F16.150 Hallucinogen abuse with hallucinogen-induced psychotic disorder with delusions","F16.151 Hallucinogen abuse with hallucinogen-induced psychotic disorder with hallucinations","F16.159 Hallucinogen abuse with hallucinogen-induced psychotic disorder, unspecified","F16.180 Hallucinogen abuse with hallucinogen-induced anxiety disorder","F16.183 Hallucinogen abuse with hallucinogen persisting perception disorder (flashbacks)","F16.188 Hallucinogen abuse with other hallucinogen-induced disorder","F16.19 Hallucinogen abuse with unspecified hallucinogen-induced disorder","F16.20 Hallucinogen dependence, uncomplicated","F16.21 Hallucinogen dependence, in remission","F16.220 Hallucinogen dependence with intoxication, uncomplicated","F16.221 Hallucinogen dependence with intoxication with delirium","F16.229 Hallucinogen dependence with intoxication, unspecified","F16.24 Hallucinogen dependence with hallucinogen-induced mood disorder","F16.250 Hallucinogen dependence with hallucinogen-induced psychotic disorder with delusions","F16.251 Hallucinogen dependence with hallucinogen-induced psychotic disorder with hallucinations","F16.259 Hallucinogen dependence with hallucinogen-induced psychotic disorder, unspecified","F16.280 Hallucinogen dependence with hallucinogen-induced anxiety disorder","F16.283 Hallucinogen dependence with hallucinogen persisting perception disorder (flashbacks)","F16.288 Hallucinogen dependence with other hallucinogen-induced disorder","F16.90 Hallucinogen use, unspecified, uncomplicated","F16.91 Hallucinogen use, unspecified, in remission","F16.920 Hallucinogen use, unspecified with intoxication, uncomplicated","F16.921 Hallucinogen use, unspecified with intoxication with delirium","F16.929 Hallucinogen use, unspecified with intoxication, unspecified","F16.94 Hallucinogen use, unspecified with hallucinogen-induced mood disorder","F16.950 Hallucinogen use, unspecified with hallucinogen-induced psychotic disorder with delusions","F16.951 Hallucinogen use, unspecified with hallucinogen-induced psychotic disorder with hallucinations","F16.959 Hallucinogen use, unspecified with hallucinogen-induced psychotic disorder, unspecified","F16.980 Hallucinogen use, unspecified with hallucinogen-induced anxiety disorder","F16.983 Hallucinogen use, unspecified with hallucinogen persisting perception disorder (flashbacks)","F16.988 Hallucinogen use, unspecified with other hallucinogen-induced disorder","F16.99 Hallucinogen use, unspecified with unspecified hallucinogen-induced disorder"
+],
+"F17 — Nicotine-related disorders": [
+"F17.200 Nicotine dependence, unspecified, uncomplicated","F17.201 Nicotine dependence, unspecified, in remission","F17.203 Nicotine dependence unspecified, with withdrawal","F17.208 Nicotine dependence, unspecified, with other nicotine-induced disorders","F17.209 Nicotine dependence, unspecified, with unspecified nicotine-induced disorders","F17.210 Nicotine dependence, cigarettes, uncomplicated","F17.211 Nicotine dependence, cigarettes, in remission","F17.213 Nicotine dependence, cigarettes, with withdrawal","F17.218 Nicotine dependence, cigarettes, with other nicotine-induced disorders","F17.219 Nicotine dependence, cigarettes, with unspecified nicotine-induced disorders","F17.220 Nicotine dependence, chewing tobacco, uncomplicated","F17.221 Nicotine dependence, chewing tobacco, in remission","F17.223 Nicotine dependence, chewing tobacco, with withdrawal","F17.228 Nicotine dependence, chewing tobacco, with other nicotine-induced disorders","F17.229 Nicotine dependence, chewing tobacco, with unspecified nicotine-induced disorders","F17.290 Nicotine dependence, other tobacco product, uncomplicated","F17.291 Nicotine dependence, other tobacco product, in remission","F17.293 Nicotine dependence, other tobacco product, with withdrawal","F17.298 Nicotine dependence, other tobacco product, with other nicotine-induced disorders","F17.299 Nicotine dependence, other tobacco product, with unspecified nicotine-induced disorders"
+],
+"F18 — Inhalant-related disorders": [
+"F18.10 Inhalant abuse, uncomplicated","F18.11 Inhalant abuse, in remission","F18.12 Inhalant abuse with intoxication","F18.120 Inhalant abuse with intoxication, uncomplicated","F18.121 Inhalant abuse with intoxication delirium","F18.129 Inhalant abuse with intoxication, unspecified","F18.14 Inhalant abuse with inhalant-induced mood disorder","F18.150 Inhalant abuse with inhalant-induced psychotic disorder with delusions","F18.151 Inhalant abuse with inhalant-induced psychotic disorder with hallucinations","F18.159 Inhalant abuse with inhalant-induced psychotic disorder, unspecified","F18.17 Inhalant abuse with inhalant-induced dementia","F18.180 Inhalant abuse with inhalant-induced anxiety disorder","F18.188 Inhalant abuse with other inhalant-induced disorder","F18.19 Inhalant abuse with unspecified inhalant-induced disorder","F18.20 Inhalant dependence, uncomplicated","F18.21 Inhalant dependence, in remission","F18.220 Inhalant dependence with intoxication, uncomplicated","F18.221 Inhalant dependence with intoxication delirium","F18.229 Inhalant dependence with intoxication, unspecified","F18.24 Inhalant dependence with inhalant-induced mood disorder","F18.250 Inhalant dependence with inhalant-induced psychotic disorder with delusions","F18.251 Inhalant dependence with inhalant-induced psychotic disorder with hallucinations","F18.259 Inhalant dependence with inhalant-induced psychotic disorder, unspecified","F18.27 Inhalant dependence with inhalant-induced persisting dementia","F18.280 Inhalant dependence with inhalant-induced anxiety disorder","F18.288 Inhalant dependence with other inhalant-induced disorder","F18.29 Inhalant dependence with unspecified inhalant-induced disorder","F18.90 Inhalant use, unspecified, uncomplicated","F18.91 Inhalant use, unspecified, in remission","F18.920 Inhalant use, unspecified with intoxication, uncomplicated","F18.921 Inhalant use, unspecified with intoxication with delirium","F18.929 Inhalant use, unspecified with intoxication, unspecified","F18.94 Inhalant use, unspecified with inhalant-induced mood disorder","F18.950 Inhalant use, unspecified with inhalant-induced psychotic disorder with delusions","F18.951 Inhalant use, unspecified with inhalant-induced psychotic disorder with hallucinations","F18.959 Inhalant use, unspecified with inhalant-induced psychotic disorder, unspecified","F18.97 Inhalant use, unspecified with inhalant-induced persisting dementia","F18.980 Inhalant use, unspecified with inhalant-induced anxiety disorder","F18.988 Inhalant use, unspecified with other inhalant-induced disorder","F18.99 Inhalant use, unspecified with unspecified inhalant-induced disorder"
+],
+"F19 — Other psychoactive substance-related disorders": [
+"F19.10 Other psychoactive substance abuse, uncomplicated","F19.11 Other psychoactive substance abuse, in remission","F19.120 Other psychoactive substance abuse with intoxication, uncomplicated","F19.121 Other psychoactive substance abuse with intoxication delirium","F19.122 Other psychoactive substance abuse with intoxication with perceptual disturbances","F19.129 Other psychoactive substance abuse with intoxication, unspecified","F19.130 Other psychoactive substance abuse with withdrawal, uncomplicated","F19.131 Other psychoactive substance abuse with withdrawal delirium","F19.132 Other psychoactive substance abuse with withdrawal with perceptual disturbance","F19.139 Other psychoactive substance abuse with withdrawal, unspecified","F19.14 Other psychoactive substance abuse with psychoactive substance-induced mood disorder","F19.150 Other psychoactive substance abuse with psychoactive substance-induced psychotic disorder with delusions","F19.151 Other psychoactive substance abuse with psychoactive substance-induced psychotic disorder with hallucinations","F19.159 Other psychoactive substance abuse with psychoactive substance-induced psychotic disorder, unspecified","F19.16 Other psychoactive substance abuse with psychoactive substance-induced persisting amnestic disorder","F19.17 Other psychoactive substance abuse with psychoactive substance-induced persisting dementia","F19.180 Other psychoactive substance abuse with psychoactive substance-induced anxiety disorder","F19.181 Other psychoactive substance abuse with psychoactive substance-induced sexual dysfunction","F19.182 Other psychoactive substance abuse with psychoactive substance-induced sleep disorder","F19.188 Other psychoactive substance abuse with other psychoactive substance-induced disorder","F19.19 Other psychoactive substance abuse with unspecified psychoactive substance-induced disorder","F19.20 Other psychoactive substance dependence, uncomplicated","F19.21 Other psychoactive substance dependence, in remission","F19.220 Other psychoactive substance dependence with intoxication, uncomplicated","F19.221 Other psychoactive substance dependence with intoxication delirium","F19.222 Other psychoactive substance dependence with intoxication with perceptual disturbance","F19.229 Other psychoactive substance dependence with intoxication, unspecified","F19.230 Other psychoactive substance dependence with withdrawal, uncomplicated","F19.231 Other psychoactive substance dependence with withdrawal delirium","F19.232 Other psychoactive substance dependence with withdrawal with perceptual disturbance","F19.239 Other psychoactive substance dependence with withdrawal, unspecified","F19.24 Other psychoactive substance dependence with psychoactive substance-induced mood disorder","F19.250 Other psychoactive substance dependence with psychoactive substance-induced psychotic disorder with delusions","F19.251 Other psychoactive substance dependence with psychoactive substance-induced psychotic disorder with hallucinations","F19.259 Other psychoactive substance dependence with psychoactive substance-induced psychotic disorder, unspecified","F19.26 Other psychoactive substance dependence with psychoactive substance-induced persisting amnestic disorder","F19.27 Other psychoactive substance dependence with psychoactive substance-induced persisting dementia","F19.280 Other psychoactive substance dependence with psychoactive substance-induced anxiety disorder","F19.281 Other psychoactive substance dependence with psychoactive substance-induced sexual dysfunction","F19.282 Other psychoactive substance dependence with psychoactive substance-induced sleep disorder","F19.288 Other psychoactive substance dependence with other psychoactive substance-induced disorder","F19.29 Other psychoactive substance dependence with unspecified psychoactive substance-induced disorder","F19.90 Other psychoactive substance use, unspecified, uncomplicated","F19.91 Other psychoactive substance use, unspecified, in remission","F19.920 Other psychoactive substance use, unspecified with intoxication, uncomplicated","F19.921 Other psychoactive substance use, unspecified with intoxication with delirium","F19.922 Other psychoactive substance use, unspecified with intoxication with perceptual disturbance","F19.929 Other psychoactive substance use, unspecified with intoxication, unspecified","F19.930 Other psychoactive substance use, unspecified with withdrawal, uncomplicated","F19.931 Other psychoactive substance use, unspecified with withdrawal delirium","F19.932 Other psychoactive substance use, unspecified with withdrawal with perceptual disturbance","F19.939 Other psychoactive substance use, unspecified with withdrawal, unspecified","F19.94 Other psychoactive substance use, unspecified with psychoactive substance-induced mood disorder","F19.950 Other psychoactive substance use, unspecified with psychoactive substance-induced psychotic disorder with delusions","F19.951 Other psychoactive substance use, unspecified with psychoactive substance-induced psychotic disorder with hallucinations","F19.959 Other psychoactive substance use, unspecified with psychoactive substance-induced psychotic disorder, unspecified","F19.96 Other psychoactive substance use, unspecified with psychoactive substance-induced persisting amnestic disorder","F19.97 Other psychoactive substance use, unspecified with psychoactive substance-induced persisting dementia","F19.980 Other psychoactive substance use, unspecified with psychoactive substance-induced anxiety disorder","F19.981 Other psychoactive substance use, unspecified with psychoactive substance-induced sexual dysfunction","F19.982 Other psychoactive substance use, unspecified with psychoactive substance-induced sleep disorder","F19.988 Other psychoactive substance use, unspecified with other psychoactive substance-induced disorder","F19.99 Other psychoactive substance use, unspecified with unspecified psychoactive substance-induced disorder"
+]
+};
+
+/* === Dropdown Builders === */
+function buildICD() {
+  const cat = document.querySelector('#icdCat');
+  cat.innerHTML = '<option>— Select —</option>';
+  Object.keys(ICD_MAP).forEach(k => {
+    const o = document.createElement('option');
+    o.textContent = k;
+    cat.appendChild(o);
+  });
+}
+function buildCodes() {
+  const catVal = document.querySelector('#icdCat')?.value;
+  const codeSel = document.querySelector('#icdCode');
+  codeSel.innerHTML = '<option>— Select —</option>';
+  (ICD_MAP[catVal] || []).forEach(c => {
+    const o = document.createElement('option');
+    o.textContent = c;
+    codeSel.appendChild(o);
+  });
+}
+
+/* === Helpers === */
+function joinAnd(a){return a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];}
+function checkedValues(containerId){
+  return [...document.querySelectorAll(`#${containerId} input:checked`)].map(x=>x.value);
+}
+function toggleCollapse(){
+  const c=document.querySelector('.collapse-c');
+  c.style.display=c.style.display==='block'?'none':'block';
+}
+
+/* === Note Generation === */
+function generateNote(){
+  const diag = document.querySelector('#icdCode').value || 'a substance use disorder';
+
+  const onsetSel = document.querySelector('#onsetSel').value;
+  const onsetOther = document.querySelector('#onsetOther').value.trim();
+  const onset = onsetSel === 'other' ? (onsetOther || 'unspecified') : onsetSel;
+
+  const trigVals = checkedValues('triggers');
+  const triggers = trigVals.includes('other')
+    ? (document.querySelector('#triggerOther').value.trim() || 'unspecified')
+    : (trigVals.length ? joinAnd(trigVals) : 'environmental cues');
+
+  const copingVals = checkedValues('coping');
+  const coping = copingVals.includes('other')
+    ? (document.querySelector('#copingOther').value.trim() || 'unspecified')
+    : (copingVals.length ? joinAnd(copingVals) : 'supportive coping strategies');
+
+  const riskSel = document.querySelector('#riskSel').value;
+  const riskOther = document.querySelector('#riskOther').value.trim();
+  const risk = riskSel === 'other' ? (riskOther || 'unspecified') : riskSel;
+
+  const asam = `D1 ${document.querySelector('#asam1').value}, D2 ${document.querySelector('#asam2').value}, D3 ${document.querySelector('#asam3').value}`;
+  const stage = document.querySelector('#stage').value;
+
+  const out = `
+<p><strong>Reason for Encounter (H0001)</strong><br>
+Comprehensive substance use assessment to evaluate ${diag}, determine ASAM level of care, and update individualized treatment planning.</p>
+
+<p><strong>Presenting Concerns & History</strong><br>
+Symptoms began ${onset}. Triggers include ${triggers}. Helpful coping strategies include ${coping}. Risk summary: ${risk}.</p>
+
+<p><strong>ASAM Dimensions Snapshot</strong><br>${asam}. Stage of change: ${stage}.</p>
+
+<p><strong>Diagnostic Impression</strong><br>
+Findings support ${diag}. Diagnosis remains appropriate and medically necessary for ongoing care.</p>
+
+<p><strong>Billing Codes</strong><br>
+H0001 — SUD Assessment (initial/reassessment)<br>
+Provider: ${document.querySelector('#clinician').value || ''}<br>
+Date: ${document.querySelector('#dos').value || ''} | POS: ${document.querySelector('#pos').value || ''}</p>`;
+
+  localStorage.setItem('docusistant_doc_completed_H0001', '1');
+  document.querySelector('#noteOut').innerHTML = out;
+  document.querySelector('.collapse-c').style.display = 'block';
+}
+
+function saveCurrentNote(){
+  const content = document.querySelector('#noteOut').innerText || '';
+  if (!content.trim()) { alert('Generate a note first, then save.'); return; }
+  saveDocNote('H0001 Substance Use Assessment', content);
+}
+
+/* === Copy === */
+function copyNote(){
+  const t=document.createElement('textarea');
+  t.value=document.querySelector('#noteOut').innerText;
+  document.body.appendChild(t);t.select();document.execCommand('copy');
+  document.body.removeChild(t);alert('Note copied to clipboard.');
+}
+
+/* === Init === */
+document.addEventListener('DOMContentLoaded',()=>{
+  buildICD();
+  document.querySelector('#icdCat')?.addEventListener('change', buildCodes);
+  document.querySelector('#dos').value = new Date().toISOString().slice(0,10);
+  initDashboard(CLINICIAN_ROLES);
+});
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Communications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+.mod-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:18px}.mod-tab{border:none;background:none;padding:10px 14px;font:600 12.5px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.mod-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}.mod-panel{display:none}.mod-panel.active{display:block}
+.hero,.launch-grid{display:grid;gap:12px}.hero{grid-template-columns:2fr 1fr;margin-bottom:18px}.launch-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.card,.launch{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)}.card h3,.launch h4{margin:0 0 8px;font-family:'Sora',sans-serif}.card p,.launch p{margin:0 0 12px;color:var(--ink-500);font-size:13px;line-height:1.6}.launch h4{font-size:14px}.launch a{display:inline-flex;align-items:center;gap:6px;color:var(--blue-700);font-size:12px;font-weight:700;text-decoration:none}.launch a:hover{text-decoration:underline}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)}.kpi-num{font-family:'Sora',sans-serif;font-size:1.7rem;font-weight:700;line-height:1;color:var(--ink-900)}.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-top:6px}
+.note{font-size:12px;color:var(--ink-500);margin-top:12px}
+@media(max-width:900px){.hero,.kpis{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <div class="admin-badge">Admin Portal</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div>
+      <h1>Communications</h1>
+      <p>Internal chat, patient messaging, client communications, templates, and document history in one primary area.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-outline btn-sm" href="admin-chat.html">Open Chat</a>
+      <a class="btn btn-blue btn-sm" href="admin-correspondence.html">Open Correspondence</a>
+    </div>
+  </header>
+  <div class="hero">
+    <div class="card"><h3>Unified Communications Area</h3><p>Chat and correspondence are now treated as one communications module. The operational drill-downs remain available, but primary navigation lands here first.</p></div>
+    <div class="card"><h3>Usage</h3><p>Start in this module, then move into message-specific drill-downs only when active work requires it.</p></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-num">14</div><div class="kpi-lbl">Internal Threads</div></div>
+    <div class="kpi"><div class="kpi-num">27</div><div class="kpi-lbl">Patient Messages</div></div>
+    <div class="kpi"><div class="kpi-num">9</div><div class="kpi-lbl">Client Messages</div></div>
+    <div class="kpi"><div class="kpi-num">63</div><div class="kpi-lbl">Docs Logged Today</div></div>
+  </div>
+  <div class="mod-tabs" id="tabBar">
+    <button class="mod-tab active" data-tab="internal-chat">Internal Chat</button>
+    <button class="mod-tab" data-tab="patient-messages">Patient Messages</button>
+    <button class="mod-tab" data-tab="client-messages">Client Messages</button>
+    <button class="mod-tab" data-tab="email-templates">Email Templates</button>
+    <button class="mod-tab" data-tab="document-history">Document History</button>
+  </div>
+  <section class="mod-panel active" id="panel-internal-chat"><div class="launch-grid"><div class="launch"><h4>Team Chat</h4><p>Open the real-time internal chat workspace for operational coordination.</p><a href="admin-chat.html">Open internal chat -></a></div><div class="launch"><h4>Support Threads</h4><p>Move into live support and internal queue discussions.</p><a href="support-center.html">Open support center -></a></div></div></section>
+  <section class="mod-panel" id="panel-patient-messages"><div class="launch-grid"><div class="launch"><h4>Patient Message Queue</h4><p>Use correspondence workflows for patient-specific communication.</p><a href="admin-correspondence.html">Open patient correspondence -></a></div><div class="launch"><h4>Patient Workspace</h4><p>Return to the patient module when context from the chart is needed.</p><a href="admin-patients.html?tab=communications">Open patients module -></a></div></div></section>
+  <section class="mod-panel" id="panel-client-messages"><div class="launch-grid"><div class="launch"><h4>Client Communication Threads</h4><p>Manage account, onboarding, and operational messages with clients.</p><a href="admin-correspondence.html">Open client correspondence -></a></div><div class="launch"><h4>Client Module</h4><p>Return to the client workspace for account-specific context.</p><a href="admin-clients.html?tab=communications">Open clients module -></a></div></div></section>
+  <section class="mod-panel" id="panel-email-templates"><div class="launch-grid"><div class="launch"><h4>Template Library</h4><p>Manage reusable outreach and notification templates.</p><a href="admin-correspondence.html?tab=templates">Open templates -></a></div><div class="launch"><h4>Smart Phrases</h4><p>Maintain reusable phrasing for support and follow-up workflows.</p><a href="admin-smart-phrases.html">Open smart phrases -></a></div></div></section>
+  <section class="mod-panel" id="panel-document-history"><div class="launch-grid"><div class="launch"><h4>Document Center</h4><p>Review communication-related document history and attachments.</p><a href="admin-document-center.html">Open document center -></a></div><div class="launch"><h4>Imported History</h4><p>Track document movement and import-related communication artifacts.</p><a href="admin-import-history.html">Open import history -></a></div></div></section>
+  <p class="note">Chat and correspondence remain operational pages, but they now sit underneath one Communications module in primary navigation.</p>
+</main>
+</div>
+<script>
+(function(){
+  const valid = ['internal-chat','patient-messages','client-messages','email-templates','document-history'];
+  function setTab(tab){
+    const next = valid.includes(tab) ? tab : 'internal-chat';
+    document.querySelectorAll('.mod-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === next));
+    document.querySelectorAll('.mod-panel').forEach(panel => panel.classList.toggle('active', panel.id === 'panel-' + next));
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', next);
+    history.replaceState(null, '', url);
+  }
+  document.getElementById('tabBar').addEventListener('click', event => {
+    const btn = event.target.closest('.mod-tab');
+    if (btn) setTab(btn.dataset.tab);
+  });
+  setTab(new URLSearchParams(window.location.search).get('tab') || 'internal-chat');
+}());
+</script>
+</body>
+</html>

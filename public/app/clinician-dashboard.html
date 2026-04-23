@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Clinician Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* ---------------------------------------------------
+       CLINICIAN DASHBOARD v2 - scoped styles
+    --------------------------------------------------- */
+
+    /* -- Hero ------------------------------------------ */
+    .cd-hero{background:var(--surface);border-radius:22px;border:1px solid var(--border);
+      box-shadow:0 16px 40px rgba(13,53,94,.1);padding:26px 32px;margin-bottom:18px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      position:relative;z-index:1;overflow:hidden;animation:fadeSlideUp 340ms ease-out both}
+    .cd-hero::before{content:"";position:absolute;right:-50px;top:-50px;width:300px;height:300px;
+      border-radius:50%;background:radial-gradient(circle,rgba(47,121,183,.08),transparent 65%);pointer-events:none}
+    .cd-hero-text h1{font-size:clamp(20px,2.5vw,28px);margin-bottom:5px}
+    .cd-hero-text p{font-size:13.5px;color:var(--ink-500);max-width:500px;line-height:1.5}
+    .cd-quick-btns{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+
+    /* -- 8-Col KPI strip ------------------------------- */
+    .cd-kpi-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:18px}
+    .cd-kpi{background:var(--surface);border-radius:12px;border:1px solid var(--border);
+      box-shadow:0 6px 14px rgba(13,53,94,.07);padding:12px 10px;position:relative;overflow:hidden;
+      animation:fadeSlideUp 400ms ease-out both}
+    .cd-kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+      background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .cd-kpi.warn::after{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .cd-kpi.danger::after{background:linear-gradient(180deg,#dc2626,#991b1b)}
+    .cd-kpi.success::after{background:linear-gradient(180deg,#059669,#047857)}
+    .cd-kpi.revenue::after{background:linear-gradient(180deg,#e69831,#b86a0c)}
+    .cd-kpi.stripe::after{background:linear-gradient(180deg,#6366f1,#4f46e5)}
+    .cd-kpi.revenue{background:linear-gradient(165deg,var(--surface) 0%,var(--revenue-soft) 100%);border-color:#f3d7b6}
+    .cd-kpi-lbl{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-500);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cd-kpi-val{font-family:"Sora",sans-serif;font-size:1.55rem;font-weight:700;color:var(--ink-900);line-height:1;margin-bottom:2px}
+    .cd-kpi.revenue .cd-kpi-val{color:var(--revenue)}
+    .cd-kpi.warn .cd-kpi-val{color:#b45309}
+    .cd-kpi.danger .cd-kpi-val{color:#dc2626}
+    .cd-kpi.success .cd-kpi-val{color:#059669}
+    .cd-kpi.stripe .cd-kpi-val{color:#4f46e5}
+    .cd-kpi-sub{font-size:10px;color:var(--ink-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* -- Layout grid ----------------------------------- */
+    .cd-body-grid{display:grid;grid-template-columns:1fr 352px;gap:14px;margin-bottom:18px;align-items:start}
+    .cd-left{display:flex;flex-direction:column;gap:14px}
+    .cd-right{display:flex;flex-direction:column;gap:14px}
+
+    /* -- Widget shell ---------------------------------- */
+    .cd-widget{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+      box-shadow:0 8px 20px rgba(13,53,94,.08);overflow:hidden;position:relative;z-index:1;
+      animation:fadeSlideUp 420ms ease-out both}
+    .cd-whead{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .cd-wtitle{font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:var(--ink-900);display:flex;align-items:center;gap:7px}
+    .cd-wicon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);color:var(--blue-900)}
+    .cd-wicon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .cd-wicon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .cd-wicon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+    .cd-wicon.red{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .cd-wicon.teal{background:linear-gradient(135deg,#ccfbf1,#99f6e4);color:#0f766e}
+    .cd-wicon.stripe{background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca}
+    .cd-wlink{font-size:11.5px;font-weight:700;color:var(--blue-700);text-decoration:none;white-space:nowrap}
+    .cd-wlink:hover{text-decoration:underline}
+    .cd-wbody{padding:0}
+
+    /* -- Appointment rows ------------------------------ */
+    .appt-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .12s}
+    .appt-row:last-child{border-bottom:none}
+    .appt-row:hover{background:#f7fbff}
+    .appt-time{font-size:11.5px;font-weight:700;color:var(--blue-700);width:58px;flex-shrink:0}
+    .appt-avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);
+      display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--blue-900);flex-shrink:0}
+    .appt-info{flex:1;min-width:0}
+    .appt-name{font-size:12.5px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .appt-type{font-size:11px;color:var(--ink-500);margin-top:1px}
+    .appt-badges{display:flex;gap:5px;flex-shrink:0}
+    .appt-badge{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap}
+    .appt-badge.telehealth{background:#e0e7ff;color:#3730a3}
+    .appt-badge.office{background:#dbeafe;color:#1e40af}
+    .appt-badge.confirmed{background:#dcfce7;color:#15803d}
+    .appt-badge.pending{background:#fef3c7;color:#92400e}
+    .appt-badge.cancelled{background:#fee2e2;color:#b91c1c}
+    .appt-btn{border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11px;
+      font-weight:700;color:var(--ink-700);background:var(--surface);cursor:pointer;font-family:inherit;
+      flex-shrink:0;transition:border-color .12s,background .12s}
+    .appt-btn:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-800)}
+    .appt-btn.join{background:linear-gradient(135deg,var(--blue-700),var(--blue-500));color:#fff;border:none;padding:5px 12px}
+    .appt-btn.join:hover{opacity:.88}
+
+    /* -- Claim rows ------------------------------------ */
+    .claim-row{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .12s}
+    .claim-row:last-child{border-bottom:none}
+    .claim-row:hover{background:#f7fbff}
+    .claim-bar{width:3px;flex-shrink:0;align-self:stretch;min-height:32px;border-radius:2px}
+    .claim-bar.urgent{background:#dc2626}
+    .claim-bar.high{background:#f59e0b}
+    .claim-bar.routine{background:#94a3b8}
+    .claim-info{flex:1;min-width:0}
+    .claim-patient{font-size:12.5px;font-weight:700;color:var(--ink-900)}
+    .claim-detail{font-size:11px;color:var(--ink-500);margin-top:1px}
+    .claim-action{font-size:11px;font-weight:600;color:#b45309;margin-top:2px}
+    .claim-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+    .claim-amt{font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:var(--ink-900)}
+
+    /* -- Draft rows ------------------------------------ */
+    .draft-row{display:flex;align-items:center;gap:9px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .draft-row:last-child{border-bottom:none}
+    .draft-row:hover{background:#f7fbff}
+    .draft-tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
+    .draft-tag.report{background:#dbeafe;color:#1e40af}
+    .draft-tag.note{background:#ede9fe;color:#4c1d95}
+    .draft-info{flex:1;min-width:0}
+    .draft-client{font-size:12.5px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .draft-meta{font-size:11px;color:var(--ink-500)}
+    .draft-age{font-size:10.5px;color:var(--warn);font-weight:600;flex-shrink:0}
+
+    /* -- Balance rows ---------------------------------- */
+    .bal-row{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);gap:8px;transition:background .12s}
+    .bal-row:last-child{border-bottom:none}
+    .bal-row:hover{background:#f7fbff}
+    .bal-name{font-size:12.5px;font-weight:600;color:var(--ink-900);flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .bal-right{text-align:right;flex-shrink:0}
+    .bal-amount{font-family:"Sora",sans-serif;font-size:13.5px;font-weight:700}
+    .bal-amount.overdue{color:#dc2626}
+    .bal-amount.due{color:#b45309}
+    .bal-amount.current{color:#059669}
+    .bal-sub{font-size:10.5px;color:var(--ink-500)}
+
+    /* -- Payment rows ---------------------------------- */
+    .pay-row{display:flex;align-items:center;gap:9px;padding:9px 16px;border-bottom:1px solid var(--border);transition:background .12s}
+    .pay-row:last-child{border-bottom:none}
+    .pay-row:hover{background:#f7fbff}
+    .pay-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0}
+    .pay-icon.card{background:#dbeafe;color:#1e40af}
+    .pay-icon.cash{background:#dcfce7;color:#15803d}
+    .pay-icon.check{background:#f3f4f6;color:#374151}
+    .pay-icon.ins{background:#ede9fe;color:#4c1d95}
+    .pay-info{flex:1;min-width:0}
+    .pay-patient{font-size:12.5px;font-weight:600;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .pay-meta{font-size:10.5px;color:var(--ink-500)}
+    .pay-amount{font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:#059669;flex-shrink:0}
+
+    /* -- Notification rows ----------------------------- */
+    .notif-row{display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .notif-row:last-child{border-bottom:none}
+    .notif-row:hover{background:#f7fbff}
+    .notif-row.unread{background:#f0f7ff}
+    .notif-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+    .notif-dot.new{background:var(--blue-600)}
+    .notif-dot.read{background:transparent}
+    .notif-text{flex:1;font-size:12px;color:var(--ink-700);line-height:1.45}
+    .notif-time{font-size:10.5px;color:var(--ink-500);flex-shrink:0;margin-top:1px;white-space:nowrap}
+
+    /* -- Eligibility / Auth rows ----------------------- */
+    .elig-row{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--border)}
+    .elig-row:last-child{border-bottom:none}
+    .elig-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .elig-dot.fail{background:#dc2626}
+    .elig-dot.warn{background:#f59e0b}
+    .elig-info{flex:1;min-width:0}
+    .elig-patient{font-size:12px;font-weight:700;color:var(--ink-900)}
+    .elig-detail{font-size:10.5px;color:var(--ink-500);margin-top:1px}
+    .elig-badge{font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:99px;flex-shrink:0}
+    .elig-badge.inactive,.elig-badge.expired{background:#fee2e2;color:#b91c1c}
+    .elig-badge.pending{background:#e0e7ff;color:#3730a3}
+    .elig-badge.missing{background:#f1f5f9;color:#475569}
+    .elig-badge.low{background:#fef3c7;color:#92400e}
+
+    /* -- Chat status ----------------------------------- */
+    .chat-status-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+    .chat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .chat-dot.online{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.18)}
+    .chat-dot.busy{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+    .chat-dot.offline{background:#94a3b8}
+    .chat-conv-row{display:flex;align-items:center;gap:9px;padding:8px 16px;border-top:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .chat-conv-row:hover{background:#f7fbff}
+    .chat-conv-avatar{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--blue-200),#bdd8f5);
+      display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:var(--blue-900);flex-shrink:0}
+    .chat-conv-name{font-size:12px;font-weight:700;color:var(--ink-900);flex:1}
+    .chat-conv-preview{font-size:11px;color:var(--ink-500);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .chat-unread{min-width:16px;height:16px;border-radius:99px;background:var(--blue-600);color:#fff;
+      font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0}
+
+    /* -- Financial grid -------------------------------- */
+    .cd-fin-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+
+    /* -- Revenue widget -------------------------------- */
+    .cd-rev-stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)}
+    .cd-rev-stat{padding:14px 16px;border-right:1px solid var(--border)}
+    .cd-rev-stat:last-child{border-right:none}
+    .cd-rev-stat-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:3px}
+    .cd-rev-stat-val{font-family:"Sora",sans-serif;font-size:1.65rem;font-weight:700;color:var(--ink-900)}
+    .cd-rev-stat-val.revenue{color:var(--revenue)}
+    .cd-rev-stat-val.success{color:#059669}
+    .rev-bar-wrap{padding:14px 16px}
+    .rev-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+    .rev-bar-row:last-child{margin-bottom:0}
+    .rev-bar-key{font-size:11.5px;color:var(--ink-700);width:88px;flex-shrink:0;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .rev-bar-track{flex:1;height:7px;background:#e8f0f9;border-radius:4px;overflow:hidden}
+    .rev-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue-600),var(--blue-400))}
+    .rev-bar-fill.revenue{background:linear-gradient(90deg,#e69831,#f5b642)}
+    .rev-bar-count{font-size:11.5px;font-weight:700;color:var(--ink-900);width:32px;text-align:right;flex-shrink:0}
+
+    /* -- Quick actions grid ---------------------------- */
+    .cd-qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+    .cd-qa{display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+      background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px;
+      cursor:pointer;text-decoration:none;color:inherit;
+      transition:transform .18s,box-shadow .18s,border-color .18s;
+      box-shadow:0 6px 16px rgba(13,53,94,.07);animation:fadeSlideUp 440ms ease-out both}
+    .cd-qa:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(13,53,94,.13);border-color:var(--blue-400,#60a5fa)}
+    .cd-qa-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+    .cd-qa-icon.blue{background:linear-gradient(135deg,var(--blue-200),#bdd8f5);color:var(--blue-900)}
+    .cd-qa-icon.green{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .cd-qa-icon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e}
+    .cd-qa-icon.purple{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+    .cd-qa-icon.red{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .cd-qa-icon.teal{background:linear-gradient(135deg,#ccfbf1,#99f6e4);color:#0f766e}
+    .cd-qa-icon.stripe{background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca}
+    .cd-qa-label{font-size:12.5px;font-weight:700;color:var(--ink-900);line-height:1.3}
+    .cd-qa-desc{font-size:11px;color:var(--ink-500);line-height:1.4}
+
+    /* -- Section label --------------------------------- */
+    .cd-section{font-family:"Sora",sans-serif;font-size:11px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin:0 0 10px;
+      display:flex;align-items:center;gap:8px}
+    .cd-section::after{content:"";flex:1;height:1px;background:var(--border)}
+
+    /* -- Empty / skeleton ------------------------------ */
+    .cd-empty{text-align:center;padding:20px 14px;color:var(--ink-500);font-size:12.5px}
+    .cd-empty-icon{font-size:1.5rem;margin-bottom:5px}
+
+    /* -- Collect-payment modal ------------------------- */
+    .cd-modal-bg{display:none;position:fixed;inset:0;background:rgba(10,30,60,.48);z-index:9000;align-items:center;justify-content:center}
+    .cd-modal-bg.open{display:flex}
+    .cd-modal{background:#fff;border-radius:20px;padding:28px;width:min(450px,96vw);box-shadow:0 28px 70px rgba(10,30,60,.28)}
+    .cd-modal h3{font-size:17px;margin:0 0 16px}
+    .cd-modal-footer{display:flex;gap:10px;margin-top:8px}
+    .cd-modal-footer .btn{flex:1;text-align:center}
+
+    /* -- Responsive ------------------------------------ */
+    @media(max-width:1320px){
+      .cd-kpi-strip{grid-template-columns:repeat(4,1fr)}
+      .cd-fin-grid{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:1060px){
+      .cd-body-grid{grid-template-columns:1fr}
+      .cd-right{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    }
+    @media(max-width:820px){
+      .cd-kpi-strip{grid-template-columns:repeat(2,1fr)}
+      .cd-fin-grid{grid-template-columns:1fr}
+      .cd-qa-grid{grid-template-columns:1fr 1fr}
+      .cd-right{grid-template-columns:1fr}
+      .cd-hero{flex-direction:column;align-items:flex-start}
+    }
+    @media(max-width:520px){
+      .cd-kpi-strip{grid-template-columns:1fr 1fr}
+      .cd-qa-grid{grid-template-columns:1fr}
+      .dashboard-main{padding:12px}
+      .cd-rev-stats{grid-template-columns:1fr 1fr}
+      .cd-rev-stat{border-right:none;border-bottom:1px solid var(--border)}
+    }
+  </style>
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <!-- -- Main ---------------------------------------------- -->
+  <main class="dashboard-main">
+
+    <!-- Admin Preview Banner -->
+    <div id="adminPreviewBanner" style="display:none;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:16px;align-items:center;gap:12px;font-size:13px">
+      <span>??? <strong>Admin Preview Mode</strong><span id="previewUserLabel"></span> - Viewing clinician portal as admin.</span>
+      <button onclick="exitAdminPreview()" style="margin-left:auto;background:#fff;color:#1e3a5f;border:none;border-radius:5px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:12px">Exit Preview</button>
+    </div>
+
+    <!-- -- Hero -------------------------------------------- -->
+    <div class="cd-hero">
+      <div class="cd-hero-text">
+        <h1>Good <span id="timeOfDay">morning</span>, <span id="welcomeName">Clinician</span></h1>
+        <p>Today is <strong id="todayDateStr"></strong>. You have <strong id="heroapptCount">--</strong> appointments and <strong id="heroActionCount">--</strong> items requiring your attention.</p>
+      </div>
+      <div class="cd-quick-btns">
+        <a class="btn btn-blue" href="coder-home.html">? New Session</a>
+        <button class="btn btn-ghost" type="button" onclick="openPayModal()">?? Collect Payment</button>
+        <a class="btn btn-ghost" href="clinician-billing-alerts.html">?? Billing Alerts</a>
+      </div>
+    </div>
+
+    <!-- -- KPI Strip --------------------------------------- -->
+    <div class="cd-kpi-strip">
+      <div class="cd-kpi">
+        <div class="cd-kpi-lbl">Today's Appts</div>
+        <div class="cd-kpi-val" id="kpiApptToday">--</div>
+        <div class="cd-kpi-sub" id="kpiApptSub">Loading...</div>
+      </div>
+      <div class="cd-kpi warn">
+        <div class="cd-kpi-lbl">Claims Action</div>
+        <div class="cd-kpi-val" id="kpiClaimsAction">--</div>
+        <div class="cd-kpi-sub">Needs review</div>
+      </div>
+      <div class="cd-kpi revenue">
+        <div class="cd-kpi-lbl">Revenue ID'd</div>
+        <div class="cd-kpi-val" id="kpiRevenue">$0</div>
+        <div class="cd-kpi-sub">Est. uplift</div>
+      </div>
+      <div class="cd-kpi warn">
+        <div class="cd-kpi-lbl">Draft Reports</div>
+        <div class="cd-kpi-val" id="kpiDraftReports">0</div>
+        <div class="cd-kpi-sub">Unfinalized</div>
+      </div>
+      <div class="cd-kpi warn">
+        <div class="cd-kpi-lbl">Draft Notes</div>
+        <div class="cd-kpi-val" id="kpiDraftNotes">0</div>
+        <div class="cd-kpi-sub">Pending</div>
+      </div>
+      <div class="cd-kpi danger">
+        <div class="cd-kpi-lbl">Eligibility</div>
+        <div class="cd-kpi-val" id="kpiEligibility">--</div>
+        <div class="cd-kpi-sub">Issues</div>
+      </div>
+      <div class="cd-kpi danger">
+        <div class="cd-kpi-lbl">Missing Auth</div>
+        <div class="cd-kpi-val" id="kpiMissingAuth">--</div>
+        <div class="cd-kpi-sub">Required</div>
+      </div>
+      <div class="cd-kpi stripe">
+        <div class="cd-kpi-lbl">Stripe (MTD)</div>
+        <div class="cd-kpi-val" id="kpiStripe">$0</div>
+        <div class="cd-kpi-sub">Collected</div>
+      </div>
+    </div>
+
+    <!-- -- Two-Column Body --------------------------------- -->
+    <div class="cd-body-grid">
+
+      <!-- LEFT -------------------------------------------- -->
+      <div class="cd-left">
+
+        <!-- Today's Appointments -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon">??</div> Today's Appointments</div>
+            <a class="cd-wlink" href="settings.html#schedule">Full schedule ?</a>
+          </div>
+          <div id="widget-today-appts"><div class="cd-empty"><div class="cd-empty-icon">??</div>No appointments today.</div></div>
+        </div>
+
+        <!-- Upcoming Appointments -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon">??</div> Upcoming - Next 7 Days</div>
+            <a class="cd-wlink" href="settings.html#schedule">Calendar ?</a>
+          </div>
+          <div id="widget-upcoming-appts"><div class="cd-empty"><div class="cd-empty-icon">??</div>No upcoming appointments.</div></div>
+        </div>
+
+        <!-- Claims Requiring Action -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon red">?</div> Claims Requiring Your Action</div>
+            <a class="cd-wlink" href="clinician-billing-alerts.html">View all ?</a>
+          </div>
+          <div id="widget-claims-action"><div class="cd-empty"><div class="cd-empty-icon">?</div>No claims requiring action.</div></div>
+        </div>
+
+        <!-- Draft Coding Reports -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon amber">??</div> Draft Coding Reports</div>
+            <a class="cd-wlink" href="saved-reports.html">All reports ?</a>
+          </div>
+          <div id="widget-draft-reports"><div class="cd-empty"><div class="cd-empty-icon">?</div>No draft reports pending.</div></div>
+        </div>
+
+        <!-- Draft Notes -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon purple">??</div> Draft Progress Notes</div>
+            <a class="cd-wlink" href="saved-notes.html">All notes ?</a>
+          </div>
+          <div id="widget-draft-notes"><div class="cd-empty"><div class="cd-empty-icon">?</div>No draft notes pending.</div></div>
+        </div>
+
+      </div> <!-- /cd-left -->
+
+      <!-- RIGHT ------------------------------------------- -->
+      <div class="cd-right">
+
+        <!-- Live Chat Status -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon teal">??</div> Live Chat</div>
+            <a class="cd-wlink" href="admin-chat.html">Open ?</a>
+          </div>
+          <div class="chat-status-bar">
+            <div style="display:flex;align-items:center;gap:7px">
+              <div class="chat-dot offline" id="chatDot"></div>
+              <span style="font-size:12.5px;font-weight:600;color:var(--ink-900)" id="chatStatusLabel">Loading...</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:10.5px;color:var(--ink-500)">Unread</span>
+              <span style="font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--ink-900)" id="chatUnread">0</span>
+            </div>
+          </div>
+          <div id="widget-chat-convs"></div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon">??</div> Notifications</div>
+            <span id="notifUnreadBadge" style="display:none;background:var(--blue-600);color:#fff;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:99px">0</span>
+          </div>
+          <div id="widget-notifications"><div class="cd-empty">No new notifications.</div></div>
+        </div>
+
+        <!-- Billing Alerts -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon amber">??</div> Billing Alerts</div>
+            <a class="cd-wlink" href="clinician-billing-alerts.html">All ?</a>
+          </div>
+          <div id="widget-billing-alerts"><div class="cd-empty">No active billing alerts.</div></div>
+        </div>
+
+        <!-- Eligibility Issues -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon red">??</div> Eligibility Issues</div>
+          </div>
+          <div id="widget-eligibility"><div class="cd-empty">No eligibility issues.</div></div>
+        </div>
+
+        <!-- Missing Authorizations -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon red">??</div> Missing Authorizations</div>
+          </div>
+          <div id="widget-missing-auth"><div class="cd-empty">No missing authorizations.</div></div>
+        </div>
+
+        <!-- Open Support Tickets -->
+        <div class="cd-widget">
+          <div class="cd-whead">
+            <div class="cd-wtitle"><div class="cd-wicon">??</div> Open Support Tickets</div>
+            <a class="cd-wlink" href="support-request.html">New ?</a>
+          </div>
+          <div id="widget-support-tickets"><div class="cd-empty">No open support tickets.</div></div>
+        </div>
+
+      </div> <!-- /cd-right -->
+    </div> <!-- /cd-body-grid -->
+
+    <!-- -- Financial Row ------------------------------------ -->
+    <div class="cd-section">Financial Overview</div>
+    <div class="cd-fin-grid">
+
+      <!-- Patient Balances -->
+      <div class="cd-widget">
+        <div class="cd-whead">
+          <div class="cd-wtitle"><div class="cd-wicon green">??</div> Patient Balances</div>
+          <a class="cd-wlink" href="admin-patient-detail.html">All ?</a>
+        </div>
+        <div id="widget-patient-balances"><div class="cd-empty">No outstanding balances.</div></div>
+        <div style="padding:9px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--ink-500)">Total outstanding</span>
+          <span style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--ink-900)" id="patBalTotal">$0</span>
+        </div>
+      </div>
+
+      <!-- Insurance Balances -->
+      <div class="cd-widget">
+        <div class="cd-whead">
+          <div class="cd-wtitle"><div class="cd-wicon purple">??</div> Insurance Balances</div>
+        </div>
+        <div id="widget-insurance-balances"><div class="cd-empty">No pending insurance balances.</div></div>
+        <div style="padding:9px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--ink-500)">Total pending</span>
+          <span style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--ink-900)" id="insBalTotal">$0</span>
+        </div>
+      </div>
+
+      <!-- Recent Payments -->
+      <div class="cd-widget">
+        <div class="cd-whead">
+          <div class="cd-wtitle"><div class="cd-wicon green">??</div> Recent Payments</div>
+        </div>
+        <div id="widget-recent-payments"><div class="cd-empty">No recent payments.</div></div>
+      </div>
+
+      <!-- Stripe Collections -->
+      <div class="cd-widget">
+        <div class="cd-whead">
+          <div class="cd-wtitle"><div class="cd-wicon stripe">S</div> Stripe Collections</div>
+        </div>
+        <div style="padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:3px">This Month</div>
+              <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:#4f46e5" id="stripeMonthAmt">$0</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:3px">Pending</div>
+              <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:#b45309" id="stripePendingAmt">$0</div>
+            </div>
+          </div>
+          <div id="stripe-recent-rows"></div>
+        </div>
+        <div style="padding:9px 16px;border-top:1px solid var(--border)">
+          <button onclick="openPayModal()" class="btn btn-ghost" style="width:100%;text-align:center;font-size:12.5px">?? Collect Payment</button>
+        </div>
+      </div>
+
+    </div> <!-- /cd-fin-grid -->
+
+    <!-- -- Revenue Identified ------------------------------- -->
+    <div class="cd-section">Revenue Identified</div>
+    <div class="cd-widget" style="margin-bottom:18px">
+      <div class="cd-whead">
+        <div class="cd-wtitle"><div class="cd-wicon amber">??</div> Coding Session Revenue</div>
+        <a class="cd-wlink" href="saved-reports.html">All reports ?</a>
+      </div>
+      <div class="cd-rev-stats">
+        <div class="cd-rev-stat">
+          <div class="cd-rev-stat-lbl">Total Identified</div>
+          <div class="cd-rev-stat-val revenue" id="revTotal">$0</div>
+        </div>
+        <div class="cd-rev-stat">
+          <div class="cd-rev-stat-lbl">Sessions Coded</div>
+          <div class="cd-rev-stat-val" id="revSessions">0</div>
+        </div>
+        <div class="cd-rev-stat">
+          <div class="cd-rev-stat-lbl">Avg / Session</div>
+          <div class="cd-rev-stat-val" id="revAvg">$0</div>
+        </div>
+        <div class="cd-rev-stat">
+          <div class="cd-rev-stat-lbl">Finalized</div>
+          <div class="cd-rev-stat-val success" id="revFinalized">0</div>
+        </div>
+      </div>
+      <div class="rev-bar-wrap" id="rev-bar-chart">
+        <div class="cd-empty" style="padding:10px">No coding data yet.</div>
+      </div>
+    </div>
+
+    <!-- -- Quick Actions ------------------------------------ -->
+    <div class="cd-section">Quick Actions</div>
+    <div class="cd-qa-grid">
+
+      <a class="cd-qa" href="coder-home.html">
+        <div class="cd-qa-icon blue">?</div>
+        <div><div class="cd-qa-label">Start Coding Session</div><div class="cd-qa-desc">Launch documentation &amp; coding workflow</div></div>
+      </a>
+
+      <a class="cd-qa" href="resume-draft.html">
+        <div class="cd-qa-icon amber">??</div>
+        <div><div class="cd-qa-label">Resume Draft</div><div class="cd-qa-desc">Continue an in-progress session or note</div></div>
+      </a>
+
+      <button class="cd-qa" type="button" onclick="openPatientAccount()">
+        <div class="cd-qa-icon green">??</div>
+        <div><div class="cd-qa-label">Open Patient Account</div><div class="cd-qa-desc">View balance, history &amp; authorizations</div></div>
+      </button>
+
+      <button class="cd-qa" type="button" onclick="routeToBiller()">
+        <div class="cd-qa-icon purple">??</div>
+        <div><div class="cd-qa-label">Route to Biller</div><div class="cd-qa-desc">Flag a claim or note for billing review</div></div>
+      </button>
+
+      <button class="cd-qa" type="button" onclick="openPayModal()">
+        <div class="cd-qa-icon stripe">??</div>
+        <div><div class="cd-qa-label">Collect Payment</div><div class="cd-qa-desc">Stripe checkout for copay or balance</div></div>
+      </button>
+
+      <a class="cd-qa" href="clinician-billing-alerts.html">
+        <div class="cd-qa-icon amber">??</div>
+        <div><div class="cd-qa-label">Open Billing Alert</div><div class="cd-qa-desc">Review &amp; respond to active alerts</div></div>
+      </a>
+
+      <button class="cd-qa" type="button" onclick="launchTelehealth()">
+        <div class="cd-qa-icon teal">??</div>
+        <div><div class="cd-qa-label">Launch Telehealth</div><div class="cd-qa-desc">Start or join a video session</div></div>
+      </button>
+
+      <a class="cd-qa" href="support-request.html">
+        <div class="cd-qa-icon red">??</div>
+        <div><div class="cd-qa-label">Open Support Ticket</div><div class="cd-qa-desc">Report an issue or request help</div></div>
+      </a>
+
+    </div> <!-- /cd-qa-grid -->
+
+  </main>
+</div> <!-- /dashboard-shell -->
+
+<!-- -- Collect Payment Modal -------------------------------- -->
+<div id="payModal" class="cd-modal-bg" role="dialog" aria-modal="true" aria-labelledby="payModalTitle">
+  <div class="cd-modal">
+    <h3 id="payModalTitle">Collect Payment</h3>
+    <label class="field-label">Patient Name</label>
+    <input type="text" id="pmtPatient" class="field-input" placeholder="Patient name" autocomplete="off">
+    <label class="field-label">Amount ($)</label>
+    <div style="display:flex;gap:6px;margin-bottom:16px">
+      <span style="padding:13px 11px;background:#f2f8ff;border:1px solid var(--border);border-radius:12px 0 0 12px;font-weight:700;color:var(--ink-700);border-right:none;flex-shrink:0">$</span>
+      <input type="number" id="pmtAmount" class="field-input" placeholder="0.00" min="0.01" step="0.01" style="margin-bottom:0;border-radius:0 12px 12px 0;flex:1">
+    </div>
+    <label class="field-label">Payment Type</label>
+    <select id="pmtType" class="field-input">
+      <option value="copay">Copay</option>
+      <option value="balance">Account Balance</option>
+      <option value="self-pay">Self Pay</option>
+      <option value="deductible">Deductible</option>
+      <option value="other">Other</option>
+    </select>
+    <label class="field-label">Note (optional)</label>
+    <input type="text" id="pmtNote" class="field-input" placeholder="e.g. 4/6/26 session copay">
+    <div class="cd-modal-footer">
+      <button class="btn btn-blue" type="button" onclick="processPayment()">Send Stripe Link</button>
+      <button class="btn btn-ghost" type="button" onclick="closePayModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* -----------------------------------------------------------
+   CLINICIAN DASHBOARD - Data & Rendering
+   All Supabase queries include graceful localStorage fallbacks.
+----------------------------------------------------------- */
+
+// -- Utils ------------------------------------------------
+function fmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+function fmtTime(t) {
+  if (!t) return '';
+  try {
+    const [h, m] = t.split(':').map(Number);
+    return ((h % 12) || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? 'PM' : 'AM');
+  } catch(e) { return t; }
+}
+function fmtMoney(n) {
+  if (n == null || isNaN(Number(n))) return '$0';
+  return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+function initials(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+function daysAgo(iso) {
+  if (!iso) return '';
+  const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  if (d <= 0) return 'Today';
+  if (d === 1) return '1d ago';
+  return d + 'd ago';
+}
+function reportRevMax(r) {
+  if (r.codeDetails && r.codeDetails.length) {
+    return r.codeDetails.reduce((s, cd) => {
+      const vals = String(cd.revenue || '').match(/\$\d+(?:\.\d+)?/g) || [];
+      const hi = vals.length >= 2 ? +vals[1].replace('$', '') : (vals.length ? +vals[0].replace('$', '') : 0);
+      return s + (hi || 0);
+    }, 0);
+  }
+  return typeof parseRevenueValue === 'function' ? parseRevenueValue(r.revenue) : 0;
+}
+
+// -- Admin preview ----------------------------------------
+function exitAdminPreview() {
+  sessionStorage.removeItem('docusistant_admin_preview');
+  sessionStorage.removeItem('docusistant_preview_user');
+  if (window.opener) window.close();
+  else window.location.href = 'admin-dashboard.html';
+}
+
+// -- Payment modal ----------------------------------------
+function openPayModal() { document.getElementById('payModal').classList.add('open'); }
+function closePayModal() { document.getElementById('payModal').classList.remove('open'); }
+
+document.getElementById('payModal').addEventListener('click', function(e) {
+  if (e.target === this) closePayModal();
+});
+
+async function processPayment() {
+  const patient = document.getElementById('pmtPatient').value.trim();
+  const amount  = parseFloat(document.getElementById('pmtAmount').value);
+  const type    = document.getElementById('pmtType').value;
+  const note    = document.getElementById('pmtNote').value.trim();
+  if (!patient || !(amount > 0)) {
+    alert('Please enter a patient name and valid amount.');
+    return;
+  }
+  try {
+    const { data, error } = await supabaseClient
+      .from('stripe_payment_requests')
+      .insert([{
+        patient_name: patient,
+        amount_cents: Math.round(amount * 100),
+        payment_type: type,
+        note: note || null,
+        created_by: window._dashUserId || null,
+        status: 'pending'
+      }])
+      .select('id').single();
+    if (error) throw error;
+    alert('Payment request created (ID: ' + data.id + '). Stripe link will be sent to the patient.');
+    closePayModal();
+    loadStripe(window._dashUserId);
+  } catch(e) {
+    // Persist locally when Supabase table not yet provisioned
+    const reqs = JSON.parse(localStorage.getItem('docusistant_payment_reqs_v1') || '[]');
+    reqs.unshift({ id:'PAY-'+Date.now(), patient_name:patient,
+      amount_cents:Math.round(amount*100), payment_type:type,
+      note:note||null, status:'pending', created_at:new Date().toISOString() });
+    localStorage.setItem('docusistant_payment_reqs_v1', JSON.stringify(reqs.slice(0, 200)));
+    alert('Payment request saved locally. Stripe integration will be available once provisioned.');
+    closePayModal();
+    loadStripe(window._dashUserId);
+  }
+}
+
+// -- Quick actions ----------------------------------------
+function openPatientAccount() {
+  const q = prompt('Enter patient name or ID:');
+  if (q && q.trim()) window.location.href = 'admin-patient-detail.html?search=' + encodeURIComponent(q.trim());
+}
+function routeToBiller() {
+  const msg = prompt('Enter claim ID, patient, or message for the biller:');
+  if (!msg || !msg.trim()) return;
+  supabaseClient.from('biller_routing').insert([{
+    message: msg.trim(),
+    from_clinician: window._dashUserId || null,
+    status: 'pending',
+    created_at: new Date().toISOString()
+  }]).then(({ error }) => alert(error ? 'Routing noted locally.' : 'Routed to biller.'));
+}
+function launchTelehealth(appointmentUrl) {
+  // Check per-appointment URL first, then org-wide video settings, then legacy key
+  const url = appointmentUrl ||
+    (() => { try { return (JSON.parse(localStorage.getItem('ta_video_settings_v1'))||{}).defaultUrl; } catch(e){} })() ||
+    localStorage.getItem('docusistant_telehealth_url') ||
+    prompt('Enter your telehealth room URL:');
+  if (!url) return;
+  // Save as legacy fallback if none stored
+  if (!localStorage.getItem('docusistant_telehealth_url')) localStorage.setItem('docusistant_telehealth_url', url);
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+// -----------------------------------------------------------
+// WIDGET LOADERS
+// -----------------------------------------------------------
+
+// -- Greet ------------------------------------------------
+function initGreet(displayName) {
+  const h = new Date().getHours();
+  document.getElementById('timeOfDay').textContent = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  document.getElementById('todayDateStr').textContent =
+    new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  if (displayName) document.getElementById('welcomeName').textContent = displayName.split(' ')[0];
+}
+
+// -- Appointments -----------------------------------------
+async function loadAppointments(uid) {
+  const today = new Date().toISOString().slice(0, 10);
+  const next7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const [r1, r2] = await Promise.allSettled([
+    supabaseClient.from('appointments')
+      .select('id,patient_name,appointment_time,appointment_type,status,telehealth')
+      .eq('clinician_id', uid).eq('appointment_date', today)
+      .order('appointment_time'),
+    supabaseClient.from('appointments')
+      .select('id,patient_name,appointment_date,appointment_time,appointment_type,status,telehealth')
+      .eq('clinician_id', uid).gt('appointment_date', today).lte('appointment_date', next7)
+      .order('appointment_date').order('appointment_time').limit(8)
+  ]);
+
+  const todayList    = r1.status === 'fulfilled' && !r1.value.error ? r1.value.data || [] : [];
+  const upcomingList = r2.status === 'fulfilled' && !r2.value.error ? r2.value.data || [] : [];
+
+  renderTodayAppts(todayList);
+  renderUpcomingAppts(upcomingList);
+
+  document.getElementById('kpiApptToday').textContent = todayList.length;
+  document.getElementById('kpiApptSub').textContent = todayList.filter(a => a.status === 'confirmed').length + ' confirmed';
+  document.getElementById('heroapptCount').textContent = todayList.length;
+}
+
+function renderTodayAppts(list) {
+  const el = document.getElementById('widget-today-appts');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty"><div class="cd-empty-icon">??</div>No appointments today.</div>'; return; }
+  el.innerHTML = list.map(a => `
+    <div class="appt-row">
+      <span class="appt-time">${fmtTime(a.appointment_time)}</span>
+      <div class="appt-avatar">${initials(a.patient_name)}</div>
+      <div class="appt-info">
+        <div class="appt-name">${escapeHtml(a.patient_name || '')}</div>
+        <div class="appt-type">${escapeHtml(a.appointment_type || 'Session')}</div>
+      </div>
+      <div class="appt-badges">
+        <span class="appt-badge ${a.telehealth ? 'telehealth' : 'office'}">${a.telehealth ? 'Telehealth' : 'Office'}</span>
+        <span class="appt-badge ${a.status || 'pending'}">${escapeHtml(a.status || 'Pending')}</span>
+      </div>
+      ${a.telehealth
+        ? `<button class="appt-btn join" onclick="launchTelehealth('${escapeHtml(a.telehealth_url||a.video_url||'')}')" title="Join telehealth session">Join</button>`
+        : `<button class="appt-btn" onclick="event.stopPropagation()">Check in</button>`}
+    </div>`).join('');
+}
+
+function renderUpcomingAppts(list) {
+  const el = document.getElementById('widget-upcoming-appts');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty"><div class="cd-empty-icon">??</div>No upcoming appointments in the next 7 days.</div>'; return; }
+  el.innerHTML = list.map(a => `
+    <div class="appt-row">
+      <span class="appt-time" style="width:72px">${fmtDate(a.appointment_date)}</span>
+      <div class="appt-avatar">${initials(a.patient_name)}</div>
+      <div class="appt-info">
+        <div class="appt-name">${escapeHtml(a.patient_name || '')}</div>
+        <div class="appt-type">${fmtTime(a.appointment_time)} - ${escapeHtml(a.appointment_type || 'Session')}</div>
+      </div>
+      <div class="appt-badges">
+        <span class="appt-badge ${a.telehealth ? 'telehealth' : 'office'}">${a.telehealth ? 'Telehealth' : 'Office'}</span>
+      </div>
+    </div>`).join('');
+}
+
+// -- Claims Requiring Action ------------------------------
+async function loadClaimsAction(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('claims')
+      .select('id,patient_name,action_required,claim_date,amount_billed,priority,payer_name')
+      .eq('clinician_id', uid).eq('requires_clinician_action', true)
+      .order('priority').limit(6);
+    if (error) throw error;
+    renderClaimsAction(data || []);
+    document.getElementById('kpiClaimsAction').textContent = (data || []).length;
+    document.getElementById('heroActionCount').textContent = (data || []).length;
+  } catch(e) {
+    document.getElementById('kpiClaimsAction').textContent = '--';
+    document.getElementById('heroActionCount').textContent = '--';
+  }
+}
+
+function renderClaimsAction(list) {
+  const el = document.getElementById('widget-claims-action');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty"><div class="cd-empty-icon">?</div>No claims requiring action.</div>'; return; }
+  el.innerHTML = list.map(c => `
+    <div class="claim-row">
+      <div class="claim-bar ${c.priority === 'urgent' ? 'urgent' : c.priority === 'high' ? 'high' : 'routine'}"></div>
+      <div class="claim-info">
+        <div class="claim-patient">${escapeHtml(c.patient_name || '')}</div>
+        <div class="claim-detail">${escapeHtml(c.payer_name || '')} - ${fmtDate(c.claim_date)}</div>
+        <div class="claim-action">? ${escapeHtml(c.action_required || 'Review required')}</div>
+      </div>
+      <div class="claim-right">
+        <span class="claim-amt">${fmtMoney(c.amount_billed)}</span>
+        <a class="cd-wlink" href="clinician-billing-alerts.html" style="font-size:10.5px">Review ?</a>
+      </div>
+    </div>`).join('');
+}
+
+// -- Drafts (reports + notes from localStorage) -----------
+function loadDrafts() {
+  const reports    = typeof getStoredCoderReports === 'function' ? getStoredCoderReports() : [];
+  const notes      = typeof getStoredNotes === 'function' ? getStoredNotes() : [];
+  const drafts     = reports.filter(r => String(r.status || '').toLowerCase() !== 'final');
+  const draftNotes = notes.filter(n => (n.status || 'Draft').toLowerCase() === 'draft');
+
+  document.getElementById('kpiDraftReports').textContent = drafts.length;
+  document.getElementById('kpiDraftNotes').textContent   = draftNotes.length;
+
+  // Revenue
+  const total     = reports.reduce((s, r) => s + reportRevMax(r), 0);
+  const finalized = reports.filter(r => String(r.status || '').toLowerCase() === 'final').length;
+  document.getElementById('kpiRevenue').textContent    = fmtMoney(total);
+  document.getElementById('revTotal').textContent      = fmtMoney(total);
+  document.getElementById('revSessions').textContent   = reports.length;
+  document.getElementById('revAvg').textContent        = reports.length ? fmtMoney(Math.round(total / reports.length)) : '$0';
+  document.getElementById('revFinalized').textContent  = finalized;
+
+  renderDraftReports(drafts.slice(0, 6));
+  renderDraftNotes(draftNotes.slice(0, 6));
+  renderRevBars(reports);
+}
+
+function renderDraftReports(list) {
+  const el = document.getElementById('widget-draft-reports');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty"><div class="cd-empty-icon">?</div>No draft reports pending.</div>'; return; }
+  el.innerHTML = list.map(r => `
+    <div class="draft-row" onclick="window.location.href='saved-reports.html'" role="button">
+      <span class="draft-tag report">Report</span>
+      <div class="draft-info">
+        <div class="draft-client">${escapeHtml(r.client || 'Unnamed')}</div>
+        <div class="draft-meta">${escapeHtml((r.codes || '').split('\n')[0] || 'No codes yet')}</div>
+      </div>
+      ${r.date || r.dateSubmitted ? `<span class="draft-age">${daysAgo(r.date || r.dateSubmitted)}</span>` : ''}
+    </div>`).join('');
+}
+
+function renderDraftNotes(list) {
+  const el = document.getElementById('widget-draft-notes');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty"><div class="cd-empty-icon">?</div>No draft notes pending.</div>'; return; }
+  el.innerHTML = list.map(n => `
+    <div class="draft-row" onclick="window.location.href='saved-notes.html'" role="button">
+      <span class="draft-tag note">Note</span>
+      <div class="draft-info">
+        <div class="draft-client">${escapeHtml(n.client || 'Unnamed')}</div>
+        <div class="draft-meta">${escapeHtml(n.type || 'Progress Note')}</div>
+      </div>
+      ${n.dos || n.modified ? `<span class="draft-age">${daysAgo(n.dos || n.modified)}</span>` : ''}
+    </div>`).join('');
+}
+
+function renderRevBars(reports) {
+  const freq = {};
+  reports.forEach(r => {
+    if (r.codeDetails && r.codeDetails.length) {
+      r.codeDetails.forEach(cd => { const c = cd.code || 'Unknown'; freq[c] = (freq[c] || 0) + 1; });
+    } else if (r.codes) {
+      r.codes.split('\n').slice(0, 3).forEach(line => {
+        const code = line.trim().split(/\s/)[0]; if (code) freq[code] = (freq[code] || 0) + 1;
+      });
+    }
+  });
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const el = document.getElementById('rev-bar-chart');
+  if (!sorted.length) { el.innerHTML = '<div class="cd-empty" style="padding:10px">No coding data yet. <a href="coder-home.html" style="color:var(--blue-700);font-weight:700">Start a session ?</a></div>'; return; }
+  const max = sorted[0][1];
+  el.innerHTML = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:8px">Top Codes Used</div>'
+    + sorted.map(([code, count]) => `
+      <div class="rev-bar-row">
+        <span class="rev-bar-key">${escapeHtml(code)}</span>
+        <div class="rev-bar-track"><div class="rev-bar-fill revenue" style="width:${Math.round(count / max * 100)}%"></div></div>
+        <span class="rev-bar-count">${count}</span>
+      </div>`).join('');
+}
+
+// -- Billing Alerts (localStorage) -----------------------
+function loadBillingAlerts() {
+  try {
+    const raw  = JSON.parse(localStorage.getItem('docusistant_billing_alerts_v1') || '[]');
+    const open = raw.filter(a => a.status !== 'Resolved' && a.status !== 'Archived');
+    const el   = document.getElementById('widget-billing-alerts');
+    if (!open.length) { el.innerHTML = '<div class="cd-empty">No active billing alerts.</div>'; return; }
+    const top4 = [...open].sort((a, b) => {
+      const w = { Urgent:0, 'High Priority':1, Routine:2 };
+      return (w[a.priority] ?? 2) - (w[b.priority] ?? 2);
+    }).slice(0, 4);
+    el.innerHTML = top4.map(a => {
+      const cls = a.priority === 'Urgent' ? 'ba-badge-urgent' : a.priority === 'High Priority' ? 'ba-badge-high' : 'ba-badge-routine';
+      return `<a href="clinician-billing-alerts.html" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);text-decoration:none;transition:background .12s" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escapeHtml(a.patient_name || '')}</div>
+          <div style="font-size:11px;color:var(--ink-500)">${escapeHtml(a.alert_type || '')}${a.id ? ' - ' + a.id : ''}</div>
+        </div>
+        <span class="ba-badge ${cls}">${escapeHtml(a.priority || '')}</span>
+      </a>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// -- Eligibility Issues -----------------------------------
+async function loadEligibility(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('eligibility_checks')
+      .select('id,patient_name,payer_name,issue_type,checked_date')
+      .eq('clinician_id', uid).in('status', ['failed','inactive','expired','pending'])
+      .order('checked_date', {ascending:false}).limit(5);
+    if (error) throw error;
+    renderEligibility(data || []);
+    document.getElementById('kpiEligibility').textContent = (data || []).length;
+  } catch(e) { document.getElementById('kpiEligibility').textContent = '--'; }
+}
+
+function renderEligibility(list) {
+  const el = document.getElementById('widget-eligibility');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No eligibility issues.</div>'; return; }
+  el.innerHTML = list.map(i => `
+    <div class="elig-row">
+      <div class="elig-dot ${i.issue_type === 'inactive' || i.issue_type === 'expired' ? 'fail' : 'warn'}"></div>
+      <div class="elig-info">
+        <div class="elig-patient">${escapeHtml(i.patient_name || '')}</div>
+        <div class="elig-detail">${escapeHtml(i.payer_name || '')} - ${fmtDate(i.checked_date)}</div>
+      </div>
+      <span class="elig-badge ${i.issue_type || 'missing'}">${escapeHtml(i.issue_type || 'Issue')}</span>
+    </div>`).join('');
+}
+
+// -- Missing Authorizations -------------------------------
+async function loadMissingAuth(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('authorizations')
+      .select('id,patient_name,payer_name,service_type,expires_date,sessions_remaining,status')
+      .eq('clinician_id', uid).in('status', ['missing','expired','pending','low'])
+      .order('expires_date').limit(5);
+    if (error) throw error;
+    renderMissingAuth(data || []);
+    document.getElementById('kpiMissingAuth').textContent = (data || []).length;
+  } catch(e) { document.getElementById('kpiMissingAuth').textContent = '--'; }
+}
+
+function renderMissingAuth(list) {
+  const el = document.getElementById('widget-missing-auth');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No missing authorizations.</div>'; return; }
+  el.innerHTML = list.map(i => `
+    <div class="elig-row">
+      <div class="elig-dot fail"></div>
+      <div class="elig-info">
+        <div class="elig-patient">${escapeHtml(i.patient_name || '')}</div>
+        <div class="elig-detail">${escapeHtml(i.service_type || '')} - ${escapeHtml(i.payer_name || '')}</div>
+      </div>
+      <span class="elig-badge ${i.sessions_remaining === 0 || !i.expires_date ? 'expired' : i.sessions_remaining != null && i.sessions_remaining <= 3 ? 'low' : 'pending'}">
+        ${i.sessions_remaining != null ? i.sessions_remaining + ' left' : 'Missing'}
+      </span>
+    </div>`).join('');
+}
+
+// -- Support Tickets --------------------------------------
+async function loadSupportTickets(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('support_tickets')
+      .select('id,subject,status,priority,created_at,last_reply_at')
+      .eq('user_id', uid).in('status', ['open','in_progress','waiting'])
+      .order('created_at', {ascending:false}).limit(4);
+    if (error) throw error;
+    renderSupportTickets(data || []);
+  } catch(e) {}
+}
+
+function renderSupportTickets(list) {
+  const el = document.getElementById('widget-support-tickets');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No open support tickets.</div>'; return; }
+  el.innerHTML = list.map(t => {
+    const sCls = t.status === 'open' ? 'ba-badge-new' : t.status === 'in_progress' ? 'ba-badge-inprog' : 'ba-badge-waiting';
+    const pCls = t.priority === 'urgent' ? 'ba-badge-urgent' : t.priority === 'high' ? 'ba-badge-high' : 'ba-badge-routine';
+    return `<div class="notif-row" onclick="window.location.href='support-request.html'" role="button">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:700;color:var(--ink-900);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escapeHtml(t.subject || 'Support Request')}</div>
+        <div style="display:flex;gap:5px;margin-top:3px">
+          <span class="ba-badge ${sCls}">${escapeHtml(t.status || 'open')}</span>
+          ${t.priority ? `<span class="ba-badge ${pCls}">${escapeHtml(t.priority)}</span>` : ''}
+        </div>
+      </div>
+      <span class="notif-time">${daysAgo(t.created_at)}</span>
+    </div>`;
+  }).join('');
+}
+
+// -- Notifications ----------------------------------------
+async function loadNotifications(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('clinician_notifications')
+      .select('id,message,type,read,created_at,link')
+      .eq('user_id', uid).order('created_at', {ascending:false}).limit(6);
+    if (error) throw error;
+    renderNotifications(data || []);
+    const unread = (data || []).filter(n => !n.read).length;
+    if (unread > 0) {
+      const badge = document.getElementById('notifUnreadBadge');
+      badge.style.display = 'inline-flex'; badge.textContent = unread;
+    }
+  } catch(e) {}
+}
+
+function renderNotifications(list) {
+  const el = document.getElementById('widget-notifications');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No new notifications.</div>'; return; }
+  el.innerHTML = list.map(n => `
+    <div class="notif-row ${n.read ? '' : 'unread'}" ${n.link ? `onclick="window.location.href='${escapeHtml(n.link)}'"` : ''} role="${n.link ? 'button' : 'article'}">
+      <div class="notif-dot ${n.read ? 'read' : 'new'}"></div>
+      <div class="notif-text">${escapeHtml(n.message || '')}</div>
+      <span class="notif-time">${daysAgo(n.created_at)}</span>
+    </div>`).join('');
+}
+
+// -- Live Chat --------------------------------------------
+async function loadChat(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('support_chats')
+      .select('id,patient_name,last_message,unread_count,updated_at')
+      .or(`clinician_id.eq.${uid},is_open.eq.true`)
+      .order('updated_at', {ascending:false}).limit(3);
+    if (error) throw error;
+    const totalUnread = (data || []).reduce((s, c) => s + (c.unread_count || 0), 0);
+    document.getElementById('chatUnread').textContent = totalUnread;
+    const dot = document.getElementById('chatDot');
+    const lbl = document.getElementById('chatStatusLabel');
+    if (totalUnread > 0) {
+      dot.className = 'chat-dot busy'; lbl.textContent = totalUnread + ' unread message' + (totalUnread > 1 ? 's' : '');
+    } else {
+      dot.className = 'chat-dot online'; lbl.textContent = 'Available';
+    }
+    const el = document.getElementById('widget-chat-convs');
+    el.innerHTML = (data || []).length ? (data || []).map(c => `
+      <div class="chat-conv-row" onclick="window.location.href='admin-chat.html'" role="button">
+        <div class="chat-conv-avatar">${initials(c.patient_name)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="chat-conv-name">${escapeHtml(c.patient_name || 'Patient')}</div>
+          <div class="chat-conv-preview">${escapeHtml(c.last_message || '')}</div>
+        </div>
+        ${(c.unread_count || 0) > 0 ? `<span class="chat-unread">${c.unread_count}</span>` : ''}
+      </div>`).join('')
+      : '<div class="cd-empty" style="padding:10px">No active conversations.</div>';
+  } catch(e) {
+    document.getElementById('chatDot').className = 'chat-dot offline';
+    document.getElementById('chatStatusLabel').textContent = 'Offline';
+  }
+}
+
+// -- Patient Balances -------------------------------------
+async function loadPatientBalances(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('patient_balances')
+      .select('id,patient_name,balance_due,days_outstanding,last_payment_date')
+      .eq('clinician_id', uid).gt('balance_due', 0)
+      .order('balance_due', {ascending:false}).limit(5);
+    if (error) throw error;
+    renderPatientBalances(data || []);
+    document.getElementById('patBalTotal').textContent = fmtMoney((data || []).reduce((s, b) => s + (b.balance_due || 0), 0));
+  } catch(e) { document.getElementById('patBalTotal').textContent = '--'; }
+}
+
+function renderPatientBalances(list) {
+  const el = document.getElementById('widget-patient-balances');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No outstanding balances.</div>'; return; }
+  el.innerHTML = list.map(b => `
+    <div class="bal-row">
+      <div style="min-width:0;flex:1">
+        <div class="bal-name">${escapeHtml(b.patient_name || '')}</div>
+        <div class="bal-sub">${b.days_outstanding || 0}d outstanding</div>
+      </div>
+      <div class="bal-right">
+        <div class="bal-amount ${b.days_outstanding > 90 ? 'overdue' : b.days_outstanding > 30 ? 'due' : 'current'}">${fmtMoney(b.balance_due)}</div>
+      </div>
+    </div>`).join('');
+}
+
+// -- Insurance Balances -----------------------------------
+async function loadInsuranceBalances(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('insurance_claims')
+      .select('id,patient_name,payer_name,amount_pending,submitted_date,claim_status')
+      .eq('clinician_id', uid).in('claim_status', ['submitted','pending','in_review'])
+      .order('amount_pending', {ascending:false}).limit(5);
+    if (error) throw error;
+    renderInsuranceBalances(data || []);
+    document.getElementById('insBalTotal').textContent = fmtMoney((data || []).reduce((s, b) => s + (b.amount_pending || 0), 0));
+  } catch(e) { document.getElementById('insBalTotal').textContent = '--'; }
+}
+
+function renderInsuranceBalances(list) {
+  const el = document.getElementById('widget-insurance-balances');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No pending insurance balances.</div>'; return; }
+  el.innerHTML = list.map(b => `
+    <div class="bal-row">
+      <div style="min-width:0;flex:1">
+        <div class="bal-name">${escapeHtml(b.patient_name || '')}</div>
+        <div class="bal-sub">${escapeHtml(b.payer_name || '')} - ${fmtDate(b.submitted_date)}</div>
+      </div>
+      <div class="bal-right">
+        <div class="bal-amount due">${fmtMoney(b.amount_pending)}</div>
+        <div class="bal-sub">${escapeHtml(b.claim_status || 'Pending')}</div>
+      </div>
+    </div>`).join('');
+}
+
+// -- Recent Payments --------------------------------------
+async function loadRecentPayments(uid) {
+  try {
+    const { data, error } = await supabaseClient.from('payments')
+      .select('id,patient_name,amount,payment_method,payment_date,payment_type')
+      .eq('clinician_id', uid).order('payment_date', {ascending:false}).limit(5);
+    if (error) throw error;
+    renderRecentPayments(data || []);
+  } catch(e) {}
+}
+
+function renderRecentPayments(list) {
+  const el = document.getElementById('widget-recent-payments');
+  if (!list.length) { el.innerHTML = '<div class="cd-empty">No recent payments.</div>'; return; }
+  el.innerHTML = list.map(p => {
+    const m = p.payment_method || 'card';
+    const icon = m === 'cash' ? '??' : m === 'check' ? '??' : m === 'insurance' ? '??' : '??';
+    return `<div class="pay-row">
+      <div class="pay-icon ${m}">${icon}</div>
+      <div class="pay-info">
+        <div class="pay-patient">${escapeHtml(p.patient_name || '')}</div>
+        <div class="pay-meta">${escapeHtml(p.payment_type || '')} - ${fmtDate(p.payment_date)}</div>
+      </div>
+      <span class="pay-amount">+${fmtMoney(p.amount)}</span>
+    </div>`;
+  }).join('');
+}
+
+// -- Stripe Collections -----------------------------------
+async function loadStripe(uid) {
+  const firstOfMonth = new Date(); firstOfMonth.setDate(1); firstOfMonth.setHours(0,0,0,0);
+  try {
+    const { data, error } = await supabaseClient.from('stripe_payments')
+      .select('id,patient_name,amount_cents,status,created_at,payment_method_type')
+      .eq('clinician_id', uid).gte('created_at', firstOfMonth.toISOString())
+      .order('created_at', {ascending:false}).limit(5);
+    if (error) throw error;
+    const collected = (data || []).filter(p => p.status === 'succeeded').reduce((s, p) => s + (p.amount_cents || 0) / 100, 0);
+    const pending   = (data || []).filter(p => p.status === 'pending' || p.status === 'requires_payment_method').reduce((s, p) => s + (p.amount_cents || 0) / 100, 0);
+    document.getElementById('stripeMonthAmt').textContent  = fmtMoney(collected);
+    document.getElementById('stripePendingAmt').textContent = fmtMoney(pending);
+    document.getElementById('kpiStripe').textContent        = fmtMoney(collected);
+    const el = document.getElementById('stripe-recent-rows');
+    if ((data || []).length) {
+      el.innerHTML = data.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:12px;font-weight:600;color:var(--ink-900);flex:1">${escapeHtml(p.patient_name || '')}</span>
+          <span style="font-size:10.5px;color:var(--ink-500)">${fmtDate(p.created_at)}</span>
+          <span style="font-size:13px;font-weight:700;color:${p.status === 'succeeded' ? '#059669' : '#b45309'}">${p.status === 'succeeded' ? '+' : ''}${fmtMoney((p.amount_cents || 0) / 100)}</span>
+        </div>`).join('');
+      return;
+    }
+  } catch(e) {}
+  // Fallback: local payment requests
+  const local = JSON.parse(localStorage.getItem('docusistant_payment_reqs_v1') || '[]').slice(0, 4);
+  document.getElementById('stripe-recent-rows').innerHTML = local.length
+    ? local.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;font-weight:600;color:var(--ink-900);flex:1">${escapeHtml(p.patient_name||'')}</span><span style="font-size:13px;font-weight:700;color:#b45309">${fmtMoney((p.amount_cents||0)/100)} pending</span></div>`).join('')
+    : '<div class="cd-empty" style="padding:6px 0">No Stripe transactions this month.</div>';
+}
+
+// -----------------------------------------------------------
+// INIT
+// -----------------------------------------------------------
+window.onload = async () => {
+  // Admin preview banner
+  if (sessionStorage.getItem('docusistant_admin_preview') === '1') {
+    const banner = document.getElementById('adminPreviewBanner');
+    if (banner) {
+      banner.style.display = 'flex';
+      try {
+        const pu = JSON.parse(sessionStorage.getItem('docusistant_preview_user') || 'null');
+        if (pu) document.getElementById('previewUserLabel').textContent = ' (as ' + pu.name + ')';
+      } catch(e) {}
+    }
+  }
+
+  const user = await initDashboard(CLINICIAN_ROLES);
+  if (!user) return;
+
+  window._dashUserId = user.id;
+  const name = user.user_metadata?.full_name || user.email;
+  initGreet(name);
+
+  // Sync localStorage-backed widgets immediately (no network wait)
+  loadDrafts();
+  loadBillingAlerts();
+
+  // Fire all Supabase-backed widgets in parallel
+  await Promise.allSettled([
+    loadAppointments(user.id),
+    loadClaimsAction(user.id),
+    loadEligibility(user.id),
+    loadMissingAuth(user.id),
+    loadSupportTickets(user.id),
+    loadNotifications(user.id),
+    loadChat(user.id),
+    loadPatientBalances(user.id),
+    loadInsuranceBalances(user.id),
+    loadRecentPayments(user.id),
+    loadStripe(user.id),
+  ]);
+};
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

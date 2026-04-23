@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Code Rules</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .code-rule-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);margin-bottom:14px;overflow:hidden}
+    .code-rule-header{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;transition:background .12s}
+    .code-rule-header:hover{background:#f3f7fb}
+    .code-chip{font-family:'Sora',sans-serif;font-weight:700;font-size:1rem;background:var(--blue-500);color:#fff;padding:4px 14px;border-radius:8px;letter-spacing:.03em;flex-shrink:0}
+    .code-rule-title{font-weight:700;font-size:14px;color:var(--ink-900);flex:1}
+    .code-rule-desc{font-size:12.5px;color:var(--ink-500)}
+    /* Toggle */
+    .code-toggle-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
+    .code-toggle-label{font-size:12px;color:var(--ink-500)}
+    .toggle-switch{position:relative;display:inline-block;width:36px;height:20px}
+    .toggle-switch input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:999px;transition:.2s;cursor:pointer}
+    .toggle-slider:before{position:absolute;content:'';height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+    .toggle-switch input:checked+.toggle-slider{background:var(--blue-500)}
+    .toggle-switch input:checked+.toggle-slider:before{transform:translateX(16px)}
+    .code-chevron{font-size:1.1rem;color:var(--ink-500);transition:transform .18s;flex-shrink:0}
+    .code-chevron.open{transform:rotate(90deg)}
+    .code-rule-body{display:none;padding:0 18px 18px}
+    .code-rule-body.open{display:block}
+    .rule-section{margin-bottom:14px}
+    .rule-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:6px}
+    .rule-tag{display:inline-block;background:#eef4fb;border:1px solid #c4d9f0;color:var(--blue-700);font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;margin:2px 3px 2px 0}
+    .rule-tag.incompat{background:#fee2e2;border-color:#fecaca;color:#b91c1c}
+    .rule-tag.req{background:#dcfce7;border-color:#bbf7d0;color:#166634}
+    .rule-tag.restrict{background:#fef3c7;border-color:#fde68a;color:#92400e}
+    .rule-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:vertical;min-height:60px}
+    .rule-input:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+    .rule-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+    .code-search-bar{display:flex;gap:8px;margin-bottom:18px}
+    .code-search-bar input{padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit;flex:1}
+    .code-search-bar select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);font-family:inherit}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link active" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Code Rules</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="alert('Add new code rule ? connect backend.')">&#43; Add Code</button>
+        <button class="btn btn-outline btn-sm" onclick="alert('Export rules ? connect backend.')">&#8595; Export</button>
+      </div>
+    </header>
+
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:11px 16px;font-size:13px;color:#92400e;margin-bottom:18px">
+      <strong>Super Admin Only.</strong> Changes to code rules affect all clinical output. Save changes carefully and review against Colorado Medicaid billing policy before publishing.
+    </div>
+
+    <div class="code-search-bar">
+      <input type="search" id="codeSearch" placeholder="Search by code or description&hellip;" oninput="filterCodes()">
+      <select id="codeTypeFilter" onchange="filterCodes()">
+        <option value="">All Types</option>
+        <option value="HCPCS">HCPCS</option>
+        <option value="CPT">CPT</option>
+      </select>
+      <select id="codeStatusFilter" onchange="filterCodes()">
+        <option value="">All Statuses</option>
+        <option value="enabled">Enabled</option>
+        <option value="disabled">Disabled</option>
+      </select>
+    </div>
+
+    <div id="codeRulesContainer"></div>
+  </main>
+</div>
+
+<script>
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const CODE_RULES = [
+  {code:'H0031',type:'HCPCS',enabled:true,title:'Mental Health Assessment by Non-Physician',desc:'Comprehensive MH assessment, intake evaluation. 60?90 min.',incompatible:['H0032','90791'],required:['Presenting problem','Mental status exam','Diagnosis','Risk assessment','Functional impairment','Treatment recommendations'],payer_restrictions:['Colorado Medicaid: requires prior auth for >2 units','Aetna Better Health: limit 1 per rolling 365 days'],state_restrictions:['CO only'],history:['v1.2 ? Apr 1 2026: Added risk assessment as required field','v1.1 ? Jan 15 2026: Added payer restriction for Aetna']},
+  {code:'H0032',type:'HCPCS',enabled:true,title:'Mental Health Service Plan',desc:'Individualized treatment/service plan development. Typically 30?60 min.',incompatible:['H0031'],required:['Current diagnoses','Treatment goals (1?3)','Measurable objectives','Frequency of services','Estimated duration','Provider signature'],payer_restrictions:['Colorado Medicaid: requires face-to-face within 30 days'],state_restrictions:['CO only'],history:['v1.1 ? Mar 10 2026: Added frequency requirement']},
+  {code:'H0001',type:'HCPCS',enabled:true,title:'SUD Assessment',desc:'Substance use disorder evaluation using validated screening tools.',incompatible:['H0031','H0002'],required:['Substance use history','ASAM criteria','Withdrawal risk','Functional impairment','Diagnosis (F-code)','Level of care recommendation'],payer_restrictions:['Colorado Medicaid: ASAM criteria required in documentation'],state_restrictions:['CO only'],history:['v1.3 ? Apr 2 2026: ASAM criteria required']},
+  {code:'H0002',type:'HCPCS',enabled:true,title:'SUD Screening',desc:'Brief SUD screening (AUDIT, DAST, or equivalent). Under 30 min.',incompatible:['H0001'],required:['Validated screening tool used','Score','Follow-up recommendation'],payer_restrictions:[],state_restrictions:['CO only'],history:['v1.0 ? Initial release']},
+  {code:'T1017',type:'HCPCS',enabled:true,title:'Targeted Case Management ? Behavioral Health',desc:'Coordination and linkage for BH clients. Per 15-min unit.',incompatible:[],required:['Client consent','Services coordinated','Linkage activities','Time documented in 15-min increments'],payer_restrictions:['Colorado Medicaid: max 8 units per day'],state_restrictions:['CO only'],history:['v1.0 ? Initial release']},
+  {code:'H2014',type:'HCPCS',enabled:true,title:'Skills Training and Development',desc:'Psychosocial skills training, individual or group.',incompatible:[],required:['Skill targeted','Method used','Client response','Progress toward goal'],payer_restrictions:['United BH: requires treatment plan on file'],state_restrictions:['CO, WY'],history:['v1.0 ? Initial release']},
+  {code:'H0038',type:'HCPCS',enabled:true,title:'Self-Help / Peer Services',desc:'Peer support specialist services.',incompatible:[],required:['Peer support focus','Activities completed','Client goals addressed'],payer_restrictions:[],state_restrictions:['CO only'],history:['v1.0 ? Initial release']},
+  {code:'H2011',type:'HCPCS',enabled:true,title:'Crisis Intervention Services',desc:'Mental health crisis services, per 15-min unit.',incompatible:[],required:['Nature of crisis','Safety plan','Disposition','Time','Provider qualification'],payer_restrictions:['Colorado Medicaid: no prior auth required for crisis'],state_restrictions:['CO only'],history:['v1.1 ? Feb 2026: Added safety plan as required']},
+  {code:'H0006',type:'HCPCS',enabled:true,title:'Alcohol/Drug Services ? Case Management',desc:'Case management specific to AoD services.',incompatible:[],required:['AoD diagnosis','Coordination activities','Goals addressed'],payer_restrictions:[],state_restrictions:['CO only'],history:['v1.0 ? Initial release']},
+  {code:'90832',type:'CPT',enabled:true,title:'Psychotherapy, 30 min',desc:'Individual psychotherapy, 16?37 min.',incompatible:['90834','90837'],required:['Presenting issue','Intervention','Response','Plan'],payer_restrictions:['Some payers: require CPT primary diagnosis on claim'],state_restrictions:[],history:['v1.0 ? Initial release']},
+  {code:'90834',type:'CPT',enabled:true,title:'Psychotherapy, 45 min',desc:'Individual psychotherapy, 38?52 min.',incompatible:['90832','90837'],required:['Presenting issue','Intervention','Response','Plan'],payer_restrictions:[],state_restrictions:[],history:['v1.0 ? Initial release']},
+  {code:'90837',type:'CPT',enabled:true,title:'Psychotherapy, 60 min',desc:'Individual psychotherapy, 53+ min.',incompatible:['90832','90834'],required:['Presenting issue','Intervention','Response','Plan','Time documented'],payer_restrictions:[],state_restrictions:[],history:['v1.0 ? Initial release']},
+  {code:'90791',type:'CPT',enabled:true,title:'Psychiatric Diagnostic Evaluation',desc:'Psychiatric evaluation without medical services.',incompatible:['H0031','H0032'],required:['Chief complaint','Psychiatric history','Mental status exam','Diagnosis','Formulation','Treatment plan'],payer_restrictions:['Anthem BCBS: max 1 per 12 months'],state_restrictions:[],history:['v1.0 ? Initial release']},
+  {code:'90839',type:'CPT',enabled:false,title:'Psychotherapy for Crisis ? 30?74 min',desc:'Crisis psychotherapy, 30?74 min. Requires documented crisis.',incompatible:[],required:['Crisis description','Safety assessment','Intervention','Disposition'],payer_restrictions:['Not covered by Colorado Medicaid FFS'],state_restrictions:[],history:['v1.0 ? Initial release','Disabled: not billable under CO Medicaid']}
+];
+
+let filteredCodes = [...CODE_RULES];
+let openCodes = new Set();
+
+function filterCodes() {
+  const q    = (document.getElementById('codeSearch').value||'').toLowerCase();
+  const type = document.getElementById('codeTypeFilter').value;
+  const stat = document.getElementById('codeStatusFilter').value;
+  filteredCodes = CODE_RULES.filter(c => {
+    if (q && !c.code.toLowerCase().includes(q) && !c.title.toLowerCase().includes(q)) return false;
+    if (type && c.type !== type) return false;
+    if (stat === 'enabled' && !c.enabled) return false;
+    if (stat === 'disabled' && c.enabled) return false;
+    return true;
+  });
+  renderCodes();
+}
+
+function renderCodes() {
+  const container = document.getElementById('codeRulesContainer');
+  container.innerHTML = filteredCodes.map(c => {
+    const isOpen = openCodes.has(c.code);
+    return `<div class="code-rule-card" id="card-${c.code}">
+      <div class="code-rule-header" onclick="toggleCode('${c.code}')">
+        <div class="code-chip" style="${c.enabled ? '' : 'background:#9ca3af'}">${escHtml(c.code)}</div>
+        <div>
+          <div class="code-rule-title">${escHtml(c.title)}</div>
+          <div class="code-rule-desc">${escHtml(c.desc)}</div>
+        </div>
+        <div class="code-toggle-wrap" onclick="event.stopPropagation()">
+          <span class="code-toggle-label" style="color:${c.enabled?'#10b981':'#ef4444'}">${c.enabled?'Enabled':'Disabled'}</span>
+          <label class="toggle-switch">
+            <input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCodeEnabled('${c.code}',this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="code-chevron ${isOpen?'open':''}">&#9654;</div>
+      </div>
+      <div class="code-rule-body ${isOpen?'open':''}">
+        <div class="rule-section">
+          <div class="rule-section-label">Incompatible Codes (cannot bill together)</div>
+          ${c.incompatible.length ? c.incompatible.map(x=>`<span class="rule-tag incompat">${escHtml(x)}</span>`).join('') : '<span style="font-size:12.5px;color:var(--ink-500)">None</span>'}
+        </div>
+        <div class="rule-section">
+          <div class="rule-section-label">Required Documentation Elements</div>
+          ${c.required.map(x=>`<span class="rule-tag req">${escHtml(x)}</span>`).join('')}
+        </div>
+        <div class="rule-section">
+          <div class="rule-section-label">Payer Restrictions</div>
+          ${c.payer_restrictions.length ? c.payer_restrictions.map(x=>`<span class="rule-tag restrict">${escHtml(x)}</span>`).join('') : '<span style="font-size:12.5px;color:var(--ink-500)">None on file</span>'}
+        </div>
+        <div class="rule-section">
+          <div class="rule-section-label">State Restrictions</div>
+          ${c.state_restrictions.length ? c.state_restrictions.map(x=>`<span class="rule-tag">${escHtml(x)}</span>`).join('') : '<span style="font-size:12.5px;color:var(--ink-500)">No restrictions</span>'}
+        </div>
+        <div class="rule-section">
+          <div class="rule-section-label">Additional Rule Notes</div>
+          <textarea class="rule-input" id="ruleNotes-${c.code}" placeholder="Enter additional admin notes or supplemental rule logic&hellip;"></textarea>
+        </div>
+        <div class="rule-section">
+          <div class="rule-section-label">Version History</div>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700)">
+            ${c.history.map(h=>`<li>${escHtml(h)}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="rule-actions">
+          <button class="btn btn-primary btn-sm" onclick="saveRule('${c.code}')">Save Changes</button>
+          <button class="btn btn-outline btn-sm" onclick="addIncompat('${c.code}')">+ Incompatible Code</button>
+          <button class="btn btn-outline btn-sm" onclick="addRequired('${c.code}')">+ Required Element</button>
+          <button class="btn btn-outline btn-sm" onclick="addPayerRestriction('${c.code}')">+ Payer Restriction</button>
+          <button class="btn btn-outline btn-sm" onclick="viewHistory('${c.code}')">Rule History</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCode(code) {
+  if (openCodes.has(code)) { openCodes.delete(code); } else { openCodes.add(code); }
+  renderCodes();
+}
+function toggleCodeEnabled(code, val) { alert(`${val?'Enable':'Disable'} ${code} ? connect backend to persist.`); }
+function saveRule(code)       { alert(`Save rule for ${code} ? connect backend.`); }
+function addIncompat(code)    { alert(`Add incompatible code for ${code} ? connect backend.`); }
+function addRequired(code)    { alert(`Add required element for ${code} ? connect backend.`); }
+function addPayerRestriction(code) { alert(`Add payer restriction for ${code} ? connect backend.`); }
+function viewHistory(code)    { alert(`View full history for ${code} ? connect backend.`); }
+
+window.onload = async () => {
+  const user = await initDashboard(['super_admin']);
+  if (!user) return;
+  renderCodes();
+};
+</script>
+</body>
+</html>

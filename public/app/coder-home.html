@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Coder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+</head>
+
+<body class="dashboard-body">
+
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>THERASSISTANT Coder</h1>
+        <p>Build compliant coding reports and clinical notes for Colorado Medicaid billing.</p>
+      </div>
+      <span class="sub-badge">Subscription: Active Pro</span>
+    </header>
+
+    <!-- Quick Actions -->
+    <div class="action-bar section-gap">
+      <a class="btn btn-blue" href="session-setup.html">&#43; Start New Session</a>
+      <a class="btn btn-outline" href="resume-draft.html">&#9654; Resume Draft</a>
+      <a class="btn btn-outline" href="saved-reports.html">&#128196; Open Saved Reports</a>
+      <a class="btn btn-ghost" href="saved-notes.html">&#128221; Open Saved Notes</a>
+    </div>
+
+    <!-- Recent Sessions -->
+    <div class="content-card section-gap">
+      <div class="content-card-title">Recent Sessions</div>
+      <div class="recent-list" id="recentSessionsList"></div>
+    </div>
+
+    <div class="inner-grid-2 section-gap">
+
+      <!-- Frequently Used Codes -->
+      <div class="content-card">
+        <div class="content-card-title">Frequently Used Codes</div>
+        <div class="code-tag-row" id="frequentCodesRow"></div>
+        <p id="frequentCodesMeta" style="margin-top:8px;font-size:12.5px;color:var(--ink-500);"></p>
+      </div>
+
+      <!-- Recently Used Diagnoses -->
+      <div class="content-card">
+        <div class="content-card-title">Recently Used Diagnoses</div>
+        <div class="code-tag-row" id="recentDiagnosesRow"></div>
+        <p id="recentDiagnosesMeta" style="margin-top:8px;font-size:12.5px;color:var(--ink-500);"></p>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function parseDateValue(isoDate) {
+  const parsed = new Date(String(isoDate || ""));
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function formatDate(isoDate) {
+  const date = new Date(String(isoDate || "") + "T12:00:00");
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function renderRecentSessions(reports) {
+  const list = document.getElementById("recentSessionsList");
+  if (!reports.length) {
+    list.innerHTML = `
+      <div class="recent-item">
+        <div class="recent-item-info">
+          <span class="recent-item-name">No recent sessions yet</span>
+          <span class="recent-item-meta">Saved reports will appear here after you complete and save a coding report.</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = reports.slice(0, 5).map((report) => {
+    const client = escapeHtml(report.client || "Unnamed Client");
+    const codes = escapeHtml(report.codes || "No code available");
+    const diag = escapeHtml(report.diag || "No diagnosis");
+    const when = escapeHtml(formatDate(report.date));
+    const status = String(report.status || "Draft").toLowerCase() === "final" ? "Final" : "Draft";
+    const badgeClass = status === "Final" ? "badge-final" : "badge-draft";
+    return `
+      <div class="recent-item">
+        <div class="recent-item-info">
+          <span class="recent-item-name">${client}</span>
+          <span class="recent-item-meta">${codes} &middot; ${diag} &middot; ${when}</span>
+        </div>
+        <div class="action-btns">
+          <span class="badge ${badgeClass}">${status}</span>
+          <a class="btn btn-outline btn-sm" href="saved-reports.html">View Report</a>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function topItemsFromReports(reports, selector) {
+  const counts = new Map();
+  reports.forEach((report) => {
+    selector(report).forEach((item) => {
+      const key = String(item || "").trim();
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label, count]) => ({ label, count }));
+}
+
+function renderFrequentCodes(reports) {
+  const codesRow = document.getElementById("frequentCodesRow");
+  const meta = document.getElementById("frequentCodesMeta");
+  const topCodes = topItemsFromReports(reports, (report) => String(report.codes || "").split(","));
+
+  if (!topCodes.length) {
+    codesRow.innerHTML = "";
+    meta.textContent = "No usage history yet. Frequently used codes will populate after more saved sessions.";
+    return;
+  }
+
+  codesRow.innerHTML = topCodes.slice(0, 12)
+    .map((entry) => `<span class="code-chip">${escapeHtml(entry.label)}</span>`)
+    .join("");
+  meta.textContent = `Based on ${reports.length} saved report${reports.length === 1 ? "" : "s"}.`;
+}
+
+function renderRecentDiagnoses(reports) {
+  const diagnosesRow = document.getElementById("recentDiagnosesRow");
+  const meta = document.getElementById("recentDiagnosesMeta");
+  const topDiagnoses = topItemsFromReports(reports, (report) => String(report.diag || "").split(","));
+
+  if (!topDiagnoses.length) {
+    diagnosesRow.innerHTML = "";
+    meta.textContent = "No diagnosis history yet. Recent diagnoses will appear once reports are saved.";
+    return;
+  }
+
+  diagnosesRow.innerHTML = topDiagnoses.slice(0, 8)
+    .map((entry) => `<span class="diag-tag">${escapeHtml(entry.label)}</span>`)
+    .join("");
+  meta.textContent = `Based on ${reports.length} saved report${reports.length === 1 ? "" : "s"}.`;
+}
+
+window.onload = async () => {
+  await initDashboard(CLINICIAN_ROLES);
+  const reports = getStoredCoderReports().sort((a, b) => parseDateValue(b.date) - parseDateValue(a.date));
+  renderRecentSessions(reports);
+  renderFrequentCodes(reports);
+  renderRecentDiagnoses(reports);
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

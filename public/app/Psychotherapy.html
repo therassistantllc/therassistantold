@@ -1,0 +1,454 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>THERASSISTANT — Psychotherapy Progress Note</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <style>
+  /* Form-specific styles for this doc tool */
+  select, input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea {
+    width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);
+    box-sizing: border-box; font: inherit; color: var(--ink-900); background: #fff; margin-bottom: 12px;
+  }
+  textarea { min-height: 120px; }
+  label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 13px; color: var(--ink-700); }
+  .content-card h2 { font-size: 1rem; margin: 0 0 14px; color: var(--ink-900); font-weight: 700; padding-bottom: .35rem; border-bottom: 1px solid var(--border); }
+  .card { padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .card:last-child { border-bottom: none; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 12px; }
+  .col { flex: 1; min-width: 220px; }
+  .checkbox-group { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .checkbox-group label { display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
+  #techniques { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 20px; margin-bottom: 20px; }
+  #techniques label { display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
+  </style>
+</head>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="patients.html">Patients</a>
+      <a class="nav-link" href="scheduling.html">Schedule</a>
+      <a class="nav-link" href="agenda.html">Today's Agenda</a>
+      <a class="nav-link" href="coder-home.html">Start New Session</a>
+      <a class="nav-link" href="saved-reports.html">Saved Reports</a>
+      <a class="nav-link" href="saved-notes.html">Saved Notes</a>
+      <a class="nav-link" href="clinician-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="subscription.html">Subscription</a>
+      <a class="nav-link" href="support-request.html">Help / Support</a>
+      <a class="nav-link" href="settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Psychotherapy Progress Note</h1>
+        <p>90837 / 90834 — Individual psychotherapy session documentation</p>
+      </div>
+      <button class="btn btn-outline" onclick="window.location.href='Coder.html?return=1'">← Back to Report</button>
+    </header>
+
+    <div class="content-card" style="margin-top:20px">
+
+    <!-- Visit Details -->
+    <div class="card">
+      <h2>Visit Details</h2>
+      <div class="row">
+        <div class="col">
+          <label for="dos">Date of Service</label>
+          <input type="date" id="dos">
+        </div>
+        <div class="col">
+          <label for="setting">Place of Service</label>
+          <select id="setting">
+            <option value="">— Select —</option>
+            <option value="11 — Office">11 — Office</option>
+            <option value="02 — Telehealth">02 — Telehealth</option>
+            <option value="12 — Home">12 — Home</option>
+            <option value="03 — School">03 — School</option>
+            <option value="99 — Other">99 — Other</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="clinician">Clinician (Name & Credentials)</label>
+          <input type="text" id="clinician" placeholder="e.g., Jordan Smith, LPC">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label for="startTime">Start Time</label>
+          <input type="time" id="startTime">
+        </div>
+        <div class="col">
+          <label for="endTime">End Time</label>
+          <input type="time" id="endTime">
+        </div>
+        <div class="col">
+          <label for="totalMins">Total Minutes</label>
+          <input type="number" id="totalMins" placeholder="e.g., 60" min="1">
+        </div>
+        <div class="col">
+          <label for="typeOfService">Type of Service</label>
+          <select id="typeOfService">
+            <option value="">— Select —</option>
+            <option>Individual Psychotherapy</option>
+            <option>Group Psychotherapy</option>
+            <option>Family Psychotherapy</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnosis & Context -->
+    <div class="card">
+      <h2>Diagnosis & Context</h2>
+      <div class="row">
+        <div class="col">
+          <label for="icdCat">ICD‑10 Category Targeted</label>
+          <select id="icdCat"></select>
+        </div>
+        <div class="col">
+          <label for="icdCode">Specific Diagnosis Targeted</label>
+          <select id="icdCode"><option>— Select a category first —</option></select>
+        </div>
+        <div class="col">
+          <label for="sdoh">Psychosocial Stressor</label>
+          <select id="sdoh"></select>
+        </div>
+      </div>
+      <label for="goal">Today's Targeted Goal</label>
+      <input type="text" id="goal" placeholder="e.g., Reduce negative self‑talk; increase coping strategies.">
+    </div>
+
+    <!-- Interventions & Response -->
+    <div class="card">
+      <h2>Interventions & Response</h2>
+      <label>Which techniques were used?</label>
+      <div id="techniques"></div>
+
+      <div class="row">
+        <div class="col">
+          <label for="engagement">Client Engagement</label>
+          <select id="engagement">
+            <option value="">— Select —</option>
+            <option>Fully engaged</option>
+            <option>Distracted</option>
+            <option>Resistant</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Responses Observed</label>
+          <div id="responseCheckboxes" class="checkbox-group">
+            <label><input type="checkbox" value="Tearful"> Tearful</label>
+            <label><input type="checkbox" value="Calm/relaxed"> Calm/relaxed</label>
+            <label><input type="checkbox" value="Participated actively"> Participated actively</label>
+            <label><input type="checkbox" value="Requested support"> Requested support</label>
+            <label><input type="checkbox" value="Required redirection"> Required redirection</label>
+          </div>
+        </div>
+        <div class="col">
+          <label>Functional Domains Impacted</label>
+          <div id="domainCheckboxes" class="checkbox-group">
+            <label><input type="checkbox" value="Academic/Work"> Academic/Work</label>
+            <label><input type="checkbox" value="Social/Relationships"> Social/Relationships</label>
+            <label><input type="checkbox" value="Family/Home"> Family/Home</label>
+            <label><input type="checkbox" value="Daily Living/Self‑care"> Daily Living/Self‑care</label>
+            <label><input type="checkbox" value="Symptom Management"> Symptom Management</label>
+          </div>
+        </div>
+        <div class="col">
+          <label for="status">Functional Status Change</label>
+          <select id="status">
+            <option value="">— Select —</option>
+            <option value="improved">Improved</option>
+            <option value="unchanged">Unchanged</option>
+            <option value="worsened">Worsened</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Area -->
+    <div class="card">
+      <button class="btn btn-blue" id="genNote">Generate Note</button>
+      <button class="btn btn-outline" id="copyNote">Copy Note</button>
+      <button class="btn btn-ghost" id="saveNote">&#128190; Save to Saved Notes</button>
+      <label for="noteOut">Generated Progress Note</label>
+      <textarea id="noteOut"></textarea>
+    </div>
+
+    </div><!-- close content-card -->
+  </main>
+</div><!-- close dashboard-shell -->
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const $all = s => Array.from(document.querySelectorAll(s));
+
+    function joinList(arr) {
+      if (!arr.length) return "";
+      if (arr.length === 1) return arr[0];
+      return arr.slice(0, -1).join(", ") + ", and " + arr[arr.length - 1];
+    }
+
+    const SDOH_DATA = [
+      ["","— Select —"],
+      ["Z55.9 — Education and literacy problem, unspecified","Z55.9 — Education and literacy problem, unspecified"],
+      ["Z56.0 — Unemployment","Z56.0 — Unemployment"],
+      ["Z56.6 — Work‑related stress","Z56.6 — Work‑related stress"],
+      ["Z59.0 — Homelessness","Z59.0 — Homelessness"],
+      ["Z59.6 — Low income","Z59.6 — Low income"],
+      ["Z59.81 — Housing instability, housed","Z59.81 — Housing instability, housed"],
+      ["Z59.82 — Transportation insecurity","Z59.82 — Transportation insecurity"],
+      ["Z59.86 — Financial insecurity","Z59.86 — Financial insecurity"],
+      ["Z60.2 — Problems related to living alone","Z60.2 — Problems related to living alone"],
+      ["Z63.0 — Problems in relationship with spouse/partner","Z63.0 — Problems in relationship with spouse/partner"],
+      ["Z63.5 — Disruption by separation/divorce","Z63.5 — Disruption by separation/divorce"],
+      ["Z65.4 — Victim of crime and terrorism","Z65.4 — Victim of crime and terrorism"]
+    ];
+
+    const ICD_MAP = {
+           "F20 — Schizophrenia spectrum":[
+        "F20.0 — Paranoid schizophrenia","F20.1 — Disorganized schizophrenia","F20.2 — Catatonic schizophrenia",
+        "F20.3 — Undifferentiated schizophrenia","F20.5 — Residual schizophrenia","F20.81 — Schizophreniform disorder",
+        "F20.89 — Other schizophrenia","F20.9 — Schizophrenia, unspecified"
+      ],
+      "F30 — Manic episode":[
+        "F30.10 — Manic episode without psychotic symptoms, unspecified","F30.11 — Manic episode without psychotic symptoms, mild",
+        "F30.12 — Manic episode without psychotic symptoms, moderate","F30.13 — Manic episode, severe, without psychotic symptoms",
+        "F30.2 — Manic episode, severe with psychotic symptoms","F30.3 — Manic episode in partial remission","F30.4 — Manic episode in full remission",
+        "F30.8 — Other manic episodes","F30.9 — Manic episode, unspecified"
+      ],
+      "F31 — Bipolar disorders":[
+        "F31.0 — Bipolar disorder, current episode hypomanic","F31.32 — Bipolar disorder, current episode depressed, moderate",
+        "F31.4 — Bipolar disorder, current episode depressed, severe, without psychotic features","F31.5 — Bipolar disorder, current episode depressed, severe, with psychotic features",
+        "F31.63 — Bipolar disorder, current episode mixed, severe, without psychotic features","F31.64 — Bipolar disorder, current episode mixed, severe, with psychotic features",
+        "F31.70 — Bipolar disorder, currently in remission, most recent episode unspecified","F31.81 — Bipolar II disorder","F31.9 — Bipolar disorder, unspecified"
+      ],
+      "F32 — MDD, single episode":[
+        "F32.0 — Major depressive disorder, single episode, mild","F32.1 — Major depressive disorder, single episode, moderate",
+        "F32.2 — Major depressive disorder, single episode, severe without psychotic features","F32.3 — Major depressive disorder, single episode, severe with psychotic features",
+        "F32.4 — Major depressive disorder, single episode, in partial remission","F32.5 — Major depressive disorder, single episode, in full remission",
+        "F32.9 — Major depressive disorder, single episode, unspecified","F32.A — Depression, unspecified"
+      ],
+      "F33 — MDD, recurrent":[
+        "F33.0 — Major depressive disorder, recurrent, mild","F33.1 — Major depressive disorder, recurrent, moderate",
+        "F33.2 — Major depressive disorder, recurrent, severe without psychotic features","F33.3 — Major depressive disorder, recurrent, severe with psychotic symptoms",
+        "F33.40 — Major depressive disorder, recurrent, in remission, unspecified","F33.41 — Major depressive disorder, recurrent, in partial remission",
+        "F33.42 — Major depressive disorder, recurrent, in full remission","F33.9 — Major depressive disorder, recurrent, unspecified"
+      ],
+      "F40 — Phobic anxiety":[
+        "F40.00 — Agoraphobia, unspecified","F40.01 — Agoraphobia with panic disorder","F40.02 — Agoraphobia without panic disorder",
+        "F40.10 — Social phobia, unspecified","F40.11 — Social phobia, generalized","F40.240 — Claustrophobia","F40.241 — Acrophobia",
+        "F40.243 — Fear of flying","F40.298 — Other specified phobia","F40.9 — Phobic anxiety disorder, unspecified"
+      ],
+      "F41 — Other anxiety":[
+        "F41.0 — Panic disorder","F41.1 — Generalized anxiety disorder","F41.8 — Other specified anxiety disorders","F41.9 — Anxiety disorder, unspecified"
+      ],
+      "F42 — OCD spectrum":[
+        "F42.2 — Mixed obsessional thoughts and acts","F42.8 — Other obsessive-compulsive disorder","F42.9 — Obsessive-compulsive disorder, unspecified"
+      ],
+      "F43 — Stress/adjustment/PTSD":[
+        "F43.0 — Acute stress reaction","F43.10 — PTSD, unspecified","F43.11 — PTSD, acute","F43.12 — PTSD, chronic",
+        "F43.20 — Adjustment disorder, unspecified","F43.21 — Adjustment disorder with depressed mood","F43.22 — Adjustment disorder with anxiety",
+        "F43.23 — Adjustment disorder with mixed anxiety and depressed mood","F43.24 — Adjustment disorder with disturbance of conduct",
+        "F43.25 — Adjustment disorder with mixed disturbance of emotions and conduct","F43.81 — Prolonged grief disorder","F43.9 — Reaction to severe stress, unspecified"
+      ],
+      "F50 — Eating disorders":[
+        "F50.010 — Anorexia nervosa, restricting type, mild","F50.011 — Anorexia nervosa, restricting type, moderate",
+        "F50.012 — Anorexia nervosa, restricting type, severe","F50.019 — Anorexia nervosa, restricting type, unspecified",
+        "F50.20 — Bulimia nervosa, unspecified","F50.21 — Bulimia nervosa, mild","F50.25 — Bulimia nervosa, in remission",
+        "F50.810 — Binge eating disorder, mild","F50.819 — Binge eating disorder, unspecified","F50.9 — Eating disorder, unspecified"
+      ],
+      "F60 — Personality disorders":[
+        "F60.0 — Paranoid personality disorder","F60.2 — Antisocial personality disorder","F60.3 — Borderline personality disorder",
+        "F60.5 — Obsessive-compulsive personality disorder","F60.81 — Narcissistic personality disorder","F60.9 — Personality disorder, unspecified"
+      ],
+      "F90 — Attention-deficit hyperactivity":[
+        "F90.0 — ADHD, predominantly inattentive type","F90.1 — ADHD, predominantly hyperactive type","F90.2 — ADHD, combined type","F90.9 — ADHD, unspecified type"
+      ],
+      "R45 — Symptoms and signs involving emotional state":[
+        "R45.1 — Restlessness and agitation","R45.2 — Unhappiness","R45.5 — Hostility","R45.81 — Low self-esteem","R45.82 — Worries"
+      ],
+      "F10 — Alcohol-related":[
+        "F10.10 — Alcohol abuse, uncomplicated","F10.11 — Alcohol abuse, in remission","F10.20 — Alcohol dependence, uncomplicated",
+        "F10.21 — Alcohol dependence, in remission","F10.90 — Alcohol use, unspecified, uncomplicated","F10.91 — Alcohol use, unspecified, in remission"
+      ],
+      "F11 — Opioid-related":[
+        "F11.10 — Opioid abuse, uncomplicated","F11.11 — Opioid abuse, in remission","F11.20 — Opioid dependence, uncomplicated",
+        "F11.21 — Opioid dependence, in remission","F11.90 — Opioid use, unspecified, uncomplicated","F11.91 — Opioid use, unspecified, in remission"
+      ],
+      "F12 — Cannabis-related":[
+        "F12.10 — Cannabis abuse, uncomplicated","F12.11 — Cannabis abuse, in remission","F12.20 — Cannabis dependence, uncomplicated",
+        "F12.21 — Cannabis dependence, in remission","F12.90 — Cannabis use, unspecified, uncomplicated","F12.91 — Cannabis use, unspecified, in remission"
+      ],
+      "F14 — Cocaine-related":[
+        "F14.10 — Cocaine abuse, uncomplicated","F14.11 — Cocaine abuse, in remission","F14.20 — Cocaine dependence, uncomplicated",
+        "F14.21 — Cocaine dependence, in remission","F14.90 — Cocaine use, unspecified, uncomplicated","F14.91 — Cocaine use, unspecified, in remission"
+      ],
+      "F15 — Other stimulant-related":[
+        "F15.10 — Other stimulant abuse, uncomplicated","F15.11 — Other stimulant abuse, in remission","F15.20 — Other stimulant dependence, uncomplicated",
+        "F15.21 — Other stimulant dependence, in remission","F15.90 — Other stimulant use, unspecified, uncomplicated","F15.91 — Other stimulant use, unspecified, in remission"
+      ],
+      "F16 — Hallucinogen-related":[
+        "F16.10 — Hallucinogen abuse, uncomplicated","F16.11 — Hallucinogen abuse, in remission","F16.20 — Hallucinogen dependence, uncomplicated",
+        "F16.21 — Hallucinogen dependence, in remission","F16.90 — Hallucinogen use, unspecified, uncomplicated","F16.91 — Hallucinogen use, unspecified, in remission"
+      ],
+      "F18 — Inhalant-related":[
+        "F18.10 — Inhalant abuse, uncomplicated","F18.11 — Inhalant abuse, in remission","F18.20 — Inhalant dependence, uncomplicated",
+        "F18.21 — Inhalant dependence, in remission","F18.90 — Inhalant use, unspecified, uncomplicated","F18.91 — Inhalant use, unspecified, in remission"
+      ],
+      "F19 — Other psychoactive substance":[
+        "F19.10 — Other psychoactive substance abuse, uncomplicated","F19.11 — Other psychoactive substance abuse, in remission",
+        "F19.20 — Other psychoactive substance dependence, uncomplicated","F19.21 — Other psychoactive substance dependence, in remission",
+        "F19.90 — Other psychoactive substance use, unspecified, uncomplicated","F19.91 — Other psychoactive substance use, unspecified, in remission"
+      ]
+    };
+
+    (function init(){
+      const sd = $('#sdoh');
+      SDOH_DATA.forEach(([v,l]) => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = l;
+        sd.appendChild(o);
+      });
+
+      const cat = $('#icdCat');
+      cat.innerHTML = '<option value="">— Select —</option>';
+      for (let k in ICD_MAP) {
+        const o = document.createElement('option');
+        o.value = k;
+        o.textContent = k;
+        cat.appendChild(o);
+      }
+
+      cat.addEventListener('change', () => {
+        const arr = ICD_MAP[cat.value] || [];
+        const codeSel = $('#icdCode');
+        codeSel.innerHTML = '';
+        const first = document.createElement('option');
+        first.value = "";
+        first.textContent = arr.length ? '— Select —' : '— Select category first —';
+        codeSel.appendChild(first);
+        arr.forEach(item => {
+          const o = document.createElement('option');
+          o.value = item;
+          o.textContent = item;
+          codeSel.appendChild(o);
+        });
+      });
+
+      const TECHS = [
+        "Cognitive Challenging","Cognitive Refocusing","Cognitive Reframing",
+        "Communication Skills","Compliance Issues","DBT",
+        "Exploration of Coping Patterns","Exploration of Emotions","Exploration of Relationship Patterns",
+        "Guided Imagery","Interactive Feedback","Interpersonal Resolutions",
+        "Mindfulness Training","Preventative Services","Psycho‑Education",
+        "Relaxation/Deep Breathing","Review of Treatment Plan/Progress","Role‑Play/Behavioral Rehearsal",
+        "Structured Problem Solving","Supportive Reflection","Symptom Management"
+      ];
+      const techHost = $('#techniques');
+      TECHS.forEach((t,i) => {
+        const lab = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = t;
+        cb.id = `tech_${i}`;
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(" " + t));
+        techHost.appendChild(lab);
+      });
+    })();
+
+    $('#genNote').addEventListener('click', () => {
+      const dos = $('#dos').value.trim();
+      const setting = $('#setting').value.trim();
+      const clinician = $('#clinician').value.trim();
+      const startT = $('#startTime').value.trim();
+      const endT = $('#endTime').value.trim();
+      const mins = $('#totalMins').value.trim();
+      const typeSvc = $('#typeOfService').value.trim();
+
+      const icdFull = $('#icdCode').value.trim();
+      const sdoh = $('#sdoh').value.trim();
+      const techs = $all('#techniques input:checked').map(c => c.value);
+      const engagement = $('#engagement').value.trim().toLowerCase();
+      const responses = $all('#responseCheckboxes input:checked').map(c => c.value.toLowerCase());
+      const domains = $all('#domainCheckboxes input:checked').map(c => c.value);
+      const status = $('#status').value.trim().toLowerCase();
+
+      let note = "";
+
+      // Header
+      if(dos)      note += `Date of Service: ${dos}\n`;
+      if(setting)  note += `Place of Service: ${setting}\n`;
+      if(clinician) note += `Clinician: ${clinician}\n`;
+      if(typeSvc)  note += `Service Type: ${typeSvc}\n`;
+      if(startT || endT || mins) {
+        note += `Start Time: ${startT}  End Time: ${endT}  Minutes: ${mins}\n\n`;
+      }
+
+      // Session summary
+      if(mins && icdFull) {
+        const code = icdFull.split(" ")[0];
+        const label = icdFull.substring(code.length + 3);
+        note += `A ${mins}-minute psychotherapy session was conducted to address ${code} (${label})`;
+        if(sdoh) note += ` in the context of ${sdoh}`;
+        note += `. `;
+      }
+
+      // Interventions
+      if(techs.length) {
+        note += `Interventions included ${techs.join(', ')}, tailored to the client’s needs. `;
+      }
+
+      // Client response & progress
+      if(engagement) {
+        let respText = `${engagement}`;
+        if(responses.length) respText += `, and ${responses.join(', ')}`;
+        note += `The client was ${respText}, reflecting treatment engagement and clinical focus today. `;
+      }
+
+      // Functional domains + status
+      if(domains.length && status) {
+        note += `Functionally, performance in ${domains.join(', ')} has ${status}. `;
+      }
+
+      // Final diagnosis
+      if(icdFull) {
+        note += `Diagnosis (ICD‑10‑CM): ${icdFull}.`;
+      }
+
+      localStorage.setItem('docusistant_doc_completed_PSYCH', '1');
+      $('#noteOut').value = note;
+    });
+
+    $('#copyNote').addEventListener('click', () => {
+      const text = $('#noteOut').value.trim();
+      if(text) navigator.clipboard.writeText(text);
+    });
+
+    $('#saveNote').addEventListener('click', () => {
+      const text = $('#noteOut').value.trim();
+      if(!text) { alert('Generate a note first, then save.'); return; }
+      saveDocNote('Psychotherapy Progress Note', text);
+    });
+
+    initDashboard(CLINICIAN_ROLES);
+  </script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

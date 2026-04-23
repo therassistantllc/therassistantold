@@ -1,0 +1,261 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin — Insurance Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+.kpi-card.teal::before{background:linear-gradient(180deg,#14b8a6,#0f766e)}
+.kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+.kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#d97706)}
+.kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+.kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#6d28d9)}
+.kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+.kpi-sub{font-size:11px;color:var(--ink-500);margin-top:2px}
+.cm-tabbar{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.cm-tab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .14s,border-color .14s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cm-tab:hover{color:var(--ink-900)}.cm-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.cm-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;font-size:10px;font-weight:800;background:#dbeafe;color:#1e40af}
+.cm-tab-badge-red{background:#fee2e2;color:#b91c1c}.cm-tab-badge-amber{background:#fef3c7;color:#92400e}
+.cm-tab.active .cm-tab-badge{background:var(--blue-600);color:#fff}.cm-panel{display:none}.cm-panel.active{display:block}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+.filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+.filter-bar input{min-width:200px;flex:1}.filter-bar select{min-width:130px}
+.filter-count{font-size:12px;color:var(--ink-500);margin-left:auto;white-space:nowrap}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.data-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.data-tbl th{background:#f5f9fe;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border)}
+.data-tbl td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.data-tbl tr:last-child td{border-bottom:none}.data-tbl tbody tr{cursor:pointer;transition:background .12s}.data-tbl tbody tr:hover{background:rgba(60,144,209,.04)}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-green{background:#d1fae5;color:#065f46}.badge-amber{background:#fef3c7;color:#92400e}.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-blue{background:#dbeafe;color:#1e40af}.badge-gray{background:#f3f4f6;color:#374151}.badge-purple{background:#ede9fe;color:#5b21b6}.badge-teal{background:#ccfbf1;color:#0f5445}
+.act-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--ink-700);font-family:inherit;transition:all .12s}
+.act-btn:hover{background:#f0f7ff;border-color:var(--blue-400);color:var(--blue-700)}
+.act-btn-blue{background:var(--blue-600);color:#fff;border-color:var(--blue-700)}.act-btn-blue:hover{background:var(--blue-700)}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;display:none}.drawer-backdrop.open{display:block}
+.drawer-panel{position:fixed;top:0;right:0;bottom:0;width:520px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:901;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:24px}
+.drawer-panel.open{transform:translateX(0)}.drawer-close{position:absolute;top:16px;right:16px;border:none;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--ink-500);padding:4px}.drawer-close:hover{color:var(--ink-900)}
+.drawer-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin:0 0 4px;padding-right:32px}.drawer-sub{font-size:12px;color:var(--ink-500);margin:0 0 20px}
+.drawer-section{margin-bottom:18px}.drawer-section-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500);margin-bottom:8px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}.field-row.wide{grid-template-columns:1fr}
+.field-item label{font-size:11px;font-weight:700;color:var(--ink-500);display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}.field-item span{font-size:13px;color:var(--ink-900)}
+@media(max-width:800px){.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div><h1>Insurance Management</h1><p>Payers, contracts, credentialing, eligibility issues, prior auth, roster, and directory — one module.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" type="button">Export</button>
+      <button class="btn btn-blue btn-sm" type="button" id="btnAddPayer">+ Add Payer</button>
+    </div>
+  </header>
+
+  <div class="kpi-strip">
+    <div class="kpi-card blue"><div class="kpi-num">47</div><div class="kpi-lbl">Active Payers</div><div class="kpi-sub">3 pending setup</div></div>
+    <div class="kpi-card green"><div class="kpi-num">31</div><div class="kpi-lbl">Contracted</div><div class="kpi-sub">2 expiring 90d</div></div>
+    <div class="kpi-card teal"><div class="kpi-num">12</div><div class="kpi-lbl">Cred In-Progress</div><div class="kpi-sub">4 payers</div></div>
+    <div class="kpi-card amber"><div class="kpi-num">28</div><div class="kpi-lbl">Elig Issues</div><div class="kpi-sub">This week</div></div>
+    <div class="kpi-card purple"><div class="kpi-num">19</div><div class="kpi-lbl">Prior Auths</div><div class="kpi-sub">6 expiring soon</div></div>
+    <div class="kpi-card red"><div class="kpi-num">7</div><div class="kpi-lbl">Dir. Issues</div><div class="kpi-sub">Needs correction</div></div>
+  </div>
+
+  <div class="cm-tabbar" id="insTabBar">
+    <button class="cm-tab active" data-tab="payers">Payer List <span class="cm-tab-badge" id="tb-payers">47</span></button>
+    <button class="cm-tab" data-tab="contracts">Contracts <span class="cm-tab-badge" id="tb-contracts">31</span></button>
+    <button class="cm-tab" data-tab="credentialing">Credentialing <span class="cm-tab-badge cm-tab-badge-amber" id="tb-cred">12</span></button>
+    <button class="cm-tab" data-tab="eligibility">Eligibility Issues <span class="cm-tab-badge cm-tab-badge-amber" id="tb-elig">28</span></button>
+    <button class="cm-tab" data-tab="priorauth">Prior Auth <span class="cm-tab-badge" id="tb-auth">19</span></button>
+    <button class="cm-tab" data-tab="roster">Roster Status <span class="cm-tab-badge cm-tab-badge-red" id="tb-roster">5</span></button>
+    <button class="cm-tab" data-tab="directory">Directory Issues <span class="cm-tab-badge cm-tab-badge-red" id="tb-dir">7</span></button>
+  </div>
+
+  <div class="cm-panel active" id="panel-payers">
+    <div class="filter-bar">
+      <input type="search" id="pay-search" placeholder="Search payers…">
+      <select id="pay-type-filter"><option value="">All Types</option><option>Medical</option><option>Behavioral Health</option><option>Medicare</option><option>Medicaid</option><option>Tricare</option></select>
+      <select id="pay-status-filter"><option value="">All Statuses</option><option>Active</option><option>Inactive</option><option>Pending Setup</option></select>
+      <span class="filter-count" id="pay-count">47 payers</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Payer Name</th><th>Payer ID</th><th>Type</th><th>Claim Form</th><th>Timely Filing</th><th>Electronic</th><th>Status</th><th>Actions</th></tr></thead><tbody id="pay-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-contracts">
+    <div class="filter-bar">
+      <input type="search" id="con-search" placeholder="Search contracts…">
+      <select id="con-status-filter"><option value="">All Statuses</option><option>Active</option><option>Expiring Soon</option><option>Expired</option><option>Negotiating</option></select>
+      <span class="filter-count" id="con-count">31 contracts</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Payer</th><th>Contract #</th><th>Type</th><th>Effective</th><th>Expiry</th><th>Rate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="con-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-credentialing">
+    <div class="filter-bar">
+      <input type="search" id="cred-search" placeholder="Search credentialing…">
+      <select id="cred-prov-filter"><option value="">All Providers</option><option>Dr. Smith</option><option>Dr. Garcia</option><option>Dr. Williams</option><option>Dr. Brown</option></select>
+      <select id="cred-status-filter"><option value="">All Statuses</option><option>Credentialed</option><option>In Progress</option><option>Pending</option><option>Expired</option><option>Denied</option></select>
+      <span class="filter-count" id="cred-count">12 in progress</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Provider</th><th>Payer</th><th>NPI</th><th>Submitted</th><th>Follow-Up</th><th>Effective Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cred-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-eligibility">
+    <div class="filter-bar">
+      <input type="search" id="elig-search" placeholder="Search eligibility issues…">
+      <select id="elig-err-filter"><option value="">All Error Types</option><option>Inactive Policy</option><option>Not a Member</option><option>CPT Not Covered</option><option>Out of Network</option><option>Deductible Not Met</option></select>
+      <span class="filter-count" id="elig-count">28 issues</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Patient</th><th>Payer</th><th>Date of Service</th><th>Error</th><th>Checked</th><th>Status</th><th>Actions</th></tr></thead><tbody id="elig-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-priorauth">
+    <div class="filter-bar">
+      <input type="search" id="auth-search" placeholder="Search prior auth…">
+      <select id="auth-status-filter"><option value="">All Statuses</option><option>Approved</option><option>Pending</option><option>Expiring</option><option>Expired</option><option>Denied</option></select>
+      <span class="filter-count" id="auth-count">19 auths</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Patient</th><th>Payer</th><th>Type</th><th>Auth #</th><th>Sessions Auth</th><th>Sessions Used</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead><tbody id="auth-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-roster">
+    <div class="filter-bar">
+      <input type="search" id="ros-search" placeholder="Search roster entries…">
+      <select id="ros-status-filter"><option value="">All Statuses</option><option>Active</option><option>Pending</option><option>Rejected</option><option>Terminated</option></select>
+      <span class="filter-count" id="ros-count">Loading…</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Provider</th><th>Payer</th><th>NPI</th><th>Submission Date</th><th>Effective</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ros-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-directory">
+    <div class="filter-bar">
+      <input type="search" id="dir-search" placeholder="Search directory issues…">
+      <select id="dir-type-filter"><option value="">All Issue Types</option><option>Wrong Address</option><option>Incorrect Specialty</option><option>Phone Mismatch</option><option>Accepting New Patients</option><option>Missing Provider</option></select>
+      <span class="filter-count" id="dir-count">7 issues</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Provider</th><th>Payer</th><th>Issue Type</th><th>Current Value</th><th>Correct Value</th><th>Reported</th><th>Status</th><th>Actions</th></tr></thead><tbody id="dir-tbody"></tbody></table></div>
+  </div>
+</main>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<div class="drawer-panel" id="drawerPanel">
+  <button class="drawer-close" id="drawerClose" aria-label="Close">&#215;</button>
+  <h2 class="drawer-title" id="drawerTitle">Detail</h2>
+  <p class="drawer-sub" id="drawerSub"></p>
+  <div id="drawerBody"></div>
+</div>
+
+<script>
+'use strict';
+const PAYERS=['Aetna','BCBS of Florida','Cigna','United Healthcare','Humana','Magellan','Tricare East','Medicare Part B','Florida Medicaid','Beacon Health Options','MHNet','Optum'];
+const PROVIDERS=['Dr. Smith, J.','Dr. Garcia, M.','Dr. Williams, L.','Dr. Brown, A.','Dr. Jones, R.','Dr. Davis, K.'];
+const rd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const fmt$=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate=d=>d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+const ago=n=>{const d=new Date();d.setDate(d.getDate()-n);return d;};
+const future=n=>{const d=new Date();d.setDate(d.getDate()+n);return d;};
+function badge(cls,label){return`<span class="badge badge-${cls}">${label}</span>`;}
+function bStatus(s){return badge({Active:'green',Credentialed:'green',Approved:'green',Contracted:'green','In Progress':'amber',Pending:'amber','Expiring':'amber','Pending Setup':'blue','Not Started':'gray',Expired:'red',Denied:'red',Inactive:'gray','Pending Review':'amber',Terminated:'gray',Rejected:'red'}[s]||'gray',s);}
+
+const PAY_DATA=Array.from({length:47},(_,i)=>({id:`PY-${1000+i}`,name:PAYERS[i%PAYERS.length]+(i>=PAYERS.length?` ${Math.floor(i/PAYERS.length)+1}`:''),payerId:`${60000+rd(0,39999)}`,type:['Medical','Behavioral Health','Medicare','Medicaid','Tricare'][i%5],form:['CMS-1500','UB-04','CMS-1500','CMS-1500','CMS-1500'][i%5],timely:`${[90,365,95,365,180][i%5]} days`,electronic:i%4!==0,status:['Active','Active','Active','Inactive','Pending Setup'][i%5]}));
+const CON_DATA=Array.from({length:31},(_,i)=>{const eff=ago(rd(180,730));const exp=future(rd(-60,365));const d=new Date();return{id:`CON-${2000+i}`,payer:PAYERS[i%PAYERS.length],num:`CTR-${10000+i}`,type:['Fee Schedule','Capitation','Value-Based','UCR'][i%4],effective:fmtDate(eff),expiry:fmtDate(exp),rate:fmt$(rd(75,180)),status:exp<d?'Expired':exp<future(90)?'Expiring Soon':'Active'};});
+const CRED_DATA=Array.from({length:24},(_,i)=>({id:`CR-${3000+i}`,provider:PROVIDERS[i%PROVIDERS.length],payer:PAYERS[i%PAYERS.length],npi:`1${rd(100000000,999999999)}`,submitted:fmtDate(ago(rd(10,120))),followUp:fmtDate(ago(rd(0,30))),effective:i%4===0?fmtDate(ago(rd(0,60))):'Pending',status:['Credentialed','In Progress','In Progress','Pending','Credentialed','Denied','Expired','Credentialed'][i%8]}));
+const ELIG_DATA=Array.from({length:28},(_,i)=>({id:`ELG-${4000+i}`,patient:['Smith, J.','Garcia, M.','Williams, L.','Brown, A.','Jones, R.','Davis, K.','Wilson, T.','Moore, S.'][i%8],payer:PAYERS[i%PAYERS.length],dos:fmtDate(ago(rd(0,14))),error:['Inactive Policy','Not a Member','CPT Not Covered','Out of Network','Deductible Not Met','Authorization Required','Policy Terminated'][i%7],checked:fmtDate(ago(rd(0,3))),status:['Pending Review','Resolved','Pending Review','Escalated'][i%4]}));
+const AUTH_DATA=Array.from({length:19},(_,i)=>{const exp=future(rd(-10,120));const d=new Date();return{id:`PA-${5000+i}`,patient:['Smith, James','Garcia, Maria','Williams, Lee','Brown, Anna','Jones, Ruth','Davis, Ken'][i%6],payer:PAYERS[i%PAYERS.length],type:['Outpatient Therapy','IOP','PHP','TMS','Psych Testing'][i%5],authNum:`AUTH${100000+i}`,sessAuth:rd(12,52),sessUsed:rd(0,12),expiry:fmtDate(exp),status:exp<d?'Expired':exp<future(30)?'Expiring':['Approved','Pending','Denied'][i%3]};});
+const ROS_DATA=Array.from({length:18},(_,i)=>({id:`RS-${6000+i}`,provider:PROVIDERS[i%PROVIDERS.length],payer:PAYERS[i%PAYERS.length],npi:`1${rd(100000000,999999999)}`,submitted:fmtDate(ago(rd(5,60))),effective:i%3===0?fmtDate(ago(rd(0,30))):'Pending',status:['Active','Pending','Active','Rejected','Terminated','Pending'][i%6]}));
+const DIR_DATA=Array.from({length:7},(_,i)=>({id:`DIR-${7000+i}`,provider:PROVIDERS[i%PROVIDERS.length],payer:PAYERS[i%PAYERS.length],type:['Wrong Address','Incorrect Specialty','Phone Mismatch','Accepting New Patients','Missing Provider','Wrong Address','Phone Mismatch'][i%7],current:['123 Old St','Internal Medicine','(555) 000-0000','Listed: No','Not Listed','456 Wrong Ave','(555) 001-0001'][i%7],correct:['456 Office Blvd','Behavioral Health','(555) 123-4567','Listed: Yes','Add Provider','100 Main St','(555) 456-7890'][i%7],reported:fmtDate(ago(rd(1,20))),status:['Pending Review','Submitted to Payer','Pending Review','Resolved','Submitted to Payer','Pending Review','Resolved'][i%7]}));
+
+function renderPayers(){const q=document.getElementById('pay-search').value.toLowerCase(),t=document.getElementById('pay-type-filter').value,s=document.getElementById('pay-status-filter').value;
+  const rows=PAY_DATA.filter(r=>(!q||r.name.toLowerCase().includes(q))&&(!t||r.type===t)&&(!s||r.status===s));
+  document.getElementById('pay-count').textContent=`${rows.length} of ${PAY_DATA.length} payers`;
+  document.getElementById('pay-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="pay"><td style="font-weight:700">${r.name}</td><td style="font-family:monospace;font-size:12px">${r.payerId}</td><td>${badge('blue',r.type)}</td><td style="font-size:12px">${r.form}</td><td style="font-size:12px">${r.timely}</td><td>${r.electronic?badge('green','Yes'):badge('gray','No')}</td><td>${bStatus(r.status)}</td><td><button class="act-btn" data-action="view" data-id="${r.id}" data-src="pay">Edit</button></td></tr>`).join('');}
+
+function renderContracts(){const q=document.getElementById('con-search').value.toLowerCase(),s=document.getElementById('con-status-filter').value;
+  const rows=CON_DATA.filter(r=>(!q||r.payer.toLowerCase().includes(q))&&(!s||r.status===s));
+  document.getElementById('con-count').textContent=`${rows.length} of ${CON_DATA.length} contracts`;
+  document.getElementById('con-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="con"><td style="font-weight:600">${r.payer}</td><td style="font-family:monospace;font-size:12px">${r.num}</td><td>${r.type}</td><td>${r.effective}</td><td>${r.expiry}</td><td style="font-weight:700">${r.rate}</td><td>${bStatus(r.status)}</td><td><button class="act-btn" data-action="view" data-id="${r.id}" data-src="con">View</button></td></tr>`).join('');}
+
+function renderCred(){const q=document.getElementById('cred-search').value.toLowerCase(),p=document.getElementById('cred-prov-filter').value,s=document.getElementById('cred-status-filter').value;
+  const rows=CRED_DATA.filter(r=>(!q||(r.provider+r.payer).toLowerCase().includes(q))&&(!p||r.provider.startsWith(p))&&(!s||r.status===s));
+  document.getElementById('cred-count').textContent=`${rows.length} records`;
+  document.getElementById('cred-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="cred"><td style="font-weight:600">${r.provider}</td><td>${r.payer}</td><td style="font-family:monospace;font-size:11px">${r.npi}</td><td>${r.submitted}</td><td>${r.followUp}</td><td>${r.effective}</td><td>${bStatus(r.status)}</td><td><button class="act-btn" data-action="view" data-id="${r.id}" data-src="cred">Detail</button></td></tr>`).join('');}
+
+function renderElig(){const q=document.getElementById('elig-search').value.toLowerCase(),e=document.getElementById('elig-err-filter').value;
+  const rows=ELIG_DATA.filter(r=>(!q||(r.patient+r.payer).toLowerCase().includes(q))&&(!e||r.error===e));
+  document.getElementById('elig-count').textContent=`${rows.length} of ${ELIG_DATA.length} issues`;
+  document.getElementById('elig-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="elig"><td style="font-weight:600">${r.patient}</td><td>${r.payer}</td><td>${r.dos}</td><td>${badge('amber',r.error.length>20?r.error.slice(0,18)+'…':r.error)}</td><td>${r.checked}</td><td>${bStatus(r.status)}</td><td><button class="act-btn act-btn-blue" data-action="view" data-id="${r.id}" data-src="elig">Resolve</button></td></tr>`).join('');}
+
+function renderAuth(){const q=document.getElementById('auth-search').value.toLowerCase(),s=document.getElementById('auth-status-filter').value;
+  const rows=AUTH_DATA.filter(r=>(!q||(r.patient+r.payer).toLowerCase().includes(q))&&(!s||r.status===s));
+  document.getElementById('auth-count').textContent=`${rows.length} of ${AUTH_DATA.length} auths`;
+  document.getElementById('auth-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="auth"><td style="font-weight:600">${r.patient}</td><td>${r.payer}</td><td>${r.type}</td><td style="font-family:monospace;font-size:11px">${r.authNum}</td><td>${r.sessAuth}</td><td>${r.sessUsed}</td><td>${r.expiry}</td><td>${bStatus(r.status)}</td><td><button class="act-btn" data-action="view" data-id="${r.id}" data-src="auth">Detail</button></td></tr>`).join('');}
+
+function renderRoster(){const q=document.getElementById('ros-search').value.toLowerCase(),s=document.getElementById('ros-status-filter').value;
+  const rows=ROS_DATA.filter(r=>(!q||(r.provider+r.payer).toLowerCase().includes(q))&&(!s||r.status===s));
+  document.getElementById('ros-count').textContent=`${rows.length} records`;
+  document.getElementById('ros-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="ros"><td style="font-weight:600">${r.provider}</td><td>${r.payer}</td><td style="font-family:monospace;font-size:11px">${r.npi}</td><td>${r.submitted}</td><td>${r.effective}</td><td>${bStatus(r.status)}</td><td><button class="act-btn" data-action="view" data-id="${r.id}" data-src="ros">Detail</button></td></tr>`).join('');}
+
+function renderDir(){const q=document.getElementById('dir-search').value.toLowerCase(),t=document.getElementById('dir-type-filter').value;
+  const rows=DIR_DATA.filter(r=>(!q||(r.provider+r.payer).toLowerCase().includes(q))&&(!t||r.type===t));
+  document.getElementById('dir-count').textContent=`${rows.length} of ${DIR_DATA.length} issues`;
+  document.getElementById('dir-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="dir"><td style="font-weight:600">${r.provider}</td><td>${r.payer}</td><td>${badge('amber',r.type)}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.current}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#065f46">${r.correct}</td><td>${r.reported}</td><td>${bStatus(r.status)}</td><td><button class="act-btn act-btn-blue" data-action="view" data-id="${r.id}" data-src="dir">Fix</button></td></tr>`).join('');}
+
+const RENDER_MAP={payers:renderPayers,contracts:renderContracts,credentialing:renderCred,eligibility:renderElig,priorauth:renderAuth,roster:renderRoster,directory:renderDir};
+const VALID=['payers','contracts','credentialing','eligibility','priorauth','roster','directory'];
+
+function setTab(tab){const t=VALID.includes(tab)?tab:'payers';
+  document.querySelectorAll('.cm-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.querySelectorAll('.cm-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));
+  if(RENDER_MAP[t])RENDER_MAP[t]();
+  const u=new URL(window.location.href);u.searchParams.set('tab',t);history.replaceState(null,'',u);}
+
+function openDrawer(id,src){
+  let item,html='';
+  if(src==='pay'){item=PAY_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=item.name;document.getElementById('drawerSub').textContent=`Payer · ID ${item.payerId}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Payer Details</div><div class="field-row"><div class="field-item"><label>Payer ID</label><span>${item.payerId}</span></div><div class="field-item"><label>Type</label><span>${item.type}</span></div></div><div class="field-row"><div class="field-item"><label>Claim Form</label><span>${item.form}</span></div><div class="field-item"><label>Timely Filing</label><span>${item.timely}</span></div></div><div class="field-row"><div class="field-item"><label>Electronic</label><span>${item.electronic?'Yes':'No'}</span></div><div class="field-item"><label>Status</label><span>${bStatus(item.status)}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="act-btn act-btn-blue">Edit Payer</button><button class="act-btn">View Claims</button><button class="act-btn">View Contracts</button></div></div>`;
+  } else if(src==='auth'){item=AUTH_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=`Auth: ${item.authNum}`;document.getElementById('drawerSub').textContent=`${item.patient} · ${item.payer}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Authorization Details</div><div class="field-row"><div class="field-item"><label>Patient</label><span>${item.patient}</span></div><div class="field-item"><label>Type</label><span>${item.type}</span></div></div><div class="field-row"><div class="field-item"><label>Sessions Auth</label><span>${item.sessAuth}</span></div><div class="field-item"><label>Sessions Used</label><span>${item.sessUsed}</span></div></div><div class="field-row"><div class="field-item"><label>Expiry</label><span>${item.expiry}</span></div><div class="field-item"><label>Status</label><span>${bStatus(item.status)}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="act-btn act-btn-blue">Request Extension</button><button class="act-btn">View Claims</button></div></div>`;
+  } else {document.getElementById('drawerTitle').textContent='Detail';document.getElementById('drawerSub').textContent='';html=`<p style="color:var(--ink-500);font-size:13px">Detail view for ${src} record ${id}</p>`;}
+  document.getElementById('drawerBody').innerHTML=html;
+  document.getElementById('drawerBackdrop').classList.add('open');document.getElementById('drawerPanel').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawerBackdrop').classList.remove('open');document.getElementById('drawerPanel').classList.remove('open');}
+
+document.getElementById('insTabBar').addEventListener('click',e=>{const b=e.target.closest('.cm-tab');if(b)setTab(b.dataset.tab);});
+document.getElementById('drawerBackdrop').addEventListener('click',closeDrawer);
+document.getElementById('drawerClose').addEventListener('click',closeDrawer);
+document.addEventListener('click',e=>{const btn=e.target.closest('[data-action]');if(!btn)return;openDrawer(btn.dataset.id,btn.dataset.src);});
+['pay-search','pay-type-filter','pay-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderPayers);el?.addEventListener('change',renderPayers);});
+['con-search','con-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderContracts);el?.addEventListener('change',renderContracts);});
+['cred-search','cred-prov-filter','cred-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderCred);el?.addEventListener('change',renderCred);});
+['elig-search','elig-err-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderElig);el?.addEventListener('change',renderElig);});
+['auth-search','auth-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderAuth);el?.addEventListener('change',renderAuth);});
+['ros-search','ros-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderRoster);el?.addEventListener('change',renderRoster);});
+['dir-search','dir-type-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderDir);el?.addEventListener('change',renderDir);});
+
+setTab(new URLSearchParams(window.location.search).get('tab')||'payers');
+</script>
+</body>
+</html>

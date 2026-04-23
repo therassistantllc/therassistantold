@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Today's Agenda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* -- Toolbar -------------------------------------------- */
+    .agenda-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .agenda-toolbar h1 {
+      font-family: 'Sora', sans-serif; font-size: 1.3rem; margin: 0;
+    }
+    .date-nav { display: flex; align-items: center; gap: 6px; }
+    .date-nav button {
+      width: 30px; height: 30px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--surface); cursor: pointer;
+      font-size: 16px; display: flex; align-items: center; justify-content: center;
+      color: var(--ink-700); line-height: 1;
+    }
+    .date-nav button:hover { background: var(--surface-soft, #f8fafc); }
+    .date-label {
+      font-size: 14px; font-weight: 700; color: var(--ink-900);
+      min-width: 190px; text-align: center;
+    }
+    .today-btn {
+      padding: 5px 13px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface); cursor: pointer; font-size: 12px;
+      font-weight: 700; color: var(--ink-700); font-family: inherit;
+    }
+    .today-btn:hover { border-color: var(--blue-500); color: var(--blue-700); }
+    .toolbar-right { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+    /* -- Day-separator label -------------------------------- */
+    .time-separator {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-400);
+      display: flex; align-items: center; gap: 10px;
+      margin: 8px 0 6px; user-select: none;
+    }
+    .time-separator::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* -- Stats strip ---------------------------------------- */
+    .stats-strip {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .stat-chip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 9px 14px; display: flex;
+      align-items: center; gap: 8px; box-shadow: var(--shadow-sm);
+      flex: 1; min-width: 110px;
+    }
+    .stat-chip-num {
+      font-family: 'Sora', sans-serif; font-size: 1.15rem;
+      font-weight: 700; line-height: 1;
+    }
+    .stat-chip-lbl {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--ink-500);
+    }
+    .sc-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* -- Card grid ------------------------------------------ */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+
+    /* -- Appointment card ----------------------------------- */
+    .appt-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow .15s, transform .1s;
+    }
+    .appt-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    /* Left accent stripe by appointment type */
+    .appt-card { border-left: 4px solid var(--border); }
+    .card-individual  { border-left-color: #2563eb; }
+    .card-group       { border-left-color: #059669; }
+    .card-assessment  { border-left-color: #7c3aed; }
+    .card-telehealth  { border-left-color: #d97706; }
+    .card-checkin     { border-left-color: #be185d; }
+    .card-med         { border-left-color: #16a34a; }
+    .card-intake      { border-left-color: #0369a1; }
+    .card-cancelled   { border-left-color: #94a3b8; opacity: .72; }
+    .card-noshow      { border-left-color: #dc2626; opacity: .72; }
+
+    /* -- Card header ----------------------------------------- */
+    .card-head {
+      padding: 14px 16px 10px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .card-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+      color: #fff; font-family: 'Sora', sans-serif; font-size: 13px;
+      font-weight: 700; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; text-transform: uppercase;
+    }
+    .card-head-meta { flex: 1; min-width: 0; }
+    .card-client-name {
+      font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700;
+      color: var(--ink-900); white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-appt-info {
+      font-size: 12px; color: var(--ink-500); margin-top: 2px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .appt-type-pill {
+      display: inline-flex; align-items: center; padding: 1px 8px;
+      border-radius: 999px; font-size: 10.5px; font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .pt-individual { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+    .pt-group      { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+    .pt-assessment { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+    .pt-telehealth { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .pt-checkin    { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+    .pt-med        { background: #dcfce7; color: #14532d; border-color: #bbf7d0; }
+    .pt-intake     { background: #e0f2fe; color: #0c4a6e; border-color: #bae6fd; }
+    .pt-cancelled  { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+    .pt-noshow     { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+    .card-status-badge {
+      display: inline-flex; align-items: center; padding: 2px 9px;
+      border-radius: 999px; font-size: 10.5px; font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .cs-scheduled  { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+    .cs-confirmed  { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+    .cs-completed  { background: #f0fdf4; color: #14532d; border-color: #bbf7d0; }
+    .cs-cancelled  { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+    .cs-noshow     { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+    .cs-rescheduled{ background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+    /* -- Insurance section ----------------------------------- */
+    .card-section {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .card-section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--ink-400); margin-bottom: 8px;
+    }
+    .ins-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px 14px;
+    }
+    .ins-row { display: flex; flex-direction: column; gap: 1px; }
+    .ins-key {
+      font-size: 10.5px; font-weight: 700; color: var(--ink-500);
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .ins-val {
+      font-size: 13px; font-weight: 700; color: var(--ink-900);
+    }
+    .ins-val.val-green  { color: #059669; }
+    .ins-val.val-red    { color: #dc2626; }
+    .ins-val.val-amber  { color: #b45309; }
+    .ins-val.val-muted  { color: var(--ink-500); font-weight: 400; }
+
+    /* -- Elig badge ------------------------------------------ */
+    .elig-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 999px; font-size: 11px;
+      font-weight: 700; border: 1px solid transparent;
+    }
+    .elig-active   { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+    .elig-inactive { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+    .elig-pending  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .elig-unknown  { background: #fafafa; color: #6b7280; border-color: #e5e7eb; }
+    .elig-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .elig-active .elig-dot   { background: #059669; }
+    .elig-inactive .elig-dot { background: #94a3b8; }
+    .elig-pending .elig-dot  { background: #f59e0b; }
+    .elig-unknown .elig-dot  { background: #d1d5db; }
+
+    /* -- Auth section ---------------------------------------- */
+    .auth-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12.5px; flex-wrap: wrap;
+    }
+    .auth-badge {
+      display: inline-flex; align-items: center; padding: 3px 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .auth-approved    { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+    .auth-pending     { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .auth-not-required{ background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+    .auth-expired     { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+    .auth-denied      { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+    .auth-unknown     { background: #f9fafb; color: #6b7280; border-color: #e5e7eb; }
+
+    /* -- Alerts section -------------------------------------- */
+    .alert-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+      border-radius: 8px; padding: 4px 10px; font-size: 11.5px;
+      font-weight: 700; margin: 2px 3px 2px 0;
+    }
+    .alert-chip-icon { font-size: 13px; }
+    .alert-none {
+      font-size: 12.5px; color: #059669; font-weight: 600;
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    /* -- Action buttons -------------------------------------- */
+    .card-actions {
+      padding: 10px 14px 14px;
+      display: flex; gap: 7px; flex-wrap: wrap;
+    }
+    .act-btn {
+      flex: 1; min-width: 90px;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 5px; padding: 8px 12px; border-radius: 9px; border: none;
+      cursor: pointer; font-size: 12.5px; font-weight: 700;
+      font-family: inherit; transition: filter .1s, transform .08s;
+      text-decoration: none; white-space: nowrap;
+    }
+    .act-btn:active { transform: scale(.97); }
+
+    .act-biller {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      color: #fff;
+    }
+    .act-biller:hover { filter: brightness(1.1); }
+
+    .act-collect {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #fff;
+    }
+    .act-collect:hover { filter: brightness(1.1); }
+
+    .act-telehealth {
+      background: linear-gradient(135deg, #b45309, #d97706);
+      color: #fff;
+    }
+    .act-telehealth:hover { filter: brightness(1.1); }
+
+    .act-start {
+      background: linear-gradient(135deg, #6d28d9, #7c3aed);
+      color: #fff;
+    }
+    .act-start:hover { filter: brightness(1.1); }
+
+    .act-disabled {
+      background: var(--surface-soft, #f8fafc);
+      color: var(--ink-400);
+      border: 1px solid var(--border);
+      cursor: not-allowed;
+    }
+
+    /* -- Empty state ----------------------------------------- */
+    .empty-agenda {
+      grid-column: 1 / -1; text-align: center; padding: 60px 20px;
+      color: var(--ink-500);
+    }
+    .empty-agenda .icon { font-size: 44px; margin-bottom: 12px; }
+    .empty-agenda p {
+      font-size: 14px; max-width: 320px;
+      margin: 0 auto; line-height: 1.6;
+    }
+
+    /* -- Collect modal --------------------------------------- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(11,44,77,.5);
+      z-index: 1200; display: flex; align-items: center;
+      justify-content: center; padding: 16px;
+    }
+    .modal-box {
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+      width: min(460px, 100%); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-head {
+      padding: 20px 22px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Sora', sans-serif; font-size: 1.1rem;
+      font-weight: 700; color: var(--ink-900);
+    }
+    .modal-close {
+      width: 28px; height: 28px; border: none;
+      background: var(--surface-soft, #f8fafc); border-radius: 7px;
+      cursor: pointer; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-500);
+    }
+    .modal-body { padding: 18px 22px; }
+    .modal-foot {
+      padding: 12px 22px 18px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+    .form-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--ink-700);
+      display: block; margin-bottom: 4px;
+    }
+    .form-input {
+      width: 100%; padding: 8px 11px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 13px; font-family: inherit;
+      color: var(--ink-900); outline: none; box-sizing: border-box;
+      background: var(--surface);
+    }
+    .form-input:focus {
+      border-color: var(--blue-500);
+      box-shadow: 0 0 0 3px rgba(60,144,209,.1);
+    }
+    .form-row { margin-bottom: 12px; }
+
+    /* -- Toast ----------------------------------------------- */
+    .toast {
+      position: fixed; bottom: 22px; right: 22px;
+      background: #0b2c4d; color: #fff; border-radius: 10px;
+      padding: 10px 18px; font-size: 13px; font-weight: 700;
+      box-shadow: 0 4px 16px rgba(0,0,0,.22);
+      z-index: 9000; opacity: 0; transition: opacity .2s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 720px) {
+      .card-grid { grid-template-columns: 1fr; }
+      .stats-strip { display: none; }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- Sidebar -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <!-- Main -->
+  <main class="dashboard-main">
+
+    <!-- Toolbar -->
+    <div class="agenda-toolbar">
+      <div>
+        <h1 id="pageTitle">Today's Agenda</h1>
+        <div id="pageSubtitle" style="font-size:12.5px;color:var(--ink-500);margin-top:2px;">Loading...</div>
+      </div>
+
+      <div class="date-nav">
+        <button onclick="navDay(-1)" title="Previous day">&#8249;</button>
+        <span class="date-label" id="dateLabel"></span>
+        <button onclick="navDay(1)"  title="Next day">&#8250;</button>
+      </div>
+      <button class="today-btn" onclick="goToday()">Today</button>
+
+      <div class="toolbar-right">
+        <button class="btn btn-outline btn-sm" onclick="window.location.href='scheduling.html'">&#128197; Calendar View</button>
+        <button class="btn btn-primary btn-sm" onclick="window.location.href='scheduling.html'">+ New Appointment</button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip" id="statsStrip"></div>
+
+    <!-- Card grid -->
+    <div class="card-grid" id="cardGrid">
+      <div class="empty-agenda">
+        <div class="icon">&#128197;</div>
+        <p>Loading agenda...</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Collect Payment Modal -->
+<div class="modal-backdrop" id="collectModal" style="display:none"
+     onclick="if(event.target===this)closeCollect()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="collectTitle">Collect Payment</div>
+      <button class="modal-close" onclick="closeCollect()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="collectSummary" style="background:var(--surface-soft,#f8fafc);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
+      <div class="form-row">
+        <label class="form-label" for="col-method">Payment Method</label>
+        <select class="form-input" id="col-method">
+          <option value="Card">Credit / Debit Card</option>
+          <option value="Cash">Cash</option>
+          <option value="Check">Check</option>
+          <option value="Stripe">Stripe Link</option>
+          <option value="Waived">Waive Copay (sliding scale)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="col-amount">Amount ($)</label>
+        <input class="form-input" type="number" id="col-amount" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="col-notes">Notes</label>
+        <input class="form-input" id="col-notes" placeholder="Optional payment note...">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeCollect()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitCollect()">&#10003; Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Route to Biller Modal -->
+<div class="modal-backdrop" id="billerModal" style="display:none"
+     onclick="if(event.target===this)closeBiller()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Route to Biller</div>
+      <button class="modal-close" onclick="closeBiller()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="billerSummary" style="background:var(--surface-soft,#f8fafc);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
+      <div class="form-row">
+        <label class="form-label" for="bil-reason">Reason for Routing</label>
+        <select class="form-input" id="bil-reason">
+          <option value="Eligibility Issue">Eligibility Issue</option>
+          <option value="Prior Auth Required">Prior Auth Required</option>
+          <option value="Copay Dispute">Copay Dispute</option>
+          <option value="Outstanding Balance">Outstanding Balance</option>
+          <option value="Claim Error">Claim Error</option>
+          <option value="Insurance Change">Insurance Change</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="bil-note">Message to Biller</label>
+        <textarea class="form-input" id="bil-note" rows="3"
+          placeholder="Describe the issue..." style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeBiller()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitBiller()">&#128228; Send to Biller</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// -- Storage keys (shared with scheduling.html) --------------------------------
+const SCHED_KEY    = 'therassistant_appts_v1';
+const PAYMENT_KEY  = 'therassistant_payments_v1';
+const BILLER_KEY   = 'therassistant_biller_routes_v1';
+
+// -- State ---------------------------------------------------------------------
+let _cursor   = new Date();
+let _modalAppt = null;
+
+// -- Helpers -------------------------------------------------------------------
+function load(k) { try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch { return []; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+function isoDate(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+function addDays(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function isoToday() { return isoDate(new Date()); }
+
+function fmtFull(d) {
+  return d.toLocaleDateString('en-US',
+    { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const [h,m] = hhmm.split(':').map(Number);
+  return ((h%12)||12) + ':' + String(m).padStart(2,'0') + (h>=12?' PM':' AM');
+}
+function initials(name) {
+  if (!name) return '?';
+  const p = name.trim().split(/\s+/);
+  return ((p[0]?.[0]||'')+(p[p.length-1]?.[0]||'')).toUpperCase();
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt$(n) {
+  if (n == null || n === '') return '--';
+  return '$' + Number(n).toFixed(2);
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// -- Seed data (mirrors scheduling.html) --------------------------------------
+const PATIENT_PROFILES = {
+  'Maria Alvarez':   { payer:'Colorado Medicaid', ins_status:'Active',   member_id:'CO-12345678', copay:0,     deductible:0,    deductible_met:0,    balance:0,      ins_balance:0,      alerts:['Missing prior auth renewal'], auth_status:'Approved',      auth_number:'PA-2026-001', auth_sessions:20, auth_used:14 },
+  'Tyler Cruz':      { payer:'Colorado Access',   ins_status:'Pending',  member_id:'',            copay:10,    deductible:500,  deductible_met:120,  balance:0,      ins_balance:0,      alerts:['Eligibility not verified'], auth_status:'Pending',       auth_number:'',            auth_sessions:0,  auth_used:0  },
+  'Linda Patterson': { payer:'Aetna Better Health',ins_status:'Active',  member_id:'AET-887766',  copay:20,    deductible:1000, deductible_met:750,  balance:45,     ins_balance:0,      alerts:[], auth_status:'Not Required',   auth_number:'--',            auth_sessions:0,  auth_used:0  },
+  'Diane Okonkwo':   { payer:'United BH',          ins_status:'Active',  member_id:'UBH-554433',  copay:30,    deductible:2000, deductible_met:1800, balance:120,    ins_balance:90,     alerts:['Balance over 60 days','Copay not collected'], auth_status:'Approved', auth_number:'PA-2026-007', auth_sessions:12, auth_used:10 },
+  'Marcus Webb':     { payer:'Self-Pay',            ins_status:'Inactive',member_id:'',            copay:75,    deductible:0,    deductible_met:0,    balance:250,    ins_balance:0,      alerts:['No insurance on file'], auth_status:'Not Required',   auth_number:'--',            auth_sessions:0,  auth_used:0  },
+  'Rosa Guerrero':   { payer:'Rocky Mountain Health Plans', ins_status:'Active', member_id:'RMHP-987654', copay:15, deductible:500, deductible_met:500, balance:0, ins_balance:0, alerts:[], auth_status:'Not Required', auth_number:'--', auth_sessions:0, auth_used:0 },
+  'Samuel Torres':   { payer:'Colorado Medicaid',  ins_status:'Active',  member_id:'CO-99887766', copay:0,     deductible:0,    deductible_met:0,    balance:0,      ins_balance:0,      alerts:[], auth_status:'Not Required',   auth_number:'--',            auth_sessions:0,  auth_used:0  },
+  'Angela Kim':      { payer:'Beacon Health Options',ins_status:'Active', member_id:'BHO-441122', copay:25,   deductible:1500, deductible_met:900,  balance:85,     ins_balance:130,    alerts:['Claim denied - modifier','Auth expires in 3 days'], auth_status:'Approved', auth_number:'PA-2026-012', auth_sessions:16, auth_used:15 },
+  'Brandon Flores':  { payer:'Colorado Medicaid',  ins_status:'Unknown', member_id:'',            copay:0,     deductible:0,    deductible_met:0,    balance:0,      ins_balance:0,      alerts:['Eligibility unknown'], auth_status:'Unknown',        auth_number:'',            auth_sessions:0,  auth_used:0  },
+  'Catherine Murphy':{ payer:'Aetna Better Health',ins_status:'Active',  member_id:'AET-221133',  copay:20,    deductible:1000, deductible_met:200,  balance:0,      ins_balance:0,      alerts:[], auth_status:'Not Required',   auth_number:'--',            auth_sessions:0,  auth_used:0  },
+  'Devon Jackson':   { payer:'Colorado Medicaid',  ins_status:'Active',  member_id:'CO-44556677', copay:0,     deductible:0,    deductible_met:0,    balance:0,      ins_balance:0,      alerts:[], auth_status:'Not Required',   auth_number:'--',            auth_sessions:0,  auth_used:0  },
+  'Elena Vasquez':   { payer:'Self-Pay',            ins_status:'Inactive',member_id:'',            copay:80,    deductible:0,    deductible_met:0,    balance:400,    ins_balance:0,      alerts:['No insurance on file','Balance over 90 days'], auth_status:'Not Required', auth_number:'--', auth_sessions:0, auth_used:0 },
+};
+
+// -- Seed scheduling.html's appointments if empty ------------------------------
+function seedIfEmpty() {
+  if (load(SCHED_KEY).length) return;
+  const today = isoToday();
+  const d = new Date();
+  function dd(n) {
+    const r = new Date(d); r.setDate(r.getDate()+n);
+    return r.getFullYear()+'-'+String(r.getMonth()+1).padStart(2,'0')+'-'+String(r.getDate()).padStart(2,'0');
+  }
+  const seed = [
+    {id:'A-001',patient:'Maria Alvarez',   date:today,   time:'09:00',duration:50,type:'Individual Therapy',status:'Confirmed', notes:'Weekly therapy session'},
+    {id:'A-002',patient:'Tyler Cruz',      date:today,   time:'10:00',duration:60,type:'Assessment',        status:'Scheduled', notes:'H0031 initial assessment'},
+    {id:'A-003',patient:'Linda Patterson', date:today,   time:'13:00',duration:50,type:'Telehealth',        status:'Confirmed', notes:''},
+    {id:'A-004',patient:'Diane Okonkwo',   date:today,   time:'14:30',duration:50,type:'Individual Therapy',status:'Scheduled', notes:''},
+    {id:'A-005',patient:'Marcus Webb',     date:today,   time:'15:30',duration:30,type:'Check-In',          status:'No-Show',   notes:'',cancel_reason:'Patient No-Show'},
+    {id:'A-006',patient:'Rosa Guerrero',   date:dd(1),   time:'09:00',duration:50,type:'Individual Therapy',status:'Scheduled', notes:''},
+    {id:'A-007',patient:'Samuel Torres',   date:dd(1),   time:'11:00',duration:50,type:'Telehealth',        status:'Scheduled', notes:''},
+    {id:'A-008',patient:'Angela Kim',      date:dd(2),   time:'10:00',duration:90,type:'Group Therapy',     status:'Scheduled', notes:'DBT skills group'},
+    {id:'A-009',patient:'Brandon Flores',  date:dd(2),   time:'14:00',duration:50,type:'Individual Therapy',status:'Cancelled', notes:'',cancel_reason:'Patient Cancellation - Transportation'},
+    {id:'A-010',patient:'Catherine Murphy',date:dd(3),   time:'09:30',duration:50,type:'Assessment',        status:'Scheduled', notes:'H0001 annual'},
+    {id:'A-011',patient:'Devon Jackson',   date:dd(4),   time:'15:00',duration:50,type:'Individual Therapy',status:'Scheduled', notes:''},
+    {id:'A-012',patient:'Elena Vasquez',   date:dd(5),   time:'10:30',duration:50,type:'Individual Therapy',status:'Confirmed', notes:'Re-engagement after gap'},
+  ];
+  save(SCHED_KEY, seed);
+}
+
+// -- Date nav ------------------------------------------------------------------
+function navDay(dir) {
+  _cursor = addDays(_cursor, dir);
+  render();
+}
+function goToday() { _cursor = new Date(); render(); }
+
+// -- Render --------------------------------------------------------------------
+function render() {
+  const iso = isoDate(_cursor);
+  const isToday = iso === isoToday();
+
+  document.getElementById('dateLabel').textContent = fmtFull(_cursor);
+  document.getElementById('pageTitle').textContent = isToday ? "Today's Agenda" : 'Agenda';
+
+  const appts = load(SCHED_KEY)
+    .filter(a => a.date === iso)
+    .sort((a,b) => a.time.localeCompare(b.time));
+
+  // Stats
+  renderStats(appts);
+
+  const grid = document.getElementById('cardGrid');
+  if (!appts.length) {
+    grid.innerHTML = `<div class="empty-agenda">
+      <div class="icon">&#128197;</div>
+      <p>No appointments scheduled for ${isToday ? 'today' : fmtFull(_cursor)}.</p>
+    </div>`;
+    document.getElementById('pageSubtitle').textContent =
+      '0 appointments - ' + (isToday ? 'Today' : fmtFull(_cursor));
+    return;
+  }
+
+  document.getElementById('pageSubtitle').textContent =
+    appts.length + ' appointment' + (appts.length!==1?'s':'') +
+    ' - ' + appts.filter(a=>['Scheduled','Confirmed'].includes(a.status)).length + ' upcoming';
+
+  // Group appts by time block (AM / PM)
+  const am = appts.filter(a => parseInt(a.time) < 12);
+  const pm = appts.filter(a => parseInt(a.time) >= 12);
+
+  let html = '';
+  if (am.length) html += `<div class="time-separator" style="grid-column:1/-1">Morning</div>` + am.map(buildCard).join('');
+  if (pm.length) html += `<div class="time-separator" style="grid-column:1/-1">Afternoon / Evening</div>` + pm.map(buildCard).join('');
+
+  grid.innerHTML = html;
+}
+
+function renderStats(appts) {
+  const total     = appts.length;
+  const upcoming  = appts.filter(a=>['Scheduled','Confirmed'].includes(a.status)).length;
+  const completed = appts.filter(a=>a.status==='Completed').length;
+  const noShow    = appts.filter(a=>a.status==='No-Show').length;
+  const cancelled = appts.filter(a=>a.status==='Cancelled').length;
+  const alertCount= appts.reduce((sum, a) => {
+    const p = PATIENT_PROFILES[a.patient];
+    return sum + (p ? p.alerts.length : 0);
+  }, 0);
+
+  document.getElementById('statsStrip').innerHTML = [
+    ['Total', total, '#2563eb'],
+    ['Upcoming', upcoming, '#059669'],
+    ['Completed', completed, '#10b981'],
+    ['No-Shows', noShow, '#dc2626'],
+    ['Cancelled', cancelled, '#94a3b8'],
+    ['Billing Alerts', alertCount, '#d97706'],
+  ].map(([lbl, num, color]) => `
+    <div class="stat-chip">
+      <div class="sc-dot" style="background:${color}"></div>
+      <div>
+        <div class="stat-chip-num" style="color:${color}">${num}</div>
+        <div class="stat-chip-lbl">${lbl}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// -- Card builder --------------------------------------------------------------
+function buildCard(a) {
+  const p = PATIENT_PROFILES[a.patient] || {
+    payer: '--', ins_status: 'Unknown', member_id: '', copay: null,
+    deductible: null, deductible_met: null, balance: 0, ins_balance: 0,
+    alerts: [], auth_status: 'Unknown', auth_number: '', auth_sessions: 0, auth_used: 0,
+  };
+
+  // -- Status badge -----------
+  const stMap = {
+    Scheduled:'cs-scheduled', Confirmed:'cs-confirmed', Completed:'cs-completed',
+    Cancelled:'cs-cancelled', 'No-Show':'cs-noshow', Rescheduled:'cs-rescheduled'
+  };
+  const stBadge = `<span class="card-status-badge ${stMap[a.status]||'cs-scheduled'}">${esc(a.status)}</span>`;
+
+  // -- Type color class -------
+  const typeClass = {
+    'Individual Therapy':'card-individual', 'Group Therapy':'card-group',
+    'Assessment':'card-assessment', 'Telehealth':'card-telehealth',
+    'Check-In':'card-checkin', 'Med Management':'card-med', 'Intake':'card-intake',
+    'Cancelled':'card-cancelled',
+  }[a.status === 'Cancelled' ? 'Cancelled' : a.type] || 'card-individual';
+
+  const typePillClass = {
+    'Individual Therapy':'pt-individual','Group Therapy':'pt-group',
+    'Assessment':'pt-assessment','Telehealth':'pt-telehealth',
+    'Check-In':'pt-checkin','Med Management':'pt-med','Intake':'pt-intake',
+  }[a.type] || 'pt-individual';
+
+  const cancelled = ['Cancelled','No-Show'].includes(a.status);
+
+  // -- Eligibility badge ------
+  const eligClass = { Active:'elig-active', Inactive:'elig-inactive',
+    Pending:'elig-pending', Unknown:'elig-unknown' }[p.ins_status] || 'elig-unknown';
+  const eligBadge = `<span class="elig-badge ${eligClass}">
+    <span class="elig-dot"></span>${esc(p.ins_status)}
+  </span>`;
+
+  // -- Auth badge -------------
+  const authClass = {
+    'Approved':'auth-approved', 'Pending':'auth-pending',
+    'Not Required':'auth-not-required', 'Expired':'auth-expired',
+    'Denied':'auth-denied', 'Unknown':'auth-unknown',
+  }[p.auth_status] || 'auth-unknown';
+  const authBadge = `<span class="auth-badge ${authClass}">${esc(p.auth_status)}</span>`;
+  const authDetail = (p.auth_status === 'Approved' && p.auth_number && p.auth_sessions)
+    ? `<span style="font-size:11.5px;color:var(--ink-600);">${esc(p.auth_number)} - ${p.auth_used}/${p.auth_sessions} sessions used</span>`
+    : '';
+
+  // -- Deductible remaining ---
+  const deductRemaining = (p.deductible != null && p.deductible_met != null)
+    ? Math.max(0, p.deductible - p.deductible_met)
+    : null;
+
+  // -- Billing alerts ---------
+  let alertsHtml = '';
+  if (p.alerts.length === 0) {
+    alertsHtml = `<div class="alert-none">&#10003; No billing alerts</div>`;
+  } else {
+    alertsHtml = p.alerts.map(al =>
+      `<span class="alert-chip"><span class="alert-chip-icon">&#9888;</span>${esc(al)}</span>`
+    ).join('');
+  }
+
+  // -- Action buttons ---------
+  const isTelehealth = a.type === 'Telehealth';
+  const canAct = !cancelled;
+
+  const telehealthBtn = isTelehealth
+    ? `<button class="act-btn act-telehealth" onclick="launchTelehealth('${esc(a.id)}')" ${cancelled?'disabled':''}
+         title="Launch telehealth session">&#128249; Telehealth</button>`
+    : `<button class="act-btn act-disabled" disabled title="Not a telehealth appointment"
+         style="flex:initial;padding:8px 10px">&#128249;</button>`;
+
+  const startBtn = `<button class="act-btn act-start"
+    onclick="window.location.href='coder-home.html?patient=${esc(encodeURIComponent(a.patient))}'"
+    ${cancelled?'disabled style="background:var(--surface-soft,#f8fafc);color:var(--ink-400);border:1px solid var(--border)"':''}
+    title="Start coding session">&#9881; Start Session</button>`;
+
+  return `
+    <div class="appt-card ${typeClass}" data-appt-id="${esc(a.id)}">
+
+      <!-- Header -->
+      <div class="card-head">
+        <div class="card-avatar">${esc(initials(a.patient))}</div>
+        <div class="card-head-meta">
+          <div class="card-client-name">${esc(a.patient)}</div>
+          <div class="card-appt-info">
+            <span>${esc(fmtTime(a.time))}</span>
+            <span style="color:var(--border)">&middot;</span>
+            <span>${a.duration}min</span>
+            <span style="color:var(--border)">&middot;</span>
+            <span class="appt-type-pill ${typePillClass}">${esc(a.type)}</span>
+            ${stBadge}
+          </div>
+        </div>
+      </div>
+
+      <!-- Insurance section -->
+      <div class="card-section">
+        <div class="card-section-title">Insurance &amp; Eligibility</div>
+        <div class="ins-grid">
+          <div class="ins-row">
+            <span class="ins-key">Payer</span>
+            <span class="ins-val">${esc(p.payer)}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Eligibility</span>
+            <span class="ins-val">${eligBadge}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Member ID</span>
+            <span class="ins-val ${p.member_id?'':'val-muted'}">${esc(p.member_id||'Not on file')}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Copay</span>
+            <span class="ins-val ${p.copay>0?'val-amber':p.copay===0?'val-green':''}">${p.copay!=null?fmt$(p.copay):'--'}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial section -->
+      <div class="card-section">
+        <div class="card-section-title">Balances</div>
+        <div class="ins-grid">
+          <div class="ins-row">
+            <span class="ins-key">Patient Balance</span>
+            <span class="ins-val ${p.balance>0?'val-red':'val-green'}">${fmt$(p.balance)}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Insurance Balance</span>
+            <span class="ins-val ${p.ins_balance>0?'val-amber':'val-green'}">${fmt$(p.ins_balance)}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Deductible Remaining</span>
+            <span class="ins-val ${deductRemaining>0?'val-amber': deductRemaining===0?'val-green':''}">${deductRemaining!=null?fmt$(deductRemaining):'--'}</span>
+          </div>
+          <div class="ins-row">
+            <span class="ins-key">Deductible Status</span>
+            <span class="ins-val" style="font-size:12px;">
+              ${p.deductible>0
+                ? `${fmt$(p.deductible_met)} / ${fmt$(p.deductible)} met`
+                : p.deductible===0
+                  ? '<span class="val-green" style="font-size:12.5px">No deductible</span>'
+                  : '--'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prior Auth section -->
+      <div class="card-section">
+        <div class="card-section-title">Prior Authorization</div>
+        <div class="auth-row">
+          ${authBadge}
+          ${authDetail}
+        </div>
+      </div>
+
+      <!-- Billing Alerts section -->
+      <div class="card-section">
+        <div class="card-section-title">Billing Alerts</div>
+        <div>${alertsHtml}</div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="card-actions">
+        <button class="act-btn act-biller"
+          onclick="openBiller('${esc(a.id)}')"
+          ${cancelled?'disabled style="background:var(--surface-soft);color:var(--ink-400);border:1px solid var(--border)"':''}
+          title="Route to biller">
+          &#128228; Route to Biller
+        </button>
+        <button class="act-btn act-collect"
+          onclick="openCollect('${esc(a.id)}')"
+          ${cancelled?'disabled style="background:var(--surface-soft);color:var(--ink-400);border:1px solid var(--border)"':''}
+          title="Collect payment">
+          &#36; Collect
+        </button>
+        ${telehealthBtn}
+        ${startBtn}
+      </div>
+
+    </div>
+  `;
+}
+
+// -- Collect modal -------------------------------------------------------------
+function openCollect(id) {
+  const a = load(SCHED_KEY).find(x => x.id === id);
+  if (!a) return;
+  const p = PATIENT_PROFILES[a.patient] || {};
+  _modalAppt = a;
+  document.getElementById('collectTitle').textContent = 'Collect Payment - ' + a.patient;
+  document.getElementById('collectSummary').innerHTML = `
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:8px">${esc(a.patient)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><span style="color:var(--ink-500);font-size:11px;text-transform:uppercase;font-weight:700">Payer</span><br><strong>${esc(p.payer||'--')}</strong></div>
+      <div><span style="color:var(--ink-500);font-size:11px;text-transform:uppercase;font-weight:700">Copay Due</span><br><strong style="color:${(p.copay||0)>0?'#b45309':'#059669'}">${fmt$(p.copay)}</strong></div>
+      <div><span style="color:var(--ink-500);font-size:11px;text-transform:uppercase;font-weight:700">Patient Balance</span><br><strong style="color:${(p.balance||0)>0?'#dc2626':'#059669'}">${fmt$(p.balance)}</strong></div>
+      <div><span style="color:var(--ink-500);font-size:11px;text-transform:uppercase;font-weight:700">Eligibility</span><br><strong>${esc(p.ins_status||'Unknown')}</strong></div>
+    </div>
+  `;
+  document.getElementById('col-amount').value = p.copay > 0 ? p.copay.toFixed(2) : '';
+  document.getElementById('col-notes').value  = '';
+  document.getElementById('col-method').value = 'Card';
+  document.getElementById('collectModal').style.display = 'flex';
+}
+function closeCollect() { document.getElementById('collectModal').style.display = 'none'; }
+function submitCollect() {
+  if (!_modalAppt) return;
+  const amount = parseFloat(document.getElementById('col-amount').value);
+  if (!amount || amount <= 0) { toast('Enter a valid payment amount.'); return; }
+  const method = document.getElementById('col-method').value;
+  const note   = document.getElementById('col-notes').value.trim();
+  const payments = load(PAYMENT_KEY);
+  payments.push({
+    id: 'PAY-' + Date.now(),
+    appt_id: _modalAppt.id,
+    patient: _modalAppt.patient,
+    date: isoToday(),
+    amount,
+    method,
+    note,
+  });
+  save(PAYMENT_KEY, payments);
+  closeCollect();
+  toast(fmt$(amount) + ' recorded for ' + _modalAppt.patient + ' via ' + method + '.');
+}
+
+// -- Route to Biller modal -----------------------------------------------------
+function openBiller(id) {
+  const a = load(SCHED_KEY).find(x => x.id === id);
+  if (!a) return;
+  const p = PATIENT_PROFILES[a.patient] || {};
+  _modalAppt = a;
+  document.getElementById('billerSummary').innerHTML = `
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">${esc(a.patient)}</div>
+    <div style="font-size:12.5px;color:var(--ink-600)">${esc(a.type)} - ${fmtTime(a.time)} - ${esc(p.payer||'--')}</div>
+    ${p.alerts.length ? `<div style="margin-top:8px">${p.alerts.map(al=>`<span class="alert-chip" style="font-size:11px"><span style="font-size:12px">?</span>${esc(al)}</span>`).join('')}</div>` : ''}
+  `;
+  // Pre-select reason from alerts
+  if (p.alerts.some(x => x.toLowerCase().includes('elig'))) document.getElementById('bil-reason').value = 'Eligibility Issue';
+  else if (p.alerts.some(x => x.toLowerCase().includes('auth')))  document.getElementById('bil-reason').value = 'Prior Auth Required';
+  else if (p.alerts.some(x => x.toLowerCase().includes('balance'))) document.getElementById('bil-reason').value = 'Outstanding Balance';
+  else document.getElementById('bil-reason').value = 'Other';
+  document.getElementById('bil-note').value = '';
+  document.getElementById('billerModal').style.display = 'flex';
+}
+function closeBiller() { document.getElementById('billerModal').style.display = 'none'; }
+function submitBiller() {
+  if (!_modalAppt) return;
+  const reason = document.getElementById('bil-reason').value;
+  const note   = document.getElementById('bil-note').value.trim();
+  const routes = load(BILLER_KEY);
+  routes.push({
+    id: 'BRT-' + Date.now(),
+    appt_id: _modalAppt.id,
+    patient: _modalAppt.patient,
+    date: isoToday(),
+    reason,
+    note,
+    status: 'Pending',
+  });
+  save(BILLER_KEY, routes);
+  closeBiller();
+  toast(_modalAppt.patient + ' routed to biller: ' + reason);
+}
+
+// -- Telehealth launch ---------------------------------------------------------
+function launchTelehealth(id) {
+  const a = load(SCHED_KEY).find(x => x.id === id);
+  if (!a) return;
+  // In production this opens the telehealth platform URL.
+  // For now, open a placeholder and show a toast.
+  toast('Launching telehealth session for ' + a.patient + '--');
+  setTimeout(() => {
+    // Could be: window.open(a.telehealth_url, '_blank');
+    alert('Telehealth session for ' + a.patient + '.\n\nIn production, this launches your configured telehealth platform (Doxy.me, Zoom for Healthcare, etc.) with the patient meeting link.');
+  }, 400);
+}
+
+// -- Boot ----------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof initDashboard === 'function') {
+    initDashboard(['clinician','supervisor','front_desk','admin','super_admin']);
+  }
+  if (typeof initLogout === 'function') initLogout();
+  seedIfEmpty();
+  render();
+});
+</script>
+</body>
+</html>

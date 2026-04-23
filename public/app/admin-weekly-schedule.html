@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Weekly Schedule</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+    .nav-group-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.35);padding:18px 13px 4px;pointer-events:none;user-select:none}
+
+    /* Layout */
+    .page-layout{display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start}
+    .page-main{min-width:0}
+
+    /* KPI strip */
+    .kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#7c3aed)}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+
+    /* Toolbar */
+    .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 15px;box-shadow:var(--shadow-sm)}
+    .nav-week-btns{display:flex;align-items:center;gap:5px}
+    .nav-week-btns button{width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--ink-700)}
+    .nav-week-btns button:hover{background:#f0f7ff}
+    .week-label{font-size:13.5px;font-weight:700;color:var(--ink-900);min-width:200px;text-align:center}
+    .today-btn{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--ink-700);font-family:inherit}
+    .today-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .spacer{flex:1}
+
+    /* Filter strip */
+    .filter-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+    .filter-strip select,.filter-strip input{padding:7px 10px;border:1px solid var(--border);border-radius:9px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+    .filter-strip select:focus,.filter-strip input:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(47,121,183,.12)}
+
+    /* Weekly grid */
+    .week-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .week-col-headers{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--border)}
+    .week-day-hdr{padding:10px 8px;text-align:center;border-right:1px solid var(--border);background:#f5f9fe;cursor:default}
+    .week-day-hdr:last-child{border-right:none}
+    .week-day-hdr.today{background:#eff6ff}
+    .week-day-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500)}
+    .week-day-num{font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:var(--ink-900);line-height:1;margin:3px 0}
+    .week-day-hdr.today .week-day-num{background:var(--blue-600);color:#fff;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;margin:3px auto}
+    .week-day-total{font-size:10.5px;color:var(--ink-500);font-weight:600}
+    .week-day-cols{display:grid;grid-template-columns:repeat(7,1fr);min-height:480px}
+    .week-day-col{border-right:1px solid var(--border);padding:6px 5px;display:flex;flex-direction:column;gap:4px;min-height:480px}
+    .week-day-col:last-child{border-right:none}
+    .week-day-col.today-col{background:#f7fbff}
+
+    /* Appointment chips */
+    .week-appt-chip{border-radius:6px;padding:5px 8px;cursor:pointer;transition:filter .1s,transform .1s;border-left:3px solid transparent;font-size:11.5px}
+    .week-appt-chip:hover{filter:brightness(.93);transform:translateY(-1px)}
+    .week-appt-time{font-size:10.5px;font-weight:700;margin-bottom:1px;opacity:.8}
+    .week-appt-patient{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .week-appt-type{font-size:10px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .week-more{font-size:11px;font-weight:700;color:var(--blue-700);text-align:center;padding:4px;cursor:pointer}
+    .week-more:hover{text-decoration:underline}
+
+    /* Sidebar insight card */
+    .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+    .insight-title{font-size:13px;font-weight:700;color:var(--ink-900);margin-bottom:14px}
+    .insight-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:10px}
+    .insight-row:last-child{border-bottom:none;padding-bottom:0}
+    .insight-label{font-size:12px;color:var(--ink-700);font-weight:600}
+    .insight-value{font-size:13px;font-weight:700;color:var(--ink-900);text-align:right}
+    .insight-sub{font-size:11px;color:var(--ink-500)}
+
+    /* Status badges */
+    .badge-scheduled{color:#1e40af;background:#dbeafe;border:1px solid #93c5fd}
+    .badge-confirmed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-arrived{color:#0f766e;background:#ccfbf1;border:1px solid #5eead4}
+    .badge-in-session{color:#5b21b6;background:#ede9fe;border:1px solid #a78bfa}
+    .badge-completed{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+    .badge-no-show{color:#7f1d1d;background:#fee2e2;border:1px solid #fca5a5}
+    .badge-cancelled{color:#78350f;background:#fef3c7;border:1px solid #fcd34d}
+    .telehealth-chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px;background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe}
+
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1200;display:none;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop.open{display:flex}
+    .modal{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-lg);border:1px solid var(--border);width:min(540px,100%);max-height:88vh;overflow-y:auto;animation:fadeSlideUp 200ms ease-out both}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+    .modal-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;color:var(--ink-900)}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-500);padding:4px;border-radius:6px}
+    .modal-close:hover{background:#f0f0f0}
+    .modal-body{padding:20px 24px}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--border)}
+    .detail-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+    .detail-group{display:flex;flex-direction:column;gap:4px}
+    .detail-lbl{font-size:11px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.04em}
+    .detail-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+
+    @media(max-width:1200px){.page-layout{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:860px){.week-col-headers,.week-day-cols{grid-template-columns:repeat(4,1fr)}.week-day-col:nth-child(n+5){display:none}.week-day-hdr:nth-child(n+5){display:none}}
+    @media(max-width:600px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.week-col-headers,.week-day-cols{grid-template-columns:repeat(3,1fr)}.week-day-col:nth-child(n+4){display:none}.week-day-hdr:nth-child(n+4){display:none}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Scheduling</div>
+      <a class="nav-link" href="admin-daily-schedule.html">Daily Schedule</a>
+      <a class="nav-link active" href="admin-weekly-schedule.html">Weekly Schedule</a>
+      <a class="nav-link" href="admin-monthly-schedule.html">Monthly Schedule</a>
+      <a class="nav-link" href="admin-waitlist.html">Waitlist</a>
+      <a class="nav-link" href="admin-recurring-appointments.html">Recurring Appointments</a>
+      <a class="nav-link" href="admin-no-shows-cancellations.html">No-Shows &amp; Cancellations</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Weekly Schedule</h1>
+        <p>7-day provider appointment overview</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <a class="btn btn-outline btn-sm" href="admin-daily-schedule.html">Daily View</a>
+        <a class="btn btn-outline btn-sm" href="admin-monthly-schedule.html">Monthly View</a>
+        <button class="btn btn-blue btn-sm" id="btnNewAppt" type="button">&#43; New Appointment</button>
+      </div>
+    </header>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card blue"><div class="kpi-num" id="kpiWeekTotal">—</div><div class="kpi-lbl">This Week</div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="kpiWeekDone">—</div><div class="kpi-lbl">Completed</div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="kpiWeekCancelled">—</div><div class="kpi-lbl">Cancelled</div></div>
+      <div class="kpi-card red"><div class="kpi-num" id="kpiWeekNoShow">—</div><div class="kpi-lbl">No-Shows</div></div>
+      <div class="kpi-card purple"><div class="kpi-num" id="kpiWeekUtil">—</div><div class="kpi-lbl">Utilization</div></div>
+    </div>
+
+    <div class="page-layout">
+      <div class="page-main">
+        <!-- Toolbar -->
+        <div class="toolbar" role="toolbar" aria-label="Week navigation">
+          <div class="nav-week-btns">
+            <button id="btnPrevWeek" type="button" aria-label="Previous week">&#8249;</button>
+            <span class="week-label" id="weekLabel"></span>
+            <button id="btnNextWeek" type="button" aria-label="Next week">&#8250;</button>
+          </div>
+          <button class="today-btn" id="btnThisWeek" type="button">This Week</button>
+          <div class="spacer"></div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-strip" aria-label="Schedule filters">
+          <select id="fProvider" aria-label="Provider"><option value="">All Providers</option></select>
+          <select id="fStatus" aria-label="Status">
+            <option value="">All Statuses</option>
+            <option>Scheduled</option><option>Confirmed</option><option>Arrived</option>
+            <option>In Session</option><option>Completed</option><option>No-Show</option><option>Cancelled</option>
+          </select>
+          <select id="fType" aria-label="Appointment type"><option value="">All Types</option></select>
+          <select id="fLocation" aria-label="Location"><option value="">All Locations</option></select>
+        </div>
+
+        <!-- Weekly grid -->
+        <div class="week-grid-wrap">
+          <div class="week-col-headers" id="weekHeaders"></div>
+          <div class="week-day-cols" id="weekCols"></div>
+        </div>
+      </div>
+
+      <!-- Sidebar insights -->
+      <aside style="min-width:0">
+        <div class="insight-card">
+          <div class="insight-title">&#128202; Week Insights</div>
+          <div class="insight-row"><div><div class="insight-label">Busiest Provider</div><div class="insight-sub">Most appts this week</div></div><div class="insight-value" id="siProv">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">Busiest Day</div><div class="insight-sub">Highest volume</div></div><div class="insight-value" id="siDay">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">Cancellation Rate</div><div class="insight-sub">This week</div></div><div class="insight-value" id="siCancelRate">—</div></div>
+          <div class="insight-row"><div><div class="insight-label">No-Show Rate</div><div class="insight-sub">This week</div></div><div class="insight-value" id="siNoShowRate">—</div></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">&#128100; Provider Load</div>
+          <div id="providerLoad"></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">&#128336; Upcoming Today</div>
+          <div id="upcomingToday"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="detailTitle">Appointment Details</span>
+      <button class="modal-close" id="btnCloseDetail" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseDetailFtr" type="button">Close</button>
+      <button class="btn btn-outline btn-sm" id="btnReschedule" type="button">Reschedule</button>
+      <button class="btn btn-blue btn-sm" id="btnMarkComplete" type="button">Mark Completed</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ── Helpers ── */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmtTime(t){if(!t)return'—';try{const[h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';return`${h%12||12}:${String(m).padStart(2,'0')} ${ap}`}catch{return t}}
+function fmtDateShort(d){try{return new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}catch{return d}}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+function lsGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):[]}catch{return[]}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+
+const TODAY_ISO=new Date().toISOString().slice(0,10);
+const SEED_KEY='therassistant_daily_appts_v1';
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* ── Shared seed data (same as daily — share storage key) ── */
+const BASE_APPTS=[
+  {id:'APT-001',start:'08:00',end:'09:00',duration:60,patient:'Marcus Johnson',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'Completed'},
+  {id:'APT-002',start:'09:00',end:'09:55',duration:55,patient:'Linda Patterson',provider:'Dr. Sarah Chen',type:'Psychotherapy 53+ min',payer:'Aetna Better Health',location:'Room 101',telehealth:false,status:'Completed'},
+  {id:'APT-003',start:'10:00',end:'10:30',duration:30,patient:'Tyler Cruz',provider:'Dr. Sarah Chen',type:'Med Management',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'Scheduled'},
+  {id:'APT-004',start:'11:00',end:'12:00',duration:60,patient:'Destiny Williams',provider:'Dr. Sarah Chen',type:'Individual Therapy',payer:'BCBS CO',location:'Telehealth',telehealth:true,status:'Confirmed'},
+  {id:'APT-005',start:'13:00',end:'14:00',duration:60,patient:'James Rivera',provider:'Dr. Michael Torres',type:'Substance Use Assessment',payer:'Colorado Medicaid',location:'Room 202',telehealth:false,status:'Completed'},
+  {id:'APT-006',start:'14:00',end:'15:00',duration:60,patient:'Sofia Martinez',provider:'Dr. Michael Torres',type:'Individual Therapy',payer:'United Healthcare',location:'Room 202',telehealth:false,status:'No-Show'},
+  {id:'APT-007',start:'15:00',end:'16:00',duration:60,patient:'Elijah Thompson',provider:'Dr. Michael Torres',type:'Group Therapy',payer:'Colorado Medicaid',location:'Group Room A',telehealth:false,status:'Scheduled'},
+  {id:'APT-008',start:'09:00',end:'10:00',duration:60,patient:'Noah Davis',provider:'Dr. Priya Nair',type:'Family Therapy',payer:'Anthem BCBS',location:'Room 303',telehealth:false,status:'Completed'},
+  {id:'APT-009',start:'10:30',end:'11:30',duration:60,patient:'Isabella Wilson',provider:'Dr. Priya Nair',type:'Individual Therapy',payer:'Humana BH',location:'Room 303',telehealth:false,status:'Cancelled'},
+  {id:'APT-010',start:'08:30',end:'09:00',duration:30,patient:'Carmen Reyes',provider:'Dr. James Liu',type:'Med Management',payer:'Anthem BCBS',location:'Room 404',telehealth:false,status:'Completed'},
+  {id:'APT-011',start:'10:00',end:'11:00',duration:60,patient:'Denise Morgan',provider:'Dr. James Liu',type:'Individual Therapy',payer:'United BH',location:'Room 404',telehealth:false,status:'Cancelled'},
+  {id:'APT-012',start:'14:00',end:'15:00',duration:60,patient:'Robert Kim',provider:'Dr. Priya Nair',type:'Psychotherapy 53+ min',payer:'Colorado Medicaid',location:'Telehealth',telehealth:true,status:'Scheduled'},
+];
+
+function seedWeekData(){
+  const existing=lsGet(SEED_KEY);
+  const mon=getWeekStart(TODAY_ISO);
+  // Only seed Mon–Sat with slight variations; skip Sunday
+  const days=[0,1,2,3,4,5];
+  let added=false;
+  days.forEach(offset=>{
+    const date=addDays(mon,offset);
+    const hasDate=existing.some(a=>a.date===date);
+    if(!hasDate){
+      BASE_APPTS.slice(0,offset%2===0?8:6).forEach((a,i)=>{
+        existing.push({...a,id:`WK-${date}-${i}`,date,status:['Completed','Scheduled','Confirmed','No-Show','Cancelled'][i%5]});
+      });
+      added=true;
+    }
+  });
+  if(added) lsSet(SEED_KEY,existing);
+}
+
+/* ── State ── */
+let weekStart=getWeekStart(TODAY_ISO);
+let focusedId=null;
+
+function getWeekStart(iso){
+  const d=new Date(iso+'T00:00:00');
+  const day=d.getDay(); // 0=Sun
+  d.setDate(d.getDate()- day);
+  return d.toISOString().slice(0,10);
+}
+
+/* ── Type colors ── */
+const TYPE_COLORS={'Individual Therapy':'#2f79b7','Psychotherapy 53+ min':'#2f79b7','Group Therapy':'#8b5cf6','Family Therapy':'#d97706','Med Management':'#059669','Substance Use Assessment':'#dc2626','Intake':'#0f766e'};
+function typeColor(t){return TYPE_COLORS[t]||'#64748b'}
+function hexToRgba(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`rgba(${r},${g},${b},${a})`}
+
+/* ── Populate filters ── */
+function populateFilters(){
+  const all=lsGet(SEED_KEY);
+  const providers=[...new Set(all.map(a=>a.provider))];
+  const types=[...new Set(all.map(a=>a.type))];
+  const locations=[...new Set(all.map(a=>a.location))];
+  const pSel=document.getElementById('fProvider');
+  providers.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;pSel.appendChild(o)});
+  const tSel=document.getElementById('fType');
+  types.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;tSel.appendChild(o)});
+  const lSel=document.getElementById('fLocation');
+  locations.forEach(l=>{const o=document.createElement('option');o.value=l;o.textContent=l;lSel.appendChild(o)});
+}
+
+/* ── Get week dates ── */
+function getWeekDates(){
+  return Array.from({length:7},(_,i)=>addDays(weekStart,i));
+}
+
+/* ── Filtered appts for a date ── */
+function getAppts(date){
+  const all=lsGet(SEED_KEY);
+  const pVal=document.getElementById('fProvider').value;
+  const sVal=document.getElementById('fStatus').value;
+  const tVal=document.getElementById('fType').value;
+  const lVal=document.getElementById('fLocation').value;
+  return all.filter(a=>{
+    if(a.date!==date) return false;
+    if(pVal&&a.provider!==pVal) return false;
+    if(sVal&&a.status!==sVal) return false;
+    if(tVal&&a.type!==tVal) return false;
+    if(lVal&&a.location!==lVal) return false;
+    return true;
+  }).sort((a,b)=>a.start.localeCompare(b.start));
+}
+
+/* ── KPI calculation ── */
+function calcKpis(dates){
+  const all=lsGet(SEED_KEY).filter(a=>dates.includes(a.date));
+  const total=all.length;
+  const done=all.filter(a=>a.status==='Completed').length;
+  const cancelled=all.filter(a=>a.status==='Cancelled').length;
+  const noShow=all.filter(a=>a.status==='No-Show').length;
+  const util=total>0?Math.round((done+all.filter(a=>['Arrived','In Session'].includes(a.status)).length)/total*100):0;
+  document.getElementById('kpiWeekTotal').textContent=total;
+  document.getElementById('kpiWeekDone').textContent=done;
+  document.getElementById('kpiWeekCancelled').textContent=cancelled;
+  document.getElementById('kpiWeekNoShow').textContent=noShow;
+  document.getElementById('kpiWeekUtil').textContent=util+'%';
+}
+
+/* ── Insights sidebar ── */
+function renderInsights(dates){
+  const all=lsGet(SEED_KEY).filter(a=>dates.includes(a.date));
+  const total=all.length;
+  // Busiest provider
+  const provMap={};
+  all.forEach(a=>{provMap[a.provider]=(provMap[a.provider]||0)+1});
+  const topProv=Object.entries(provMap).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('siProv').innerHTML=topProv?`${esc(topProv[0].replace('Dr.','').trim())}<div style="font-size:11px;color:var(--ink-500)">${topProv[1]} appts</div>`:'—';
+  // Busiest day
+  const dayMap={};
+  all.forEach(a=>{dayMap[a.date]=(dayMap[a.date]||0)+1});
+  const topDay=Object.entries(dayMap).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('siDay').innerHTML=topDay?`${esc(DOW[new Date(topDay[0]+'T00:00:00').getDay()])}<div style="font-size:11px;color:var(--ink-500)">${topDay[1]} appts</div>`:'—';
+  // Rates
+  const cancelRate=total?Math.round(all.filter(a=>a.status==='Cancelled').length/total*100):0;
+  const nsRate=total?Math.round(all.filter(a=>a.status==='No-Show').length/total*100):0;
+  document.getElementById('siCancelRate').textContent=cancelRate+'%';
+  document.getElementById('siNoShowRate').textContent=nsRate+'%';
+
+  // Provider load bars
+  const provLoad=document.getElementById('providerLoad');
+  const maxLoad=Math.max(1,...Object.values(provMap));
+  provLoad.innerHTML=Object.entries(provMap).sort((a,b)=>b[1]-a[1]).map(([prov,cnt])=>`
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--ink-700);margin-bottom:3px"><span>${esc(prov.replace('Dr.','').trim())}</span><span>${cnt}</span></div>
+      <div style="height:5px;border-radius:999px;background:#e5edf5;overflow:hidden"><div style="height:100%;border-radius:999px;background:var(--blue-500);width:${Math.round(cnt/maxLoad*100)}%"></div></div>
+    </div>`).join('')||'<div style="font-size:12px;color:var(--ink-500)">No appointments this week.</div>';
+
+  // Upcoming today
+  const todayAppts=lsGet(SEED_KEY).filter(a=>a.date===TODAY_ISO&&['Scheduled','Confirmed','Arrived'].includes(a.status));
+  const uptEl=document.getElementById('upcomingToday');
+  uptEl.innerHTML=todayAppts.length
+    ?todayAppts.slice(0,4).map(a=>`<div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span style="font-weight:700">${esc(fmtTime(a.start))}</span> &mdash; ${esc(a.patient)}<div style="font-size:11px;color:var(--ink-500)">${esc(a.provider.replace('Dr.','').trim())} &bull; ${esc(a.type)}</div></div>`).join('')
+    :'<div style="font-size:12px;color:var(--ink-500)">No upcoming appointments today.</div>';
+}
+
+/* ── Render grid ── */
+function renderWeek(){
+  const dates=getWeekDates();
+  calcKpis(dates);
+  renderInsights(dates);
+
+  // Week label
+  const first=new Date(dates[0]+'T00:00:00');
+  const last=new Date(dates[6]+'T00:00:00');
+  document.getElementById('weekLabel').textContent=
+    `${first.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+
+  // Headers
+  const hdrEl=document.getElementById('weekHeaders');
+  hdrEl.innerHTML=dates.map(d=>{
+    const appts=getAppts(d);
+    const isToday=d===TODAY_ISO;
+    const dayDate=new Date(d+'T00:00:00');
+    return `<div class="week-day-hdr${isToday?' today':''}">
+      <div class="week-day-name">${DOW[dayDate.getDay()]}</div>
+      <div class="week-day-num">${dayDate.getDate()}</div>
+      <div class="week-day-total">${appts.length} appt${appts.length!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+
+  // Columns
+  const colEl=document.getElementById('weekCols');
+  colEl.innerHTML=dates.map(d=>{
+    const appts=getAppts(d);
+    const isToday=d===TODAY_ISO;
+    const MAX_SHOW=6;
+    const chips=appts.slice(0,MAX_SHOW).map(a=>{
+      const color=typeColor(a.type);
+      return `<div class="week-appt-chip" data-id="${esc(a.id)}" style="background:${hexToRgba(color,.1)};border-left-color:${color}" role="button" tabindex="0" aria-label="${esc(a.patient)} at ${esc(fmtTime(a.start))}">
+        <div class="week-appt-time">${esc(fmtTime(a.start))}</div>
+        <div class="week-appt-patient">${esc(a.patient.split(' ')[0])} ${esc(a.patient.split(' ').slice(-1)[0])}</div>
+        <div class="week-appt-type">${esc(a.type)}</div>
+      </div>`;
+    }).join('');
+    const more=appts.length>MAX_SHOW?`<div class="week-more" data-date="${esc(d)}">+${appts.length-MAX_SHOW} more →</div>`:'';
+    return `<div class="week-day-col${isToday?' today-col':''}" data-date="${esc(d)}">${chips}${more}</div>`;
+  }).join('');
+}
+
+/* ── Detail modal ── */
+function openDetail(id){
+  const all=lsGet(SEED_KEY);
+  const a=all.find(x=>x.id===id);
+  if(!a) return;
+  focusedId=id;
+  document.getElementById('detailBody').innerHTML=`
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Patient</div><div class="detail-val">${esc(a.patient)}</div></div><div class="detail-group"><div class="detail-lbl">Provider</div><div class="detail-val">${esc(a.provider)}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Date</div><div class="detail-val">${esc(fmtDateShort(a.date))}</div></div><div class="detail-group"><div class="detail-lbl">Time</div><div class="detail-val">${esc(fmtTime(a.start))} – ${esc(fmtTime(a.end))}</div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Type</div><div class="detail-val">${esc(a.type)}</div></div><div class="detail-group"><div class="detail-lbl">Status</div><div class="detail-val"><span class="badge badge-${(a.status||'').toLowerCase().replace(/[^a-z]/g,'-')}">${esc(a.status)}</span></div></div></div>
+    <div class="detail-row"><div class="detail-group"><div class="detail-lbl">Location</div><div class="detail-val">${esc(a.location)}</div></div><div class="detail-group"><div class="detail-lbl">Payer</div><div class="detail-val">${esc(a.payer)}</div></div></div>`;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetail(){document.getElementById('detailModal').classList.remove('open');focusedId=null}
+
+/* ── Events ── */
+document.addEventListener('click',e=>{
+  const chip=e.target.closest('.week-appt-chip[data-id]');
+  if(chip){openDetail(chip.dataset.id);return}
+  const moreBtn=e.target.closest('.week-more[data-date]');
+  if(moreBtn){window.location=`admin-daily-schedule.html`;return}
+  if(e.target.id==='detailModal') closeDetail();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeDetail();
+  if((e.key==='Enter'||e.key===' ')&&document.activeElement.classList.contains('week-appt-chip')){
+    e.preventDefault();openDetail(document.activeElement.dataset.id);
+  }
+});
+document.getElementById('btnPrevWeek').addEventListener('click',()=>{weekStart=addDays(weekStart,-7);renderWeek()});
+document.getElementById('btnNextWeek').addEventListener('click',()=>{weekStart=addDays(weekStart,7);renderWeek()});
+document.getElementById('btnThisWeek').addEventListener('click',()=>{weekStart=getWeekStart(TODAY_ISO);renderWeek()});
+document.getElementById('btnCloseDetail').addEventListener('click',closeDetail);
+document.getElementById('btnCloseDetailFtr').addEventListener('click',closeDetail);
+document.getElementById('btnMarkComplete').addEventListener('click',()=>{
+  if(!focusedId) return;
+  const all=lsGet(SEED_KEY);
+  const i=all.findIndex(x=>x.id===focusedId);
+  if(i>-1){all[i].status='Completed';lsSet(SEED_KEY,all);}
+  closeDetail();renderWeek();
+});
+['fProvider','fStatus','fType','fLocation'].forEach(id=>document.getElementById(id).addEventListener('change',renderWeek));
+document.getElementById('btnNewAppt').addEventListener('click',()=>{
+  window.location.href='admin-daily-schedule.html?action=new-appointment';
+});
+
+window.addEventListener('load',async()=>{
+  if(typeof initDashboard==='function'&&typeof ADMIN_ROLES!=='undefined'){
+    try{await initDashboard(ADMIN_ROLES)}catch(err){console.error('[admin-weekly-schedule]',err)}
+  }
+  seedWeekData();
+  populateFilters();
+  renderWeek();
+});
+</script>
+</body>
+</html>

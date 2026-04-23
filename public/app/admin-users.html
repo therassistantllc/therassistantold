@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin - Users</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .user-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--blue-500),var(--blue-700));color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;text-transform:uppercase;margin-right:8px}
+    .user-cell{display:flex;align-items:center}
+    .user-name{font-weight:600;font-size:13px;color:var(--ink-900)}
+    .user-email{font-size:11.5px;color:var(--ink-500);margin-top:1px}
+    .role-select{font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink-900);cursor:pointer;font-family:inherit}
+    .saved-flash{color:#059669;font-size:11.5px;font-weight:700;margin-left:6px;opacity:0;transition:opacity .3s}
+    .error-notice{background:#fde8e8;border:1px solid #fca5a5;color:#9b1c1c;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:16px;display:none}
+    .empty-state{text-align:center;padding:40px;color:var(--ink-500);font-size:14px}
+    .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+    .pagination{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--ink-600)}
+    .pagination button{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:13px;font-family:inherit}
+    .pagination button:disabled{opacity:.4;cursor:not-allowed}
+    /* User profile drawer */
+    .user-drawer-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.45);z-index:1000;display:none;align-items:stretch;justify-content:flex-end}
+    .user-drawer-backdrop.open{display:flex}
+    .user-drawer{width:min(720px,100%);background:#fff;border-left:1px solid var(--border);box-shadow:0 0 60px rgba(13,53,94,.25);display:flex;flex-direction:column;overflow:hidden}
+    .user-drawer-head{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid var(--border)}
+    .user-drawer-body{flex:1;overflow-y:auto;padding:0}
+    .user-drawer-tabs{display:flex;border-bottom:2px solid var(--border);padding:0 24px;gap:0}
+    .user-drawer-tab{padding:11px 16px;font-size:13px;font-weight:600;color:var(--ink-500);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .15s,border-color .15s}
+    .user-drawer-tab.active{color:var(--blue-800);border-bottom-color:var(--blue-700)}
+    .user-drawer-tab-panel{display:none;padding:20px 24px}
+    .user-drawer-tab-panel.active{display:block}
+    .user-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-bottom:16px}
+    .user-field{display:flex;flex-direction:column;gap:3px}
+    .user-field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .user-field-val{font-size:13.5px;color:var(--ink-900);font-weight:500}
+    .user-drawer-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+    .btn-warn{background:#fff0e5;border:1px solid #f5c6a0;color:#7c2d12;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+    .btn-danger-sm{background:#fde8e8;border:1px solid #fca5a5;color:#9b1c1c;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+    @media(max-width:700px){.adm-stats{grid-template-columns:1fr 1fr}.user-field-grid{grid-template-columns:1fr}.user-drawer{width:100%}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">DOCUSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link active" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Users</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline btn-sm" onclick="enterPreviewMode()">&#128065; Preview Clinician View</button>
+        <a class="btn btn-outline btn-sm" href="admin-dashboard.html">&#8592; Back to Overview</a>
+      </div>
+    </header>
+
+    <div class="error-notice" id="errorNotice"></div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="userSearch" placeholder="Search name, email or practice&hellip;" oninput="applyFilters()">
+        <select id="roleFilter" onchange="applyFilters()">
+          <option value="">All Roles</option>
+          <option value="clinician">Clinician</option>
+          <option value="admin">Admin</option>
+          <option value="billing_staff">Billing Staff</option>
+          <option value="super_admin">Super Admin</option>
+        </select>
+        <select id="statusFilter" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+          <option value="pending">Pending Approval</option>
+        </select>
+        <select id="tierFilter" onchange="applyFilters()">
+          <option value="">All Tiers</option>
+          <option value="Trial">Trial</option>
+          <option value="Starter">Starter</option>
+          <option value="Professional">Professional</option>
+          <option value="Enterprise">Enterprise</option>
+        </select>
+        <select id="stateFilter" onchange="applyFilters()">
+          <option value="">All States</option>
+          <option value="CO">Colorado</option>
+          <option value="CA">California</option>
+          <option value="TX">Texas</option>
+          <option value="NY">New York</option>
+          <option value="FL">Florida</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadUsers()" id="refreshBtn">&#8635; Refresh</button>
+        <span id="userCount" style="font-size:13px;color:var(--ink-500)"></span>
+      </div>
+
+      <div id="loadingState" style="text-align:center;padding:40px;color:var(--ink-500);font-size:14px">Loading users&hellip;</div>
+      <div id="tableContainer" style="display:none">
+        <!-- Bulk toolbar -->
+        <div id="usersBulkToolbar" style="display:none;align-items:center;gap:10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin-bottom:10px;flex-wrap:wrap">
+          <span id="usersBulkCount" style="font-size:13px;font-weight:700;color:var(--blue-700)">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="bulkUsersExport()">&#8595; Export CSV</button>
+          <select id="bulkRoleSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;background:var(--surface)"><option value="">Change Role&hellip;</option><option value="clinician">Clinician</option><option value="admin">Admin</option><option value="billing_staff">Billing Staff</option><option value="super_admin">Super Admin</option></select>
+          <button class="btn btn-outline btn-sm" onclick="bulkUsersSetRole()">Apply Role</button>
+          <button class="btn btn-outline btn-sm" style="color:#b91c1c;border-color:#fca5a5" onclick="bulkUsersClearSelection()">Clear</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="usersTable">
+            <thead><tr>
+              <th style="width:32px"><input type="checkbox" id="usersSelectAll" title="Select all" onchange="toggleSelectAllUsers(this)"></th>
+              <th>User</th>
+              <th>Practice</th>
+              <th>Role / Status</th>
+              <th>Subscription</th>
+              <th>State</th>
+              <th>Last Login</th>
+              <th>Sessions</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="pageInfo"></span>
+          <button id="prevBtn" onclick="changePage(-1)" disabled>&#8592; Prev</button>
+          <button id="nextBtn" onclick="changePage(1)">Next &#8594;</button>
+        </div>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none">No users match your filter.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+let allUsers = [];
+let filteredUsers = [];
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let currentDrawerUserId = null;
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(iso){ if(!iso) return '--'; return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function initials(email){ return (email||'--')[0].toUpperCase(); }
+function roleBadge(r){ const map={clinician:'badge-status-new',admin:'badge-primary',billing_staff:'badge-status-waiting',super_admin:'badge-status-urgent'}; return `<span class="badge ${map[r]||'badge-draft'}">${escHtml(r||'unknown')}</span>`; }
+
+async function loadUsers() {
+  document.getElementById('loadingState').style.display='block';
+  document.getElementById('tableContainer').style.display='none';
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('errorNotice').style.display='none';
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData?.session;
+    if (!session) throw new Error('No active session');
+    const res = await fetch('/api/admin/users', {
+      headers: { 'Authorization': 'Bearer ' + session.access_token }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:'Server error'}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    allUsers = data.users || [];
+    applyFilters();
+    document.getElementById('loadingState').style.display='none';
+    document.getElementById('tableContainer').style.display='block';
+  } catch (err) {
+    console.error('loadUsers error:', err);
+    document.getElementById('loadingState').style.display='none';
+    const notice = document.getElementById('errorNotice');
+    notice.textContent = `Could not load users: ${err.message}. The /api/admin/users endpoint may not be configured yet.`;
+    notice.style.display='block';
+  }
+}
+
+function applyFilters() {
+  const q      = (document.getElementById('userSearch').value||'').toLowerCase();
+  const r      = document.getElementById('roleFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const tier   = document.getElementById('tierFilter').value;
+  const state  = document.getElementById('stateFilter').value;
+  filteredUsers = allUsers.filter(u=>{
+    const email = (u.email||'').toLowerCase();
+    const name  = (u.user_metadata?.full_name||'').toLowerCase();
+    const prac  = (u.user_metadata?.practice_name||'').toLowerCase();
+    const role  = u.user_metadata?.role||'';
+    const uStatus = u.user_metadata?.status||'active';
+    const uTier   = u.user_metadata?.subscription_tier||'';
+    const uState  = u.user_metadata?.state||'';
+    if (q && !email.includes(q) && !name.includes(q) && !prac.includes(q)) return false;
+    if (r && role !== r) return false;
+    if (status && uStatus !== status) return false;
+    if (tier && uTier !== tier) return false;
+    if (state && uState !== state) return false;
+    return true;
+  });
+  currentPage = 1;
+  renderPage();
+}
+
+/* --- User profile drawer ------------------------------------------ */
+function openUserDrawer(uid) {
+  currentDrawerUserId = uid;
+  const u = allUsers.find(x => x.id === uid);
+  if (!u) return;
+  const name  = u.user_metadata?.full_name || u.email || '--';
+  const role  = u.user_metadata?.role || 'clinician';
+  document.getElementById('drawerTitle').textContent = name;
+  document.getElementById('drawerSubtitle').textContent = u.email || '--';
+  /* Account Info tab */
+  document.getElementById('drawerAccountInfo').innerHTML = `
+    <div class="user-field-grid">
+      <div class="user-field"><span class="user-field-label">Full Name</span><span class="user-field-val">${escHtml(name)}</span></div>
+      <div class="user-field"><span class="user-field-label">Email</span><span class="user-field-val">${escHtml(u.email||'--')}</span></div>
+      <div class="user-field"><span class="user-field-label">Practice</span><span class="user-field-val">${escHtml(u.user_metadata?.practice_name||'--')}</span></div>
+      <div class="user-field"><span class="user-field-label">Role</span><span class="user-field-val">${escHtml(role)}</span></div>
+      <div class="user-field"><span class="user-field-label">Status</span><span class="user-field-val">${escHtml(u.user_metadata?.status||'active')}</span></div>
+      <div class="user-field"><span class="user-field-label">State</span><span class="user-field-val">${escHtml(u.user_metadata?.state||'--')}</span></div>
+      <div class="user-field"><span class="user-field-label">Date Created</span><span class="user-field-val">${fmtDate(u.created_at)}</span></div>
+      <div class="user-field"><span class="user-field-label">Last Login</span><span class="user-field-val">${fmtDate(u.last_sign_in_at)}</span></div>
+      <div class="user-field"><span class="user-field-label">User ID</span><span class="user-field-val" style="font-size:11px;word-break:break-all">${escHtml(u.id)}</span></div>
+    </div>`;
+  /* Subscription tab */
+  document.getElementById('drawerSubscription').innerHTML = `
+    <div class="user-field-grid">
+      <div class="user-field"><span class="user-field-label">Tier</span><span class="user-field-val">${escHtml(u.user_metadata?.subscription_tier||'--')}</span></div>
+      <div class="user-field"><span class="user-field-label">Stripe Status</span><span class="user-field-val">Active</span></div>
+      <div class="user-field"><span class="user-field-label">Renewal Date</span><span class="user-field-val">&mdash;</span></div>
+      <div class="user-field"><span class="user-field-label">Monthly Price</span><span class="user-field-val">&mdash;</span></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="alert('Upgrade - connect Stripe')">Upgrade Plan</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Downgrade - connect Stripe')">Downgrade Plan</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Cancel - connect Stripe')">Cancel Subscription</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Add sessions - connect backend')">Add Free Sessions</button>
+    </div>`;
+  /* Usage tab */
+  document.getElementById('drawerUsage').innerHTML = `
+    <p style="font-size:13px;color:var(--ink-500)">Session history is fetched from the backend.</p>
+    <div class="user-field-grid">
+      <div class="user-field"><span class="user-field-label">Sessions Generated</span><span class="user-field-val">&mdash;</span></div>
+      <div class="user-field"><span class="user-field-label">Last Active</span><span class="user-field-val">${fmtDate(u.last_sign_in_at)}</span></div>
+      <div class="user-field"><span class="user-field-label">Avg Sessions/Month</span><span class="user-field-val">&mdash;</span></div>
+      <div class="user-field"><span class="user-field-label">Top Code Used</span><span class="user-field-val">&mdash;</span></div>
+    </div>`;
+  /* Other tabs - placeholder */
+  ['drawerReports','drawerNotes','drawerTickets','drawerLoginHistory','drawerAuditLog'].forEach(id=>{
+    document.getElementById(id).innerHTML = '<p style="font-size:13px;color:var(--ink-500)">Data available when connected to backend API.</p>';
+  });
+  switchDrawerTab('account');
+  document.getElementById('userDrawerBackdrop').classList.add('open');
+}
+
+function switchDrawerTab(tab) {
+  document.querySelectorAll('.user-drawer-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('.user-drawer-tab-panel').forEach(p=>p.classList.toggle('active', p.dataset.panel===tab));
+}
+
+function closeUserDrawer() {
+  document.getElementById('userDrawerBackdrop').classList.remove('open');
+}
+
+function renderPage() {
+  const start = (currentPage-1)*PAGE_SIZE;
+  const page  = filteredUsers.slice(start, start+PAGE_SIZE);
+  const totalPages = Math.ceil(filteredUsers.length/PAGE_SIZE);
+  document.getElementById('userCount').textContent = `${filteredUsers.length} user${filteredUsers.length!==1?'s':''}`;
+  document.getElementById('pageInfo').textContent  = `Page ${currentPage} of ${Math.max(1,totalPages)}`;
+  document.getElementById('prevBtn').disabled = currentPage <= 1;
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+  document.getElementById('emptyState').style.display = filteredUsers.length ? 'none' : 'block';
+  document.getElementById('tableContainer').style.display = filteredUsers.length ? 'block' : 'none';
+
+  document.getElementById('usersBody').innerHTML = page.map((u,i) => {
+    const role    = u.user_metadata?.role || 'clinician';
+    const email   = escHtml(u.email||'--');
+    const name    = escHtml(u.user_metadata?.full_name||'');
+    const uid     = escHtml(u.id);
+    const practice = escHtml(u.user_metadata?.practice_name || '--');
+    const tier    = escHtml(u.user_metadata?.subscription_tier || '--');
+    const state   = escHtml(u.user_metadata?.state || '--');
+    const sessions = u.user_metadata?.sessions_used ?? '--';
+    const statusVal = u.user_metadata?.status || 'active';
+    const statusColor = statusVal==='suspended' ? '#ef4444' : statusVal==='pending' ? '#f59e0b' : '#10b981';
+    return `<tr>
+      <td style="padding:10px 8px"><input type="checkbox" class="user-bulk-check" data-uid="${uid}" onchange="updateUsersBulkToolbar()"></td>
+      <td>
+        <div class="user-cell">
+          <div class="user-avatar">${initials(u.email)}</div>
+          <div><div class="user-name">${name||email}</div><div class="user-email">${name?email:''}</div></div>
+        </div>
+      </td>
+      <td style="font-size:13px">${practice}</td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${roleBadge(role)}
+          <span style="font-size:11px;font-weight:700;color:${statusColor};text-transform:uppercase">${escHtml(statusVal)}</span>
+        </div>
+      </td>
+      <td><span class="badge badge-draft" style="font-size:11px">${tier}</span></td>
+      <td style="font-size:13px;color:var(--ink-500)">${state}</td>
+      <td class="muted">${fmtDate(u.last_sign_in_at)}</td>
+      <td style="font-size:13px;font-weight:700;color:var(--ink-700)">${sessions}</td>
+      <td class="muted">${fmtDate(u.created_at)}</td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="openUserDrawer('${uid}')">View</button>
+          <select class="role-select" data-uid="${uid}" onchange="updateRole('${uid}',this)" title="Change Role">
+            <option value="clinician" ${role==='clinician' ? 'selected' : ''}>Clinician</option>
+            <option value="admin" ${role==='admin' ? 'selected' : ''}>Admin</option>
+            <option value="billing_staff" ${role==='billing_staff' ? 'selected' : ''}>Billing Staff</option>
+            <option value="super_admin" ${role==='super_admin' ? 'selected' : ''}>Super Admin</option>
+          </select>
+          <span class="saved-flash" id="flash-${uid}">Saved</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function updateRole(uid, selectEl) {
+  const newRole = selectEl.value;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const res = await fetch('/api/admin/set-role', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
+      body: JSON.stringify({ userId: uid, role: newRole })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    // Update local cache
+    const u = allUsers.find(x=>x.id===uid);
+    if (u) { u.user_metadata = u.user_metadata||{}; u.user_metadata.role=newRole; }
+    const flash = document.getElementById('flash-'+uid);
+    if (flash) { flash.style.opacity='1'; setTimeout(()=>flash.style.opacity='0', 2000); }
+  } catch (err) {
+    console.error('updateRole error:', err);
+    alert('Failed to update role: '+err.message);
+    loadUsers();
+  }
+}
+
+function changePage(delta) { currentPage += delta; renderPage(); }
+function copyUID(uid) { navigator.clipboard.writeText(uid).then(()=>alert('UID copied: '+uid)).catch(()=>alert(uid)); }
+
+function updateUsersBulkToolbar() {
+  const checked = document.querySelectorAll('.user-bulk-check:checked');
+  const toolbar = document.getElementById('usersBulkToolbar');
+  document.getElementById('usersBulkCount').textContent = checked.length + ' selected';
+  toolbar.style.display = checked.length ? 'flex' : 'none';
+  const selectAll = document.getElementById('usersSelectAll');
+  if (selectAll) selectAll.indeterminate = checked.length > 0 && checked.length < document.querySelectorAll('.user-bulk-check').length;
+}
+function toggleSelectAllUsers(cb) {
+  document.querySelectorAll('.user-bulk-check').forEach(c => { c.checked = cb.checked; });
+  updateUsersBulkToolbar();
+}
+function bulkUsersClearSelection() {
+  document.querySelectorAll('.user-bulk-check').forEach(c => { c.checked = false; });
+  const sa = document.getElementById('usersSelectAll'); if(sa) sa.checked = false;
+  updateUsersBulkToolbar();
+}
+function bulkUsersExport() {
+  const uids = Array.from(document.querySelectorAll('.user-bulk-check:checked')).map(c=>c.dataset.uid);
+  const sel = filteredUsers.filter(u => uids.includes(u.id));
+  const rows = [['Email','Name','Role','Practice','Tier','State','Status','Sessions','Created']];
+  sel.forEach(u => rows.push([u.email||'',u.user_metadata?.full_name||'',u.user_metadata?.role||'',u.user_metadata?.practice_name||'',u.user_metadata?.subscription_tier||'',u.user_metadata?.state||'',u.user_metadata?.status||'active',u.user_metadata?.sessions_used||'0',new Date(u.created_at||0).toLocaleDateString()]));
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='users-export.csv'; a.click();
+}
+function bulkUsersSetRole() {
+  const newRole = document.getElementById('bulkRoleSelect').value;
+  if (!newRole) { alert('Select a role to apply.'); return; }
+  const uids = Array.from(document.querySelectorAll('.user-bulk-check:checked')).map(c=>c.dataset.uid);
+  if (!uids.length) return;
+  alert('Bulk role change to "'+newRole+'" for '+uids.length+' user(s) - connect backend to persist.');
+}
+
+function enterPreviewMode() {
+  sessionStorage.setItem('docusistant_admin_preview', '1');
+  sessionStorage.removeItem('docusistant_preview_user');
+  window.open('dashboard.html', '_blank');
+}
+
+function viewAsUser(uid) {
+  if (!uid) return;
+  const u = allUsers.find(x => x.id === uid);
+  if (!u) return;
+  sessionStorage.setItem('docusistant_admin_preview', '1');
+  sessionStorage.setItem('docusistant_preview_user', JSON.stringify({
+    email: u.email || '',
+    name: u.user_metadata?.full_name || u.email || 'User'
+  }));
+  window.open('dashboard.html', '_blank');
+}
+
+window.onload = async () => {
+  const user = await initDashboard(ADMIN_ROLES);
+  if (!user) return;
+  await loadUsers();
+};
+</script>
+
+<!-- --- User Profile Drawer --------------------------------------- -->
+<div class="user-drawer-backdrop" id="userDrawerBackdrop" onclick="if(event.target===this)closeUserDrawer()">
+  <div class="user-drawer">
+    <div class="user-drawer-head">
+      <div class="user-avatar" style="width:40px;height:40px;font-size:16px" id="drawerAvatar">?</div>
+      <div style="flex:1">
+        <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:1.05rem;color:var(--ink-900)" id="drawerTitle">User</div>
+        <div style="font-size:13px;color:var(--ink-500)" id="drawerSubtitle"></div>
+      </div>
+      <button onclick="closeUserDrawer()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500)">&times;</button>
+    </div>
+    <!-- Tabs -->
+    <div class="user-drawer-tabs">
+      <button class="user-drawer-tab active" data-tab="account" onclick="switchDrawerTab('account')">Account Info</button>
+      <button class="user-drawer-tab" data-tab="subscription" onclick="switchDrawerTab('subscription')">Subscription</button>
+      <button class="user-drawer-tab" data-tab="usage" onclick="switchDrawerTab('usage')">Usage</button>
+      <button class="user-drawer-tab" data-tab="reports" onclick="switchDrawerTab('reports')">Reports</button>
+      <button class="user-drawer-tab" data-tab="notes" onclick="switchDrawerTab('notes')">Notes</button>
+      <button class="user-drawer-tab" data-tab="tickets" onclick="switchDrawerTab('tickets')">Tickets</button>
+      <button class="user-drawer-tab" data-tab="login" onclick="switchDrawerTab('login')">Login History</button>
+      <button class="user-drawer-tab" data-tab="audit" onclick="switchDrawerTab('audit')">Audit Log</button>
+    </div>
+    <div class="user-drawer-body">
+      <div class="user-drawer-tab-panel active" data-panel="account" id="drawerAccountInfo"></div>
+      <div class="user-drawer-tab-panel" data-panel="subscription" id="drawerSubscription"></div>
+      <div class="user-drawer-tab-panel" data-panel="usage" id="drawerUsage"></div>
+      <div class="user-drawer-tab-panel" data-panel="reports" id="drawerReports"></div>
+      <div class="user-drawer-tab-panel" data-panel="notes" id="drawerNotes"></div>
+      <div class="user-drawer-tab-panel" data-panel="tickets" id="drawerTickets"></div>
+      <div class="user-drawer-tab-panel" data-panel="login" id="drawerLoginHistory"></div>
+      <div class="user-drawer-tab-panel" data-panel="audit" id="drawerAuditLog"></div>
+    </div>
+    <div class="user-drawer-footer">
+      <button class="btn btn-primary btn-sm" onclick="alert('Edit - connect backend')">Edit User</button>
+      <button class="btn-warn" onclick="alert('Suspend - connect backend')">Suspend</button>
+      <button class="btn btn-outline btn-sm" onclick="viewAsUser(currentDrawerUserId)">&#128065; View as User</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Reset password - connect backend')">Reset Password</button>
+      <button class="btn btn-outline btn-sm" onclick="alert('Force logout - connect backend')">Force Logout</button>
+      <button class="btn-danger-sm" onclick="closeUserDrawer()">Close</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

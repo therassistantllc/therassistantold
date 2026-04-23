@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noCheck": true,
+    "rootDir": ".",
+    "outDir": "backend-dist",
+    "declaration": false
+  },
+  "include": [
+    "backend/src/repositories/**/*.ts",
+    "backend/src/routes/**/*.ts",
+    "backend/src/services/**/*.ts",
+    "backend/src/validators/**/*.ts",
+    "shared/contracts/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

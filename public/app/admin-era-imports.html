@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; ERA Imports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .stat-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .stat-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .stat-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .stat-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .stat-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.55rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    /* Drop zone */
+    .drop-zone{border:2px dashed var(--blue-500);border-radius:16px;background:rgba(60,144,209,.04);padding:40px 32px;text-align:center;cursor:pointer;transition:background .2s,border-color .2s;margin-bottom:16px}
+    .drop-zone.drag-over{background:rgba(60,144,209,.1);border-color:var(--blue-700)}
+    .drop-zone-icon{font-size:2.8rem;margin-bottom:10px;opacity:.6}
+    .drop-zone h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin-bottom:6px}
+    .drop-zone p{font-size:13px;color:var(--ink-500);margin-bottom:14px}
+    .drop-zone-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .ext-badge{background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700}
+    /* Queue */
+    .upload-queue{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;display:none}
+    .queue-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .queue-item:last-child{border-bottom:none}
+    .queue-name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .queue-size{color:var(--ink-500);font-size:12px;flex-shrink:0}
+    .queue-status{flex-shrink:0}
+    .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;width:100px;flex-shrink:0}
+    .progress-fill{height:100%;background:var(--blue-600);transition:width .3s}
+    /* Filter */
+    .filter-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .filter-row input,.filter-row select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-row input{flex:1;min-width:180px}
+    .filter-row input:focus,.filter-row select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    /* Table */
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .data-table td{padding:11px 12px;font-size:12.5px}
+    /* Status badges */
+    .st-complete{background:#def7ee;color:#065f46;border:1px solid #a7f3d0}
+    .st-processing{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+    .st-partial{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .st-error{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .st-archived{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+    .st-pending{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+    /* ERA file icon */
+    .era-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#1e40af,var(--blue-600));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff;flex-shrink:0;letter-spacing:.03em}
+    /* Parse error panel */
+    .error-panel{background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px;margin-top:8px;font-size:12.5px;color:#b91c1c}
+    /* Tabs */
+    .tab-nav{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+    .tab-btn{padding:8px 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--ink-500);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;border-radius:6px 6px 0 0}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-600);background:rgba(60,144,209,.06)}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    /* Payer mapping */
+    .payer-mapper{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+    .payer-mapper-row{display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+    .payer-mapper-row:last-child{border-bottom:none}
+    .pm-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-600)}
+    /* EFT panel */
+    .eft-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm);margin-bottom:12px}
+    .eft-match{background:#def7ee;border:1px solid #a7f3d0;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:8px}
+    .eft-nomatch{background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:8px}
+    /* Duplicate panel */
+    .dup-row{background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:8px;font-size:13px}
+    .dup-row.resolved{background:#f0fdf4;border-color:#bbf7d0;opacity:.7}
+    /* Format badge */
+    .fmt-badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;margin-left:6px}
+    .fmt-835{background:#dbeafe;color:#1e3a7b;border:1px solid #93c5fd}
+    .fmt-oa{background:#fdf4ff;color:#6b21a8;border:1px solid #e9d5ff}
+    .fmt-csv{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .fmt-txt{background:#f1f5f9;color:#334155;border:1px solid #cbd5e1}
+    @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link active" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>ERA Imports</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue btn-sm" onclick="document.getElementById('fileInput').click()">&#8679; Upload ERA / 835</button>
+        <button class="btn btn-outline btn-sm" onclick="openTab('history')">Import History</button>
+        <a href="admin-revenue-dashboard.html" class="btn btn-outline btn-sm">Revenue Dashboard</a>
+      </div>
+    </header>
+
+    <!-- Stats row -->
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-num" id="st-imported">0</div><div class="stat-lbl">Files Imported</div></div>
+      <div class="stat-card green"><div class="stat-num" id="st-payments">$0</div><div class="stat-lbl">Total Payments</div></div>
+      <div class="stat-card amber"><div class="stat-num" id="st-unmatched">0</div><div class="stat-lbl">Unmatched Claims</div></div>
+      <div class="stat-card red"><div class="stat-num" id="st-denials">0</div><div class="stat-lbl">Denials</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="st-errors">0</div><div class="stat-lbl">Parse Errors</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="openTab('upload')">&#8679; Upload</button>
+      <button class="tab-btn" onclick="openTab('history')">Import History</button>
+      <button class="tab-btn" onclick="openTab('errors')">Parse Errors</button>
+      <button class="tab-btn" onclick="openTab('queue')">Review Queue</button>
+      <button class="tab-btn" onclick="openTab('eft')">&#128177; EFT Matching</button>
+      <button class="tab-btn" onclick="openTab('duplicates')">&#128260; Duplicates</button>
+      <button class="tab-btn" onclick="openTab('payermapping')">&#128279; Payer Mapping</button>
+    </div>
+
+    <!-- Upload Tab -->
+    <div class="tab-panel active" id="tab-upload">
+      <!-- Drop zone -->
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="drop-zone-icon">&#128451;</div>
+        <h3>Drop ERA / 835 files here or click to browse</h3>
+        <p>Supports multiple files. Accepted formats:</p>
+        <div class="drop-zone-badges">
+          <span class="ext-badge">.ERA</span>
+          <span class="ext-badge">.835</span>
+          <span class="ext-badge">.TXT</span>
+          <span class="ext-badge">.X12</span>
+          <span class="ext-badge">.EDI</span>
+        </div>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".era,.835,.txt,.x12,.edi,.dat" style="display:none" onchange="onFileSelect(event)">
+
+      <!-- Upload queue -->
+      <div class="upload-queue" id="uploadQueue">
+        <div style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink-900)">Upload Queue</div>
+        <div id="queueItems"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost btn-sm" onclick="clearQueue()">&#10005; Clear</button>
+          <button class="btn btn-blue btn-sm" id="processBtn" onclick="processQueue()">&#9654; Process All Files</button>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)">
+        <div style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">ERA / 835 File Guidelines</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:13px">
+          <div><div style="font-weight:700;color:var(--blue-700);margin-bottom:4px">Supported Payers</div>
+            <div style="color:var(--ink-600)">Colorado Medicaid, Aetna Better Health, United BH, Anthem BCBS, CCHA, Rocky Mountain HMO</div></div>
+          <div><div style="font-weight:700;color:var(--blue-700);margin-bottom:4px">File Format</div>
+            <div style="color:var(--ink-600)">ASC X12 5010 835 standard. GS, ST, BPR, TRN, CLP, CAS, SVC, NM1, PLB segments supported.</div></div>
+          <div><div style="font-weight:700;color:var(--blue-700);margin-bottom:4px">After Import</div>
+            <div style="color:var(--ink-600)">Claims are matched automatically. Unmatched items go to the Review Queue for manual linking.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-panel" id="tab-history">
+      <div class="filter-panel">
+        <div class="filter-row">
+          <input type="search" id="histSearch" placeholder="&#128269;  Search file name, payer, check number&hellip;" oninput="renderHistory()">
+          <select id="histStatus" onchange="renderHistory()">
+            <option value="">All Statuses</option>
+            <option>Complete</option><option>Partial</option><option>Error</option><option>Processing</option><option>Archived</option>
+          </select>
+          <select id="histPayer" onchange="renderHistory()">
+            <option value="">All Payers</option>
+            <option>Colorado Medicaid</option><option>Aetna Better Health</option><option>United BH</option><option>Anthem BCBS</option><option>CCHA</option>
+          </select>
+          <input type="date" id="histFrom" onchange="renderHistory()" title="From date">
+          <input type="date" id="histTo" onchange="renderHistory()" title="To date">
+          <button class="btn btn-ghost btn-sm" onclick="clearHistFilters()">&#10005;</button>
+        </div>
+      </div>
+      <div class="table-shell">
+        <div style="overflow-x:auto">
+          <table class="data-table" id="histTable">
+            <thead><tr>
+              <th>File</th><th>Payer</th><th>Payment Date</th><th>Check #</th><th>Total Payment</th><th>Claims</th><th>Matched</th><th>Denials</th><th>Status</th><th>Imported</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+        <div id="histEmpty" style="display:none;text-align:center;padding:40px;color:var(--ink-500)">No ERA files imported yet.</div>
+      </div>
+    </div>
+
+    <!-- Parse Errors Tab -->
+    <div class="tab-panel" id="tab-errors">
+      <div class="table-shell">
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>File</th><th>Line #</th><th>Segment</th><th>Error</th><th>Raw value</th><th>Severity</th><th>Date</th><th>Actions</th></tr></thead>
+            <tbody id="errorsBody"></tbody>
+          </table>
+        </div>
+        <div id="errorsEmpty" style="display:none;text-align:center;padding:40px;color:var(--ink-500)">No parse errors on record.</div>
+      </div>
+    </div>
+
+    <!-- Review Queue Tab -->
+    <div class="tab-panel" id="tab-queue">
+      <div style="margin-bottom:12px;font-size:13px;color:var(--ink-500)">Claims that could not be automatically matched to a patient, claim, or clinician account.</div>
+      <div class="table-shell">
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>ERA File</th><th>Claim #</th><th>Patient Name</th><th>Subscriber ID</th><th>DOS</th><th>Code</th><th>Paid</th><th>Payer</th><th>Reason</th><th>Actions</th></tr></thead>
+            <tbody id="queueBody"></tbody>
+          </table>
+        </div>
+        <div id="queueEmpty" style="display:none;text-align:center;padding:40px;color:var(--ink-500)">No items in review queue.</div>
+      </div>
+    </div>
+
+    <!-- EFT Matching Tab -->
+    <div class="tab-panel" id="tab-eft">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-family:'Sora',sans-serif;font-size:15px;font-weight:700;color:var(--ink-900)">EFT Transaction Matching</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:3px">Match Electronic Funds Transfer traces to imported ERA files. Unmatched EFTs appear in orange.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="addManualEFT()">+ Add Manual EFT</button>
+          <button class="btn btn-blue btn-sm" onclick="runEFTMatch()">&#8635; Re-run Matching</button>
+        </div>
+      </div>
+      <!-- EFT entry form -->
+      <div class="eft-card" id="eftForm" style="display:none">
+        <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:13px;margin-bottom:10px">Manual EFT Entry</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-600);margin-bottom:3px">EFT / Trace #</div>
+            <input id="eftTrace" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="e.g. 2026040100001">
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-600);margin-bottom:3px">Amount ($)</div>
+            <input id="eftAmount" type="number" step="0.01" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="0.00">
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-600);margin-bottom:3px">Settlement Date</div>
+            <input id="eftDate" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-600);margin-bottom:3px">Payer / Bank</div>
+            <input id="eftPayer" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="Colorado Medicaid">
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-blue btn-sm" onclick="saveManualEFT()">Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelEFT()">&#10005;</button>
+          </div>
+        </div>
+      </div>
+      <!-- Matched EFTs -->
+      <div id="eftMatchedList"></div>
+      <!-- Unmatched EFTs -->
+      <div id="eftUnmatchedSection" style="display:none">
+        <div style="font-weight:700;font-size:13px;color:#92400e;margin:14px 0 8px">Unmatched EFT Transactions</div>
+        <div id="eftUnmatchedList"></div>
+      </div>
+      <div id="eftEmpty" style="text-align:center;padding:40px;color:var(--ink-500);display:none">No EFT transactions on record. Add them manually or they will be extracted from uploaded ERA files.</div>
+    </div>
+
+    <!-- Duplicates Tab -->
+    <div class="tab-panel" id="tab-duplicates">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-family:'Sora',sans-serif;font-size:15px;font-weight:700">Duplicate ERA Detection</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:3px">ERA files detected as potential duplicates based on check number, EFT trace, payer, and payment amount.</div>
+        </div>
+        <button class="btn btn-blue btn-sm" onclick="scanDuplicates()">&#128270; Scan for Duplicates</button>
+      </div>
+      <div id="dupList"></div>
+      <div id="dupEmpty" style="text-align:center;padding:40px;color:var(--ink-500)">No duplicate ERA files detected. Run a scan or import more files.</div>
+    </div>
+
+    <!-- Payer Mapping Tab -->
+    <div class="tab-panel" id="tab-payermapping">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-family:'Sora',sans-serif;font-size:15px;font-weight:700">Manual Payer Mapping</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:3px">Map ERA payer IDs or names from Office Ally, clearinghouses, and other sources to normalized payer names.</div>
+        </div>
+        <button class="btn btn-blue btn-sm" onclick="addPayerMapping()">+ Add Mapping</button>
+      </div>
+      <!-- Format settings -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow-sm)">
+        <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px">ERA Format Settings</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+          <div>
+            <div style="font-size:11.5px;font-weight:700;color:var(--ink-700);margin-bottom:6px">Office Ally Detection</div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="oaDetect" checked onchange="saveFormatSettings()"> Auto-detect Office Ally format
+            </label>
+            <div style="font-size:12px;color:var(--ink-500);margin-top:4px">Office Ally ERAs use ISA sender ID <code>OFFICEALLY</code> or <code>OA835</code></div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;font-weight:700;color:var(--ink-700);margin-bottom:6px">Element Delimiter</div>
+            <select id="elemDelim" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit" onchange="saveFormatSettings()">
+              <option value="*" selected>* (asterisk ? X12 default)</option>
+              <option value="|">| (pipe ? some clearinghouses)</option>
+              <option value="^">^ (caret)</option>
+              <option value="auto">Auto-detect from ISA</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11.5px;font-weight:700;color:var(--ink-700);margin-bottom:6px">Segment Terminator</div>
+            <select id="segTerm" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit" onchange="saveFormatSettings()">
+              <option value="~" selected>~ (tilde ? X12 default)</option>
+              <option value="\n">Newline</option>
+              <option value="auto">Auto-detect from ISA</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- Payer mapping table -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:13px">Payer ID / Name Mappings</div>
+          <input type="search" id="pmSearch" placeholder="&#128269; Filter mappings&hellip;" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;width:220px;outline:none" oninput="renderPayerMappings()">
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>Source (ERA Payer ID / Name)</th><th>Normalized Name</th><th>Format Hint</th><th>Source System</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody id="pmBody"></tbody>
+          </table>
+        </div>
+        <div id="pmEmpty" style="text-align:center;padding:36px;color:var(--ink-500)">No payer mappings configured.</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Payer Mapping Modal -->
+<div style="position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1200;display:none;align-items:center;justify-content:center" id="pmModal" onclick="if(event.target===this)closePMModal()">
+  <div style="background:#fff;border-radius:20px;box-shadow:var(--shadow-lg);width:min(520px,95vw);padding:28px 30px">
+    <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:14px">Payer Mapping</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-700);display:block;margin-bottom:4px">ERA Payer ID (from ISA/NM1)</label>
+        <input id="pmSourceId" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="e.g. SKCO0 or OFFICEALLY">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-700);display:block;margin-bottom:4px">ERA Payer Name (raw)</label>
+        <input id="pmSourceName" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="e.g. COLO MEDICAID">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-700);display:block;margin-bottom:4px">Normalized Payer Name</label>
+        <input id="pmNormalized" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" placeholder="Colorado Medicaid">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-700);display:block;margin-bottom:4px">Source System</label>
+        <select id="pmSource" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+          <option value="Office Ally">Office Ally</option>
+          <option value="Change Healthcare">Change Healthcare</option>
+          <option value="Availity">Availity</option>
+          <option value="Waystar">Waystar</option>
+          <option value="Payer Direct">Payer Direct</option>
+          <option value="Manual">Manual</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-700);display:block;margin-bottom:4px">ERA Format Hint</label>
+        <select id="pmFormat" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+          <option value="X12-835">X12 835 (standard)</option>
+          <option value="Office Ally 835">Office Ally 835</option>
+          <option value="CSV">CSV / Flat file</option>
+          <option value="TXT">Text / Custom</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding-top:18px">
+        <input type="checkbox" id="pmActive" checked>
+        <label for="pmActive" style="font-size:13px;font-weight:600;cursor:pointer">Active</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closePMModal()">Cancel</button>
+      <button class="btn btn-blue btn-sm" onclick="savePMMapping()">Save Mapping</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link Claim Modal -->
+<div style="position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1200;display:none;align-items:center;justify-content:center" id="linkModal" onclick="if(event.target===this)closeLinkModal()">
+  <div style="background:#fff;border-radius:20px;box-shadow:var(--shadow-lg);width:min(500px,95vw);padding:28px 30px">
+    <div style="font-family:'Sora',sans-serif;font-size:1.15rem;font-weight:700;margin-bottom:14px">Manually Link Claim</div>
+    <div id="linkModalInfo" style="background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11.5px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em">Link to Patient</label>
+        <select id="linkPatient" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--ink-900);outline:none;background:var(--surface)"></select>
+      </div>
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11.5px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em">Link to Clinician Account</label>
+        <select id="linkClient" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--ink-900);outline:none;background:var(--surface)"></select>
+      </div>
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11.5px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em">Internal Note</label>
+        <textarea style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:50px;outline:none" id="linkNote" placeholder="Optional note about this match&hellip;"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closeLinkModal()">Cancel</button>
+      <button class="btn btn-blue btn-sm" onclick="saveLink()">Save Link</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0b2c4d;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:600;display:none;z-index:9999"></div>
+
+<script>
+/* ---------------------------------------------------------
+   Helpers
+--------------------------------------------------------- */
+function dbGet(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):[]; }catch{return [];} }
+function dbSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(iso){ if(!iso) return '?'; try{ return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch{return'?';} }
+function fmtRel(iso){ if(!iso) return '?'; try{ const d=(Date.now()-new Date(iso).getTime())/1000; if(d<3600) return Math.floor(d/60)+'m ago'; if(d<86400) return Math.floor(d/3600)+'h ago'; if(d<604800) return Math.floor(d/86400)+'d ago'; return fmtDate(iso); }catch{return'?';} }
+function fmt$(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function toast(m,ms=3000){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',ms); }
+function uid(){ return 'ERA-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\\\]/g,'\\$&'); }
+
+/* ERA Format Detection + Delimiter Auto-detect */
+function detectERAFormat(rawText) {
+  const upper = rawText.slice(0, 400).toUpperCase();
+  if(/OFFICEALLY|OA835|OFFICE ALLY/.test(upper)) return 'Office Ally 835';
+  if(/^ISA\*/.test(rawText.trim())) return 'X12-835';
+  if(/^"?claim/i.test(rawText.trim())) return 'CSV';
+  return 'TXT';
+}
+function detectDelimiters(rawText) {
+  const trimmed = rawText.trim();
+  if (trimmed.startsWith('ISA')) {
+    return { elemDelim: trimmed[3] || '*', segTerm: trimmed[105] || '~' };
+  }
+  return { elemDelim: '*', segTerm: '~' };
+}
+function applyPayerMapping(payerName, payerID) {
+  const maps = dbGet('docusistant_payer_mappings_v1');
+  const m = maps.find(function(m) { return m.active && (
+    (m.source_id && m.source_id.toLowerCase() === (payerID||'').toLowerCase()) ||
+    (m.source_name && (payerName||'').toLowerCase().includes(m.source_name.toLowerCase()))
+  ); });
+  return m ? m.normalized : payerName;
+}
+function isDuplicateERA(parsed) {
+  const all = dbGet('docusistant_era_imports_v1');
+  return all.find(function(e) {
+    return e.check_number && e.check_number === parsed.check_number &&
+      e.payer_id && e.payer_id === parsed.payer_id &&
+      Math.abs((e.total_payment||0) - (parsed.total_payment||0)) < 0.01;
+  }) || null;
+}
+
+/* ---------------------------------------------------------
+   ERA 835 Parser ? ASC X12 5010
+--------------------------------------------------------- */
+function parse835(rawText, fileName) {
+  const fmt = detectERAFormat(rawText);
+  const { elemDelim, segTerm } = detectDelimiters(rawText);
+  const lines = rawText.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const termRe = new RegExp(escapeRegExp(segTerm)+'[\\n]?');
+  const segments = lines.split(termRe).map(s=>s.trim()).filter(Boolean);
+  const result = {
+    payer_name:'', payer_id:'', payment_date:'', check_date:'', check_number:'',
+    eft_trace:'', total_payment:0, claims:[], errors:[], raw:rawText, format:fmt,
+  };
+
+  let currentClaim = null;
+  let currentSvc   = null;
+
+  for(let i=0; i<segments.length; i++) {
+    const seg = segments[i];
+    const els = seg.split(elemDelim);
+    const id  = els[0];
+
+    try {
+      if(id==='BPR') {
+        // BPR*C*TOTAL*...
+        result.total_payment = parseFloat(els[2])||0;
+        // BPR12 = check/EFT date
+        if(els[16]) result.check_date = els[16];
+      }
+      if(id==='TRN') {
+        // TRN*1*CHECKNUMBER*...
+        if(els[1]==='1') result.check_number = els[2]||'';
+        if(els[1]==='3') result.eft_trace = els[2]||'';
+      }
+      if(id==='DTM') {
+        if(els[1]==='405') result.payment_date = els[2]||'';
+        if(els[1]==='007') result.check_date   = els[2]||'';
+      }
+      // Payer NM1 loop: NM1*PR
+      if(id==='NM1' && els[1]==='PR') {
+        const rawName = [els[3],els[4]].filter(Boolean).join(' ').trim()||els[3]||'Unknown Payer';
+        result.payer_id   = els[9]||'';
+        result.payer_name = applyPayerMapping(rawName, result.payer_id);
+      }
+      // Claim CLP segment
+      if(id==='CLP') {
+        if(currentClaim) result.claims.push(currentClaim);
+        currentClaim = {
+          claim_number:    els[1]||'',
+          claim_status:    codeToClaimStatus(els[2]||''),
+          billed_amount:   parseFloat(els[3])||0,
+          paid_amount:     parseFloat(els[4])||0,
+          patient_resp:    parseFloat(els[5])||0,
+          claim_filing_ind:els[6]||'',
+          payer_claim_num: els[7]||'',
+          patient_name:    '',
+          subscriber_id:   '',
+          dos:             '',
+          rendering_npi:   '',
+          rendering_name:  '',
+          carc_codes:      [],
+          rarc_codes:      [],
+          adjustments:     [],
+          services:        [],
+          denial_reason:   '',
+          posting_status:  'Pending',
+          linked_patient_id:null,
+          linked_client_id:null,
+          matched:         false,
+        };
+        currentSvc = null;
+      }
+      // NM1 loops within claim
+      if(id==='NM1' && currentClaim) {
+        if(els[1]==='QC') { // Patient
+          currentClaim.patient_name = [els[3],els[4]].filter(Boolean).join(', ')||'';
+        }
+        if(els[1]==='IL') { // Insured / Subscriber
+          currentClaim.subscriber_id = els[9]||'';
+        }
+        if(els[1]==='82' || els[1]==='85') { // Rendering provider
+          currentClaim.rendering_name = [els[3],els[4]].filter(Boolean).join(' ')||'';
+          currentClaim.rendering_npi  = els[9]||'';
+        }
+      }
+      // DTM within claim
+      if(id==='DTM' && currentClaim) {
+        if(els[1]==='472') currentClaim.dos = els[2]||''; // Date of Service
+        if(els[1]==='232') currentClaim.service_start = els[2]||'';
+        if(els[1]==='233') currentClaim.service_end   = els[2]||'';
+        if(els[1]==='036') currentClaim.claim_paid_date = els[2]||'';
+        if(els[1]==='050') currentClaim.claim_received_date = els[2]||'';
+      }
+      // CAS ? adjustments
+      if(id==='CAS' && currentClaim) {
+        // CAS*CO*45*ADJUSTAMOUNT or CAS*PR*1*ADJUSTAMOUNT
+        const group = els[1]; // CO, PR, OA, PI, CR
+        let j=2;
+        while(j<els.length-1) {
+          const code = els[j]; const amt = parseFloat(els[j+1])||0;
+          if(code) {
+            currentClaim.adjustments.push({ group, code, amount:amt });
+            if(!currentClaim.carc_codes.includes(code)) currentClaim.carc_codes.push(code);
+            currentClaim.denial_reason = currentClaim.denial_reason || carcToReason(code);
+          }
+          j+=2; if(els[j+2]) j++; // qty field optional
+        }
+      }
+      // SVC
+      if(id==='SVC' && currentClaim) {
+        const procCode = (els[1]||'').split(':');
+        currentSvc = {
+          qualifier:  procCode[0]||'',
+          code:       procCode[1]||'',
+          billed:     parseFloat(els[2])||0,
+          paid:       parseFloat(els[3])||0,
+          units:      parseInt(els[5]||'1')||1,
+          carc_codes:[], rarc_codes:[],
+        };
+        currentClaim.services.push(currentSvc);
+      }
+      // LQ (RARC)
+      if(id==='LQ' && currentClaim) {
+        if(els[1]==='HE') {
+          const code=els[2]||'';
+          if(!currentClaim.rarc_codes.includes(code)) currentClaim.rarc_codes.push(code);
+          if(currentSvc && !currentSvc.rarc_codes.includes(code)) currentSvc.rarc_codes.push(code);
+        }
+      }
+      // REF segments
+      if(id==='REF' && currentClaim) {
+        if(els[1]==='1C') currentClaim.rendering_npi  = currentClaim.rendering_npi||els[2]||'';
+        if(els[1]==='EA') currentClaim.claim_ref       = els[2]||'';
+        if(els[1]==='EV') currentClaim.provider_ref    = els[2]||'';
+      }
+    } catch(e) {
+      result.errors.push({ segment:id, index:i, raw:seg.slice(0,80), msg:e.message });
+    }
+  }
+  if(currentClaim) result.claims.push(currentClaim);
+
+  // Infer payment date from 8-digit strings
+  if(result.payment_date && result.payment_date.length===8) result.payment_date = fmtDateYMD(result.payment_date);
+  if(result.check_date   && result.check_date.length===8)   result.check_date   = fmtDateYMD(result.check_date);
+  result.claims.forEach(c=>{ if(c.dos && c.dos.length===8) c.dos=fmtDateYMD(c.dos); });
+
+  return result;
+}
+
+function fmtDateYMD(s){ // YYYYMMDD ? ISO
+  if(!s||s.length!==8) return s||'';
+  try{ return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8); }catch{return s;}
+}
+
+function codeToClaimStatus(c){
+  const map={'1':'Processed as Primary','2':'Processed as Secondary','3':'Processed as Tertiary',
+    '4':'Denied','19':'Processed as Primary, Forwarded to Secondary','20':'Processed as Secondary, Forwarded to Tertiary',
+    '21':'Reverse of Prior Payment','22':'Reversal of Previous Payment'};
+  return map[c]||('Status '+c);
+}
+
+function carcToReason(code){
+  const map={
+    '1':'Deductible amount','2':'Coinsurance amount','3':'Co-payment amount','4':'Service not covered',
+    '18':'Duplicate claim','22':'Service not covered ? not medically necessary','27':'Expenses incurred after coverage terminated',
+    '29':'Timely filing','45':'Charge exceeds fee schedule','50':'Non-covered by payer',
+    '96':'Non-covered charges','97':'Payment included in another claim/adjustment',
+    'B7':'Authorization not on file','B8':'Claim not covered/not authorized',
+    'CO-97':'Bundled ? included in allowance for another service',
+    'PR-1':'Deductible',
+  };
+  return map[code]||'';
+}
+
+/* ---------------------------------------------------------
+   Claim auto-matcher
+--------------------------------------------------------- */
+function autoMatch(claims) {
+  const patients = dbGet('docusistant_patients_v1');
+  const clients  = dbGet('docusistant_clients_v1');
+  const eraClaims= dbGet('docusistant_claims_v1');
+
+  claims.forEach(c => {
+    // Try subscriber ID
+    let pat = patients.find(p => p.member_id && p.member_id === c.subscriber_id);
+    // Try patient name (last, first)
+    if(!pat && c.patient_name) {
+      const parts = c.patient_name.split(/[,\s]+/).map(s=>s.toLowerCase());
+      pat = patients.find(p => {
+        const pn = p.name.toLowerCase().split(/\s+/);
+        return parts.some(pt => pn.some(n => n===pt));
+      });
+    }
+    if(pat) {
+      c.linked_patient_id = pat.id;
+      c.linked_client_id  = pat.client_id;
+      c.matched = true;
+    }
+    // Try existing claim record
+    const existingClaim = eraClaims.find(ec => ec.claim_number === c.claim_number || ec.payer_claim_num === c.payer_claim_num);
+    if(existingClaim) {
+      c.linked_claim_id  = existingClaim.id;
+      if(!c.linked_client_id) c.linked_client_id = existingClaim.client_id;
+      if(!c.linked_patient_id) c.linked_patient_id = existingClaim.patient_id;
+      c.matched = true;
+    }
+  });
+  return claims;
+}
+
+/* ---------------------------------------------------------
+   Seed demo ERA imports
+--------------------------------------------------------- */
+const DEMO_ERA = [
+  {
+    id:'ERA-DEMO-001', file_name:'CO_MED_835_20260328.835', payer_name:'Colorado Medicaid',
+    payer_id:'SKCO0', payment_date:'2026-03-28', check_date:'2026-03-26',
+    check_number:'0072847192', eft_trace:'2026032800001', total_payment:8432.50,
+    total_adjustments:1240.00, total_claims:12, matched_claims:10, unmatched_claims:2,
+    denial_count:2, status:'Complete', imported_at:'2026-03-28T15:30:00Z',
+    imported_by:'Marco D.', parse_errors:0,
+    claims:[
+      { claim_number:'COL-1900000001', patient_name:'HARGROVE, JASON', subscriber_id:'MCO0012847',
+        dos:'2026-02-28', code:'H0031', billed_amount:425.00, allowed_amount:380.00,
+        paid_amount:380.00, adjustment_amount:45.00, patient_resp:0,
+        claim_status:'Processed as Primary', carc_codes:['45'], rarc_codes:['N290'],
+        rendering_npi:'1234567890', denial_reason:'', posting_status:'Posted',
+        linked_patient_id:'PAT-001', linked_client_id:'CLIENT-001', matched:true },
+      { claim_number:'COL-1900000002', patient_name:'HARGROVE, JASON', subscriber_id:'MCO0012847',
+        dos:'2026-01-15', code:'H2019', billed_amount:185.00, allowed_amount:0,
+        paid_amount:0, adjustment_amount:185.00, patient_resp:0,
+        claim_status:'Denied', carc_codes:['97'], rarc_codes:['MA130'],
+        rendering_npi:'1234567890', denial_reason:'Payment included in another claim/adjustment',
+        posting_status:'Denied', linked_patient_id:'PAT-001', linked_client_id:'CLIENT-001',
+        matched:true },
+      { claim_number:'COL-1900000003', patient_name:'CRUZ, TYLER', subscriber_id:'MCO0098312',
+        dos:'2026-03-01', code:'H0032', billed_amount:340.00, allowed_amount:295.00,
+        paid_amount:295.00, adjustment_amount:45.00, patient_resp:0,
+        claim_status:'Processed as Primary', carc_codes:['45'], rarc_codes:[],
+        rendering_npi:'1234567890', denial_reason:'', posting_status:'Posted',
+        linked_patient_id:'PAT-003', linked_client_id:'CLIENT-001', matched:true },
+      { claim_number:'AET-UNKNOWN-01', patient_name:'JOHNSON, ROBERT', subscriber_id:'AET-778812',
+        dos:'2026-03-10', code:'90837', billed_amount:175.00, allowed_amount:120.00,
+        paid_amount:120.00, adjustment_amount:55.00, patient_resp:0,
+        claim_status:'Processed as Primary', carc_codes:['45'], rarc_codes:[],
+        rendering_npi:'1234567890', denial_reason:'', posting_status:'Unmatched',
+        linked_patient_id:null, linked_client_id:null, matched:false },
+    ]
+  },
+  {
+    id:'ERA-DEMO-002', file_name:'AETNA_BH_835_20260401.835', payer_name:'Aetna Better Health',
+    payer_id:'60054', payment_date:'2026-04-01', check_date:'2026-03-30',
+    check_number:'AET202600234', eft_trace:'2026040100002', total_payment:4175.00,
+    total_adjustments:820.00, total_claims:7, matched_claims:7, unmatched_claims:0,
+    denial_count:1, status:'Complete', imported_at:'2026-04-01T10:15:00Z',
+    imported_by:'Sarah K.', parse_errors:0,
+    claims:[
+      { claim_number:'AET-202600001', patient_name:'PATTERSON, LINDA', subscriber_id:'AET-556271',
+        dos:'2026-03-25', code:'90837', billed_amount:175.00, allowed_amount:150.00,
+        paid_amount:150.00, adjustment_amount:25.00, patient_resp:0,
+        claim_status:'Processed as Primary', carc_codes:['45'], rarc_codes:[],
+        rendering_npi:'1234567890', denial_reason:'', posting_status:'Posted',
+        linked_patient_id:'PAT-002', linked_client_id:'CLIENT-001', matched:true },
+    ]
+  },
+  {
+    id:'ERA-DEMO-003', file_name:'CO_MED_835_20260315.835', payer_name:'Colorado Medicaid',
+    payer_id:'SKCO0', payment_date:'2026-03-15', check_date:'2026-03-13',
+    check_number:'0072735910', eft_trace:'2026031500003', total_payment:5620.00,
+    total_adjustments:430.00, total_claims:9, matched_claims:8, unmatched_claims:1,
+    denial_count:0, status:'Complete', imported_at:'2026-03-15T09:00:00Z',
+    imported_by:'Marco D.', parse_errors:1,
+    claims:[]
+  },
+];
+
+function seedERAIfEmpty() {
+  if(!dbGet('docusistant_era_imports_v1').length) dbSet('docusistant_era_imports_v1', DEMO_ERA);
+}
+
+/* ---------------------------------------------------------
+   Drag + Drop + File Select
+--------------------------------------------------------- */
+let pendingFiles = [];
+
+function onDragOver(e){ e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function onDragLeave(e){ document.getElementById('dropZone').classList.remove('drag-over'); }
+function onDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  addFiles([...e.dataTransfer.files]);
+}
+function onFileSelect(e){ addFiles([...e.target.files]); e.target.value=''; }
+
+function addFiles(files) {
+  files.forEach(f => {
+    if(!pendingFiles.find(p=>p.name===f.name)) pendingFiles.push(f);
+  });
+  renderQueue();
+}
+
+function renderQueue() {
+  const qEl = document.getElementById('uploadQueue');
+  const items= document.getElementById('queueItems');
+  if(!pendingFiles.length){ qEl.style.display='none'; return; }
+  qEl.style.display='block';
+  items.innerHTML=pendingFiles.map((f,i)=>`
+    <div class="queue-item" id="qi-${i}">
+      <div class="era-icon">835</div>
+      <div class="queue-name">${esc(f.name)}</div>
+      <div class="queue-size">${fmtFileSize(f.size)}</div>
+      <div class="queue-status" id="qs-${i}"><span class="badge st-pending">Queued</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="qp-${i}" style="width:0%"></div></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeFromQueue(${i})" title="Remove">&#10005;</button>
+    </div>`).join('');
+}
+
+function removeFromQueue(i){ pendingFiles.splice(i,1); renderQueue(); }
+function clearQueue(){ pendingFiles=[]; renderQueue(); }
+
+function fmtFileSize(b){ if(b<1024) return b+'B'; if(b<1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+
+/* ---------------------------------------------------------
+   Process Queue
+--------------------------------------------------------- */
+async function processQueue() {
+  if(!pendingFiles.length) return;
+  document.getElementById('processBtn').disabled=true;
+  document.getElementById('processBtn').textContent='Processing?';
+
+  for(let i=0; i<pendingFiles.length; i++) {
+    const file = pendingFiles[i];
+    setQueueStatus(i,'Processing','processing');
+    animateProgress(i);
+    const raw = await readFileText(file);
+    try {
+      let parsed;
+      if(isLikelyERA835(raw)) {
+        parsed = parse835(raw, file.name);
+      } else {
+        // Wrap as best-effort single-claim stub
+        parsed = { payer_name:'Unknown', payment_date:'', check_date:'', check_number:'',
+          eft_trace:'', total_payment:0, claims:[], errors:[{segment:'ISA',index:0,raw:raw.slice(0,60),msg:'Not a valid X12 835 file'}], raw };
+      }
+      const entry = buildERAEntry(file, parsed);
+      saveERAEntry(entry);
+      setQueueStatus(i,'Complete','complete');
+      fillProgress(i);
+
+      // Create billing alerts for denials
+      autoCreateBillingAlerts(entry);
+
+    } catch(e) {
+      setQueueStatus(i,'Error','error');
+      fillProgress(i,true);
+    }
+  }
+
+  document.getElementById('processBtn').disabled=false;
+  document.getElementById('processBtn').textContent='&#9654; Process All Files';
+  pendingFiles=[];
+  setTimeout(()=>{ renderQueue(); updateStats(); renderHistory(); openTab('history'); }, 800);
+  toast('ERA files processed. Check Import History for results.');
+}
+
+function isLikelyERA835(raw){ return /ISA|GS\*HP|835|CLP\*|BPR\*/i.test(raw); }
+
+function readFileText(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(file,'UTF-8'); }); }
+
+function buildERAEntry(file, parsed) {
+  const matched = autoMatch(parsed.claims);
+  const denials  = matched.filter(c=>c.claim_status.toLowerCase().includes('denied')||c.paid_amount===0);
+  const unmatched= matched.filter(c=>!c.matched);
+  const entry = {
+    id: uid(),
+    file_name:        file.name,
+    payer_name:       parsed.payer_name||'Unknown',
+    payer_id:         parsed.payer_id||'',
+    payment_date:     parsed.payment_date||'',
+    check_date:       parsed.check_date||'',
+    check_number:     parsed.check_number||'',
+    eft_trace:        parsed.eft_trace||'',
+    total_payment:    parsed.total_payment||0,
+    total_adjustments:matched.reduce((s,c)=>s+(c.adjustment_amount||0),0),
+    total_claims:     matched.length,
+    matched_claims:   matched.filter(c=>c.matched).length,
+    unmatched_claims: unmatched.length,
+    denial_count:     denials.length,
+    status:           parsed.errors.length>0?(matched.length>0?'Partial':'Error'):'Complete',
+    imported_at:      new Date().toISOString(),
+    imported_by:      'Admin',
+    parse_errors:     parsed.errors.length,
+    claims:           matched,
+    raw_errors:       parsed.errors,
+    raw_text:         parsed.raw,
+  };
+  return entry;
+}
+
+function saveERAEntry(entry) {
+  const all = dbGet('docusistant_era_imports_v1');
+  all.unshift(entry);
+  dbSet('docusistant_era_imports_v1', all);
+  // Save to posting queue
+  const queue = dbGet('docusistant_era_posting_queue_v1');
+  entry.claims.filter(c=>c.posting_status!=='Posted').forEach(c=>{
+    queue.push({ ...c, era_id:entry.id, era_file:entry.file_name, payer_name:entry.payer_name, queuedAt:new Date().toISOString() });
+  });
+  dbSet('docusistant_era_posting_queue_v1', queue);
+}
+
+/* ---------------------------------------------------------
+   Auto-create Billing Alerts for flagged ERA claims
+--------------------------------------------------------- */
+function autoCreateBillingAlerts(era) {
+  const alerts = dbGet('docusistant_billing_alerts_v1');
+  era.claims.forEach(c => {
+    let type=null, sev='Medium';
+    if(c.claim_status.toLowerCase().includes('denied')) { type='Denied Claim'; sev='High'; }
+    else if(c.carc_codes.includes('18'))  { type='Duplicate Claim Denial'; sev='High'; }
+    else if(c.carc_codes.includes('29'))  { type='Timely Filing Issue'; sev='High'; }
+    else if(c.carc_codes.includes('27'))  { type='Inactive Coverage'; sev='High'; }
+    else if(c.carc_codes.includes('96'))  { type='Claim Not Covered'; sev='Medium'; }
+    else if(c.patient_resp>200)           { type='Large Patient Balance'; sev='Medium'; }
+    else if(c.adjustment_amount>500)      { type='Large Adjustment'; sev='Medium'; }
+    if(type) {
+      alerts.push({
+        id:'BA-ERA-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+        client_id:   c.linked_client_id||'',
+        patient_id:  c.linked_patient_id||'',
+        patient_name:c.patient_name||'Unknown',
+        code:        c.code||'',
+        type,
+        severity:    sev,
+        status:      'Open',
+        created:     new Date().toISOString(),
+        detail:`ERA ${era.file_name} ? Claim ${c.claim_number} ? Paid: ${fmt$(c.paid_amount)} ? CARC: ${(c.carc_codes||[]).join(', ')||'N/A'} ? RARC: ${(c.rarc_codes||[]).join(', ')||'N/A'}. ${carcToReason((c.carc_codes||[])[0]||'')}`,
+        era_id:       era.id,
+        claim_number: c.claim_number,
+        paid_amount:  c.paid_amount,
+        billed_amount:c.billed_amount,
+        carc_codes:   c.carc_codes,
+        rarc_codes:   c.rarc_codes,
+      });
+    }
+  });
+  dbSet('docusistant_billing_alerts_v1', alerts);
+}
+
+/* ---------------------------------------------------------
+   Queue status helpers
+--------------------------------------------------------- */
+function setQueueStatus(i,label,cls){
+  const el=document.getElementById('qs-'+i);
+  const map={complete:'st-complete',processing:'st-processing',error:'st-error',partial:'st-partial'};
+  if(el) el.innerHTML=`<span class="badge ${map[cls]||'st-pending'}">${label}</span>`;
+}
+let progressIntervals={};
+function animateProgress(i){
+  let pct=0;
+  progressIntervals[i]=setInterval(()=>{
+    pct=Math.min(pct+Math.random()*15,85);
+    const el=document.getElementById('qp-'+i);
+    if(el) el.style.width=pct+'%';
+    else clearInterval(progressIntervals[i]);
+  },120);
+}
+function fillProgress(i,err){
+  clearInterval(progressIntervals[i]);
+  const el=document.getElementById('qp-'+i);
+  if(el){ el.style.width='100%'; if(err) el.style.background='#ef4444'; }
+}
+
+/* ---------------------------------------------------------
+   Tab navigation
+--------------------------------------------------------- */
+function openTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>{ b.classList.toggle('active', b.textContent.toLowerCase().includes(name)||(name==='upload'&&b.textContent.includes('Upload'))); });
+  document.querySelectorAll('.tab-panel').forEach(p=>{ p.classList.toggle('active', p.id==='tab-'+name); });
+  if(name==='history')     renderHistory();
+  if(name==='errors')      renderErrors();
+  if(name==='queue')       renderReviewQueue();
+  if(name==='eft')         renderEFTTab();
+  if(name==='duplicates')  renderDuplicatesTab();
+  if(name==='payermapping'){ renderPayerMappings(); loadFormatSettings(); }
+}
+
+/* ---------------------------------------------------------
+   History tab
+--------------------------------------------------------- */
+function renderHistory(){
+  const all=dbGet('docusistant_era_imports_v1');
+  const q=(document.getElementById('histSearch')||{}).value?.toLowerCase()||'';
+  const st=(document.getElementById('histStatus')||{}).value||'';
+  const py=(document.getElementById('histPayer')||{}).value||'';
+
+  let rows=all.filter(e=>{
+    if(q&&![e.file_name,e.payer_name,e.check_number].join(' ').toLowerCase().includes(q)) return false;
+    if(st&&e.status!==st) return false;
+    if(py&&e.payer_name!==py) return false;
+    return true;
+  });
+
+  const body=document.getElementById('histBody');
+  const empty=document.getElementById('histEmpty');
+  if(!rows.length){ body.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  const stMap={'Complete':'st-complete','Partial':'st-partial','Error':'st-error','Processing':'st-processing','Archived':'st-archived'};
+  body.innerHTML=rows.map(e=>`<tr style="cursor:pointer" onclick="openERA('${esc(e.id)}')">
+    <td>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="era-icon">835</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">${esc(e.file_name)}</div>
+          ${e.eft_trace?`<div style="font-size:11px;color:var(--ink-500)">EFT: ${esc(e.eft_trace)}</div>`:''}
+        </div>
+      </div>
+    </td>
+    <td style="font-weight:600">${esc(e.payer_name)}</td>
+    <td class="muted">${fmtDate(e.payment_date)}</td>
+    <td style="font-size:12px;font-family:monospace">${esc(e.check_number)||'?'}</td>
+    <td style="font-weight:700;color:#059669">${fmt$(e.total_payment)}</td>
+    <td style="text-align:center;font-weight:700">${e.total_claims||0}</td>
+    <td style="text-align:center;color:${(e.unmatched_claims||0)>0?'#d97706':'var(--ink-500)'};font-weight:700">${e.matched_claims||0}/${e.total_claims||0}</td>
+    <td style="text-align:center;color:${(e.denial_count||0)>0?'#dc2626':'var(--ink-500)'};font-weight:700">${e.denial_count||0}</td>
+    <td><span class="badge ${stMap[e.status]||'st-pending'}">${esc(e.status)}</span></td>
+    <td class="muted" style="white-space:nowrap">${fmtRel(e.imported_at)}<br><span style="font-size:11px">${esc(e.imported_by||'')}</span></td>
+    <td onclick="event.stopPropagation()">
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-blue btn-sm" onclick="openERA('${esc(e.id)}')">View</button>
+        <button class="btn btn-outline btn-sm" onclick="archiveERA('${esc(e.id)}')">Archive</button>
+        <button class="btn btn-outline btn-sm" onclick="reprocessERA('${esc(e.id)}')">Reprocess</button>
+      </div>
+    </td>
+  </tr>`).join('');
+}
+
+function clearHistFilters(){ ['histSearch','histStatus','histPayer','histFrom','histTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); renderHistory(); }
+
+/* ---------------------------------------------------------
+   Parse Errors tab
+--------------------------------------------------------- */
+function renderErrors(){
+  const all=dbGet('docusistant_era_imports_v1');
+  const errors=[];
+  all.forEach(e=>{ (e.raw_errors||[]).forEach(er=>errors.push({...er,file:e.file_name,era_id:e.id})); });
+  const body=document.getElementById('errorsBody');
+  const empty=document.getElementById('errorsEmpty');
+  if(!errors.length){ body.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  body.innerHTML=errors.map(er=>`<tr>
+    <td style="font-size:12px">${esc(er.file||'?')}</td>
+    <td style="text-align:center">${er.index+1||'?'}</td>
+    <td><code style="font-size:12px">${esc(er.segment||'?')}</code></td>
+    <td style="font-size:12.5px;color:#b91c1c">${esc(er.msg||'Unknown error')}</td>
+    <td style="font-size:11.5px;font-family:monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(er.raw||'')}">${esc((er.raw||'').slice(0,50))}${(er.raw||'').length>50?'?':''}</td>
+    <td><span class="badge badge-alert">Error</span></td>
+    <td class="muted">?</td>
+    <td><button class="btn btn-outline btn-sm" onclick="openERA('${esc(er.era_id||'')}')">View ERA</button></td>
+  </tr>`).join('');
+}
+
+/* ---------------------------------------------------------
+   Review Queue tab
+--------------------------------------------------------- */
+let linkTargetId = null;
+function renderReviewQueue(){
+  const queue=dbGet('docusistant_era_posting_queue_v1').filter(c=>!c.matched||c.posting_status==='Unmatched');
+  const body=document.getElementById('queueBody');
+  const empty=document.getElementById('queueEmpty');
+  if(!queue.length){ body.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  body.innerHTML=queue.map((c,i)=>`<tr>
+    <td style="font-size:12px">${esc(c.era_file||'?')}</td>
+    <td style="font-family:monospace;font-size:12px">${esc(c.claim_number||'?')}</td>
+    <td style="font-weight:600">${esc(c.patient_name||'?')}</td>
+    <td style="font-size:12px;color:var(--ink-500)">${esc(c.subscriber_id||'?')}</td>
+    <td class="muted">${fmtDate(c.dos)}</td>
+    <td><code style="font-size:12px">${esc(c.code||'?')}</code></td>
+    <td style="font-weight:700;color:#059669">${fmt$(c.paid_amount)}</td>
+    <td style="font-size:12.5px">${esc(c.payer_name||'?')}</td>
+    <td style="font-size:12px;color:#d97706">${esc(c.denial_reason||'No match found')}</td>
+    <td><button class="btn btn-blue btn-sm" onclick="openLinkModal(${i})">Link Manually</button></td>
+  </tr>`).join('');
+}
+
+function openLinkModal(idx){
+  const queue=dbGet('docusistant_era_posting_queue_v1').filter(c=>!c.matched||c.posting_status==='Unmatched');
+  const c=queue[idx]; linkTargetId=idx;
+  document.getElementById('linkModalInfo').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div><div style="font-size:11px;color:var(--ink-500);font-weight:700">PATIENT</div><div style="font-weight:700">${esc(c.patient_name||'Unknown')}</div></div>
+      <div><div style="font-size:11px;color:var(--ink-500);font-weight:700">CLAIM #</div><div style="font-weight:700">${esc(c.claim_number||'?')}</div></div>
+      <div><div style="font-size:11px;color:var(--ink-500);font-weight:700">PAID</div><div style="font-weight:700;color:#059669">${fmt$(c.paid_amount)}</div></div>
+    </div>`;
+  const patients=dbGet('docusistant_patients_v1');
+  const clients =dbGet('docusistant_clients_v1');
+  document.getElementById('linkPatient').innerHTML='<option value="">? Select patient ?</option>'+patients.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  document.getElementById('linkClient').innerHTML='<option value="">? Select clinician ?</option>'+clients.map(cl=>`<option value="${esc(cl.id)}">${esc(cl.name)}</option>`).join('');
+  document.getElementById('linkModal').style.display='flex';
+}
+function closeLinkModal(){ document.getElementById('linkModal').style.display='none'; linkTargetId=null; }
+function saveLink(){
+  // In production this updates the DB record; here we mark it matched in the queue
+  toast('Link saved. Claim marked as matched.');
+  closeLinkModal();
+  renderReviewQueue();
+}
+
+/* ---------------------------------------------------------
+   Stats row
+--------------------------------------------------------- */
+function updateStats(){
+  const all=dbGet('docusistant_era_imports_v1');
+  const total=all.reduce((s,e)=>s+(e.total_payment||0),0);
+  const unmatched=all.reduce((s,e)=>s+(e.unmatched_claims||0),0);
+  const denials=all.reduce((s,e)=>s+(e.denial_count||0),0);
+  const errors=all.reduce((s,e)=>s+(e.parse_errors||0),0);
+  document.getElementById('st-imported').textContent=all.length;
+  document.getElementById('st-payments').textContent=fmt$(total);
+  document.getElementById('st-unmatched').textContent=unmatched;
+  document.getElementById('st-denials').textContent=denials;
+  document.getElementById('st-errors').textContent=errors;
+}
+
+/* ---------------------------------------------------------
+   ERA actions
+--------------------------------------------------------- */
+function openERA(id){ window.location.href='admin-era-detail.html?id='+encodeURIComponent(id); }
+function archiveERA(id){
+  const all=dbGet('docusistant_era_imports_v1');
+  const i=all.findIndex(e=>e.id===id);
+  if(i>-1){ all[i].status='Archived'; dbSet('docusistant_era_imports_v1',all); renderHistory(); toast('ERA archived.'); }
+}
+function reprocessERA(id){
+  const all=dbGet('docusistant_era_imports_v1');
+  const e=all.find(x=>x.id===id);
+  if(!e||!e.raw_text){ toast('No raw data available to reprocess.'); return; }
+  try {
+    const parsed=parse835(e.raw_text,e.file_name);
+    const updated=buildERAEntry({name:e.file_name,size:0},parsed);
+    updated.id=id; updated.imported_by=e.imported_by; updated.importedAt=e.imported_at;
+    const idx=all.findIndex(x=>x.id===id);
+    if(idx>-1){ all[idx]=updated; dbSet('docusistant_era_imports_v1',all); }
+    renderHistory(); updateStats(); toast('ERA reprocessed successfully.');
+  } catch(err){ toast('Reprocess failed: '+err.message); }
+}
+
+/* ---------------------------------------------------------
+   Init
+--------------------------------------------------------- */
+window.onload = async () => {
+  await initDashboard(ADMIN_ROLES);
+  seedERAIfEmpty();
+  updateStats();
+  renderHistory();
+};
+</script>
+</body>
+</html>

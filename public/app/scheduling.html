@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Schedule</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    /* -- Layout ---------------------------------------------- */
+    .sched-shell{display:flex;flex-direction:column;height:100%;gap:0}
+    .sched-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .sched-toolbar h1{font-family:'Sora',sans-serif;font-size:1.25rem;margin:0;white-space:nowrap}
+    .view-tabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px}
+    .view-tab{padding:6px 14px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--ink-500);border-radius:7px;font-family:inherit;transition:all .15s}
+    .view-tab.active{background:var(--blue-600);color:#fff}
+    .view-tab:not(.active):hover{background:var(--surface-soft,#f8fafc);color:var(--ink-700)}
+    .nav-date{display:flex;align-items:center;gap:6px}
+    .nav-date button{width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--ink-700);line-height:1}
+    .nav-date button:hover{background:var(--surface-soft,#f8fafc)}
+    .date-label{font-size:14px;font-weight:700;color:var(--ink-900);min-width:170px;text-align:center}
+    .today-btn{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--ink-700);font-family:inherit}
+    .today-btn:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .sched-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+
+    /* -- Stats strip ----------------------------------------- */
+    .stats-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .stat-pill{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow-sm);flex:1;min-width:120px}
+    .stat-pill-num{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;line-height:1}
+    .stat-pill-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .pill-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .dot-blue{background:var(--blue-600)}
+    .dot-green{background:#10b981}
+    .dot-amber{background:#f59e0b}
+    .dot-red{background:#ef4444}
+    .dot-purple{background:#8b5cf6}
+
+    /* -- Shared calendar frame ------------------------------- */
+    .cal-frame{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .view-panel{display:none}
+    .view-panel.active{display:block}
+
+    /* -- Daily agenda ---------------------------------------- */
+    .agenda-grid{display:grid;grid-template-columns:54px 1fr;min-height:600px}
+    .time-col{border-right:1px solid var(--border)}
+    .time-slot{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 8px 0;font-size:10.5px;font-weight:700;color:var(--ink-400);white-space:nowrap}
+    .appt-col{position:relative;background:repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 59px,
+      var(--border) 59px,
+      var(--border) 60px
+    )}
+    .appt-block{position:absolute;left:6px;right:6px;border-radius:8px;padding:6px 10px;cursor:pointer;overflow:hidden;border-left:3px solid transparent;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:filter .1s}
+    .appt-block:hover{filter:brightness(.95)}
+    .appt-block-title{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .appt-block-sub{font-size:11px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* Type colors */
+    .type-individual{background:#dbeafe;border-color:#2563eb;color:#1e3a8a}
+    .type-group{background:#d1fae5;border-color:#059669;color:#064e3b}
+    .type-assessment{background:#ede9fe;border-color:#7c3aed;color:#3b0764}
+    .type-telehealth{background:#fef3c7;border-color:#d97706;color:#78350f}
+    .type-checkin{background:#fce7f3;border-color:#be185d;color:#831843}
+    .type-med-mgmt{background:#f0fdf4;border-color:#16a34a;color:#14532d}
+    .type-cancelled{background:#f1f5f9;border-color:#94a3b8;color:#475569;opacity:.65}
+    .type-no-show{background:#fef2f2;border-color:#dc2626;color:#7f1d1d;opacity:.75}
+    .type-blocked{background:#f9fafb;border-color:#d1d5db;color:#6b7280}
+
+    /* -- Weekly calendar ------------------------------------- */
+    .week-header{display:grid;border-bottom:2px solid var(--border)}
+    .week-time-cell{width:54px;border-right:1px solid var(--border);background:var(--surface-soft,#f8fafc)}
+    .week-day-hdr{padding:10px 6px;text-align:center;border-right:1px solid var(--border);font-size:12px;font-weight:700;color:var(--ink-600);background:var(--surface-soft,#f8fafc)}
+    .week-day-hdr.today-col{background:#eff6ff;color:var(--blue-700)}
+    .week-day-hdr .day-num{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;line-height:1}
+    .week-day-hdr.today-col .day-num{background:var(--blue-600);color:#fff;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.95rem;margin:0 auto}
+    .week-body{display:grid;overflow-y:auto;max-height:580px}
+    .week-time-label{width:54px;border-right:1px solid var(--border);flex-shrink:0}
+    .week-hour-row{display:grid;border-bottom:1px solid var(--border)}
+    .week-hour-cell{border-right:1px solid var(--border);height:56px;position:relative;min-width:0}
+    .week-hour-cell:last-child{border-right:none}
+    .week-time-text{font-size:10px;font-weight:700;color:var(--ink-400);padding:3px 6px 0;white-space:nowrap}
+    .week-appt{position:absolute;inset:2px 3px;border-radius:5px;padding:3px 6px;font-size:11px;font-weight:700;overflow:hidden;cursor:pointer;border-left:3px solid}
+    .week-appt:hover{filter:brightness(.93)}
+
+    /* -- Monthly calendar ------------------------------------ */
+    .month-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--border);background:var(--surface-soft,#f8fafc)}
+    .month-dow{padding:8px 4px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500)}
+    .month-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+    .month-cell{min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px 8px;vertical-align:top;cursor:pointer;transition:background .1s}
+    .month-cell:nth-child(7n){border-right:none}
+    .month-cell:hover{background:rgba(60,144,209,.04)}
+    .month-cell.other-month .day-number{color:var(--ink-400)}
+    .month-cell.other-month{background:var(--surface-soft,#f8fcfc)}
+    .month-cell.today-cell{background:#eff6ff}
+    .month-cell.today-cell .day-number{background:var(--blue-600);color:#fff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+    .day-number{font-size:12.5px;font-weight:700;color:var(--ink-700);margin-bottom:4px;display:inline-block}
+    .month-appt-chip{font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block;cursor:pointer}
+    .month-more{font-size:10px;color:var(--blue-600);font-weight:700;cursor:pointer}
+
+    /* -- Waitlist panel -------------------------------------- */
+    .waitlist-empty{text-align:center;padding:40px;color:var(--ink-500)}
+    .waitlist-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px}
+    .waitlist-row:last-child{border-bottom:none}
+    .waitlist-rank{width:26px;height:26px;border-radius:50%;background:var(--surface-soft,#f8fafc);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--ink-600);flex-shrink:0}
+
+    /* -- Appointment modal ----------------------------------- */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(11,44,77,.5);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px}
+    .modal-box{background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.2);width:min(520px,100%);max-height:90vh;overflow-y:auto}
+    .modal-head{padding:22px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .modal-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900)}
+    .modal-close{width:30px;height:30px;border:none;background:var(--surface-soft,#f8fafc);border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--ink-500)}
+    .modal-body{padding:20px 24px}
+    .modal-foot{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+    .form-row{margin-bottom:13px}
+    .form-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-700);display:block;margin-bottom:4px}
+    .form-input{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--ink-900);outline:none;box-sizing:border-box;background:var(--surface)}
+    .form-input:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .status-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}
+    .st-scheduled{background:#dbeafe;color:#1e40af;border-color:#bfdbfe}
+    .st-confirmed{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+    .st-completed{background:#f0fdf4;color:#14532d;border-color:#bbf7d0}
+    .st-cancelled{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .st-no-show{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .st-rescheduled{background:#fef3c7;color:#92400e;border-color:#fde68a}
+
+    /* -- Toast --------------------------------------------- */
+    .toast{position:fixed;bottom:22px;right:22px;background:#0b2c4d;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.22);z-index:9000;opacity:0;transition:opacity .2s;pointer-events:none}
+    .toast.show{opacity:1}
+
+    @media(max-width:900px){.stats-row{display:none}}
+    @media(max-width:700px){.sched-toolbar{flex-direction:column;align-items:flex-start}.sched-actions{margin-left:0}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- Sidebar -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <!-- Main -->
+  <main class="dashboard-main">
+
+    <!-- Toolbar -->
+    <div class="sched-toolbar">
+      <h1 id="pageTitle">Schedule</h1>
+
+      <!-- View tabs -->
+      <div class="view-tabs">
+        <button class="view-tab active" onclick="setView('day')"   id="vt-day">Day</button>
+        <button class="view-tab"        onclick="setView('week')"  id="vt-week">Week</button>
+        <button class="view-tab"        onclick="setView('month')" id="vt-month">Month</button>
+        <button class="view-tab"        onclick="setView('waitlist')" id="vt-waitlist">Waitlist</button>
+      </div>
+
+      <!-- Date navigation -->
+      <div class="nav-date">
+        <button onclick="navDate(-1)" title="Previous">&#8249;</button>
+        <span class="date-label" id="dateLabel"></span>
+        <button onclick="navDate(1)"  title="Next">&#8250;</button>
+      </div>
+      <button class="today-btn" onclick="goToday()">Today</button>
+
+      <!-- Actions -->
+      <div class="sched-actions">
+        <button class="btn btn-outline btn-sm" onclick="openBlockModal()">+ Block Time</button>
+        <button class="btn btn-primary btn-sm" onclick="openApptModal()">+ New Appointment</button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- Calendar frame -->
+    <div class="cal-frame">
+
+      <!-- -- Day view -- -->
+      <div class="view-panel active" id="view-day">
+        <div class="agenda-grid" id="agendaGrid">
+          <div class="time-col" id="agendaTimeCol"></div>
+          <div class="appt-col" id="agendaApptCol" onclick="handleAgendaClick(event)"></div>
+        </div>
+      </div>
+
+      <!-- -- Week view -- -->
+      <div class="view-panel" id="view-week">
+        <div class="week-header" id="weekHeader"></div>
+        <div class="week-body" id="weekBody"></div>
+      </div>
+
+      <!-- -- Month view -- -->
+      <div class="view-panel" id="view-month">
+        <div class="month-header">
+          <div class="month-dow">Sun</div><div class="month-dow">Mon</div>
+          <div class="month-dow">Tue</div><div class="month-dow">Wed</div>
+          <div class="month-dow">Thu</div><div class="month-dow">Fri</div>
+          <div class="month-dow">Sat</div>
+        </div>
+        <div class="month-grid" id="monthGrid"></div>
+      </div>
+
+      <!-- -- Waitlist view -- -->
+      <div class="view-panel" id="view-waitlist">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Sora',sans-serif;font-size:15px;font-weight:700">Waitlist</div>
+            <div style="font-size:12px;color:var(--ink-500);margin-top:2px">Patients waiting for the next available appointment</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openWaitlistModal()">+ Add to Waitlist</button>
+        </div>
+        <div id="waitlistBody"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- -- New / Edit Appointment Modal ----------------------- -->
+<div class="modal-backdrop" id="apptModal" style="display:none" onclick="if(event.target===this)closeApptModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="apptModalTitle">New Appointment</div>
+      <button class="modal-close" onclick="closeApptModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label" for="af-patient">Patient</label>
+        <input class="form-input" id="af-patient" list="patientList" placeholder="Search patient name..." autocomplete="off">
+        <datalist id="patientList"></datalist>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label class="form-label" for="af-date">Date</label>
+          <input class="form-input" type="date" id="af-date">
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="af-time">Start Time</label>
+          <input class="form-input" type="time" id="af-time" value="09:00">
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label class="form-label" for="af-duration">Duration (min)</label>
+          <select class="form-input" id="af-duration">
+            <option value="30">30 min</option>
+            <option value="45">45 min</option>
+            <option value="50" selected>50 min</option>
+            <option value="60">60 min</option>
+            <option value="90">90 min</option>
+            <option value="120">120 min</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="af-type">Appointment Type</label>
+          <select class="form-input" id="af-type" onchange="toggleVideoRow(this.value)">
+            <option value="Individual Therapy">Individual Therapy</option>
+            <option value="Group Therapy">Group Therapy</option>
+            <option value="Assessment">Assessment</option>
+            <option value="Telehealth">Telehealth</option>
+            <option value="Check-In">Check-In</option>
+            <option value="Med Management">Med Management</option>
+            <option value="Intake">Intake</option>
+            <option value="Supervision">Supervision</option>
+          </select>
+        </div>
+      </div>
+      <div id="videoLinkRow" style="display:none">
+        <div class="form-row">
+          <label class="form-label" for="af-video-provider">Video Platform</label>
+          <select class="form-input" id="af-video-provider">
+            <option value="">None / In-office</option>
+            <option value="zoom">Zoom</option>
+            <option value="google">Google Meet</option>
+            <option value="custom">Custom / Doxy.me / Other</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="af-video-url">Meeting Link</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="form-input" id="af-video-url" type="url" placeholder="https://zoom.us/j/&#8230; or meet.google.com/&#8230;" style="flex:1">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="openNewMeet()" style="white-space:nowrap">&#128279; New Meet</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-status">Status</label>
+        <select class="form-input" id="af-status">
+          <option value="Scheduled">Scheduled</option>
+          <option value="Confirmed">Confirmed</option>
+          <option value="Completed">Completed</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="No-Show">No-Show</option>
+          <option value="Rescheduled">Rescheduled</option>
+        </select>
+      </div>
+      <div class="form-row" id="cancelReasonRow" style="display:none">
+        <label class="form-label" for="af-cancel-reason">Cancellation / No-Show Reason</label>
+        <select class="form-input" id="af-cancel-reason">
+          <option value="">Select reason...</option>
+          <option value="Patient Cancellation - Personal">Patient - Personal</option>
+          <option value="Patient Cancellation - Transportation">Patient - Transportation</option>
+          <option value="Patient Cancellation - Illness">Patient - Illness</option>
+          <option value="Patient No-Show">Patient No-Show</option>
+          <option value="Clinician Cancelled">Clinician Cancelled</option>
+          <option value="Emergency">Emergency</option>
+          <option value="Insurance Issue">Insurance Issue</option>
+          <option value="Weather">Weather</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-recurring">Repeat</label>
+        <select class="form-input" id="af-recurring" onchange="toggleRecurFields()">
+          <option value="none">Does Not Repeat</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Every 2 Weeks</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div id="recurFields" style="display:none">
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label class="form-label" for="af-recur-end">Repeat Until</label>
+            <input class="form-input" type="date" id="af-recur-end">
+          </div>
+          <div class="form-row">
+            <label class="form-label" for="af-recur-limit">Max Occurrences</label>
+            <input class="form-input" type="number" id="af-recur-limit" placeholder="e.g. 12" min="1" max="52">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="af-notes">Notes</label>
+        <textarea class="form-input" id="af-notes" rows="2" placeholder="Optional appointment notes..." style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" id="apptDeleteBtn" style="display:none;margin-right:auto;color:#dc2626" onclick="deleteCurrentAppt()">Delete</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeApptModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAppt()">Save Appointment</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Block Time Modal ------------------------------------ -->
+<div class="modal-backdrop" id="blockModal" style="display:none" onclick="if(event.target===this)closeBlockModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Block Time</div>
+      <button class="modal-close" onclick="closeBlockModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label" for="bf-label">Label</label>
+        <input class="form-input" id="bf-label" placeholder="e.g. Lunch, Admin time, Team meeting...">
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label class="form-label" for="bf-date">Date</label>
+          <input class="form-input" type="date" id="bf-date">
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="bf-start">Start Time</label>
+          <input class="form-input" type="time" id="bf-start" value="12:00">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="bf-end">End Time</label>
+        <input class="form-input" type="time" id="bf-end" value="13:00">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeBlockModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveBlock()">Save Block</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Waitlist Modal -------------------------------------- -->
+<div class="modal-backdrop" id="waitlistModal" style="display:none" onclick="if(event.target===this)closeWaitlistModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Add to Waitlist</div>
+      <button class="modal-close" onclick="closeWaitlistModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label" for="wf-patient">Patient</label>
+        <input class="form-input" id="wf-patient" list="patientList" placeholder="Search patient name..." autocomplete="off">
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label class="form-label" for="wf-type">Appointment Type</label>
+          <select class="form-input" id="wf-type">
+            <option>Individual Therapy</option>
+            <option>Assessment</option>
+            <option>Telehealth</option>
+            <option>Group Therapy</option>
+            <option>Intake</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="wf-priority">Priority</label>
+          <select class="form-input" id="wf-priority">
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="wf-avail">Patient Availability</label>
+        <input class="form-input" id="wf-avail" placeholder="e.g. Mon-Fri mornings, any afternoon...">
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="wf-notes">Notes</label>
+        <textarea class="form-input" id="wf-notes" rows="2" style="resize:vertical" placeholder="Optional notes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeWaitlistModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveWaitlist()">Add to Waitlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Appointment detail popup -->
+<div id="apptPopup" style="display:none;position:fixed;z-index:1100;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:16px 18px;min-width:230px;max-width:280px"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// -- Constants -----------------------------------------------------------------
+const SCHED_KEY     = 'therassistant_appts_v1';
+const BLOCK_KEY     = 'therassistant_blocks_v1';
+const WAITLIST_KEY  = 'therassistant_waitlist_v1';
+const HOUR_START    = 7;   // First time slot (7 AM)
+const HOUR_END      = 20;  // Last visible hour (8 PM)
+const HOUR_PX       = 60;  // Pixels per hour
+
+const TYPE_CLASS = {
+  'Individual Therapy': 'type-individual',
+  'Group Therapy':      'type-group',
+  'Assessment':         'type-assessment',
+  'Telehealth':         'type-telehealth',
+  'Check-In':           'type-checkin',
+  'Med Management':     'type-med-mgmt',
+  'Intake':             'type-individual',
+  'Supervision':        'type-group',
+  'Cancelled':          'type-cancelled',
+  'No-Show':            'type-no-show',
+  'Blocked':            'type-blocked',
+};
+
+// -- State ---------------------------------------------------------------------
+let _view       = 'day';
+let _cursor     = new Date();   // Reference date for current view
+let _editId     = null;         // ID of appointment being edited
+
+// -- Storage helpers -----------------------------------------------------------
+function load(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } }
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+function loadAppts() { return load(SCHED_KEY); }
+function saveAppts(v) { save(SCHED_KEY, v); }
+
+// -- Date helpers --------------------------------------------------------------
+function isoDate(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+function parseDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function startOfWeek(d) {
+  const r = new Date(d);
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function sameDay(a, b) { return isoDate(a) === isoDate(b); }
+function isoToday() { return isoDate(new Date()); }
+
+function fmtWeekDay(d) {
+  return d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + ' ' + d.getDate();
+}
+function fmtMonthYear(d) {
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+function fmtFull(d) {
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return ((h % 12) || 12) + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+}
+
+function timeToFrac(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h + m / 60;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// -- toast ---------------------------------------------------------------------
+function toast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// -- Seed data -----------------------------------------------------------------
+function seedIfEmpty() {
+  if (loadAppts().length) return;
+  const today = isoToday();
+  const d = parseDate(today);
+  const seed = [
+    { id: 'A-001', patient: 'Maria Alvarez',    date: today,                time: '09:00', duration: 50, type: 'Individual Therapy', status: 'Confirmed',  notes: 'Weekly therapy session' },
+    { id: 'A-002', patient: 'Tyler Cruz',        date: today,                time: '10:00', duration: 60, type: 'Assessment',         status: 'Scheduled',  notes: 'H0031 initial assessment' },
+    { id: 'A-003', patient: 'Linda Patterson',   date: today,                time: '13:00', duration: 50, type: 'Telehealth',         status: 'Confirmed',  notes: '' },
+    { id: 'A-004', patient: 'Diane Okonkwo',     date: today,                time: '14:30', duration: 50, type: 'Individual Therapy', status: 'Scheduled',  notes: '' },
+    { id: 'A-005', patient: 'Marcus Webb',       date: today,                time: '15:30', duration: 30, type: 'Check-In',           status: 'No-Show',    notes: '', cancel_reason: 'Patient No-Show' },
+    { id: 'A-006', patient: 'Rosa Guerrero',     date: isoDate(addDays(d,1)), time: '09:00', duration: 50, type: 'Individual Therapy', status: 'Scheduled',  notes: '' },
+    { id: 'A-007', patient: 'Samuel Torres',     date: isoDate(addDays(d,1)), time: '11:00', duration: 50, type: 'Telehealth',         status: 'Scheduled',  notes: '' },
+    { id: 'A-008', patient: 'Angela Kim',        date: isoDate(addDays(d,2)), time: '10:00', duration: 90, type: 'Group Therapy',      status: 'Scheduled',  notes: 'DBT skills group' },
+    { id: 'A-009', patient: 'Brandon Flores',   date: isoDate(addDays(d,2)), time: '14:00', duration: 50, type: 'Individual Therapy', status: 'Cancelled',  notes: '', cancel_reason: 'Patient Cancellation - Transportation' },
+    { id: 'A-010', patient: 'Catherine Murphy',  date: isoDate(addDays(d,3)), time: '09:30', duration: 50, type: 'Assessment',         status: 'Scheduled',  notes: 'H0001 annual' },
+    { id: 'A-011', patient: 'Devon Jackson',     date: isoDate(addDays(d,4)), time: '15:00', duration: 50, type: 'Individual Therapy', status: 'Scheduled',  notes: '' },
+    { id: 'A-012', patient: 'Elena Vasquez',     date: isoDate(addDays(d,5)), time: '10:30', duration: 50, type: 'Individual Therapy', status: 'Confirmed',  notes: 'Re-engagement after gap' },
+  ];
+  saveAppts(seed);
+
+  // Seed one block
+  save(BLOCK_KEY, [
+    { id: 'BLK-001', label: 'Lunch', date: today, start: '12:00', end: '13:00' },
+  ]);
+
+  // Seed waitlist
+  save(WAITLIST_KEY, [
+    { id: 'WL-001', patient: 'James Ortega',     type: 'Individual Therapy', priority: 'High',   availability: 'Mon-Thu afternoons',  notes: 'Crisis stabilization referral', added: today },
+    { id: 'WL-002', patient: 'Priya Singh',      type: 'Assessment',         priority: 'Normal', availability: 'Any morning',         notes: '',                              added: today },
+    { id: 'WL-003', patient: 'Derek Thompson',   type: 'Telehealth',         priority: 'Normal', availability: 'Tue/Thu mornings',    notes: 'Transportation barrier',        added: isoDate(addDays(d,-3)) },
+  ]);
+}
+
+// -- View switching ------------------------------------------------------------
+function setView(v) {
+  _view = v;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('vt-' + v).classList.add('active');
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  renderView();
+}
+
+function navDate(dir) {
+  if (_view === 'day')   _cursor = addDays(_cursor, dir);
+  else if (_view === 'week')  _cursor = addDays(_cursor, dir * 7);
+  else if (_view === 'month') {
+    _cursor = new Date(_cursor.getFullYear(), _cursor.getMonth() + dir, 1);
+  } else if (_view === 'waitlist') return;
+  renderView();
+}
+
+function goToday() {
+  _cursor = new Date();
+  renderView();
+}
+
+function renderView() {
+  updateDateLabel();
+  renderStats();
+  if (_view === 'day')       renderDay();
+  else if (_view === 'week') renderWeek();
+  else if (_view === 'month')renderMonth();
+  else if (_view === 'waitlist') renderWaitlist();
+}
+
+function updateDateLabel() {
+  const el = document.getElementById('dateLabel');
+  if (_view === 'day')   el.textContent = fmtFull(_cursor);
+  else if (_view === 'week') {
+    const s = startOfWeek(_cursor);
+    const e = addDays(s, 6);
+    el.textContent = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric'}) +
+      ' - ' + e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric'});
+  } else if (_view === 'month') {
+    el.textContent = fmtMonthYear(_cursor);
+  } else el.textContent = 'Waitlist';
+}
+
+// -- Stats ---------------------------------------------------------------------
+function renderStats() {
+  const el = document.getElementById('statsRow');
+  let appts;
+  if (_view === 'day') {
+    appts = loadAppts().filter(a => a.date === isoDate(_cursor));
+  } else if (_view === 'week') {
+    const s = isoDate(startOfWeek(_cursor));
+    const e = isoDate(addDays(startOfWeek(_cursor), 6));
+    appts = loadAppts().filter(a => a.date >= s && a.date <= e);
+  } else if (_view === 'month') {
+    const y = _cursor.getFullYear(), m = _cursor.getMonth();
+    appts = loadAppts().filter(a => {
+      const d = parseDate(a.date);
+      return d.getFullYear() === y && d.getMonth() === m;
+    });
+  } else {
+    el.innerHTML = '';
+    return;
+  }
+
+  const scheduled  = appts.filter(a => ['Scheduled','Confirmed'].includes(a.status)).length;
+  const completed  = appts.filter(a => a.status === 'Completed').length;
+  const cancelled  = appts.filter(a => a.status === 'Cancelled').length;
+  const noShows    = appts.filter(a => a.status === 'No-Show').length;
+  const telehealth = appts.filter(a => a.type === 'Telehealth').length;
+
+  el.innerHTML = `
+    <div class="stat-pill"><div class="pill-dot dot-blue"></div><div><div class="stat-pill-num">${appts.length}</div><div class="stat-pill-lbl">Total</div></div></div>
+    <div class="stat-pill"><div class="pill-dot dot-green"></div><div><div class="stat-pill-num">${scheduled}</div><div class="stat-pill-lbl">Scheduled</div></div></div>
+    <div class="stat-pill"><div class="pill-dot" style="background:#10b981"></div><div><div class="stat-pill-num">${completed}</div><div class="stat-pill-lbl">Completed</div></div></div>
+    <div class="stat-pill"><div class="pill-dot dot-amber"></div><div><div class="stat-pill-num">${cancelled}</div><div class="stat-pill-lbl">Cancelled</div></div></div>
+    <div class="stat-pill"><div class="pill-dot dot-red"></div><div><div class="stat-pill-num">${noShows}</div><div class="stat-pill-lbl">No-Shows</div></div></div>
+    <div class="stat-pill"><div class="pill-dot dot-purple"></div><div><div class="stat-pill-num">${telehealth}</div><div class="stat-pill-lbl">Telehealth</div></div></div>
+  `;
+}
+
+// -- Day view ------------------------------------------------------------------
+function renderDay() {
+  const timecol = document.getElementById('agendaTimeCol');
+  const apptcol = document.getElementById('agendaApptCol');
+  const hours   = HOUR_END - HOUR_START;
+
+  // Time labels
+  let timeHtml = '';
+  for (let h = HOUR_START; h <= HOUR_END; h++) {
+    const label = h === 12 ? '12 PM' : h < 12 ? h + ' AM' : (h - 12) + ' PM';
+    timeHtml += `<div class="time-slot">${label}</div>`;
+  }
+  timecol.innerHTML = timeHtml;
+  apptcol.style.height = (hours * HOUR_PX) + 'px';
+  apptcol.style.backgroundSize = `1px ${HOUR_PX}px`;
+
+  const todayIso = isoDate(_cursor);
+  const appts    = loadAppts().filter(a => a.date === todayIso);
+  const blocks   = load(BLOCK_KEY).filter(b => b.date === todayIso);
+
+  let blockHtml = '';
+  blocks.forEach(b => {
+    const top    = (timeToFrac(b.start) - HOUR_START) * HOUR_PX;
+    const height = (timeToFrac(b.end)   - timeToFrac(b.start)) * HOUR_PX;
+    blockHtml += `<div class="appt-block type-blocked" style="top:${top}px;height:${Math.max(height-4,18)}px" title="${esc(b.label)}">
+      <div class="appt-block-title">&#9632; ${esc(b.label)}</div>
+    </div>`;
+  });
+
+  let apptHtml = blockHtml;
+  appts.forEach(a => {
+    const top    = (timeToFrac(a.time) - HOUR_START) * HOUR_PX;
+    const height = (a.duration / 60) * HOUR_PX;
+    const cls    = a.status === 'Cancelled' ? 'type-cancelled' :
+                   a.status === 'No-Show'   ? 'type-no-show'   :
+                   (TYPE_CLASS[a.type] || 'type-individual');
+    apptHtml += `<div class="appt-block ${cls}" style="top:${Math.max(0,top)}px;height:${Math.max(height-4,24)}px"
+      data-id="${esc(a.id)}" onclick="event.stopPropagation();showApptPopup(event,'${esc(a.id)}')">
+      <div class="appt-block-title">${esc(a.patient)}</div>
+      <div class="appt-block-sub">${fmtTime(a.time)} - ${esc(a.type)}</div>
+    </div>`;
+  });
+
+  if (!appts.length && !blocks.length) {
+    apptHtml = `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--ink-400);pointer-events:none">
+      <div style="font-size:28px">&#128197;</div><div style="font-size:13px;font-weight:600;margin-top:6px">No appointments today</div>
+      <div style="font-size:12px;margin-top:4px">Click anywhere on the calendar or use + New Appointment</div>
+    </div>`;
+  }
+  apptcol.innerHTML = apptHtml;
+
+  // Current time line
+  const now = new Date();
+  if (sameDay(now, _cursor)) {
+    const frac = now.getHours() + now.getMinutes() / 60;
+    if (frac >= HOUR_START && frac <= HOUR_END) {
+      const top = (frac - HOUR_START) * HOUR_PX;
+      apptcol.innerHTML += `<div style="position:absolute;left:0;right:0;top:${top}px;height:2px;background:#ef4444;z-index:10;pointer-events:none">
+        <div style="position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:#ef4444"></div>
+      </div>`;
+    }
+  }
+}
+
+function handleAgendaClick(e) {
+  const col   = e.currentTarget;
+  const rect  = col.getBoundingClientRect();
+  const y     = e.clientY - rect.top;
+  const frac  = (y / HOUR_PX) + HOUR_START;
+  const h     = Math.floor(frac);
+  const m     = Math.round((frac - h) * 60 / 15) * 15;
+  const timeStr = String(h).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
+  openApptModal(isoDate(_cursor), timeStr);
+}
+
+// -- Week view -----------------------------------------------------------------
+function renderWeek() {
+  const week0 = startOfWeek(_cursor);
+  const days  = Array.from({ length: 7 }, (_, i) => addDays(week0, i));
+  const todayIso = isoToday();
+  const appts = loadAppts();
+
+  // Header
+  const headerCols = days.map(d => {
+    const iso = isoDate(d);
+    const isToday = iso === todayIso;
+    const cnt = appts.filter(a => a.date === iso).length;
+    return `<div class="week-day-hdr${isToday ? ' today-col' : ''}">
+      <div>${d.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase()}</div>
+      <div class="day-num">${d.getDate()}</div>
+      ${cnt ? `<div style="font-size:10px;color:var(--blue-600);font-weight:700;margin-top:2px">${cnt} appt${cnt!==1?'s':''}</div>` : ''}
+    </div>`;
+  });
+  document.getElementById('weekHeader').style.gridTemplateColumns = '54px repeat(7,1fr)';
+  document.getElementById('weekHeader').innerHTML =
+    '<div class="week-time-cell"></div>' + headerCols.join('');
+
+  // Body - one row per hour
+  let bodyHtml = '<div style="display:contents">';
+  for (let h = HOUR_START; h < HOUR_END; h++) {
+    const label = h === 12 ? '12 PM' : h < 12 ? h + ' AM' : (h-12) + ' PM';
+    bodyHtml += `<div style="display:grid;grid-template-columns:54px repeat(7,1fr);border-bottom:1px solid var(--border)">
+      <div class="week-time-label"><div class="week-time-text">${label}</div></div>`;
+    days.forEach(d => {
+      const iso   = isoDate(d);
+      const dayAppts = appts.filter(a => a.date === iso && parseInt(a.time) === h);
+      bodyHtml += `<div class="week-hour-cell" onclick="openApptModal('${iso}','${String(h).padStart(2,'0')}:00')">`;
+      dayAppts.forEach(a => {
+        const cls = a.status === 'Cancelled' ? 'type-cancelled' :
+                    a.status === 'No-Show'   ? 'type-no-show'   :
+                    (TYPE_CLASS[a.type] || 'type-individual');
+        bodyHtml += `<div class="week-appt ${cls}" style="position:relative;inset:auto;margin:2px 3px;font-size:10.5px;border-radius:5px;padding:2px 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;border-left:3px solid"
+          onclick="event.stopPropagation();showApptPopup(event,'${esc(a.id)}')" title="${esc(a.patient)} - ${esc(a.type)} - ${fmtTime(a.time)}">
+          ${esc(a.patient)}
+        </div>`;
+      });
+      bodyHtml += '</div>';
+    });
+    bodyHtml += '</div>';
+  }
+  bodyHtml += '</div>';
+  document.getElementById('weekBody').innerHTML = bodyHtml;
+  document.getElementById('weekBody').style.overflowY = 'auto';
+  document.getElementById('weekBody').style.maxHeight = '580px';
+}
+
+// -- Month view ----------------------------------------------------------------
+function renderMonth() {
+  const y   = _cursor.getFullYear();
+  const m   = _cursor.getMonth();
+  const dim = daysInMonth(y, m);
+  const firstDow = new Date(y, m, 1).getDay();
+  const todayIso = isoToday();
+  const appts    = loadAppts();
+
+  let html = '';
+  // Leading blank cells
+  for (let i = 0; i < firstDow; i++) {
+    const d = new Date(y, m, -(firstDow - i - 1));
+    const iso = isoDate(d);
+    const dayAppts = appts.filter(a => a.date === iso);
+    html += monthCell(d, iso, dayAppts, true, false);
+  }
+  // Days of month
+  for (let d = 1; d <= dim; d++) {
+    const dt  = new Date(y, m, d);
+    const iso = isoDate(dt);
+    const dayAppts = appts.filter(a => a.date === iso);
+    html += monthCell(dt, iso, dayAppts, false, iso === todayIso);
+  }
+  // Trailing blanks to complete last row
+  const totalCells = firstDow + dim;
+  const remainder  = 7 - (totalCells % 7);
+  if (remainder < 7) {
+    for (let i = 1; i <= remainder; i++) {
+      const d   = new Date(y, m + 1, i);
+      const iso = isoDate(d);
+      html += monthCell(d, iso, [], true, false);
+    }
+  }
+  document.getElementById('monthGrid').innerHTML = html;
+}
+
+function monthCell(d, iso, dayAppts, otherMonth, isToday) {
+  const MAX_SHOW = 3;
+  const shown    = dayAppts.slice(0, MAX_SHOW);
+  const extra    = dayAppts.length - MAX_SHOW;
+  const dnClass  = isToday ? '' : '';
+  let chips = shown.map(a => {
+    const cls = a.status === 'Cancelled' ? 'type-cancelled' :
+                a.status === 'No-Show'   ? 'type-no-show'   :
+                (TYPE_CLASS[a.type] || 'type-individual');
+    return `<span class="month-appt-chip ${cls}" onclick="event.stopPropagation();showApptPopup(event,'${esc(a.id)}')" title="${esc(a.patient)} - ${fmtTime(a.time)}">${esc(a.patient)}</span>`;
+  }).join('');
+  if (extra > 0) chips += `<span class="month-more">+${extra} more</span>`;
+
+  return `<div class="month-cell${otherMonth?' other-month':''}${isToday?' today-cell':''}"
+    onclick="setView('day');_cursor=parseDate('${iso}');renderView()">
+    <div class="day-number">${d.getDate()}</div>
+    ${chips}
+  </div>`;
+}
+
+// -- Waitlist view -------------------------------------------------------------
+function renderWaitlist() {
+  const list = load(WAITLIST_KEY);
+  const el   = document.getElementById('waitlistBody');
+  if (!list.length) {
+    el.innerHTML = `<div class="waitlist-empty">
+      <div style="font-size:32px;margin-bottom:8px">&#9202;</div>
+      <p>No patients on the waitlist.</p>
+    </div>`;
+    return;
+  }
+
+  const priBadge = p => {
+    const m = { Urgent: '#fef2f2;color:#991b1b;border-color:#fecaca',
+                High:   '#fef3c7;color:#92400e;border-color:#fde68a',
+                Normal: '#f1f5f9;color:#475569;border-color:#cbd5e1' };
+    const s = m[p] || m.Normal;
+    return `<span class="status-badge" style="background:${s.split(';')[0].replace('#','')};color:;border:1px solid;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#${s}">${esc(p)}</span>`;
+  };
+
+  el.innerHTML = list.map((w, i) => `
+    <div class="waitlist-row">
+      <div class="waitlist-rank">${i + 1}</div>
+      <div>
+        <div style="font-weight:700;font-size:13px">${esc(w.patient)}</div>
+        <div style="font-size:11.5px;color:var(--ink-500);margin-top:2px">${esc(w.type)} - Available: ${esc(w.availability || '--')}</div>
+        ${w.notes ? `<div style="font-size:11.5px;color:var(--ink-600);margin-top:2px;font-style:italic">${esc(w.notes)}</div>` : ''}
+      </div>
+      <div>
+        <span class="status-badge ${
+          w.priority === 'Urgent' ? 'st-no-show' :
+          w.priority === 'High'   ? 'st-rescheduled' : 'st-cancelled'
+        }">${esc(w.priority)}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" onclick="scheduleFromWaitlist('${esc(w.id)}','${esc(w.patient)}')">Schedule</button>
+        <button class="btn btn-ghost btn-sm" onclick="removeFromWaitlist('${esc(w.id)}')" title="Remove">&#10005;</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function scheduleFromWaitlist(id, patient) {
+  openApptModal();
+  setTimeout(() => { document.getElementById('af-patient').value = patient; }, 50);
+}
+
+function removeFromWaitlist(id) {
+  const list = load(WAITLIST_KEY).filter(w => w.id !== id);
+  save(WAITLIST_KEY, list);
+  renderWaitlist();
+  toast('Removed from waitlist.');
+}
+
+// -- Appointment popup ---------------------------------------------------------
+function showApptPopup(e, id) {
+  const a   = loadAppts().find(x => x.id === id);
+  if (!a) return;
+  const el  = document.getElementById('apptPopup');
+  const stClass = {
+    Scheduled:'st-scheduled', Confirmed:'st-confirmed', Completed:'st-completed',
+    Cancelled:'st-cancelled', 'No-Show':'st-no-show', Rescheduled:'st-rescheduled'
+  }[a.status] || 'st-scheduled';
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+      <div style="font-weight:700;font-size:13.5px">${esc(a.patient)}</div>
+      <button onclick="document.getElementById('apptPopup').style.display='none'" style="border:none;background:none;cursor:pointer;color:var(--ink-500);font-size:14px;line-height:1">&#10005;</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink-600);margin-bottom:4px">${esc(a.type)} - ${fmtTime(a.time)} - ${a.duration}min</div>
+    <div style="margin-bottom:8px"><span class="status-badge ${stClass}">${esc(a.status)}</span></div>
+    ${a.cancel_reason ? `<div style="font-size:11.5px;color:#b45309;margin-bottom:6px">Reason: ${esc(a.cancel_reason)}</div>` : ''}
+    ${a.notes ? `<div style="font-size:12px;color:var(--ink-600);margin-bottom:8px;border-top:1px solid var(--border);padding-top:8px">${esc(a.notes)}</div>` : ''}
+    ${a.type === 'Telehealth' && !a.video_url ? `<div style="font-size:11.5px;color:#6b7280;margin-bottom:6px;padding:6px 8px;background:#f3f4f6;border-radius:6px">&#127909; Telehealth - no video link yet. Edit to add one.</div>` : ''}
+    <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="openApptModal(null,null,'${esc(id)}');document.getElementById('apptPopup').style.display='none'">Edit</button>
+      <button class="btn btn-ghost btn-sm" onclick="markStatus('${esc(id)}','Completed');document.getElementById('apptPopup').style.display='none'">Complete</button>
+      <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="markStatus('${esc(id)}','No-Show');document.getElementById('apptPopup').style.display='none'">No-Show</button>
+      ${a.video_url ? `<a href="${esc(a.video_url)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="background:#2563eb;text-decoration:none">&#127909; Join</a>` : ''}
+    </div>
+  `;
+  // Position near click
+  const px = Math.min(e.clientX + 8, window.innerWidth  - 300);
+  const py = Math.min(e.clientY + 8, window.innerHeight - 230);
+  el.style.left = px + 'px';
+  el.style.top  = py + 'px';
+  el.style.display = 'block';
+}
+
+document.addEventListener('click', e => {
+  const popup = document.getElementById('apptPopup');
+  if (popup && !popup.contains(e.target)) popup.style.display = 'none';
+});
+
+function markStatus(id, status) {
+  const appts = loadAppts();
+  const i = appts.findIndex(a => a.id === id);
+  if (i < 0) return;
+  appts[i].status = status;
+  saveAppts(appts);
+  renderView();
+  toast('Marked as ' + status + '.');
+}
+
+// -- Appointment modal ---------------------------------------------------------
+function openApptModal(date, time, editId) {
+  _editId = editId || null;
+  const modal = document.getElementById('apptModal');
+  document.getElementById('apptModalTitle').textContent = editId ? 'Edit Appointment' : 'New Appointment';
+  document.getElementById('apptDeleteBtn').style.display = editId ? 'inline-flex' : 'none';
+
+  if (editId) {
+    const a = loadAppts().find(x => x.id === editId);
+    if (a) {
+      document.getElementById('af-patient').value    = a.patient    || '';
+      document.getElementById('af-date').value       = a.date       || '';
+      document.getElementById('af-time').value       = a.time       || '09:00';
+      document.getElementById('af-duration').value   = String(a.duration || 50);
+      document.getElementById('af-type').value       = a.type       || 'Individual Therapy';
+      document.getElementById('af-status').value     = a.status     || 'Scheduled';
+      document.getElementById('af-cancel-reason').value = a.cancel_reason || '';
+      document.getElementById('af-recurring').value  = a.recurring  || 'none';
+      document.getElementById('af-notes').value      = a.notes      || '';
+      document.getElementById('af-video-provider').value = a.video_provider || '';
+      document.getElementById('af-video-url').value      = a.video_url      || '';
+      toggleCancelRow();
+      toggleRecurFields();
+      toggleVideoRow(a.type);
+    }
+  } else {
+    document.getElementById('af-patient').value      = '';
+    document.getElementById('af-date').value         = date || isoDate(_cursor);
+    document.getElementById('af-time').value         = time || '09:00';
+    document.getElementById('af-duration').value     = '50';
+    document.getElementById('af-type').value         = 'Individual Therapy';
+    document.getElementById('af-status').value       = 'Scheduled';
+    document.getElementById('af-cancel-reason').value = '';
+    document.getElementById('af-recurring').value    = 'none';
+    document.getElementById('af-notes').value        = '';
+    document.getElementById('af-video-provider').value = '';
+    document.getElementById('af-video-url').value      = '';
+    document.getElementById('cancelReasonRow').style.display = 'none';
+    document.getElementById('recurFields').style.display    = 'none';
+    document.getElementById('videoLinkRow').style.display   = 'none';
+  }
+
+  // Populate datalist with seed patient names
+  const dl = document.getElementById('patientList');
+  const patients = ['Maria Alvarez','Linda Patterson','Tyler Cruz','Diane Okonkwo','Marcus Webb',
+    'Rosa Guerrero','Samuel Torres','Angela Kim','Brandon Flores','Catherine Murphy','Devon Jackson','Elena Vasquez'];
+  dl.innerHTML = patients.map(p => `<option value="${esc(p)}">`).join('');
+
+  modal.style.display = 'flex';
+  document.getElementById('af-status').addEventListener('change', toggleCancelRow);
+}
+
+function closeApptModal() {
+  document.getElementById('apptModal').style.display = 'none';
+  document.getElementById('af-status').removeEventListener('change', toggleCancelRow);
+}
+
+function toggleCancelRow() {
+  const s = document.getElementById('af-status').value;
+  document.getElementById('cancelReasonRow').style.display =
+    (s === 'Cancelled' || s === 'No-Show') ? 'block' : 'none';
+}
+
+function toggleRecurFields() {
+  document.getElementById('recurFields').style.display =
+    document.getElementById('af-recurring').value !== 'none' ? 'block' : 'none';
+}
+
+function toggleVideoRow(type) {
+  const show = (type === 'Telehealth');
+  document.getElementById('videoLinkRow').style.display = show ? 'block' : 'none';
+  if (show && !document.getElementById('af-video-url').value) {
+    try {
+      const vid = JSON.parse(localStorage.getItem('ta_video_settings_v1')) || {};
+      if (vid.defaultUrl) {
+        document.getElementById('af-video-provider').value = vid.provider || 'custom';
+        document.getElementById('af-video-url').value      = vid.defaultUrl;
+      }
+    } catch (e) {}
+  }
+}
+
+function openNewMeet() {
+  window.open('https://meet.google.com/new', '_blank', 'noopener,noreferrer');
+}
+
+function saveAppt() {
+  const patient = document.getElementById('af-patient').value.trim();
+  const date    = document.getElementById('af-date').value;
+  const time    = document.getElementById('af-time').value;
+  if (!patient || !date || !time) { toast('Please fill in patient, date, and time.'); return; }
+
+  const appt = {
+    id:            _editId || ('A-' + Date.now()),
+    patient,
+    date,
+    time,
+    duration:      parseInt(document.getElementById('af-duration').value) || 50,
+    type:          document.getElementById('af-type').value,
+    status:        document.getElementById('af-status').value,
+    cancel_reason:   document.getElementById('af-cancel-reason').value,
+    recurring:       document.getElementById('af-recurring').value,
+    notes:           document.getElementById('af-notes').value.trim(),
+    video_provider:  document.getElementById('af-video-provider').value,
+    video_url:       document.getElementById('af-video-url').value.trim(),
+  };
+
+  const appts = loadAppts();
+  if (_editId) {
+    const i = appts.findIndex(a => a.id === _editId);
+    if (i > -1) appts[i] = appt;
+  } else {
+    appts.push(appt);
+    // Generate recurring occurrences
+    if (appt.recurring !== 'none') {
+      const interval = appt.recurring === 'weekly' ? 7 : appt.recurring === 'biweekly' ? 14 : 30;
+      const maxOcc   = parseInt(document.getElementById('af-recur-limit').value) || 12;
+      const endDate  = document.getElementById('af-recur-end').value;
+      let base = parseDate(date);
+      for (let n = 1; n < maxOcc; n++) {
+        const next = appt.recurring === 'monthly'
+          ? new Date(base.getFullYear(), base.getMonth() + n, base.getDate())
+          : addDays(base, interval * n);
+        const nextIso = isoDate(next);
+        if (endDate && nextIso > endDate) break;
+        appts.push({ ...appt, id: 'A-' + Date.now() + '-R' + n, date: nextIso, recurring: 'instance' });
+      }
+    }
+  }
+
+  saveAppts(appts);
+  closeApptModal();
+  renderView();
+  toast(_editId ? 'Appointment updated.' : 'Appointment saved.' + (appt.recurring !== 'none' ? ' Recurring appointments created.' : ''));
+}
+
+function deleteCurrentAppt() {
+  if (!_editId) return;
+  if (!confirm('Delete this appointment? This cannot be undone.')) return;
+  saveAppts(loadAppts().filter(a => a.id !== _editId));
+  closeApptModal();
+  renderView();
+  toast('Appointment deleted.');
+}
+
+// -- Block time modal ----------------------------------------------------------
+function openBlockModal() {
+  document.getElementById('bf-date').value  = isoDate(_cursor);
+  document.getElementById('bf-start').value = '12:00';
+  document.getElementById('bf-end').value   = '13:00';
+  document.getElementById('bf-label').value = '';
+  document.getElementById('blockModal').style.display = 'flex';
+}
+function closeBlockModal() { document.getElementById('blockModal').style.display = 'none'; }
+function saveBlock() {
+  const label = document.getElementById('bf-label').value.trim() || 'Blocked';
+  const date  = document.getElementById('bf-date').value;
+  const start = document.getElementById('bf-start').value;
+  const end   = document.getElementById('bf-end').value;
+  if (!date) { toast('Please select a date.'); return; }
+  const blocks = load(BLOCK_KEY);
+  blocks.push({ id: 'BLK-' + Date.now(), label, date, start, end });
+  save(BLOCK_KEY, blocks);
+  closeBlockModal();
+  renderView();
+  toast('Time blocked.');
+}
+
+// -- Waitlist modal ------------------------------------------------------------
+function openWaitlistModal() { document.getElementById('waitlistModal').style.display = 'flex'; }
+function closeWaitlistModal() { document.getElementById('waitlistModal').style.display = 'none'; }
+function saveWaitlist() {
+  const patient = document.getElementById('wf-patient').value.trim();
+  if (!patient) { toast('Please enter a patient name.'); return; }
+  const list = load(WAITLIST_KEY);
+  list.push({
+    id:           'WL-' + Date.now(),
+    patient,
+    type:         document.getElementById('wf-type').value,
+    priority:     document.getElementById('wf-priority').value,
+    availability: document.getElementById('wf-avail').value.trim(),
+    notes:        document.getElementById('wf-notes').value.trim(),
+    added:        isoToday(),
+  });
+  save(WAITLIST_KEY, list);
+  closeWaitlistModal();
+  renderWaitlist();
+  toast(patient + ' added to waitlist.');
+}
+
+// -- Boot ----------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof initDashboard === 'function') {
+    initDashboard(['clinician','supervisor','front_desk','admin','super_admin']);
+  }
+  if (typeof initLogout === 'function') initLogout();
+  seedIfEmpty();
+  renderView();
+});
+</script>
+</body>
+</html>

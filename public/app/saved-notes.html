@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Saved Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+</head>
+
+<body class="dashboard-body">
+
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>Saved Notes</h1>
+        <p>Access, edit, and export your clinical documentation across all note types.</p>
+      </div>
+      <a class="btn btn-blue" href="Coder.html" style="white-space:nowrap">&#43; New Note</a>
+    </header>
+
+    <div class="content-card section-gap">
+
+      <!-- Filters -->
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <span class="search-icon">&#128269;</span>
+          <input class="filter-input" id="noteSearch" type="text" placeholder="Search by client name or note type&hellip;" oninput="filterNotes()">
+        </div>
+        <select class="filter-select" id="filterNoteType" onchange="filterNotes()">
+          <option value="">All Note Types</option>
+          <option value="Intake Assessment">Intake Assessment</option>
+          <option value="Treatment Plan">Treatment Plan</option>
+          <option value="Individual Therapy">Individual Therapy</option>
+          <option value="Group Session">Group Session</option>
+          <option value="Crisis Intervention">Crisis Intervention</option>
+          <option value="Discharge Summary">Discharge Summary</option>
+          <option value="Progress Note">Progress Note</option>
+        </select>
+        <select class="filter-select" id="filterNoteProvider" onchange="filterNotes()">
+          <option value="">All Providers</option>
+        </select>
+        <input class="filter-input" id="filterNoteDate" type="date" onchange="filterNotes()" style="min-width:140px;">
+        <select class="filter-select" id="filterNoteStatus" onchange="filterNotes()">
+          <option value="">Draft &amp; Final</option>
+          <option value="Draft">Draft Only</option>
+          <option value="Final">Final Only</option>
+        </select>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="data-table" id="notesTable">
+          <thead>
+            <tr>
+              <th>Client Name</th>
+              <th>Note Type</th>
+              <th>Date of Service</th>
+              <th>Last Modified</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="notesBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div id="noNoteResults" style="display:none;padding:24px;text-align:center;color:var(--ink-500);font-size:14px;">
+        No notes match your current filters.
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Note view modal -->
+<div id="noteViewModal" onclick="handleNoteBackdrop(event)" style="position:fixed;inset:0;background:rgba(11,44,77,0.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1000;overflow-y:auto">
+  <div style="width:min(700px,100%);background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-lg);border-radius:20px;padding:28px" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div>
+        <div id="noteModalTitle" style="font-family:'Sora','Public Sans',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900)"></div>
+        <div id="noteModalMeta" style="font-size:.8125rem;color:var(--ink-500);margin-top:3px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="copyCurrentNote()">Copy</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeNoteModal()">&#10005; Close</button>
+      </div>
+    </div>
+    <pre id="noteModalContent" style="white-space:pre-wrap;font-size:.875rem;line-height:1.7;color:var(--ink-700);font-family:inherit;margin:0"></pre>
+  </div>
+</div>
+
+<script>
+let ALL_NOTES = [];
+
+function renderNoteRows(data) {
+  const body = document.getElementById("notesBody");
+  body.innerHTML = data.map(n => `
+    <tr>
+      <td><strong>${escapeHtml(n.client)}</strong></td>
+      <td>${escapeHtml(n.type)}</td>
+      <td class="muted">${formatDate(n.dos)}</td>
+      <td class="muted">${formatDate(n.modified)}</td>
+      <td><span class="badge ${n.status === 'Final' ? 'badge-final' : 'badge-draft'}">${escapeHtml(n.status)}</span></td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-outline btn-sm" onclick='openNoteModal(${JSON.stringify(n.id)})'>Open</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteNote(${JSON.stringify(n.id)}, this)">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+  document.getElementById("noNoteResults").style.display = data.length === 0 ? "block" : "none";
+}
+
+function formatDate(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function filterNotes() {
+  const q       = document.getElementById("noteSearch").value.toLowerCase();
+  const type    = document.getElementById("filterNoteType").value;
+  const prov    = document.getElementById("filterNoteProvider").value;
+  const dateVal = document.getElementById("filterNoteDate").value;
+  const status  = document.getElementById("filterNoteStatus").value;
+
+  const filtered = ALL_NOTES.filter(n => {
+    if (q && !n.client.toLowerCase().includes(q) && !n.type.toLowerCase().includes(q)) return false;
+    if (type && n.type !== type) return false;
+    if (prov && n.provider !== prov) return false;
+    if (dateVal && n.dos < dateVal) return false;
+    if (status && n.status !== status) return false;
+    return true;
+  });
+
+  renderNoteRows(filtered);
+}
+
+// -- Note modal ----------------------------------------------------------------
+let _noteModalEl = null;
+
+function openNoteModal(id) {
+  const n = ALL_NOTES.find(x => String(x.id) === String(id));
+  if (!n) return;
+  document.getElementById('noteModalTitle').textContent = n.client + ' - ' + n.type;
+  document.getElementById('noteModalMeta').textContent = 'Date of Service: ' + formatDate(n.dos);
+  document.getElementById('noteModalContent').textContent = n.content || '(No content saved)';
+  const backdrop = document.getElementById('noteViewModal');
+  backdrop.style.display = 'flex';
+  _noteModalEl = id;
+}
+function closeNoteModal() {
+  document.getElementById('noteViewModal').style.display = 'none';
+  _noteModalEl = null;
+}
+function copyCurrentNote() {
+  const n = ALL_NOTES.find(x => String(x.id) === String(_noteModalEl));
+  if (n && n.content) navigator.clipboard.writeText(n.content).then(() => alert('Copied to clipboard.'));
+}
+function handleNoteBackdrop(e) {
+  if (e.target === document.getElementById('noteViewModal')) closeNoteModal();
+}
+
+function confirmDeleteNote(id, btn) {
+  const n = ALL_NOTES.find(x => String(x.id) === String(id));
+  const name = n ? n.client : 'this note';
+  if (confirm(`Delete note for ${name}? This cannot be undone.`)) {
+    ALL_NOTES = ALL_NOTES.filter(x => String(x.id) !== String(id));
+    setStoredNotes(ALL_NOTES);
+    btn.closest('tr').remove();
+    document.getElementById('noNoteResults').style.display = ALL_NOTES.length === 0 ? 'block' : 'none';
+  }
+}
+
+window.onload = async () => {
+  await initDashboard(CLINICIAN_ROLES);
+  ALL_NOTES = getStoredNotes();
+  renderNoteRows(ALL_NOTES);
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

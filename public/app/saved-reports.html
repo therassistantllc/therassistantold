@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Saved Reports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .sr-backdrop{position:fixed;inset:0;background:rgba(11,44,77,0.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1000;overflow-y:auto}
+    .sr-backdrop.open{display:flex}
+    .sr-panel{width:min(860px,100%);background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-lg);border-radius:20px;padding:28px 28px 24px}
+    .sr-panel-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+    .sr-panel-name{font-family:"Sora","Public Sans",sans-serif;font-size:1.25rem;font-weight:700;color:var(--ink-900)}
+    .sr-panel-meta{font-size:.8125rem;color:var(--ink-500);margin-top:4px}
+    .sr-panel-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+    .sr-section-head{font-family:"Sora","Public Sans",sans-serif;font-size:.95rem;font-weight:700;color:var(--ink-900);text-transform:uppercase;letter-spacing:.04em;margin:20px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+    .sr-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+    .sr-summary-block{padding:12px 14px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px}
+    .sr-summary-block h5{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin:0 0 8px}
+    .sr-qa-row{display:flex;gap:8px;align-items:baseline;font-size:.8125rem;line-height:1.5;padding:2px 0}
+    .sr-qa-label{color:var(--ink-600);flex:1}
+    .sr-qa-val{font-weight:600;color:var(--ink-900);white-space:nowrap}
+    .sr-qa-val.yes{color:var(--success)}
+    .sr-qa-val.no{color:var(--ink-400)}
+    .sr-code-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px}
+    .sr-code-card-head{display:flex;gap:14px;align-items:center;padding:14px 16px;background:var(--surface-soft);border-bottom:1px solid var(--border)}
+    .sr-code-badge{font-family:"Sora",sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);min-width:80px}
+    .sr-conf-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700}
+    .sr-conf-high{background:#d1fae5;color:#065f46}
+    .sr-conf-moderate{background:#fef3c7;color:#92400e}
+    .sr-conf-low{background:#f3f4f6;color:var(--ink-500)}
+    .sr-code-rev{margin-left:auto;font-size:.875rem;font-weight:700;color:var(--revenue)}
+    .sr-code-body{padding:14px 16px}
+    .sr-code-explain{font-size:.875rem;color:var(--ink-700);line-height:1.6;margin-bottom:12px}
+    .sr-guidance-section{margin-top:10px}
+    .sr-guidance-section h6{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin:0 0 5px}
+    .sr-guidance-section p,.sr-guidance-section li{font-size:.8125rem;color:var(--ink-700);line-height:1.6;margin:0}
+    .sr-guidance-section ul{margin:0;padding-left:18px}
+    .sr-guidance-section li{margin-bottom:3px}
+    .sr-rev-total{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--revenue-soft);border:1px solid #f0c898;border-radius:10px;margin-bottom:16px}
+    .sr-audit-section{background:var(--surface-soft);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px}
+    .sr-audit-section h4{font-size:.875rem;font-weight:700;color:var(--ink-700);margin:0 0 10px}
+    .sr-audit-body{font-size:.875rem;color:var(--ink-700);white-space:pre-wrap;line-height:1.65}
+    .sr-modal-footer{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+    @media(max-width:600px){.sr-summary-grid{grid-template-columns:1fr}}
+    @media print {
+      body > * { display: none !important; }
+      #reportModal { display: block !important; position: static !important; background: none !important; padding: 0 !important; overflow: visible !important; }
+      .sr-panel { box-shadow: none !important; border: none !important; width: 100% !important; padding: 0 !important; }
+      .sr-panel-actions, .sr-modal-footer { display: none !important; }
+      .sr-audit-section { background: none !important; border: 1px solid #ccc !important; }
+    }
+  </style>
+</head>
+
+<body class="dashboard-body">
+
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>Saved Reports</h1>
+        <p>Review, export, and manage your finalized and draft coding reports.</p>
+      </div>
+      <a class="btn btn-blue" href="Coder.html" style="white-space:nowrap">&#43; New Report</a>
+    </header>
+
+    <div class="content-card section-gap">
+
+      <!-- Filters -->
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <span class="search-icon">&#128269;</span>
+          <input class="filter-input" id="reportSearch" type="text" placeholder="Search by client name or code&hellip;" oninput="filterReports()">
+        </div>
+        <select class="filter-select" id="filterDateRange" onchange="filterReports()">
+          <option value="">All Dates</option>
+          <option value="7">Last 7 Days</option>
+          <option value="30">Last 30 Days</option>
+          <option value="90">Last 90 Days</option>
+        </select>
+        <select class="filter-select" id="filterProvider" onchange="filterReports()">
+          <option value="">All Providers</option>
+        </select>
+        <select class="filter-select" id="filterCodeType" onchange="filterReports()">
+          <option value="">All Code Types</option>
+          <option value="H0001">H0001</option>
+          <option value="H0031">H0031</option>
+          <option value="H0032">H0032</option>
+          <option value="H0004">H0004</option>
+          <option value="H0005">H0005</option>
+          <option value="90837">90837</option>
+        </select>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="data-table" id="reportsTable">
+          <thead>
+            <tr>
+              <th>Client Name</th>
+              <th>Recommended Codes</th>
+              <th>Revenue Opp.</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reportsBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div id="noResults" style="display:none;padding:24px;text-align:center;color:var(--ink-500);font-size:14px;">
+        No reports match your current filters.
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- View Report Modal -->
+<div id="reportModal" class="sr-backdrop" onclick="handleModalBackdrop(event)">
+  <div class="sr-panel" role="dialog" aria-modal="true" aria-labelledby="srModalTitle">
+    <div class="sr-panel-head">
+      <div>
+        <div id="srModalTitle" class="sr-panel-name"></div>
+        <div id="srModalMeta" class="sr-panel-meta"></div>
+      </div>
+      <div class="sr-panel-actions">
+        <span id="srModalBadge" class="badge"></span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="printCurrentReport()">Print / PDF</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="closeReportModal()">&#10005; Close</button>
+      </div>
+    </div>
+    <div id="srModalBody"></div>
+  </div>
+</div>
+
+<script>
+let ALL_REPORTS = [];
+let _activeReportId = null;
+
+function persistStoredCoderReports() {
+  var localOnly = ALL_REPORTS.filter(function(r) { return String(r.id || '').startsWith('coder-'); });
+  setStoredCoderReports(localOnly);
+}
+
+// -- Modal ---------------------------------------------------------------------
+
+function openReportModal(r) {
+  _activeReportId = String(r.id || '');
+  var badge = document.getElementById('srModalBadge');
+  badge.textContent = r.status || 'Draft';
+  badge.className = 'badge ' + (r.status === 'Final' ? 'badge-final' : 'badge-draft');
+  document.getElementById('srModalTitle').textContent = r.client || 'Unnamed Client';
+  document.getElementById('srModalMeta').textContent =
+    'Date of Service: ' + formatDate(r.date) + (r.provider ? ' \u00b7 ' + r.provider : '') +
+    (r.diag ? ' \u00b7 ' + r.diag : '');
+  renderViewBody(r);
+  document.getElementById('reportModal').classList.add('open');
+}
+
+function renderViewBody(r) {
+  var html = '';
+
+  // -- Part 1: Summary of Completed Answers ---------------------------------
+  var summarySource = r.formSummary || r.auditSummary || '';
+  if (summarySource) {
+    html += '<div class="sr-section-head">Summary of Completed Answers</div>';
+
+    // Parse formSummary text into sections ? bullet rows
+    var sections = [];
+    var currentSection = null;
+    summarySource.split('\n').forEach(function(line) {
+      var trimmed = line.trim();
+      if (!trimmed) return;
+      if (trimmed.startsWith('- ')) {
+        if (currentSection) {
+          var parts = trimmed.slice(2).split(': ');
+          var label = parts[0] || '';
+          var val = parts.slice(1).join(': ') || '';
+          currentSection.rows.push({ label: label, val: val });
+        }
+      } else {
+        currentSection = { title: trimmed, rows: [] };
+        sections.push(currentSection);
+      }
+    });
+
+    if (sections.length) {
+      html += '<div class="sr-summary-grid">';
+      sections.forEach(function(sec) {
+        html += '<div class="sr-summary-block"><h5>' + escapeHtml(sec.title) + '</h5>';
+        sec.rows.forEach(function(row) {
+          var valLower = row.val.toLowerCase();
+          var valClass = valLower === 'yes' ? ' yes' : (valLower === 'no' ? ' no' : '');
+          html += '<div class="sr-qa-row"><span class="sr-qa-label">' + escapeHtml(row.label) + '</span><span class="sr-qa-val' + valClass + '">' + escapeHtml(row.val || '--') + '</span></div>';
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      // Legacy: pre-wrap text (auditSummary fallback)
+      html += '<div class="sr-audit-section"><div class="sr-audit-body">' + escapeHtml(summarySource) + '</div></div>';
+    }
+  }
+
+  // -- Part 2: Coding Report -------------------------------------------------
+  html += '<div class="sr-section-head">Coding Report</div>';
+
+  if (r.codeDetails && r.codeDetails.length) {
+    // Total revenue banner
+    var revDisplay = computeRevDisplay(r);
+    if (revDisplay && revDisplay !== '--') {
+      html += '<div class="sr-rev-total"><span style="font-size:.875rem;font-weight:600;color:var(--ink-700)">Total Estimated Revenue</span><span style="font-size:1.1rem;font-weight:700;color:var(--revenue)">' + escapeHtml(revDisplay) + '</span></div>';
+    }
+
+    // Code cards
+    r.codeDetails.forEach(function(cd) {
+      var confClass = cd.confidence === 'high' ? 'sr-conf-high' : (cd.confidence === 'moderate' ? 'sr-conf-moderate' : 'sr-conf-low');
+      var confLabel = cd.confidence === 'high' ? 'High Confidence' : (cd.confidence === 'moderate' ? 'Moderate Confidence' : 'Low Confidence');
+
+      html += '<div class="sr-code-card">';
+
+      // Card header
+      html += '<div class="sr-code-card-head">';
+      html += '<div class="sr-code-badge">' + escapeHtml(cd.code) + '</div>';
+      html += '<div><div style="font-size:.875rem;font-weight:600;color:var(--ink-700)">' + escapeHtml(cd.title || '') + '</div>';
+      html += '<span class="sr-conf-badge ' + confClass + '">' + confLabel + '</span></div>';
+      if (cd.revenue) {
+        html += '<div class="sr-code-rev">' + escapeHtml(cd.revenue) + ' est.</div>';
+      }
+      html += '</div>';
+
+      // Card body
+      html += '<div class="sr-code-body">';
+      html += '<div class="sr-code-explain">' + escapeHtml(cd.explanation || '') + '</div>';
+
+      if (cd.medicalNecessityStandard) {
+        html += '<div class="sr-guidance-section"><h6>Medical Necessity Standard</h6><p>' + escapeHtml(cd.medicalNecessityStandard) + '</p></div>';
+      }
+      if (cd.requiredDocumentation && cd.requiredDocumentation.length) {
+        html += '<div class="sr-guidance-section"><h6>Required Documentation</h6><ul>';
+        cd.requiredDocumentation.forEach(function(item) { html += '<li>' + escapeHtml(item) + '</li>'; });
+        html += '</ul></div>';
+      }
+      if (cd.commonDeficiencies && cd.commonDeficiencies.length) {
+        html += '<div class="sr-guidance-section"><h6>Common Deficiencies</h6><ul>';
+        cd.commonDeficiencies.forEach(function(item) { html += '<li>' + escapeHtml(item) + '</li>'; });
+        html += '</ul></div>';
+      }
+      if (cd.suggestedDocumentationLanguage) {
+        html += '<div class="sr-guidance-section"><h6>Suggested Documentation Language</h6><p>' + escapeHtml(cd.suggestedDocumentationLanguage) + '</p></div>';
+      }
+      if (cd.legalCitations && cd.legalCitations.length) {
+        html += '<div class="sr-guidance-section"><h6>Legal / Regulatory Citations</h6><ul>';
+        cd.legalCitations.forEach(function(item) { html += '<li>' + escapeHtml(item) + '</li>'; });
+        html += '</ul></div>';
+      }
+
+      html += '</div></div>'; // .sr-code-body + .sr-code-card
+    });
+  } else {
+    // Legacy: no codeDetails saved
+    html += '<div class="sr-audit-section"><div class="sr-audit-body">' + escapeHtml(r.auditSummary || 'No coding report available.') + '</div></div>';
+  }
+
+  document.getElementById('srModalBody').innerHTML = html;
+}
+
+function closeReportModal() {
+  document.getElementById('reportModal').classList.remove('open');
+  _activeReportId = null;
+}
+
+function handleModalBackdrop(e) {
+  if (e.target === document.getElementById('reportModal')) closeReportModal();
+}
+
+function printCurrentReport() {
+  window.print();
+}
+
+// -- Button handlers -----------------------------------------------------------
+
+function viewReport(id) {
+  var r = ALL_REPORTS.find(function(x) { return String(x.id || '') === String(id); });
+  if (r) openReportModal(r);
+}
+
+function editReport(id) {
+  window.location.href = 'Coder.html?resume=' + encodeURIComponent(id);
+}
+
+function renameReport(id) {
+  var r = ALL_REPORTS.find(function(x) { return String(x.id || '') === String(id); });
+  if (!r) return;
+  var newName = prompt('Rename client for this report:', r.client || '');
+  if (newName === null) return; // cancelled
+  newName = newName.trim() || r.client;
+  r.client = newName;
+  persistStoredCoderReports();
+  renderRows(ALL_REPORTS);
+}
+
+function duplicateReport(id) {
+  var r = ALL_REPORTS.find(function(x) { return String(x.id || '') === String(id); });
+  if (!r) return;
+  var copy = Object.assign({}, r, {
+    id: 'coder-' + Date.now(),
+    date: new Date().toISOString().slice(0, 10),
+    status: 'Draft'
+  });
+  ALL_REPORTS.unshift(copy);
+  persistStoredCoderReports();
+  renderRows(ALL_REPORTS);
+}
+
+function downloadPdf(id) {
+  var r = ALL_REPORTS.find(function(x) { return String(x.id || '') === String(id); });
+  if (!r) return;
+  openReportModal(r, false);
+  setTimeout(function() { window.print(); }, 150);
+}
+
+// -- Revenue helpers -----------------------------------------------------------
+
+function computeRevDisplay(r) {
+  if (r.codeDetails && r.codeDetails.length) {
+    var min = 0, max = 0;
+    r.codeDetails.forEach(function(cd) {
+      var vals = String(cd.revenue || '').match(/\$\d+(?:\.\d+)?/g) || [];
+      if (vals.length >= 1) min += Number(vals[0].replace('$', '')) || 0;
+      if (vals.length >= 2) max += Number(vals[1].replace('$', '')) || 0;
+    });
+    if (min > 0 || max > 0) {
+      return '$' + min.toFixed(2) + ' \u2013 $' + max.toFixed(2);
+    }
+  }
+  return r.revenue || '\u2014';
+}
+
+// -- Table ---------------------------------------------------------------------
+
+function buildCodeChips(codesStr) {
+  return (codesStr || '').split(', ').map(function(c) {
+    return '<span class="code-chip">' + escapeHtml(c.trim()) + '</span>';
+  }).join(' ');
+}
+
+function renderRows(data) {
+  var body = document.getElementById('reportsBody');
+  var rows = [];
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    var id = escapeHtml(r.id || '');
+    var badgeClass = r.status === 'Final' ? 'badge-final' : 'badge-draft';
+    rows.push(
+      '<tr>' +
+        '<td><strong>' + escapeHtml(r.client) + '</strong></td>' +
+        '<td>' + buildCodeChips(r.codes || '') + '</td>' +
+        '<td><strong style="color:var(--revenue)">' + escapeHtml(computeRevDisplay(r)) + '</strong></td>' +
+        '<td>' +
+          '<div class="action-btns">' +
+            '<button class="btn btn-outline btn-sm" onclick="viewReport(\'' + id + '\')">View</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="renameReport(\'' + id + '\')">Rename</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="editReport(\'' + id + '\')">Edit</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="duplicateReport(\'' + id + '\')">Duplicate</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="downloadPdf(\'' + id + '\')">PDF</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="confirmDelete(\'' + id + '\', this)">Delete</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
+    );
+  }
+  body.innerHTML = rows.join('');
+  document.getElementById('noResults').style.display = data.length === 0 ? 'block' : 'none';
+}
+
+function formatDate(iso) {
+  var d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function filterReports() {
+  var q    = document.getElementById('reportSearch').value.toLowerCase();
+  var days = parseInt(document.getElementById('filterDateRange').value) || 0;
+  var prov = document.getElementById('filterProvider').value;
+  var code = document.getElementById('filterCodeType').value;
+  var cutoff = days ? new Date(Date.now() - days * 86400000) : null;
+
+  var filtered = ALL_REPORTS.filter(function(r) {
+    if (q && !r.client.toLowerCase().includes(q) && !r.codes.toLowerCase().includes(q)) return false;
+    if (cutoff && new Date(r.date) < cutoff) return false;
+    if (prov && r.provider !== prov) return false;
+    if (code && !r.codes.includes(code)) return false;
+    return true;
+  });
+
+  renderRows(filtered);
+}
+
+function confirmDelete(reportId, btn) {
+  var r = ALL_REPORTS.find(function(x) { return String(x.id || '') === String(reportId); });
+  var name = r ? r.client : 'this report';
+  if (confirm('Delete report for ' + name + '? This cannot be undone.')) {
+    ALL_REPORTS = ALL_REPORTS.filter(function(x) { return String(x.id || '') !== String(reportId); });
+    persistStoredCoderReports();
+    btn.closest('tr').remove();
+    document.getElementById('noResults').style.display = ALL_REPORTS.length === 0 ? 'block' : 'none';
+    if (_activeReportId === String(reportId)) closeReportModal();
+  }
+}
+
+window.onload = async function() {
+  await initDashboard(CLINICIAN_ROLES);
+  ALL_REPORTS = [...getStoredCoderReports()];
+  renderRows(ALL_REPORTS);
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

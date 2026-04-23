@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Claim Detail</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="admin-ops.js?v=1"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:16px}
+
+    /* -- Breadcrumb ------------------------------------- */
+    .breadcrumb{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-500);margin-bottom:14px}
+    .breadcrumb a{color:var(--blue-700);text-decoration:none;font-weight:600}
+    .breadcrumb a:hover{text-decoration:underline}
+    .breadcrumb-sep{color:var(--ink-500)}
+
+    /* -- Claim header banner ---------------------------- */
+    .claim-banner{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap}
+    .claim-banner-id{font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:var(--blue-800);margin-bottom:4px}
+    .claim-banner-info{flex:1;min-width:220px}
+    .claim-banner-patient{font-size:14px;font-weight:700;color:var(--ink-900);margin-bottom:2px}
+    .claim-banner-sub{font-size:12.5px;color:var(--ink-500);display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
+    .claim-banner-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+    .cb-badge{display:inline-block;border-radius:7px;padding:3px 11px;font-size:11.5px;font-weight:700;border:1px solid;white-space:nowrap}
+    .cb-paid{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+    .cb-denied{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+    .cb-submitted{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+    .cb-accepted{background:#e0f2fe;color:#0369a1;border-color:#7dd3fc}
+    .cb-in_process{background:#f0f9ff;color:#075985;border-color:#bae6fd}
+    .cb-partial{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .cb-appealed{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .cb-ready{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .cb-draft{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .cb-voided{background:#f1f5f9;color:#64748b;border-color:#94a3b8}
+
+    /* -- KPI strip -------------------------------------- */
+    .claim-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+    .ck{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;text-align:center}
+    .ck-num{font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--ink-900);line-height:1.1}
+    .ck-num.green{color:#059669}
+    .ck-num.red{color:#dc2626}
+    .ck-num.amber{color:#d97706}
+    .ck-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-top:3px}
+
+    /* -- Two-column layout ------------------------------ */
+    .cd-layout{display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start}
+    @media(max-width:960px){.cd-layout{grid-template-columns:1fr}}
+
+    /* -- Tabs ------------------------------------------- */
+    .cd-tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:0;flex-wrap:wrap}
+    .cd-tab{border:none;background:none;padding:9px 14px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .14s,border-color .14s;white-space:nowrap}
+    .cd-tab:hover{color:var(--ink-900)}
+    .cd-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+    .cd-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:99px;font-size:10px;font-weight:800;padding:0 3px;margin-left:4px;background:#dbeafe;color:#1e40af}
+    .cd-tab.active .cd-count{background:var(--blue-600);color:#fff}
+    .cd-panel{display:none;padding:16px 0}
+    .cd-panel.active{display:block}
+
+    /* -- Section card ----------------------------------- */
+    .cd-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+    .cd-card-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+    .cd-card-title button{background:none;border:none;font-size:12px;cursor:pointer;color:var(--blue-600);font-weight:700;font-family:inherit;padding:0}
+    .cd-card-title button:hover{text-decoration:underline}
+
+    /* -- Field grid ------------------------------------- */
+    .cd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+    .cd-grid.three{grid-template-columns:1fr 1fr 1fr}
+    .cd-field{padding:5px 0;border-bottom:1px solid var(--border)}
+    .cd-field:last-child,.cd-field.no-border{border-bottom:none}
+    .cd-field label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-500);margin-bottom:2px}
+    .cd-field span{font-size:13px;color:var(--ink-900);font-weight:500;word-break:break-word}
+    .cd-field span.muted{color:var(--ink-500)}
+    .cd-field span.mono{font-family:monospace;font-size:12.5px}
+
+    /* -- Line items table ------------------------------- */
+    .li-table{width:100%;border-collapse:collapse;font-size:12.5px}
+    .li-table th{background:var(--surface-soft);padding:6px 10px;text-align:left;font-weight:700;color:var(--ink-500);font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border);white-space:nowrap}
+    .li-table td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--ink-900);vertical-align:middle}
+    .li-table tr:last-child td{border-bottom:none}
+    .li-table tr:hover td{background:rgba(60,144,209,.04)}
+    .li-table .num{text-align:right;font-variant-numeric:tabular-nums}
+    .li-table .paid-td{color:#059669;font-weight:700}
+    .li-table .denied-td{color:#dc2626;font-weight:700}
+    .li-table tfoot td{font-weight:700;border-top:2px solid var(--border);background:var(--surface-soft)}
+
+    /* -- Pill badges ------------------------------------ */
+    .pill{display:inline-block;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+    .pill-cpt{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+    .pill-mod{background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff}
+    .pill-icd{background:#f0fdf4;color:#166534;border-color:#bbf7d0}
+    .pill-denial{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+    .pill-appeal{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .pill-alert{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+
+    /* -- Timeline --------------------------------------- */
+    .tl{display:flex;flex-direction:column;gap:0;position:relative;padding-left:22px}
+    .tl::before{content:'';position:absolute;left:7px;top:12px;bottom:12px;width:2px;background:var(--border)}
+    .tl-item{display:flex;align-items:flex-start;gap:12px;padding:9px 0;position:relative}
+    .tl-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:2px solid #fff;margin-left:-22px;margin-top:2px}
+    .tl-dot-blue{background:var(--blue-600);box-shadow:0 0 0 2px var(--blue-200,#bfdbfe)}
+    .tl-dot-green{background:#059669;box-shadow:0 0 0 2px #a7f3d0}
+    .tl-dot-red{background:#dc2626;box-shadow:0 0 0 2px #fca5a5}
+    .tl-dot-amber{background:#d97706;box-shadow:0 0 0 2px #fde68a}
+    .tl-dot-gray{background:#94a3b8;box-shadow:0 0 0 2px #e2e8f0}
+    .tl-dot-purple{background:#7c3aed;box-shadow:0 0 0 2px #ddd6fe}
+    .tl-body{flex:1}
+    .tl-action{font-size:13px;font-weight:600;color:var(--ink-900)}
+    .tl-meta{font-size:11px;color:var(--ink-500);margin-top:1px}
+    .tl-note{font-size:12px;color:var(--ink-700);font-style:italic;margin-top:3px;padding:4px 8px;background:var(--surface-soft);border-radius:6px;border-left:3px solid var(--blue-200)}
+
+    /* -- Comments --------------------------------------- */
+    .cmt-list{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+    .cmt{background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:11px 14px}
+    .cmt.internal{background:#fffbeb;border-color:#fde68a}
+    .cmt-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+    .cmt-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+    .cmt-av.staff{background:linear-gradient(135deg,#10b981,#047857)}
+    .cmt-av.sys{background:#94a3b8}
+    .cmt-author{font-weight:700;font-size:12.5px;color:var(--ink-900)}
+    .cmt-role-badge{font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid}
+    .cmt-role-badge.staff{background:#d1fae5;border-color:#6ee7b7;color:#065f46}
+    .cmt-role-badge.internal{background:#fef3c7;border-color:#fde68a;color:#92400e}
+    .cmt-time{font-size:10.5px;color:var(--ink-500);margin-left:auto}
+    .cmt-body{font-size:13px;color:var(--ink-700);line-height:1.56;white-space:pre-wrap;word-break:break-word}
+    .cmt-del{background:none;border:none;cursor:pointer;color:#dc2626;font-size:11px;font-weight:700;padding:0;font-family:inherit;margin-top:4px}
+
+    /* -- Compose ---------------------------------------- */
+    .compose-area{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
+    .compose-toolbar{display:flex;gap:6px;padding:7px 10px;background:var(--surface-soft);border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+    .compose-toolbar button{border:1.5px solid var(--border);border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;background:#fff;color:var(--ink-700);transition:border-color .12s}
+    .compose-toolbar button:hover{border-color:var(--blue-500);color:var(--blue-700)}
+    .compose-toolbar button.toggle-note{border-color:#fde68a;background:#fffbeb;color:#92400e}
+    .compose-toolbar button.toggle-note.active{background:#fde68a;color:#78350f}
+    .phrase-dropdown{position:relative;display:inline-block}
+    .phrase-menu{display:none;position:absolute;top:100%;left:0;z-index:30;min-width:260px;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);overflow:hidden;margin-top:4px}
+    .phrase-menu.open{display:block}
+    .phrase-item{padding:9px 14px;cursor:pointer;font-size:12.5px;color:var(--ink-900);border-bottom:1px solid var(--border);transition:background .1s}
+    .phrase-item:last-child{border-bottom:none}
+    .phrase-item:hover{background:#eaf3fd;color:var(--blue-700)}
+    .phrase-item strong{display:block;font-weight:700;font-size:12px}
+    .phrase-item span{font-size:11.5px;color:var(--ink-500)}
+    .compose-mode-bar{display:none;background:#fffbeb;color:#92400e;font-size:11px;font-weight:700;padding:4px 12px;text-align:center;border-bottom:1px solid #fde68a}
+    .compose-mode-bar.visible{display:block}
+    .compose-ta{width:100%;border:none;padding:10px 12px;font-size:13px;font-family:inherit;resize:none;min-height:58px;outline:none;color:var(--ink-900);box-sizing:border-box}
+    .compose-ta.note-mode{background:#fffef0}
+    .compose-send-row{display:flex;justify-content:flex-end;gap:8px;padding:7px 10px;border-top:1px solid var(--border)}
+
+    /* -- Attachments ------------------------------------ */
+    .att-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+    .att-item:last-child{border-bottom:none}
+    .att-icon{font-size:1.1rem;flex-shrink:0}
+    .att-name{flex:1;font-weight:600;color:var(--ink-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .att-meta{font-size:11px;color:var(--ink-500);flex-shrink:0}
+    .att-del{background:none;border:none;cursor:pointer;color:#dc2626;font-weight:700;font-size:11px;font-family:inherit;padding:0;flex-shrink:0}
+    .upload-zone{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:var(--surface-soft);transition:border-color .14s,background .14s;margin-top:10px}
+    .upload-zone:hover{border-color:var(--blue-500);background:#eaf3fd}
+
+    /* -- Payments --------------------------------------- */
+    .pay-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+    .pay-item:last-child{border-bottom:none}
+    .pay-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0}
+    .pay-icon.insurance{background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af}
+    .pay-icon.patient{background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46}
+    .pay-icon.recoup{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .pay-body{flex:1;min-width:0}
+    .pay-who{font-weight:700;color:var(--ink-900)}
+    .pay-meta{font-size:11px;color:var(--ink-500)}
+    .pay-amount{font-weight:700;font-size:14px;white-space:nowrap}
+    .pay-amount.negative{color:#dc2626}
+    .pay-amount.positive{color:#059669}
+
+    /* -- Denials & Appeals ------------------------------ */
+    .denial-card{background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;padding:13px 15px;margin-bottom:10px}
+    .denial-card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+    .denial-code{font-family:monospace;font-weight:700;font-size:12.5px;color:#991b1b;background:#fee2e2;padding:2px 8px;border-radius:5px;border:1px solid #fca5a5}
+    .denial-reason{font-size:13px;color:#7f1d1d;font-weight:600}
+    .denial-detail{font-size:12.5px;color:var(--ink-700);line-height:1.5;margin-top:4px}
+    .appeal-card{background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px;padding:13px 15px;margin-bottom:10px}
+    .appeal-card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+    .appeal-status{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid}
+    .appeal-submitted{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+    .appeal-pending{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .appeal-won{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+    .appeal-lost{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+
+    /* -- Billing Alert chips ---------------------------- */
+    .ba-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:border-color .12s,background .12s;text-decoration:none}
+    .ba-chip:hover{border-color:var(--blue-500);background:#eaf3fd}
+    .ba-chip-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;flex-shrink:0;background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b}
+    .ba-chip-body{flex:1;min-width:0}
+    .ba-chip-id{font-size:11px;font-weight:700;color:var(--blue-700);letter-spacing:.04em}
+    .ba-chip-type{font-size:12.5px;font-weight:700;color:var(--ink-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ba-chip-meta{font-size:11px;color:var(--ink-500)}
+
+    /* -- Right sidebar ---------------------------------- */
+    .cd-sidebar .cd-card{margin-bottom:10px}
+    .si-row{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;font-size:12.5px}
+    .si-row label{color:var(--ink-500);width:72px;flex-shrink:0;font-weight:600;font-size:12px}
+    .si-row span{color:var(--ink-900);font-weight:500;word-break:break-word}
+    .si-sel{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;margin-bottom:6px;cursor:pointer}
+    .si-sel:focus{border-color:var(--blue-500)}
+    .si-input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;margin-bottom:6px;box-sizing:border-box}
+    .si-input:focus{border-color:var(--blue-500)}
+    .si-save-btn{width:100%;padding:6px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface-soft);color:var(--ink-700);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:border-color .12s,background .12s}
+    .si-save-btn:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-700)}
+    .si-save-btn.primary{background:var(--blue-600);color:#fff;border-color:var(--blue-600)}
+    .si-save-btn.primary:hover{background:var(--blue-700)}
+
+    /* -- Empty states ----------------------------------- */
+    .empty-state{text-align:center;padding:28px 16px;color:var(--ink-500)}
+    .empty-state .es-icon{font-size:2rem;margin-bottom:8px}
+    .empty-state p{font-size:13px;margin:0}
+
+    /* -- Action buttons --------------------------------- */
+    .act-btn{border:1.5px solid var(--border);border-radius:8px;padding:6px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--surface);color:var(--ink-700);transition:border-color .14s,background .14s;white-space:nowrap}
+    .act-btn:hover{border-color:var(--blue-500);background:#eaf3fd;color:var(--blue-700)}
+    .act-btn.success{border-color:#a7f3d0;color:#065f46}
+    .act-btn.success:hover{background:#d1fae5}
+    .act-btn.danger{border-color:#fca5a5;color:#b91c1c}
+    .act-btn.danger:hover{background:#fef2f2}
+    .act-btn.amber{border-color:#fde68a;color:#92400e}
+    .act-btn.amber:hover{background:#fffbeb}
+    .act-btn.primary{background:var(--blue-600);color:#fff;border-color:var(--blue-600)}
+    .act-btn.primary:hover{background:var(--blue-700)}
+
+    /* -- Modal ------------------------------------------ */
+    .cd-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+    .cd-modal{background:#fff;border-radius:18px;padding:26px 26px;max-width:520px;width:calc(100% - 32px);max-height:88vh;overflow-y:auto;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.2)}
+    .cd-modal h2{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--ink-900)}
+    .cd-modal-close{position:absolute;top:14px;right:16px;background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--ink-500)}
+    .cd-modal-close:hover{color:var(--ink-900)}
+    .modal-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+    .modal-field label{font-size:12px;font-weight:700;color:var(--ink-700)}
+    .modal-field input,.modal-field select,.modal-field textarea{border:1.5px solid var(--border);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--surface-soft);color:var(--ink-900);outline:none;width:100%;box-sizing:border-box}
+    .modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    .modal-field textarea{resize:vertical;min-height:70px}
+    .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+  </style>
+</head>
+<body>
+<div class="dashboard-shell">
+
+  <!-- -- Sidebar ------------------------------------------- -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link active" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <!-- -- Main ----------------------------------------------- -->
+  <main class="dashboard-main">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="admin-claims.html">&larr; Claims</a>
+      <span class="breadcrumb-sep">/</span>
+      <span id="bc-id">Loading&hellip;</span>
+    </div>
+
+    <!-- Claim Banner -->
+    <div class="claim-banner" id="claim-banner">
+      <div class="claim-banner-info">
+        <div class="claim-banner-id" id="ban-id">&mdash;</div>
+        <div class="claim-banner-patient" id="ban-patient">&mdash;</div>
+        <div class="claim-banner-sub" id="ban-sub"></div>
+      </div>
+      <div class="claim-banner-actions" id="ban-actions"></div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="claim-kpis" id="claim-kpis"></div>
+
+    <!-- Two-column layout -->
+    <div class="cd-layout">
+
+      <!-- Left: tabs -->
+      <div>
+        <div class="cd-tabs">
+          <button class="cd-tab active" data-tab="overview"   >Overview</button>
+          <button class="cd-tab"        data-tab="lines"      >Line Items</button>
+          <button class="cd-tab"        data-tab="payments"   >Payments <span class="cd-count" id="cnt-pay">0</span></button>
+          <button class="cd-tab"        data-tab="denials"    >Denials <span class="cd-count" id="cnt-deny">0</span></button>
+          <button class="cd-tab"        data-tab="appeals"    >Appeals <span class="cd-count" id="cnt-appeal">0</span></button>
+          <button class="cd-tab"        data-tab="alerts"     >Billing Alerts <span class="cd-count" id="cnt-alert">0</span></button>
+          <button class="cd-tab"        data-tab="comments"   >Notes <span class="cd-count" id="cnt-cmt">0</span></button>
+          <button class="cd-tab"        data-tab="attachments">Files <span class="cd-count" id="cnt-att">0</span></button>
+          <button class="cd-tab"        data-tab="history"    >Timeline</button>
+        </div>
+
+        <!-- Overview -->
+        <div class="cd-panel active" id="panel-overview">
+          <div class="cd-card">
+            <div class="cd-card-title">Patient &amp; Provider</div>
+            <div class="cd-grid" id="ovr-patient"></div>
+          </div>
+          <div class="cd-card">
+            <div class="cd-card-title">Service Details</div>
+            <div class="cd-grid three" id="ovr-service"></div>
+          </div>
+          <div class="cd-card">
+            <div class="cd-card-title">Payer &amp; Insurance</div>
+            <div class="cd-grid" id="ovr-payer"></div>
+          </div>
+          <div class="cd-card">
+            <div class="cd-card-title">Filing &amp; Clearinghouse</div>
+            <div class="cd-grid" id="ovr-filing"></div>
+          </div>
+        </div>
+
+        <!-- Line Items -->
+        <div class="cd-panel" id="panel-lines">
+          <div class="cd-card" style="padding:0;overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)">Procedure Line Items</div>
+              <button class="act-btn" onclick="openAddLineModal()">+ Add Line</button>
+            </div>
+            <table class="li-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>CPT</th><th>Mods</th><th>ICD-10 Ptrs</th>
+                  <th>Units</th><th class="num">Billed</th><th class="num">Allowed</th>
+                  <th class="num">Paid</th><th class="num">Adj</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="li-tbody"></tbody>
+              <tfoot id="li-tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Payments -->
+        <div class="cd-panel" id="panel-payments">
+          <div class="cd-card">
+            <div class="cd-card-title">Payment History <button onclick="openAddPaymentModal()">+ Add Payment</button></div>
+            <div id="pay-list"></div>
+          </div>
+          <div class="cd-card">
+            <div class="cd-card-title">Balance Summary</div>
+            <div class="cd-grid" id="pay-summary"></div>
+          </div>
+        </div>
+
+        <!-- Denials -->
+        <div class="cd-panel" id="panel-denials">
+          <div class="cd-card">
+            <div class="cd-card-title">Denial Records <button onclick="openAddDenialModal()">+ Log Denial</button></div>
+            <div id="denial-list"></div>
+          </div>
+        </div>
+
+        <!-- Appeals -->
+        <div class="cd-panel" id="panel-appeals">
+          <div class="cd-card">
+            <div class="cd-card-title">Appeal Records <button onclick="openAddAppealModal()">+ New Appeal</button></div>
+            <div id="appeal-list"></div>
+          </div>
+        </div>
+
+        <!-- Billing Alerts -->
+        <div class="cd-panel" id="panel-alerts">
+          <div class="cd-card">
+            <div class="cd-card-title">Linked Billing Alerts <button onclick="openLinkAlertModal()">+ Link Alert</button></div>
+            <div id="alert-list"></div>
+          </div>
+        </div>
+
+        <!-- Notes / Comments -->
+        <div class="cd-panel" id="panel-comments">
+          <div class="cd-card">
+            <div class="cd-card-title">Notes &amp; Comments</div>
+            <div id="cmt-list" class="cmt-list"></div>
+
+            <!-- Smart Phrase Compose -->
+            <div class="compose-area">
+              <div class="compose-toolbar">
+                <button class="toggle-note" id="btn-note-toggle" data-action="toggle-note">&#128196; Internal Note</button>
+                <div class="phrase-dropdown">
+                  <button id="btn-phrase-toggle" data-action="toggle-phrase">&#9889; Smart Phrase</button>
+                  <div class="phrase-menu" id="phrase-menu">
+                    <div class="phrase-item" data-phrase="claim_denied"><strong>Claim Denied</strong><span>Logging denial received from payer&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="appeal_submitted"><strong>Appeal Submitted</strong><span>Appeal submitted for denied claim&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="auth_required"><strong>Auth Required</strong><span>Authorization required before resubmission&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="payer_called"><strong>Payer Called</strong><span>Called payer, spoke with rep&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="corrected_claim"><strong>Corrected Claim</strong><span>Corrected claim submitted with code change&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="patient_notified"><strong>Patient Notified</strong><span>Patient notified of balance due&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="era_received"><strong>ERA Received</strong><span>ERA received and matched to claim&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="write_off"><strong>Write-Off Applied</strong><span>Balance written off per payer contract&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="late_filing"><strong>Late Filing Risk</strong><span>Claim approaching filing deadline&hellip;</span></div>
+                    <div class="phrase-item" data-phrase="recoupment"><strong>Recoupment Notice</strong><span>Payer issued recoupment on prior payment&hellip;</span></div>
+                  </div>
+                </div>
+                <button id="btn-cmt-attach" data-action="cmt-attach">&#128206; Attach</button>
+                <span id="cmt-files-label" style="font-size:11px;color:var(--ink-500)"></span>
+              </div>
+              <div class="compose-mode-bar" id="compose-mode-bar">&#128196; Internal Note &mdash; not visible to clinician</div>
+              <textarea class="compose-ta" id="compose-ta" rows="3" placeholder="Add a note or comment&hellip;" aria-label="Note or comment text"></textarea>
+              <div class="compose-send-row">
+                <button class="act-btn" id="btn-cmt-send" data-action="cmt-send">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attachments -->
+        <div class="cd-panel" id="panel-attachments">
+          <div class="cd-card">
+            <div class="cd-card-title">Claim Documents</div>
+            <div id="att-list"></div>
+            <div class="upload-zone" onclick="document.getElementById('att-file-input').click()" role="button" aria-label="Upload claim documents - click to browse files">
+              <div style="font-size:1.8rem;margin-bottom:6px">&#128196;</div>
+              <div style="font-size:13px;font-weight:600;color:var(--ink-700)">Click to upload documents</div>
+              <div style="font-size:12px;color:var(--ink-500);margin-top:2px">PDF, images, EOBs, Word, Excel &mdash; Max 20MB</div>
+            </div>
+            <div id="att-pending" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+          </div>
+        </div>
+
+        <!-- History / Timeline -->
+        <div class="cd-panel" id="panel-history">
+          <div class="cd-card">
+            <div class="cd-card-title">Claim Timeline</div>
+            <div class="tl" id="tl-list"></div>
+          </div>
+        </div>
+
+      </div> <!-- /left column -->
+
+      <!-- Right sidebar -->
+      <div class="cd-sidebar">
+
+        <div class="cd-card">
+          <div class="cd-card-title">Claim Status</div>
+          <select class="si-sel" id="si-status" aria-label="Claim status">
+            <option value="draft">Draft</option>
+            <option value="ready">Ready to Submit</option>
+            <option value="submitted">Submitted</option>
+            <option value="accepted">Accepted</option>
+            <option value="in_process">In Process</option>
+            <option value="paid">Paid</option>
+            <option value="partial">Partially Paid</option>
+            <option value="denied">Denied</option>
+            <option value="appealed">Appealed</option>
+            <option value="voided">Voided</option>
+          </select>
+          <div class="si-row"><label>Workqueue:</label><span id="si-wq">&mdash;</span></div>
+          <select class="si-sel" id="si-wq-sel" aria-label="Workqueue action">
+            <option value="no_action">No Action</option>
+            <option value="follow_up">Follow Up</option>
+            <option value="resubmit">Resubmit</option>
+            <option value="appeal">Appeal</option>
+            <option value="write_off">Write Off</option>
+            <option value="in_queue">In Queue</option>
+          </select>
+        </div>
+
+        <div class="cd-card">
+          <div class="cd-card-title">Assigned Staff</div>
+          <select class="si-sel" id="si-staff" aria-label="Assigned staff member">
+            <option value="">-- Unassigned --</option>
+            <option>Sarah M.</option>
+            <option>Marcus T.</option>
+            <option>Lisa K.</option>
+          </select>
+        </div>
+
+        <div class="cd-card">
+          <div class="cd-card-title">Due Date</div>
+          <input type="date" class="si-input" id="si-due" aria-label="Claim due date">
+          <button class="si-save-btn" id="btn-save-due" data-action="save-due-date">Save Due Date</button>
+        </div>
+
+        <div class="cd-card">
+          <div class="cd-card-title">ERA / CH Status</div>
+          <div class="si-row"><label>CH:</label><span id="si-ch">&mdash;</span></div>
+          <div class="si-row"><label>ERA:</label><span id="si-era">&mdash;</span></div>
+          <div class="si-row"><label>Check #:</label><span id="si-check">&mdash;</span></div>
+          <div class="si-row"><label>EFT Trace:</label><span id="si-eft">&mdash;</span></div>
+        </div>
+
+        <div class="cd-card">
+          <div class="cd-card-title">Financial Summary</div>
+          <div class="si-row"><label>Billed:</label><span id="si-billed">&mdash;</span></div>
+          <div class="si-row"><label>Allowed:</label><span id="si-allowed">&mdash;</span></div>
+          <div class="si-row"><label>Paid (Ins):</label><span id="si-paid" style="color:#059669;font-weight:700">&mdash;</span></div>
+          <div class="si-row"><label>Pt. Resp:</label><span id="si-ptresp" style="color:#d97706;font-weight:700">&mdash;</span></div>
+          <div class="si-row"><label>Balance:</label><span id="si-balance" style="color:#dc2626;font-weight:700">&mdash;</span></div>
+        </div>
+
+        <div class="cd-card">
+          <div class="cd-card-title">Quick Actions</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="si-save-btn primary" data-action="log-denial">Log Denial</button>
+            <button class="si-save-btn amber" data-action="submit-appeal">Submit Appeal</button>
+            <button class="si-save-btn" data-action="post-payment">Post Payment</button>
+            <button class="si-save-btn" data-action="link-alert">Link Billing Alert</button>
+            <button class="si-save-btn danger" data-action="void-claim" style="border-color:#fca5a5;color:#b91c1c">Void Claim</button>
+          </div>
+        </div>
+
+      </div> <!-- /sidebar -->
+    </div> <!-- /cd-layout -->
+
+  </main>
+</div>
+
+<!-- -- Hidden file inputs ------------------------------- -->
+<input type="file" id="att-file-input" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" style="display:none" aria-label="Upload claim documents" onchange="handleAttachUpload(this.files)">
+<input type="file" id="cmt-file-input" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" style="display:none" aria-label="Attach files to note" onchange="handleCmtFileUpload(this.files)">
+
+<!-- -- Add Line Modal ----------------------------------- -->
+<div class="cd-modal-overlay" id="modal-line" style="display:none">
+  <div class="cd-modal" role="dialog" aria-modal="true" aria-labelledby="modal-line-title">
+    <button class="cd-modal-close" data-action="modal-close" aria-label="Close dialog">&times;</button>
+    <h2 id="modal-line-title">Add Line Item</h2>
+    <div class="modal-grid">
+      <div class="modal-field"><label>CPT / Service Code *</label><input type="text" id="li-cpt" placeholder="H0031, 90837&hellip;"></div>
+      <div class="modal-field"><label>Modifiers</label><input type="text" id="li-mods" placeholder="HO, GT, U4 (space-separated)"></div>
+      <div class="modal-field"><label>Units</label><input type="number" id="li-units" value="1" min="1"></div>
+      <div class="modal-field"><label>Billed Amount</label><input type="number" id="li-billed" step="0.01" placeholder="0.00"></div>
+      <div class="modal-field" style="grid-column:1/-1"><label>ICD-10 Diagnosis Pointers</label><input type="text" id="li-icd" placeholder="F32.1, Z59.9 (comma-separated)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" data-action="modal-close">Cancel</button>
+      <button class="act-btn primary" data-action="modal-line-save">Add Line</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Log Denial Modal --------------------------------- -->
+<div class="cd-modal-overlay" id="modal-denial" style="display:none">
+  <div class="cd-modal" role="dialog" aria-modal="true" aria-labelledby="modal-denial-title">
+    <button class="cd-modal-close" data-action="modal-close" aria-label="Close dialog">&times;</button>
+    <h2 id="modal-denial-title">Log Claim Denial</h2>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Denial Code *</label><input type="text" id="dn-code" placeholder="CO-97, PR-1, OA-23&hellip;"></div>
+      <div class="modal-field"><label>Denial Date</label><input type="date" id="dn-date"></div>
+    </div>
+    <div class="modal-field"><label>Denial Reason *</label><input type="text" id="dn-reason" placeholder="e.g. Duplicate claim, missing auth, timely filing&hellip;"></div>
+    <div class="modal-field"><label>Payer Notes</label><textarea id="dn-notes" rows="3" placeholder="Additional payer remarks&hellip;"></textarea></div>
+    <div class="modal-field"><label>Recommended Action</label>
+      <select id="dn-action">
+        <option value="">-- Select --</option>
+        <option value="appeal">File Appeal</option>
+        <option value="resubmit">Correct &amp; Resubmit</option>
+        <option value="write_off">Write Off</option>
+        <option value="patient_balance">Bill Patient</option>
+        <option value="auth_required">Obtain Auth &amp; Resubmit</option>
+        <option value="no_action">No Action</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" data-action="modal-close">Cancel</button>
+      <button class="act-btn danger" data-action="modal-denial-save">Log Denial</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Submit Appeal Modal ----------------------------- -->
+<div class="cd-modal-overlay" id="modal-appeal" style="display:none">
+  <div class="cd-modal" role="dialog" aria-modal="true" aria-labelledby="modal-appeal-title">
+    <button class="cd-modal-close" data-action="modal-close" aria-label="Close dialog">&times;</button>
+    <h2 id="modal-appeal-title">Submit Appeal</h2>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Appeal Type *</label>
+        <select id="ap-type">
+          <option value="written">Written Appeal</option>
+          <option value="expedited">Expedited Appeal</option>
+          <option value="peer_to_peer">Peer-to-Peer Review</option>
+          <option value="external">External Review</option>
+          <option value="reopening">Claim Reopening</option>
+        </select>
+      </div>
+      <div class="modal-field"><label>Date Submitted</label><input type="date" id="ap-date"></div>
+    </div>
+    <div class="modal-field"><label>Appeal Reason *</label><textarea id="ap-reason" rows="3" placeholder="Explain grounds for appeal&hellip;"></textarea></div>
+    <div class="modal-field"><label>Supporting Documents (list)</label><input type="text" id="ap-docs" placeholder="EOB, auth letter, clinical notes&hellip;"></div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Deadline Date</label><input type="date" id="ap-deadline"></div>
+      <div class="modal-field"><label>Assigned To</label>
+        <select id="ap-staff">
+          <option value="">-- Unassigned --</option>
+          <option>Sarah M.</option><option>Marcus T.</option><option>Lisa K.</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" data-action="modal-close">Cancel</button>
+      <button class="act-btn amber" data-action="modal-appeal-save">Submit Appeal</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Post Payment Modal ------------------------------ -->
+<div class="cd-modal-overlay" id="modal-payment" style="display:none">
+  <div class="cd-modal" role="dialog" aria-modal="true" aria-labelledby="modal-payment-title">
+    <button class="cd-modal-close" data-action="modal-close" aria-label="Close dialog">&times;</button>
+    <h2 id="modal-payment-title">Post Payment</h2>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Payment Type *</label>
+        <select id="py-type">
+          <option value="insurance">Insurance Payment (ERA/EFT)</option>
+          <option value="patient">Patient Payment</option>
+          <option value="recoupment">Insurance Recoupment</option>
+          <option value="writeoff">Write-Off / Adjustment</option>
+        </select>
+      </div>
+      <div class="modal-field"><label>Amount *</label><input type="number" id="py-amount" step="0.01" placeholder="0.00"></div>
+      <div class="modal-field"><label>Payment Date</label><input type="date" id="py-date"></div>
+      <div class="modal-field"><label>Check / EFT #</label><input type="text" id="py-check" placeholder="e.g. 1234567890"></div>
+    </div>
+    <div class="modal-field"><label>ERA Reference</label><input type="text" id="py-era" placeholder="ERA-2026-001 or EDI trace #"></div>
+    <div class="modal-field"><label>Notes</label><textarea id="py-notes" rows="2" placeholder="Optional notes&hellip;"></textarea></div>
+    <div class="modal-footer">
+      <button class="act-btn" data-action="modal-close">Cancel</button>
+      <button class="act-btn success" data-action="modal-payment-save">Post Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- Link Billing Alert Modal ------------------------ -->
+<div class="cd-modal-overlay" id="modal-alert" style="display:none">
+  <div class="cd-modal" role="dialog" aria-modal="true" aria-labelledby="modal-alert-title">
+    <button class="cd-modal-close" data-action="modal-close" aria-label="Close dialog">&times;</button>
+    <h2 id="modal-alert-title">Link Billing Alert</h2>
+    <div class="modal-field"><label>Billing Alert ID</label><input type="text" id="al-id" placeholder="BA-2026-001"></div>
+    <div class="modal-field"><label>Link Type</label>
+      <select id="al-type">
+        <option value="Primary Claim">Primary Claim</option>
+        <option value="Related Claim">Related Claim</option>
+        <option value="Appeal">Appeal</option>
+        <option value="Corrected Claim">Corrected Claim</option>
+      </select>
+    </div>
+    <div class="modal-field"><label>Notes</label><input type="text" id="al-notes" placeholder="Optional&hellip;"></div>
+    <div class="modal-footer">
+      <button class="act-btn" data-action="modal-close">Cancel</button>
+      <button class="act-btn primary" data-action="modal-alert-save">Link Alert</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =============================================================
+   ADMIN CLAIM DETAIL - admin-claim-detail.html
+   Reads ?id=CLM-XXXXX from query string, loads from localStorage
+   (docusistant_billing_alerts_v1 pattern) merged with MOCK_CLAIMS.
+   All writes persist to localStorage under 'therassistant_claims_v1'.
+   ============================================================= */
+
+const CLAIMS_KEY    = 'therassistant_claims_v1';
+const PHRASES_KEY   = 'therassistant_smart_phrases_v1';
+
+var claimId   = null;
+var claim     = null;
+var activeTab = 'overview';
+var isNoteMode = false;
+var pendingCmtFiles = [];
+var currentUser = null;
+
+/* -- Helpers ------------------------------------------------ */
+function esc(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function uid(){ return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7); }
+function fmt(n){ return n!=null ? Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '--'; }
+function toTime(v){ if(!v) return 0; var t=new Date(v).getTime(); return isNaN(t) ? 0 : t; }
+function fmtDate(iso){ var t=toTime(iso); if(!t) return '--'; return new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function fmtDT(iso){ var t=toTime(iso); if(!t) return '--'; return new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}); }
+function fmtRelative(iso){ var t=toTime(iso); if(!t) return ''; var d=(Date.now()-t)/1000; if(d<60)return 'just now'; if(d<3600)return Math.floor(d/60)+'m ago'; if(d<86400)return Math.floor(d/3600)+'h ago'; return fmtDate(iso); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function initials(n){ if(!n)return'--'; var p=n.trim().split(/\s+/); return p.length>1?(p[0][0]+p[p.length-1][0]).toUpperCase():n.slice(0,2).toUpperCase(); }
+function staffName(){ return (currentUser&&currentUser.user_metadata&&currentUser.user_metadata.full_name)||(currentUser&&currentUser.email)||'Admin'; }
+
+/* -- Derived-display helpers -------------------------------- */
+// Safe numeric: returns formatted '$n.nn' or fallback (default '--')
+function fmtMoney(v, fallback){ return isFinite(v) && v != null ? '$' + fmt(Number(v)) : (fallback != null ? fallback : '--'); }
+
+// Status badge class: 'cb-paid', 'cb-denied', etc.
+function statusBadgeCls(s){ return 'cb-' + (s || 'unknown').replace(/\s+/g, '_').toLowerCase(); }
+
+// Full status badge span
+function statusBadge(s){ return '<span class="cb-badge ' + esc(statusBadgeCls(s)) + '">' + statusLabel(s || 'unknown') + '</span>'; }
+
+// Workqueue label with fallback
+function wqDisplay(s){ return wqLabel(s) || '--'; }
+
+// Empty-state HTML: icon optional
+function emptyState(msg, icon){ return '<div class="empty-state">' + (icon ? '<div class="es-icon">' + icon + '</div>' : '') + '<p>' + esc(msg) + '</p></div>'; }
+
+// Safe date comparison: returns -1, 0, 1 based on toTime(); treats invalid as 0
+function cmpDate(a, b){ var ta = toTime(a), tb = toTime(b); return ta < tb ? -1 : ta > tb ? 1 : 0; }
+
+// Safe CPT chip list from array or single value
+function cptChips(val){
+  var arr = Array.isArray(val) ? val : (val ? [val] : []);
+  return arr.map(function(c){ return '<span class="pill pill-cpt">' + esc(c) + '</span>'; }).join(' ') || '--';
+}
+
+/* -- Storage ------------------------------------------------ */
+function loadClaims(){ try{ return JSON.parse(localStorage.getItem(CLAIMS_KEY)||'[]'); }catch(e){ return []; } }
+function saveClaims(arr){ try{ localStorage.setItem(CLAIMS_KEY,JSON.stringify(arr)); }catch(e){} }
+function saveClaimObj(c){ var arr=loadClaims(); var i=arr.findIndex(x=>x.id===c.id); if(i>=0){ arr[i]=c; }else{ arr.push(c); } saveClaims(arr); }
+function pushHistory(action, notes, dot){
+  claim.history = claim.history||[];
+  claim.history.push({id:uid(), ts:new Date().toISOString(), user:staffName(), action:action, notes:notes||'', dot:dot||'blue'});
+  claim.updated_at = new Date().toISOString();
+}
+
+/* -- MOCK claim data (matches admin-claims.html mock) ------- */
+const MOCK_CLAIMS = [
+  { id:'CLM-00001', patient:'Marcus Johnson',    provider:'Dr. Sarah Chen',    clinician_npi:'1234567890', billing_npi:'0987654321', org:'Westside BH',       dos:'2026-03-15', dos_to:null,       payer:'Medicaid CO',       ins_id:'COA-1234567', member_id:'M001', plan:'Colorado Access BH', pos:'11', place_of_service:'Office', cpt:['H0031'], mods:['HO','U4'], icd10:['F32.1','Z59.9'], billed:425.00, allowed:385.00, paid:385.00, pt_resp:0,      status:'paid',       submitted:'2026-03-20', ch:'accepted',   era:'posted',    wq:'no_action', has_alert:false, check_num:'10023456',  eft_trace:'EFT20260321', era_ref:'ERA-2026-012', due_date:null, assigned_staff:'' },
+  { id:'CLM-00002', patient:'Destiny Williams',  provider:'Dr. Michael Torres', clinician_npi:'2345678901', billing_npi:'0987654321', org:'Westside BH',       dos:'2026-03-18', dos_to:null,       payer:'BCBS CO',           ins_id:'BCBS-9876543', member_id:'M002', plan:'Blue Cross PPO',     pos:'11', place_of_service:'Office', cpt:['90837'], mods:[],         icd10:['F33.1'],         billed:180.00, allowed:150.00, paid:0,    pt_resp:150.00, status:'denied',     submitted:'2026-03-22', ch:'accepted',   era:'matched',   wq:'appeal',    has_alert:true,  check_num:null,        eft_trace:null,          era_ref:'ERA-2026-011', due_date:'2026-04-22', assigned_staff:'Sarah M.' },
+  { id:'CLM-00009', patient:'Liam Garcia',       provider:'Dr. James Liu',     clinician_npi:'9012345678', billing_npi:'0987654321', org:'Eastside BH',       dos:'2026-02-28', dos_to:null,       payer:'Aetna',             ins_id:'AET-4561230',  member_id:'M009', plan:'Aetna HMO',          pos:'10', place_of_service:'Telehealth', cpt:['90837'], mods:['95'],  icd10:['F32.1'],         billed:180.00, allowed:150.00, paid:0,    pt_resp:0,      status:'denied',     submitted:'2026-03-05', ch:'accepted',   era:'matched',   wq:'resubmit',  has_alert:true,  check_num:null,        eft_trace:null,          era_ref:'ERA-2026-005', due_date:'2026-04-05', assigned_staff:'Marcus T.' },
+];
+
+/* Smart phrase templates */
+const SMART_PHRASES = {
+  claim_denied:     'Denial received from payer. Denial code logged. Reviewing reason and determining next action.',
+  appeal_submitted: 'Appeal submitted to payer. Supporting documentation included: EOB, clinical notes, prior auth. Awaiting response within 30-60 days.',
+  auth_required:    'Authorization required prior to resubmission. Contacting provider to obtain prior auth. Will resubmit once auth confirmed.',
+  payer_called:     'Called payer at [PHONE]. Spoke with rep [NAME]. Reference #: [REF]. Resolution: [DETAILS]. Follow-up scheduled for [DATE].',
+  corrected_claim:  'Corrected claim submitted. Changes: [DESCRIBE CHANGES]. Original claim: '+claimId+'. Resubmission date: '+today()+'.',
+  patient_notified: 'Patient notified of balance due: $[AMOUNT]. Sent statement via [METHOD]. Payment plan offered: [YES/NO].',
+  era_received:     'ERA received and matched to claim. Check/EFT: [NUMBER]. Payment posted: $[AMOUNT]. Adjustment codes: [CODES].',
+  write_off:        'Balance written off per payer contractual adjustment. Write-off amount: $[AMOUNT]. Adjustment code: CO-45.',
+  late_filing:      'Claim approaching filing deadline. Payer timely filing limit: [DAYS] days. Original DOS: [DOS]. Action required by: [DATE].',
+  recoupment:       'Payer issued recoupment on prior payment. Recoupment amount: $[AMOUNT]. Reason: [REASON]. Disputing recoupment: [YES/NO].',
+};
+
+/* -- Init --------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', async function(){
+  try{
+    if(typeof initDashboard !== 'function'){
+      console.error('[admin-claim-detail] initDashboard is not defined - skipping dashboard init.');
+    } else if(typeof supabaseClient === 'undefined'){
+      console.error('[admin-claim-detail] supabaseClient is not defined - skipping dashboard init.');
+    } else {
+      var roles = (typeof ADMIN_ROLES !== 'undefined') ? ADMIN_ROLES : (console.warn('[admin-claim-detail] ADMIN_ROLES not defined, using defaults.'), ['admin','billing_specialist','super_admin']);
+      await initDashboard(roles);
+    }
+  }catch(e){ console.error('[admin-claim-detail] initDashboard threw:', e); }
+
+  if(typeof initLogout==='function') initLogout();
+
+  try{
+    if(typeof supabaseClient === 'undefined') throw new Error('supabaseClient not defined');
+    var r = await supabaseClient.auth.getUser();
+    if(r&&r.data&&r.data.user) currentUser = r.data.user;
+  }catch(e){ console.error('[admin-claim-detail] getUser failed:', e); }
+
+  // Parse ?id= from URL
+  var params = new URLSearchParams(window.location.search);
+  claimId = params.get('id') || 'CLM-00002';
+
+  // Load from localStorage first, fall back to mock
+  var stored = loadClaims().find(c=>c.id===claimId);
+  var mock   = MOCK_CLAIMS.find(c=>c.id===claimId);
+
+  if(stored){
+    claim = stored;
+  } else if(mock){
+    // Hydrate mock with empty arrays for sub-records
+    claim = Object.assign({}, mock, {
+      line_items: [
+        { id:uid(), seq:1, cpt:mock.cpt[0], mods:mock.mods, icd_ptrs:mock.icd10,
+          units:1, billed:mock.billed, allowed:mock.allowed, paid:mock.paid, adj:(mock.allowed!=null&&mock.paid!=null)?(mock.allowed-mock.paid):null, status:mock.status }
+      ],
+      payments:    buildMockPayments(mock),
+      denials:     buildMockDenials(mock),
+      appeals:     buildMockAppeals(mock),
+      billing_alerts: buildMockAlerts(mock),
+      comments:    [],
+      attachments: [],
+      history:     buildMockHistory(mock),
+      created_at:  new Date().toISOString(),
+      updated_at:  new Date().toISOString(),
+    });
+    saveClaimObj(claim);
+  } else {
+    // Fallback - unknown ID, create a skeleton
+    claim = {
+      id: claimId, patient:'Unknown Patient', provider:'Unknown Provider', dos:today(),
+      payer:'Unknown', cpt:[], mods:[], icd10:[], billed:0, allowed:null, paid:0, pt_resp:0,
+      status:'draft', submitted:null, ch:'pending', era:'pending', wq:'no_action', has_alert:false,
+      line_items:[], payments:[], denials:[], appeals:[], billing_alerts:[], comments:[], attachments:[], history:[],
+      created_at:new Date().toISOString(), updated_at:new Date().toISOString(),
+    };
+    saveClaimObj(claim);
+  }
+
+  renderAll();
+});
+
+/* -- Build mock sub-records --------------------------------- */
+function buildMockPayments(m){
+  var pays = [];
+  var paid = isFinite(m.paid) ? Number(m.paid) : 0;
+  var ptResp = isFinite(m.pt_resp) ? Number(m.pt_resp) : 0;
+  var payDate = m.submitted || today();
+  if(paid > 0) pays.push({
+    id:uid(), type:'insurance', who:m.payer||'Unknown Payer', amount:paid,
+    date:payDate, check_num:m.check_num||'', eft_trace:m.eft_trace||'',
+    era_ref:m.era_ref||'', notes:'',
+  });
+  if(ptResp > 0) pays.push({
+    id:uid(), type:'patient', who:(m.patient||'Patient')+' (Patient)', amount:ptResp,
+    date:null, check_num:'', eft_trace:'', era_ref:'',
+    notes:'Patient balance not yet collected.',
+  });
+  return pays;
+}
+function buildMockDenials(m){
+  if(m.status!=='denied') return [];
+  return [{ id:uid(), code:'CO-97', reason:'Payment adjusted because this procedure/service is not paid separately.', date:m.submitted||today(), notes:'Possible duplicate or bundled service.', action:'appeal', created_at:new Date().toISOString() }];
+}
+function buildMockAppeals(m){
+  if(m.wq!=='appeal') return [];
+  return [{ id:uid(), type:'written', date:today(), reason:'Disputing CO-97 denial. Service is medically necessary and not bundled.', docs:'EOB, clinical notes, auth documentation', deadline:null, staff:'Sarah M.', status:'submitted', created_at:new Date().toISOString() }];
+}
+function buildMockAlerts(m){
+  if(!m.has_alert) return [];
+  return [{ id:uid(), alert_id:'BA-2026-007', type:'Claim Denial', priority:'High Priority', status:'In Progress', patient:m.patient, link_type:'Primary Claim' }];
+}
+function buildMockHistory(m){
+  var h = [];
+  var dosT    = toTime(m.dos ? m.dos + 'T09:00:00' : null);
+  var subT    = toTime(m.submitted ? m.submitted + 'T10:15:00' : null);
+  var subAccT = toTime(m.submitted ? m.submitted + 'T14:22:00' : null);
+  var paid    = isFinite(m.paid) ? Number(m.paid) : 0;
+  h.push({ id:uid(), ts: dosT ? new Date(dosT).toISOString() : new Date().toISOString(), user:'System', action:'Claim created', notes:'Claim generated from coding session.', dot:'gray' });
+  if(subT) h.push({ id:uid(), ts:new Date(subT).toISOString(), user:'Admin', action:'Claim submitted to clearinghouse', notes:'Submitted via Change Healthcare.', dot:'blue' });
+  if(subAccT && (m.status==='accepted'||m.status==='paid')) h.push({ id:uid(), ts:new Date(subAccT).toISOString(), user:'System', action:'Clearinghouse accepted', notes:'277CA acceptance received.', dot:'green' });
+  if(paid > 0) h.push({ id:uid(), ts:new Date().toISOString(), user:'System', action:'ERA matched - payment posted', notes:'Paid $'+fmt(paid)+'.', dot:'green' });
+  if(m.status==='denied') h.push({ id:uid(), ts:new Date().toISOString(), user:'System', action:'ERA matched - claim denied', notes:'CO-97 denial received.', dot:'red' });
+  return h;
+}
+
+/* -- Render all --------------------------------------------- */
+function renderAll(){
+  if(!claim) return;
+  document.title = 'Claim ' + claim.id + ' - THERASSISTANT';
+  document.getElementById('bc-id').textContent = claim.id;
+
+  renderBanner();
+  renderKPIs();
+  renderSidebar();
+  updateCounts();
+  renderActivePanel();
+}
+
+function renderBanner(){
+  document.getElementById('ban-id').textContent = claim.id;
+  document.getElementById('ban-patient').textContent = claim.patient;
+
+  var sub = document.getElementById('ban-sub');
+  var cpts = Array.isArray(claim.cpt) ? claim.cpt : [];
+  sub.innerHTML = [
+    statusBadge(claim.status),
+    '<span>' + esc(claim.provider) + '</span>',
+    '<span>DOS: ' + fmtDate(claim.dos) + '</span>',
+    '<span>' + esc(claim.payer) + '</span>',
+    cptChips(cpts),
+  ].join('<span style="color:var(--border);margin:0 2px">|</span>');
+
+  var actions = document.getElementById('ban-actions');
+  actions.innerHTML = [
+    '<button class="act-btn" data-action="back-to-claims">&larr; Back to Claims</button>',
+    claim.has_alert ? '<a href="admin-billing-alerts.html" class="act-btn danger" style="display:inline-flex;align-items:center;text-decoration:none">&#9888; Billing Alert</a>' : '',
+    '<button class="act-btn" data-action="add-note">+ Add Note</button>',
+  ].join('');
+}
+
+function renderKPIs(){
+  var c = claim;
+  var billed  = isFinite(c.billed)  ? Number(c.billed)  : null;
+  var allowed = isFinite(c.allowed) ? Number(c.allowed) : null;
+  var paid    = isFinite(c.paid)    ? Number(c.paid)    : null;
+  var ptResp  = isFinite(c.pt_resp) ? Number(c.pt_resp) : null;
+  var balance = (billed != null && paid != null) ? (billed - paid) : null;
+  var submittedT = toTime(c.submitted);
+  var daysOpen = submittedT ? Math.floor((Date.now() - submittedT) / 86400000) : null;
+  var col5Val = balance != null && balance > 0
+    ? '$' + fmt(balance)
+    : (daysOpen != null ? daysOpen + 'd' : '--');
+  var col5Lbl = balance != null && balance > 0 ? 'Balance' : 'Days Open';
+  var col5Cls = balance != null && balance > 0 ? 'red' : '';
+  document.getElementById('claim-kpis').innerHTML = [
+    kpi(billed  != null ? '$' + fmt(billed)  : '--', 'Billed',   ''),
+    kpi(allowed != null ? '$' + fmt(allowed) : '--', 'Allowed',  ''),
+    kpi(paid    != null ? '$' + fmt(paid)    : '--', 'Paid',     paid > 0 ? 'green' : ''),
+    kpi(ptResp  != null ? '$' + fmt(ptResp)  : '--', 'Pt. Resp', ptResp > 0 ? 'amber' : ''),
+    kpi(col5Val, col5Lbl, col5Cls),
+  ].join('');
+}
+function kpi(num, label, cls){
+  return '<div class="ck"><div class="ck-num '+cls+'">'+num+'</div><div class="ck-label">'+label+'</div></div>';
+}
+
+function renderSidebar(){
+  var c = claim;
+
+  // Status select - only set if the option exists to avoid resetting to blank
+  var sel = document.getElementById('si-status');
+  if(sel && c.status) sel.value = c.status;
+
+  // Workqueue select + label
+  var wqSel = document.getElementById('si-wq-sel');
+  if(wqSel) wqSel.value = c.wq || 'no_action';
+  var siWq = document.getElementById('si-wq');
+  if(siWq) siWq.textContent = wqLabel(c.wq);
+
+  // Assigned staff
+  var staffSel = document.getElementById('si-staff');
+  if(staffSel) staffSel.value = c.assigned_staff || '';
+
+  // Due date
+  var dueEl = document.getElementById('si-due');
+  if(dueEl) dueEl.value = c.due_date || '';
+
+  // ERA / CH
+  setText('si-ch',    c.ch        || '--');
+  setText('si-era',   c.era       || '--');
+  setText('si-check', c.check_num || '--');
+  setText('si-eft',   c.eft_trace || '--');
+
+  // Financial - guard each value with isFinite before formatting
+  var billed  = isFinite(c.billed)  ? Number(c.billed)  : null;
+  var allowed = isFinite(c.allowed) ? Number(c.allowed) : null;
+  var paid    = isFinite(c.paid)    ? Number(c.paid)    : null;
+  var ptResp  = isFinite(c.pt_resp) ? Number(c.pt_resp) : null;
+  var bal     = (billed != null && paid != null) ? (billed - paid) : null;
+  setText('si-billed',  billed  != null ? '$' + fmt(billed)  : '--');
+  setText('si-allowed', allowed != null ? '$' + fmt(allowed) : '--');
+  setText('si-paid',    paid    != null ? '$' + fmt(paid)    : '--');
+  setText('si-ptresp',  ptResp  != null ? '$' + fmt(ptResp)  : '--');
+  setText('si-balance', bal     != null ? '$' + fmt(bal)     : '--');
+}
+
+function updateCounts(){
+  setText('cnt-pay',    (claim.payments||[]).length);
+  setText('cnt-deny',   (claim.denials||[]).length);
+  setText('cnt-appeal', (claim.appeals||[]).length);
+  setText('cnt-alert',  (claim.billing_alerts||[]).length);
+  setText('cnt-cmt',    (claim.comments||[]).length);
+  setText('cnt-att',    (claim.attachments||[]).length);
+}
+
+function setText(id, val){
+  var el = document.getElementById(id);
+  if(el) el.textContent = val;
+}
+
+/* -- Tab switching ------------------------------------------ */
+document.addEventListener('click', function(e){
+  var btn = e.target.closest('.cd-tab');
+  if(btn && btn.dataset.tab) switchTab(btn.dataset.tab);
+
+  var action = e.target.closest('[data-action]');
+  if(action) switch(action.dataset.action){
+    case 'back-to-claims': window.location = 'admin-claims.html'; break;
+    case 'add-note':       switchTab('comments'); break;
+    case 'toggle-note':    toggleNoteMode(); break;
+    case 'toggle-phrase':  e.stopPropagation(); togglePhraseMenu(); break;
+    case 'cmt-attach':     document.getElementById('cmt-file-input').click(); break;
+    case 'cmt-send':       submitComment(); break;
+    case 'save-due-date':  saveDueDate(); break;
+    case 'log-denial':     openAddDenialModal();  break;
+    case 'submit-appeal':  openAddAppealModal();  break;
+    case 'post-payment':   openAddPaymentModal(); break;
+    case 'link-alert':     openLinkAlertModal();  break;
+    case 'void-claim':     voidClaim();           break;
+    case 'modal-close':    { var ov = e.target.closest('.cd-modal-overlay'); if(ov) closeModal(ov.id); break; }
+    case 'modal-line-save':    submitAddLine();    break;
+    case 'modal-denial-save':  submitAddDenial();  break;
+    case 'modal-appeal-save':  submitAddAppeal();  break;
+    case 'modal-payment-save': submitAddPayment(); break;
+    case 'modal-alert-save':   submitLinkAlert();  break;
+  }
+
+  // Backdrop click - close modal when clicking the overlay itself
+  if(e.target.classList.contains('cd-modal-overlay')) closeModal(e.target.id);
+
+  var phrase = e.target.closest('.phrase-item[data-phrase]');
+  if(phrase) insertPhrase(phrase.dataset.phrase);
+});
+
+/* -- Sidebar select listeners -------------------------- */
+document.getElementById('si-status').addEventListener('change', function(){ setClaimStatus(this.value); });
+document.getElementById('si-wq-sel').addEventListener('change', function(){ setWorkqueue(this.value); });
+document.getElementById('si-staff').addEventListener('change',  function(){ setStaff(this.value); });
+
+/* -- Line item table delegation ------------------------ */
+document.addEventListener('click', function(e){
+  var btn = e.target.closest('[data-action="remove-line"]');
+  if(btn && btn.dataset.lineId) removeLineItem(btn.dataset.lineId);
+});
+
+/* -- Comment list delegation --------------------------- */
+document.addEventListener('click', function(e){
+  var btn = e.target.closest('[data-action="delete-comment"]');
+  if(btn && btn.dataset.commentId) deleteComment(btn.dataset.commentId);
+});
+
+function switchTab(tab){
+  activeTab = tab;
+  document.querySelectorAll('.cd-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.cd-panel').forEach(p => p.classList.remove('active'));
+  var panel = document.getElementById('panel-'+tab);
+  if(panel) panel.classList.add('active');
+  renderActivePanel();
+}
+
+function renderActivePanel(){
+  if(activeTab==='overview')     renderOverview();
+  else if(activeTab==='lines')   renderLines();
+  else if(activeTab==='payments')renderPayments();
+  else if(activeTab==='denials') renderDenials();
+  else if(activeTab==='appeals') renderAppeals();
+  else if(activeTab==='alerts')  renderAlerts();
+  else if(activeTab==='comments')renderComments();
+  else if(activeTab==='attachments')renderAttachments();
+  else if(activeTab==='history') renderHistory();
+}
+
+/* -- Overview ----------------------------------------------- */
+function renderOverview(){
+  var c = claim;
+  renderGrid('ovr-patient', [
+    ['Patient',          esc(c.patient)],
+    ['DOB',              fmtDate(c.patient_dob)||'--'],
+    ['Provider',         esc(c.provider)],
+    ['Clinician NPI',    esc(c.clinician_npi)||'--'],
+    ['Billing NPI',      esc(c.billing_npi)||'--'],
+    ['Organization',     esc(c.org)||'--'],
+  ]);
+  renderGrid('ovr-service', [
+    ['DOS',              fmtDate(c.dos)],
+    ['DOS Through',      c.dos_to?fmtDate(c.dos_to):'--'],
+    ['CPT Code(s)',      cptChips(c.cpt)],
+    ['Modifiers',        c.mods&&c.mods.length?c.mods.map(x=>'<span class="pill pill-mod">'+x+'</span>').join(' '):'--'],
+    ['ICD-10',           c.icd10.map(x=>'<span class="pill pill-icd">'+x+'</span>').join(' ')],
+    ['Place of Service', esc(c.pos)+(c.place_of_service?' - '+esc(c.place_of_service):'')],
+  ], 3);
+  renderGrid('ovr-payer', [
+    ['Payer',            esc(c.payer)],
+    ['Insurance ID',     esc(c.ins_id)||'--'],
+    ['Member ID',        esc(c.member_id)||'--'],
+    ['Plan Name',        esc(c.plan)||'--'],
+  ]);
+  var ageDays = c.submitted ? Math.floor((Date.now() - toTime(c.submitted)) / 86400000) : null;
+  renderGrid('ovr-filing', [
+    ['Submitted',        c.submitted?fmtDate(c.submitted):'Not submitted'],
+    ['AR Age',           ageDays!=null?(ageDays+'d old'):'--'],
+    ['Clearinghouse',    esc(c.ch)||'--'],
+    ['ERA Status',       esc(c.era)||'--'],
+    ['Check / EFT #',   esc(c.check_num)||'--'],
+    ['ERA Reference',    esc(c.era_ref)||'--'],
+  ]);
+}
+
+function renderGrid(id, rows, cols){
+  var el = document.getElementById(id);
+  if(!el) return;
+  if(cols===3) el.className='cd-grid three';
+  el.innerHTML = rows.map(function(r){
+    return '<div class="cd-field"><label>'+r[0]+'</label><span>'+r[1]+'</span></div>';
+  }).join('');
+}
+
+/* -- Line Items --------------------------------------------- */
+function renderLines(){
+  var items = claim.line_items||[];
+  var tbody = document.getElementById('li-tbody');
+  var tfoot = document.getElementById('li-tfoot');
+  if(!tbody) return;
+
+  tbody.innerHTML = items.map(function(li,i){
+    var adjAmt = li.adj!=null ? li.adj : (li.allowed!=null&&li.paid!=null ? li.allowed-li.paid : null);
+    var stCls  = li.status==='paid' ? 'paid-td' : (li.status==='denied' ? 'denied-td' : '');
+    return '<tr>'
+      +'<td>'+(i+1)+'</td>'
+      +'<td><span class="pill pill-cpt">'+esc(li.cpt)+'</span></td>'
+      +'<td>'+(li.mods&&li.mods.length?li.mods.map(m=>'<span class="pill pill-mod">'+esc(m)+'</span>').join(' '):'--')+'</td>'
+      +'<td>'+(li.icd_ptrs&&li.icd_ptrs.length?li.icd_ptrs.map(d=>'<span class="pill pill-icd">'+esc(d)+'</span>').join(' '):'--')+'</td>'
+      +'<td>'+esc(li.units||1)+'</td>'
+      +'<td class="num">' + fmtMoney(li.billed) + '</td>'
+      +'<td class="num">' + fmtMoney(li.allowed, '--') + '</td>'
+      +'<td class="num '+stCls+'">'+(li.paid>0?fmtMoney(li.paid):(li.status==='denied' ? '<span style="color:#dc2626">Denied</span>' : '$0.00'))+'</td>'
+      +'<td class="num">'+(adjAmt!=null?fmtMoney(adjAmt):'--')+'</td>'
+      +'<td>'+statusBadge(li.status||'draft')+'</td>'
+      +'<td><button class="act-btn" style="padding:2px 7px;font-size:11px" data-action="remove-line" data-line-id="'+esc(li.id)+'">Remove</button></td>'
+      +'</tr>';
+  }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--ink-500);padding:16px">No line items.</td></tr>';
+
+  var totBilled  = items.reduce((s,l)=>s+(l.billed||0),0);
+  var totAllowed = items.every(l=>l.allowed!=null) ? items.reduce((s,l)=>s+(l.allowed||0),0) : null;
+  var totPaid    = items.reduce((s,l)=>s+(l.paid||0),0);
+  tfoot.innerHTML = '<tr><td colspan="5" style="text-align:right;font-weight:700">Totals</td>'
+    +'<td class="num">'+fmtMoney(totBilled)+'</td>'
+    +'<td class="num">'+(totAllowed!=null?fmtMoney(totAllowed):'--')+'</td>'
+    +'<td class="num paid-td">'+fmtMoney(totPaid)+'</td>'
+    +'<td colspan="3"></td></tr>';
+}
+
+function removeLineItem(id){
+  if(!confirm('Remove this line item?')) return;
+  claim.line_items = (claim.line_items||[]).filter(l=>l.id!==id);
+  pushHistory('Line item removed','',  'amber');
+  saveClaimObj(claim); renderLines(); updateCounts();
+}
+
+/* -- Payments ----------------------------------------------- */
+function renderPayments(){
+  var pays = claim.payments||[];
+  var el = document.getElementById('pay-list');
+  if(!el) return;
+  if(!pays.length){
+    el.innerHTML = emptyState('No payments posted.', '&#128176;');
+  } else {
+    el.innerHTML = pays.map(function(p){
+      var ico = p.type==='insurance' ? '&#127959;' : (p.type==='recoupment' ? '&#9888;' : '&#128100;');
+      var icoCls = p.type==='insurance' ? 'insurance' : (p.type==='recoupment' ? 'recoup' : 'patient');
+      var amtCls = p.type==='recoupment' ? 'negative' : 'positive';
+      return '<div class="pay-item">'
+        +'<div class="pay-icon '+icoCls+'">'+ico+'</div>'
+        +'<div class="pay-body"><div class="pay-who">'+esc(p.who)+'</div>'
+        +'<div class="pay-meta">'+fmtDate(p.date)+(p.check_num?' &middot; Check: '+esc(p.check_num):'')+(p.era_ref?' &middot; '+esc(p.era_ref):'')+(p.notes?' &middot; '+esc(p.notes):'')+'</div></div>'
+        +'<div class="pay-amount '+amtCls+'">'+(p.type==='recoupment' ? '-' : '')+'$'+fmt(p.amount)+'</div>'
+        +'<button class="att-del" onclick="removePayment(\''+p.id+'\')">&#128465;</button>'
+        +'</div>';
+    }).join('');
+  }
+
+  var sumEl = document.getElementById('pay-summary');
+  if(sumEl){
+    var totIns   = pays.filter(p=>p.type==='insurance').reduce((s,p)=>s+(p.amount||0),0);
+    var totPat   = pays.filter(p=>p.type==='patient').reduce((s,p)=>s+(p.amount||0),0);
+    var totRecoup= pays.filter(p=>p.type==='recoupment').reduce((s,p)=>s+(p.amount||0),0);
+    var totWO    = pays.filter(p=>p.type==='writeoff').reduce((s,p)=>s+(p.amount||0),0);
+    var bal      = (claim.billed||0) - totIns - totPat - totWO + totRecoup;
+    renderGrid('pay-summary',[
+      ['Billed',           '$'+fmt(claim.billed)],
+      ['Insurance Paid',   '$'+fmt(totIns)],
+      ['Patient Paid',     '$'+fmt(totPat)],
+      ['Write-Offs',       '-$'+fmt(totWO)],
+      ['Recoupments',      '-$'+fmt(totRecoup)],
+      ['Remaining Balance','$'+fmt(bal)],
+    ]);
+  }
+}
+
+function removePayment(id){
+  if(!confirm('Remove this payment posting?')) return;
+  claim.payments = (claim.payments||[]).filter(p=>p.id!==id);
+  pushHistory('Payment removed','','amber');
+  saveClaimObj(claim); renderPayments(); updateCounts(); renderKPIs(); renderSidebar();
+}
+
+/* -- Denials ------------------------------------------------ */
+function renderDenials(){
+  var items = claim.denials||[];
+  var el = document.getElementById('denial-list');
+  if(!el) return;
+  if(!items.length){
+    el.innerHTML = emptyState('No denials recorded.', '&#10006;');
+    return;
+  }
+  el.innerHTML = items.map(function(d){
+    return '<div class="denial-card">'
+      +'<div class="denial-card-hdr"><span class="denial-code">'+esc(d.code)+'</span><span class="denial-reason">'+esc(d.reason)+'</span>'
+      +(d.date?'<span style="font-size:11px;color:var(--ink-500);margin-left:auto">'+fmtDate(d.date)+'</span>':'')
+      +'</div>'
+      +(d.notes?'<div class="denial-detail">'+esc(d.notes)+'</div>':'')
+      +(d.action?'<div style="margin-top:6px"><span class="pill pill-denial">Action: '+esc(d.action)+'</span></div>':'')
+      +'<button class="att-del" style="margin-top:6px" onclick="removeDenial(\''+d.id+'\')">Remove</button>'
+      +'</div>';
+  }).join('');
+}
+function removeDenial(id){
+  if(!confirm('Remove denial record?')) return;
+  claim.denials = (claim.denials||[]).filter(d=>d.id!==id);
+  pushHistory('Denial record removed','','amber');
+  saveClaimObj(claim); renderDenials(); updateCounts();
+}
+
+/* -- Appeals ------------------------------------------------ */
+function renderAppeals(){
+  var items = claim.appeals||[];
+  var el = document.getElementById('appeal-list');
+  if(!el) return;
+  if(!items.length){
+    el.innerHTML = emptyState('No appeals on file.', '&#9878;');
+    return;
+  }
+  el.innerHTML = items.map(function(a){
+    var stCls = 'appeal-'+esc(a.status||'submitted');
+    return '<div class="appeal-card">'
+      +'<div class="appeal-card-hdr">'
+      +'<span style="font-weight:700;font-size:13px;color:#5b21b6">'+esc(a.type)+'</span>'
+      +'<span class="appeal-status '+stCls+'">'+esc(a.status||'Submitted')+'</span>'
+      +(a.date?'<span style="font-size:11px;color:var(--ink-500)">Filed: '+fmtDate(a.date)+'</span>':'')
+      +(a.deadline?'<span style="font-size:11px;color:#d97706">Due: '+fmtDate(a.deadline)+'</span>':'')
+      +(a.staff?'<span style="font-size:11px;color:var(--ink-500)">&#128100; '+esc(a.staff)+'</span>':'')
+      +'</div>'
+      +(a.reason?'<div style="font-size:13px;color:var(--ink-700);margin-top:5px">'+esc(a.reason)+'</div>':'')
+      +(a.docs?'<div style="font-size:11.5px;color:var(--ink-500);margin-top:4px">Docs: '+esc(a.docs)+'</div>':'')
+      +'<div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap">'
+      +'<button class="act-btn" style="font-size:11px;padding:3px 9px" onclick="setAppealStatus(\''+a.id+'\',\'won\')">Mark Won</button>'
+      +'<button class="act-btn" style="font-size:11px;padding:3px 9px" onclick="setAppealStatus(\''+a.id+'\',\'lost\')">Mark Lost</button>'
+      +'<button class="att-del" onclick="removeAppeal(\''+a.id+'\')">Remove</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+function setAppealStatus(id, status){
+  var a = (claim.appeals||[]).find(x=>x.id===id);
+  if(!a) return;
+  a.status = status;
+  pushHistory('Appeal marked '+status,'','purple');
+  saveClaimObj(claim); renderAppeals();
+}
+function removeAppeal(id){
+  if(!confirm('Remove appeal record?')) return;
+  claim.appeals = (claim.appeals||[]).filter(a=>a.id!==id);
+  pushHistory('Appeal record removed','','amber');
+  saveClaimObj(claim); renderAppeals(); updateCounts();
+}
+
+/* -- Billing Alerts ----------------------------------------- */
+function renderAlerts(){
+  var items = claim.billing_alerts||[];
+  var el = document.getElementById('alert-list');
+  if(!el) return;
+  if(!items.length){
+    el.innerHTML = emptyState('No billing alerts linked to this claim.', '&#10003;');
+    return;
+  }
+  el.innerHTML = items.map(function(a){
+    return '<a class="ba-chip" href="admin-billing-alerts.html">'
+      +'<div class="ba-chip-icon">&#9888;</div>'
+      +'<div class="ba-chip-body">'
+      +'<div class="ba-chip-id">'+esc(a.alert_id)+'</div>'
+      +'<div class="ba-chip-type">'+esc(a.type)+'</div>'
+      +'<div class="ba-chip-meta">'+esc(a.priority)+' &middot; '+esc(a.status)+(a.link_type?' &middot; '+esc(a.link_type):'')+'</div>'
+      +'</div>'
+      +'<button class="att-del" onclick="event.preventDefault();unlinkAlert(\''+a.id+'\')">&#128465;</button>'
+      +'</a>';
+  }).join('');
+}
+function unlinkAlert(id){
+  if(!confirm('Unlink this billing alert?')) return;
+  claim.billing_alerts = (claim.billing_alerts||[]).filter(a=>a.id!==id);
+  pushHistory('Billing alert unlinked','','gray');
+  saveClaimObj(claim); renderAlerts(); updateCounts();
+}
+
+/* -- Comments ----------------------------------------------- */
+function renderComments(){
+  var cmts = claim.comments||[];
+  var el = document.getElementById('cmt-list');
+  if(!el) return;
+  if(!cmts.length){
+    el.innerHTML = emptyState('No notes yet. Add the first one below.');
+  } else {
+    el.innerHTML = cmts.slice().sort((a,b)=>a.created_at>b.created_at?1:-1).map(function(c){
+      var avCls = c.is_internal ? 'sys' : 'staff';
+      var roleLbl = c.is_internal ? 'Internal Note' : 'Staff';
+      var roleCls = c.is_internal ? 'internal' : 'staff';
+      return '<div class="cmt'+(c.is_internal?' internal':'')+'">'
+        +'<div class="cmt-header">'
+        +'<div class="cmt-av '+avCls+'">'+esc(initials(c.author))+'</div>'
+        +'<span class="cmt-author">'+esc(c.author)+'</span>'
+        +'<span class="cmt-role-badge '+roleCls+'">'+roleLbl+'</span>'
+        +(c.files&&c.files.length?'<span style="font-size:10px;color:var(--blue-700)">&#128206; '+c.files.length+' file(s)</span>':'')
+        +'<span class="cmt-time">'+fmtRelative(c.created_at)+'</span>'
+        +'</div>'
+        +'<div class="cmt-body">'+esc(c.content)+'</div>'
+        +'<button class="cmt-del" data-action="delete-comment" data-comment-id="'+esc(c.id)+'">Delete</button>'
+        +'</div>';
+    }).join('');
+  }
+}
+
+function toggleNoteMode(){
+  isNoteMode = !isNoteMode;
+  var btn = document.getElementById('btn-note-toggle');
+  var ta  = document.getElementById('compose-ta');
+  var bar = document.getElementById('compose-mode-bar');
+  if(btn) btn.classList.toggle('active', isNoteMode);
+  if(ta)  ta.classList.toggle('note-mode', isNoteMode);
+  if(bar) bar.classList.toggle('visible', isNoteMode);
+}
+
+function togglePhraseMenu(){
+  var m = document.getElementById('phrase-menu');
+  if(!m) return;
+  if(m.classList.contains('open')){
+    m.classList.remove('open');
+  } else {
+    m.classList.add('open');
+  }
+}
+
+function insertPhrase(key){
+  var phrase = SMART_PHRASES[key] || '';
+  var ta = document.getElementById('compose-ta');
+  if(ta){
+    ta.value = (ta.value ? ta.value + '\n\n' : '') + phrase;
+    ta.focus();
+  }
+  var m = document.getElementById('phrase-menu');
+  if(m) m.classList.remove('open');
+}
+
+function handleCmtFileUpload(files){
+  var MAX = 20 * 1024 * 1024;
+  var seen = {};
+  var rejected = [];
+  pendingCmtFiles = [];
+  for(var i = 0; i < files.length; i++){
+    var f = files[i];
+    if(f.size === 0){ rejected.push(f.name + ' (empty file)'); continue; }
+    if(f.size > MAX){ rejected.push(f.name + ' (exceeds 20 MB)'); continue; }
+    var key = f.name + '|' + f.size + '|' + f.lastModified;
+    if(seen[key]){ rejected.push(f.name + ' (duplicate)'); continue; }
+    seen[key] = true;
+    pendingCmtFiles.push(f);
+  }
+  if(rejected.length) alert('Skipped:\n' + rejected.join('\n'));
+  var lab = document.getElementById('cmt-files-label');
+  if(lab) lab.textContent = pendingCmtFiles.length ? pendingCmtFiles.length + ' file(s) ready' : '';
+}
+
+function submitComment(){
+  var ta = document.getElementById('compose-ta');
+  if(!ta||!ta.value.trim()) return;
+  var cmt = {
+    id:uid(), author:staffName(), content:ta.value.trim(),
+    created_at:new Date().toISOString(), is_internal:isNoteMode,
+    files: pendingCmtFiles.map(f=>f.name),
+  };
+  claim.comments = claim.comments||[];
+  claim.comments.push(cmt);
+  pushHistory((isNoteMode?'Internal note added':'Comment added'), cmt.content.slice(0,80), 'blue');
+  pendingCmtFiles = [];
+  saveClaimObj(claim);
+  ta.value = '';
+  var lab = document.getElementById('cmt-files-label');
+  if(lab) lab.textContent = '';
+  updateCounts();
+  renderComments();
+}
+
+function deleteComment(id){
+  if(!confirm('Delete this comment?')) return;
+  claim.comments = (claim.comments||[]).filter(c=>c.id!==id);
+  claim.updated_at = new Date().toISOString();
+  saveClaimObj(claim); updateCounts(); renderComments();
+}
+
+/* -- Attachments -------------------------------------------- */
+function renderAttachments(){
+  var atts = claim.attachments||[];
+  var el = document.getElementById('att-list');
+  if(!el) return;
+  if(!atts.length){
+    el.innerHTML = emptyState('No documents attached yet.', '&#128196;');
+    return;
+  }
+  el.innerHTML = atts.map(function(a){
+    var ico = a.mime&&a.mime.includes('image')?'&#128444;':(a.mime&&a.mime.includes('pdf')?'&#128196;':'&#128190;');
+    return '<div class="att-item"><span class="att-icon">'+ico+'</span>'
+      +'<span class="att-name">'+esc(a.name)+'</span>'
+      +'<span class="att-meta">'+esc(a.uploaded_by)+' &middot; '+fmtDate(a.uploaded_at)+'</span>'
+      +'<button class="att-del" onclick="removeAttachment(\''+a.id+'\')">&#128465;</button>'
+      +'</div>';
+  }).join('');
+}
+
+function handleAttachUpload(files){
+  var MAX = 20 * 1024 * 1024;
+  var existing = (claim.attachments || []);
+  var seen = {};
+  existing.forEach(function(a){ seen[a.name + '|' + a.size] = true; });
+  var pending = [];
+  var rejected = [];
+  for(var i = 0; i < files.length; i++){
+    var f = files[i];
+    if(f.size === 0){ rejected.push(f.name + ' (empty file)'); continue; }
+    if(f.size > MAX){ rejected.push(f.name + ' (exceeds 20 MB)'); continue; }
+    var key = f.name + '|' + f.size + '|' + f.lastModified;
+    if(seen[f.name + '|' + f.size]){ rejected.push(f.name + ' (already attached)'); continue; }
+    if(seen[key]){ rejected.push(f.name + ' (duplicate)'); continue; }
+    seen[key] = true;
+    seen[f.name + '|' + f.size] = true;
+    pending.push(f);
+  }
+  if(rejected.length) alert('Skipped:\n' + rejected.join('\n'));
+  if(!pending.length) return;
+  claim.attachments = existing;
+  pending.forEach(function(f){
+    claim.attachments.push({id:uid(), name:f.name, mime:f.type, size:f.size, uploaded_by:staffName(), uploaded_at:new Date().toISOString()});
+  });
+  pushHistory(pending.length + ' document(s) uploaded', pending.map(function(f){ return f.name; }).join(', '), 'blue');
+  saveClaimObj(claim); renderAttachments(); updateCounts();
+}
+
+function removeAttachment(id){
+  if(!confirm('Remove this attachment?')) return;
+  claim.attachments = (claim.attachments||[]).filter(a=>a.id!==id);
+  claim.updated_at = new Date().toISOString();
+  saveClaimObj(claim); renderAttachments(); updateCounts();
+}
+
+/* -- History / Timeline ------------------------------------- */
+function renderHistory(){
+  var acts = (claim.history||[]).slice().sort((a,b)=>b.ts>a.ts?1:-1);
+  var el = document.getElementById('tl-list');
+  if(!el) return;
+  if(!acts.length){ el.innerHTML = emptyState('No history yet.'); return; }
+  el.innerHTML = acts.map(function(h){
+    return '<div class="tl-item">'
+      +'<div class="tl-dot tl-dot-'+esc(h.dot||'blue')+'"></div>'
+      +'<div class="tl-body">'
+      +'<div class="tl-action">'+esc(h.action)+'</div>'
+      +'<div class="tl-meta">'+esc(h.user||'System')+' &middot; '+fmtDT(h.ts)+'</div>'
+      +(h.notes?'<div class="tl-note">'+esc(h.notes)+'</div>':'')
+      +'</div></div>';
+  }).join('');
+}
+
+/* -- Sidebar controls --------------------------------------- */
+function setClaimStatus(val){
+  var old = claim.status;
+  if(old===val) return;
+  claim.status = val;
+  pushHistory('Status: '+old+' -> '+val, '', val==='paid' ? 'green' : (val==='denied' ? 'red' : (val.includes('appeal') ? 'purple' : 'blue')));
+  saveClaimObj(claim); renderBanner(); renderKPIs(); renderSidebar();
+  if(activeTab==='history') renderHistory();
+}
+function setWorkqueue(val){
+  claim.wq = val;
+  claim.updated_at = new Date().toISOString();
+  saveClaimObj(claim);
+  setText('si-wq', wqLabel(val));
+}
+function setStaff(val){
+  var old = claim.assigned_staff||'Unassigned';
+  claim.assigned_staff = val;
+  pushHistory('Assigned: '+old+' - '+(val||'Unassigned'),'','blue');
+  saveClaimObj(claim);
+}
+function saveDueDate(){
+  var el = document.getElementById('si-due');
+  if(!el) return;
+  claim.due_date = el.value||null;
+  pushHistory('Due date set to '+(el.value?fmtDate(el.value):'removed'),'','blue');
+  saveClaimObj(claim);
+}
+function voidClaim(){
+  if(!confirm('Void this claim? This action is recorded in the timeline.')) return;
+  claim.status = 'voided';
+  pushHistory('Claim voided','','red');
+  saveClaimObj(claim); renderBanner(); renderKPIs(); renderSidebar();
+  var sel = document.getElementById('si-status');
+  if(sel) sel.value = 'voided';
+}
+
+/* -- Modals ------------------------------------------------- */
+function openAddLineModal(){ clearModal('modal-line'); openModal('modal-line'); }
+function openAddDenialModal(){ clearModal('modal-denial'); document.getElementById('dn-date').value=today(); openModal('modal-denial'); }
+function openAddAppealModal(){ clearModal('modal-appeal'); document.getElementById('ap-date').value=today(); openModal('modal-appeal'); }
+function openAddPaymentModal(){ clearModal('modal-payment'); document.getElementById('py-date').value=today(); openModal('modal-payment'); }
+function openLinkAlertModal(){ clearModal('modal-alert'); openModal('modal-alert'); }
+
+function openModal(id){ var el=document.getElementById(id); if(el) el.style.display='flex'; }
+function closeModal(id){ var el=document.getElementById(id); if(el) el.style.display='none'; }
+function maybeClose(e, id){ if(e.target===document.getElementById(id)) closeModal(id); }
+function clearModal(id){
+  var m=document.getElementById(id);
+  if(!m) return;
+  m.querySelectorAll('input,select,textarea').forEach(function(el){ el.value=''; });
+}
+
+function g(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; }
+
+function submitAddLine(){
+  if(!g('li-cpt')){ alert('CPT code is required.'); return; }
+  var li = {
+    id:uid(), seq:(claim.line_items||[]).length+1,
+    cpt:g('li-cpt'),
+    mods:g('li-mods')?g('li-mods').split(/\s+/):[],
+    icd_ptrs:g('li-icd')?g('li-icd').split(',').map(x=>x.trim()):[],
+    units:parseInt(g('li-units'))||1,
+    billed:parseFloat(g('li-billed'))||0,
+    allowed:null, paid:0, adj:null, status:'ready',
+  };
+  claim.line_items = claim.line_items||[];
+  claim.line_items.push(li);
+  pushHistory('Line item added: '+li.cpt,'Units: '+li.units+', Billed: $'+fmt(li.billed),'blue');
+  claim.billed = claim.line_items.reduce((s,l)=>s+(l.billed||0),0);
+  saveClaimObj(claim); closeModal('modal-line'); renderLines(); updateCounts(); renderKPIs(); renderSidebar();
+}
+
+function submitAddDenial(){
+  if(!g('dn-code')||!g('dn-reason')){ alert('Denial code and reason are required.'); return; }
+  var d = {
+    id:uid(), code:g('dn-code'), reason:g('dn-reason'),
+    date:g('dn-date')||today(), notes:g('dn-notes'), action:g('dn-action'),
+    created_at:new Date().toISOString(),
+  };
+  claim.denials = claim.denials||[];
+  claim.denials.push(d);
+  if(g('dn-action')==='appeal'){ claim.wq='appeal'; }
+  else if(g('dn-action')==='resubmit'){ claim.wq='resubmit'; }
+  pushHistory('Denial logged: '+d.code, d.reason, 'red');
+  saveClaimObj(claim); closeModal('modal-denial'); renderDenials(); updateCounts(); renderSidebar();
+  if(activeTab==='history') renderHistory();
+}
+
+function submitAddAppeal(){
+  if(!g('ap-reason')){ alert('Appeal reason is required.'); return; }
+  var a = {
+    id:uid(), type:g('ap-type')||'written',
+    date:g('ap-date')||today(), reason:g('ap-reason'),
+    docs:g('ap-docs'), deadline:g('ap-deadline'),
+    staff:g('ap-staff'), status:'submitted',
+    created_at:new Date().toISOString(),
+  };
+  claim.appeals = claim.appeals||[];
+  claim.appeals.push(a);
+  claim.wq = 'appeal'; claim.status = 'appealed';
+  pushHistory('Appeal submitted: '+a.type, a.reason.slice(0,80), 'purple');
+  saveClaimObj(claim); closeModal('modal-appeal'); renderAppeals(); updateCounts(); renderBanner(); renderSidebar();
+  if(activeTab==='history') renderHistory();
+}
+
+function submitAddPayment(){
+  if(!g('py-amount')){ alert('Amount is required.'); return; }
+  var type = g('py-type') || 'insurance';
+  var who = type==='patient' ? claim.patient+' (Patient)' : type==='recoupment' ? claim.payer+' (Recoupment)' : type==='writeoff' ? 'Write-Off' : claim.payer;
+  var p = {
+    id:uid(), type:type, who:who,
+    amount:parseFloat(g('py-amount'))||0,
+    date:g('py-date')||today(), check_num:g('py-check'),
+    era_ref:g('py-era'), notes:g('py-notes'),
+  };
+  claim.payments = claim.payments||[];
+  claim.payments.push(p);
+  // Update paid total for insurance payments
+  if(type==='insurance'){
+    claim.paid = (claim.payments||[]).filter(px=>px.type==='insurance').reduce((s,px)=>s+(px.amount||0),0);
+  }
+  pushHistory('Payment posted: '+who, '$'+fmt(p.amount)+' via '+(p.check_num||'manual'), 'green');
+  saveClaimObj(claim); closeModal('modal-payment'); renderPayments(); updateCounts(); renderKPIs(); renderSidebar();
+  if(activeTab==='history') renderHistory();
+}
+
+function submitLinkAlert(){
+  if(!g('al-id')){ alert('Billing Alert ID is required.'); return; }
+  var a = { id:uid(), alert_id:g('al-id'), type:'Claim Denial', priority:'Routine', status:'New', patient:claim.patient, link_type:g('al-type')||'Primary Claim', notes:g('al-notes') };
+  claim.billing_alerts = claim.billing_alerts||[];
+  claim.billing_alerts.push(a);
+  claim.has_alert = true;
+  pushHistory('Billing Alert linked: '+a.alert_id,'Link type: '+a.link_type,'red');
+  saveClaimObj(claim); closeModal('modal-alert'); renderAlerts(); updateCounts(); renderBanner();
+}
+
+/* -- Label helpers ------------------------------------------ */
+function statusLabel(s){
+  var m={'draft':'Draft','ready':'Ready','submitted':'Submitted','accepted':'Accepted',
+         'in_process':'In Process','paid':'Paid','partial':'Partial','denied':'Denied',
+         'appealed':'Appealed','voided':'Voided'};
+  return m[s]||s||'--';
+}
+function wqLabel(s){
+  var m={'no_action':'No Action','follow_up':'Follow Up','resubmit':'Resubmit',
+         'appeal':'Appeal','write_off':'Write Off','in_queue':'In Queue'};
+  return m[s]||s||'--';
+}
+
+// Close phrase menu on outside click
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.phrase-dropdown')){
+    var m = document.getElementById('phrase-menu');
+    if(m) m.classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>

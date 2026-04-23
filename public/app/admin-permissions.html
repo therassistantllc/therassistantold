@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT — Role Permissions Matrix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Layout ───────────────────────────────────────────────── */
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .page-header{margin-bottom:24px}
+    .page-title{font-family:'Sora',sans-serif;font-size:22px;font-weight:700;color:var(--ink-900);margin:0 0 4px}
+    .page-sub{font-size:13px;color:var(--ink-500)}
+
+    /* ── Legend chips ─────────────────────────────────────────── */
+    .legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px;align-items:center}
+    .legend-label{font-size:11.5px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+    .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.02em}
+    .chip-F  {background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+    .chip-CE {background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+    .chip-L  {background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+    .chip-R  {background:#f3f4f6;color:#374151;border:1px solid #d1d5db}
+    .chip-NO {background:#fde8e8;color:#9b1c1c;border:1px solid #fca5a5}
+
+    /* ── Filter bar ───────────────────────────────────────────── */
+    .filter-bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .btn-outline{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px;font-weight:600;color:var(--ink-700);cursor:pointer;font-family:inherit}
+    .btn-outline:hover{background:var(--surface-hover,#f3f4f6)}
+
+    /* ── Matrix table ─────────────────────────────────────────── */
+    .matrix-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+    table.matrix{width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px}
+    table.matrix thead tr{background:var(--surface-2,#f9fafb)}
+    table.matrix th{padding:10px 12px;text-align:center;font-size:11.5px;font-weight:700;color:var(--ink-600);border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0;background:var(--surface-2,#f9fafb);z-index:10}
+    table.matrix th.col-feature{text-align:left;min-width:210px;position:sticky;left:0;z-index:20;background:var(--surface-2,#f9fafb)}
+    table.matrix td{padding:9px 12px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle}
+    table.matrix td.col-feature{text-align:left;font-weight:500;color:var(--ink-800);position:sticky;left:0;background:#fff;z-index:5;white-space:nowrap}
+    table.matrix tr:last-child td{border-bottom:none}
+    table.matrix tr:hover td{background:rgba(37,99,235,.03)}
+    table.matrix tr:hover td.col-feature{background:rgba(37,99,235,.05)}
+
+    /* category header rows */
+    .cat-row td{background:var(--surface-2,#f8fafc) !important;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500);padding:7px 12px;border-bottom:1px solid var(--border)}
+
+    /* access badge cells */
+    .ab{display:inline-flex;align-items:center;justify-content:center;width:100%;font-size:11px;font-weight:700;padding:3px 0;border-radius:6px;letter-spacing:.02em}
+    .ab-F  {background:#d1fae5;color:#065f46}
+    .ab-CE {background:#dbeafe;color:#1e40af}
+    .ab-L  {background:#fef3c7;color:#92400e}
+    .ab-R  {background:#f3f4f6;color:#374151}
+    .ab-NO {color:#d1d5db;font-size:13px}
+
+    /* ── Metadata cards ───────────────────────────────────────── */
+    .meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:28px}
+    .meta-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+    .meta-card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500);margin-bottom:12px}
+    .meta-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .meta-row:last-child{border-bottom:none}
+    .meta-role{font-weight:700;color:var(--ink-800);min-width:160px;flex-shrink:0}
+    .meta-desc{color:var(--ink-600)}
+    .meta-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px}
+    .tag-yes{background:#d1fae5;color:#065f46}
+    .tag-no{background:#f3f4f6;color:#9ca3af}
+    .tag-own{background:#fef3c7;color:#92400e}
+    .tag-ro{background:#e0e7ff;color:#3730a3}
+
+    /* ── JSON export block ────────────────────────────────────── */
+    .json-block{background:#0f172a;border-radius:12px;padding:20px 24px;overflow-x:auto;font-family:'SFMono-Regular',Consolas,monospace;font-size:11.5px;line-height:1.65;color:#e2e8f0;margin-top:28px;border:1px solid #1e293b}
+    .json-key{color:#7dd3fc}
+    .json-str{color:#86efac}
+    .json-num{color:#fda4af}
+    .json-bool-true{color:#4ade80}
+    .json-bool-false{color:#f87171}
+    .json-comment{color:#64748b;font-style:italic}
+
+    /* ── Tabs ─────────────────────────────────────────────────── */
+    .tab-bar{display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;gap:0}
+    .tab-btn{padding:10px 18px;font-size:13.5px;font-weight:600;color:var(--ink-500);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .15s,border-color .15s}
+    .tab-btn.active{color:var(--blue-800,#1e40af);border-bottom-color:var(--blue-700,#1d4ed8)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    @media(max-width:680px){
+      .meta-grid{grid-template-columns:1fr}
+      .meta-role{min-width:120px}
+      table.matrix th.col-feature,table.matrix td.col-feature{min-width:150px}
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <!-- Sidebar -->
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="admin-overview.html">Overview Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Client Database</a>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue Dashboard</a>
+      <a class="nav-link" href="admin-reports.html">Saved Reports</a>
+      <a class="nav-link" href="admin-notes.html">Saved Notes</a>
+      <a class="nav-link" href="admin-analytics.html">Usage Analytics</a>
+      <a class="nav-link" href="admin-financial.html">Financial Dashboard</a>
+      <a class="nav-link" href="admin-qa.html">QA / Review Queue</a>
+      <a class="nav-link" href="admin-code-rules.html">Code Rules</a>
+      <a class="nav-link" href="admin-content.html">Content Management</a>
+      <a class="nav-link" href="admin-staff.html">Staff Performance</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link active" href="admin-permissions.html">Permissions Matrix</a>
+      <a class="nav-link" href="admin-settings.html">System Settings</a>
+      <a class="nav-link" href="platform-architecture.html">Platform Architecture</a>
+      <a class="nav-link" href="information-architecture.html">Information Architecture</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="dashboard-main">
+    <div class="page-header">
+      <div class="page-title">Role Permissions Matrix</div>
+      <div class="page-sub">RBAC definition for all THERASSISTANT platform roles — last updated April 2026</div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <span class="legend-label">Access levels:</span>
+      <span class="chip chip-F">F &nbsp;Full Access</span>
+      <span class="chip chip-CE">CE &nbsp;Create / Edit</span>
+      <span class="chip chip-L">L &nbsp;Limited (scoped)</span>
+      <span class="chip chip-R">R &nbsp;Read-Only</span>
+      <span class="chip chip-NO">— &nbsp;No Access</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('matrix',this)">Permissions Matrix</button>
+      <button class="tab-btn" onclick="switchTab('meta',this)">RBAC Rules</button>
+      <button class="tab-btn" onclick="switchTab('json',this)">JSON Export</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB 1 — Matrix
+    ══════════════════════════════════════════════════════════ -->
+    <div id="tab-matrix" class="tab-panel active">
+      <div class="filter-bar">
+        <input type="text" id="featureSearch" placeholder="Search features…" oninput="filterFeatures(this.value)">
+        <select id="catFilter" onchange="filterCategory(this.value)">
+          <option value="">All categories</option>
+          <option value="Core">Core Navigation</option>
+          <option value="Patient">Patient Management</option>
+          <option value="Scheduling">Scheduling</option>
+          <option value="Insurance">Insurance &amp; Auth</option>
+          <option value="Clinical">Clinical</option>
+          <option value="Coding">Coding</option>
+          <option value="Billing">Claims &amp; Billing</option>
+          <option value="Support">Support</option>
+          <option value="Work">Work Management</option>
+          <option value="Credentialing">Credentialing</option>
+          <option value="Reporting">Reporting</option>
+          <option value="Administration">Administration</option>
+          <option value="Platform">Platform</option>
+        </select>
+        <button class="btn-outline" onclick="resetFilters()">Reset</button>
+      </div>
+
+      <div class="matrix-wrap">
+        <table class="matrix" id="permMatrix">
+          <thead>
+            <tr>
+              <th class="col-feature">Feature</th>
+              <th>Admin</th>
+              <th>Clinician</th>
+              <th>Billing<br>Specialist</th>
+              <th>Credentialing<br>Specialist</th>
+              <th>Supervisor</th>
+              <th>Front<br>Desk</th>
+              <th>Patient</th>
+            </tr>
+          </thead>
+          <tbody id="matrixBody">
+            <!-- Rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:11.5px;color:var(--ink-400);margin-top:10px"><strong>L (Limited)</strong> = access scoped to own organization, assigned patients, or own record — see RBAC Rules tab for full scope definitions.</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB 2 — RBAC Rules
+    ══════════════════════════════════════════════════════════ -->
+    <div id="tab-meta" class="tab-panel">
+      <div class="meta-grid">
+
+        <!-- Org scope -->
+        <div class="meta-card">
+          <div class="meta-card-title">Organization Scope</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">All organizations <span class="meta-tag tag-yes">All orgs</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Own organization only <span class="meta-tag tag-own">Own org</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Own organization only <span class="meta-tag tag-own">Own org</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Own organization only <span class="meta-tag tag-own">Own org</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Own organization only <span class="meta-tag tag-own">Own org</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Own organization only <span class="meta-tag tag-own">Own org</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">No org-level access — own record only <span class="meta-tag tag-no">N/A</span></span></div>
+        </div>
+
+        <!-- Patient scope -->
+        <div class="meta-card">
+          <div class="meta-card-title">Patient Record Scope</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">All patients across all orgs <span class="meta-tag tag-yes">All</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Assigned patients only <span class="meta-tag tag-own">Assigned</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">All patients in own org (billing purposes) <span class="meta-tag tag-own">Org-wide</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">No patient record access <span class="meta-tag tag-no">None</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">All patients in own org <span class="meta-tag tag-own">Org-wide</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">All active patients in own org (schedule/intake) <span class="meta-tag tag-own">Org-wide</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Own record only <span class="meta-tag tag-own">Own</span></span></div>
+        </div>
+
+        <!-- Financial data -->
+        <div class="meta-card">
+          <div class="meta-card-title">Financial Data Access</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full financial data — all orgs <span class="meta-tag tag-yes">Full</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Balance display for own patients only <span class="meta-tag tag-own">Limited</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Full financial data — own org <span class="meta-tag tag-yes">Full</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">No financial data access <span class="meta-tag tag-no">None</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Read-only financial data — own org <span class="meta-tag tag-ro">Read-only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Patient balance display only <span class="meta-tag tag-own">Balance only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Own balances and statements only <span class="meta-tag tag-own">Own</span></span></div>
+        </div>
+
+        <!-- Post payments -->
+        <div class="meta-card">
+          <div class="meta-card-title">Payment Posting</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Can post payments and ERA <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Cannot post payments <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Can post payments and ERA <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Cannot post payments <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Cannot post payments <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Cannot post payments <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Cannot post payments <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Submit claims -->
+        <div class="meta-card">
+          <div class="meta-card-title">Claim Submission</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Can submit and void claims <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Cannot submit claims <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Can submit, correct, and void claims <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Cannot submit claims <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Cannot submit claims <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Cannot submit claims <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Cannot submit claims <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Denials & appeals -->
+        <div class="meta-card">
+          <div class="meta-card-title">Denials &amp; Appeals</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full denial management and appeals <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Cannot work denials or appeals <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Full denial management and appeals <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Cannot work denials or appeals <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Cannot work denials; read-only review <span class="meta-tag tag-ro">Read-only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Cannot work denials or appeals <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Cannot work denials or appeals <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Credentialing -->
+        <div class="meta-card">
+          <div class="meta-card-title">Credentialing Management</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full credentialing management <span class="meta-tag tag-yes">Full</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Read-only view of own credentialing status <span class="meta-tag tag-ro">Own only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">No credentialing management <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Create, edit, and track all credentialing records <span class="meta-tag tag-yes">Full (own org)</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Read-only credentialing overview <span class="meta-tag tag-ro">Read-only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">No credentialing access <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">No credentialing access <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Compliance -->
+        <div class="meta-card">
+          <div class="meta-card-title">Compliance &amp; Audit Tools</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full audit log and compliance dashboard access <span class="meta-tag tag-yes">Full</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">No access to compliance or audit tools <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">No access to compliance or audit tools <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">No access to compliance or audit tools <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Read-only audit log and compliance dashboards <span class="meta-tag tag-ro">Read-only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">No access to compliance or audit tools <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">No access to compliance or audit tools <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Impersonation -->
+        <div class="meta-card">
+          <div class="meta-card-title">Impersonation &amp; Preview Mode</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full admin preview mode; can impersonate any role <span class="meta-tag tag-yes">Yes</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Credentialing Specialist</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+          <div class="meta-row"><span class="meta-role">Patient</span><span class="meta-desc">Cannot impersonate or use preview mode <span class="meta-tag tag-no">No</span></span></div>
+        </div>
+
+        <!-- Coding engine notes -->
+        <div class="meta-card">
+          <div class="meta-card-title">Coding Engine Scope Notes</div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Can run coding for own patient sessions only; cannot override final codes without Supervisor review</span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Can review and edit coding reports, run supplemental coding checks; cannot edit clinical note source</span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Can review and approve coding reports for all clinicians in org; can flag for correction</span></div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full coding engine access including rule configuration and code overrides</span></div>
+        </div>
+
+        <!-- Route to biller -->
+        <div class="meta-card">
+          <div class="meta-card-title">Route to Biller Workflow</div>
+          <div class="meta-row"><span class="meta-role">Admin</span><span class="meta-desc">Full workflow management; can reassign and override <span class="meta-tag tag-yes">Full</span></span></div>
+          <div class="meta-row"><span class="meta-role">Clinician</span><span class="meta-desc">Can initiate route-to-biller from completed note; cannot redirect once routed <span class="meta-tag tag-own">Initiate only</span></span></div>
+          <div class="meta-row"><span class="meta-role">Billing Specialist</span><span class="meta-desc">Receives routed items; can accept, reject, or reassign <span class="meta-tag tag-yes">Receive + action</span></span></div>
+          <div class="meta-row"><span class="meta-role">Supervisor</span><span class="meta-desc">Read-only view of routing queue; can escalate <span class="meta-tag tag-ro">Monitor</span></span></div>
+          <div class="meta-row"><span class="meta-role">Front Desk</span><span class="meta-desc">Can flag incomplete intake items that block billing route <span class="meta-tag tag-own">Flag only</span></span></div>
+        </div>
+
+        <!-- Supervisor clinical oversight -->
+        <div class="meta-card">
+          <div class="meta-card-title">Supervisor Clinical Oversight</div>
+          <div class="meta-row"><span class="meta-role">Supervisors</span><span class="meta-desc">Can read all clinical notes and treatment plans for supervised clinicians in own org; cannot modify unless specifically granted co-signature rights</span></div>
+          <div class="meta-row"><span class="meta-role">Co-signature</span><span class="meta-desc">Supervisor can co-sign notes where required by org settings; co-signature is tracked in audit log</span></div>
+          <div class="meta-row"><span class="meta-role">QA flags</span><span class="meta-desc">Supervisor can flag notes for QA review; flagged notes enter the QA / Review Queue work queue</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB 3 — JSON Export
+    ══════════════════════════════════════════════════════════ -->
+    <div id="tab-json" class="tab-panel">
+      <p style="font-size:13px;color:var(--ink-600);margin-bottom:14px">Machine-readable permissions map for RBAC implementation. Keys use <code>snake_case</code> feature identifiers. Values: <code>"full"</code>, <code>"create_edit"</code>, <code>"limited"</code>, <code>"read"</code>, <code>"none"</code>.</p>
+      <button class="btn-outline" onclick="copyJson()" style="margin-bottom:14px" id="copyJsonBtn">Copy JSON</button>
+      <pre class="json-block" id="jsonOutput"></pre>
+    </div>
+
+  </main>
+</div>
+
+<script>
+/* ================================================================
+   DATA — permissions matrix
+   access: F=full, CE=create_edit, L=limited, R=read, _=none
+   columns: [Admin, Clinician, BillingSpec, CredSpec, Supervisor, FrontDesk, Patient]
+================================================================ */
+const ROLES = ['Admin','Clinician','Billing Specialist','Credentialing Specialist','Supervisor','Front Desk','Patient'];
+const ROLE_KEYS = ['admin','clinician','billing_specialist','credentialing_specialist','supervisor','front_desk','patient'];
+
+const CATEGORIES = [
+  {
+    label: 'Core Navigation', key: 'Core',
+    features: [
+      { name: 'Dashboard',                    key: 'dashboard',                    access: ['F','L','L','L','L','L','_'] },
+    ]
+  },
+  {
+    label: 'Patient Management', key: 'Patient',
+    features: [
+      { name: 'Patient records',              key: 'patient_records',              access: ['F','L','R','_','L','L','_'] },
+      { name: 'Intake forms',                 key: 'intake_forms',                 access: ['F','CE','R','_','R','CE','_'] },
+    ]
+  },
+  {
+    label: 'Scheduling', key: 'Scheduling',
+    features: [
+      { name: 'Scheduling',                   key: 'scheduling',                   access: ['F','CE','R','_','R','CE','L'] },
+      { name: 'Appointment calendar',         key: 'appointment_calendar',         access: ['F','CE','R','_','R','CE','L'] },
+    ]
+  },
+  {
+    label: 'Insurance & Authorization', key: 'Insurance',
+    features: [
+      { name: 'Insurance information',        key: 'insurance_information',        access: ['F','CE','CE','_','R','CE','_'] },
+      { name: 'Eligibility verification',     key: 'eligibility_verification',     access: ['F','L','CE','_','R','CE','_'] },
+      { name: 'Prior authorizations',         key: 'prior_authorizations',         access: ['F','L','CE','_','R','L','_'] },
+    ]
+  },
+  {
+    label: 'Clinical', key: 'Clinical',
+    features: [
+      { name: 'Clinical documentation',       key: 'clinical_documentation',       access: ['F','CE','_','_','R','_','R'] },
+      { name: 'Treatment plans',              key: 'treatment_plans',              access: ['F','CE','_','_','R','_','R'] },
+      { name: 'Assessments',                  key: 'assessments',                  access: ['F','CE','_','_','R','_','R'] },
+      { name: 'Screening tools',              key: 'screening_tools',              access: ['F','CE','_','_','R','_','CE'] },
+    ]
+  },
+  {
+    label: 'Coding', key: 'Coding',
+    features: [
+      { name: 'Coding engine',                key: 'coding_engine',                access: ['F','CE','R','_','R','_','_'] },
+      { name: 'Coding reports',               key: 'coding_reports',               access: ['F','R','CE','_','R','_','_'] },
+    ]
+  },
+  {
+    label: 'Claims & Billing', key: 'Billing',
+    features: [
+      { name: 'Claims',                       key: 'claims',                       access: ['F','_','CE','_','R','_','_'] },
+      { name: 'Claim status',                 key: 'claim_status',                 access: ['F','R','CE','_','R','R','_'] },
+      { name: 'ERA posting',                  key: 'era_posting',                  access: ['F','_','CE','_','R','_','_'] },
+      { name: 'Payment posting',              key: 'payment_posting',              access: ['F','_','CE','_','R','_','_'] },
+      { name: 'Patient balances',             key: 'patient_balances',             access: ['F','R','CE','_','R','R','L'] },
+      { name: 'Statements',                   key: 'statements',                   access: ['F','_','CE','_','R','R','L'] },
+      { name: 'Refunds and adjustments',      key: 'refunds_adjustments',          access: ['F','_','CE','_','R','_','_'] },
+      { name: 'Billing alerts',               key: 'billing_alerts',               access: ['F','R','CE','_','R','R','_'] },
+    ]
+  },
+  {
+    label: 'Support', key: 'Support',
+    features: [
+      { name: 'Support tickets',              key: 'support_tickets',              access: ['F','CE','CE','CE','CE','CE','CE'] },
+      { name: 'Live chat',                    key: 'live_chat',                    access: ['F','CE','CE','CE','CE','CE','CE'] },
+    ]
+  },
+  {
+    label: 'Work Management', key: 'Work',
+    features: [
+      { name: 'Work queues',                  key: 'work_queues',                  access: ['F','L','L','L','L','L','_'] },
+    ]
+  },
+  {
+    label: 'Credentialing', key: 'Credentialing',
+    features: [
+      { name: 'Credentialing records',        key: 'credentialing_records',        access: ['F','R','_','CE','R','_','_'] },
+      { name: 'Provider enrollment tracking', key: 'provider_enrollment_tracking', access: ['F','R','_','CE','R','_','_'] },
+    ]
+  },
+  {
+    label: 'Reporting', key: 'Reporting',
+    features: [
+      { name: 'Reporting dashboards',         key: 'reporting_dashboards',         access: ['F','L','L','R','L','_','_'] },
+      { name: 'Revenue dashboards',           key: 'revenue_dashboards',           access: ['F','_','CE','_','R','_','_'] },
+      { name: 'Monthly reports',              key: 'monthly_reports',              access: ['F','R','CE','_','R','_','_'] },
+    ]
+  },
+  {
+    label: 'Administration', key: 'Administration',
+    features: [
+      { name: 'User management',              key: 'user_management',              access: ['F','_','_','_','_','_','_'] },
+      { name: 'Role assignment',              key: 'role_assignment',              access: ['F','_','_','_','_','_','_'] },
+      { name: 'Subscription management',      key: 'subscription_management',      access: ['F','_','_','_','_','_','_'] },
+      { name: 'Audit logs',                   key: 'audit_logs',                   access: ['F','_','_','_','R','_','_'] },
+      { name: 'Compliance dashboards',        key: 'compliance_dashboards',        access: ['F','_','_','_','R','_','_'] },
+      { name: 'System settings',              key: 'system_settings',              access: ['F','_','_','_','_','_','_'] },
+      { name: 'Admin preview mode',           key: 'admin_preview_mode',           access: ['F','_','_','_','_','_','_'] },
+    ]
+  },
+  {
+    label: 'Platform', key: 'Platform',
+    features: [
+      { name: 'Patient portal',               key: 'patient_portal',               access: ['_','_','_','_','_','_','F'] },
+      { name: 'Telehealth',                   key: 'telehealth',                   access: ['F','CE','_','_','R','_','L'] },
+      { name: 'Stripe connection',            key: 'stripe_connection',            access: ['F','_','R','_','_','_','_'] },
+      { name: 'Route to biller workflow',     key: 'route_to_biller_workflow',     access: ['F','CE','CE','_','R','R','_'] },
+    ]
+  },
+];
+
+/* ── Access level display config ───────────────────────────── */
+const ACCESS_CFG = {
+  'F':  { cls: 'ab-F',  label: 'Full' },
+  'CE': { cls: 'ab-CE', label: 'Create/Edit' },
+  'L':  { cls: 'ab-L',  label: 'Limited' },
+  'R':  { cls: 'ab-R',  label: 'Read-only' },
+  '_':  { cls: 'ab-NO', label: '—' },
+};
+const JSON_MAP = { 'F':'full','CE':'create_edit','L':'limited','R':'read','_':'none' };
+
+/* ── Render matrix ──────────────────────────────────────────── */
+function renderMatrix(query, catFilter) {
+  const tbody = document.getElementById('matrixBody');
+  const q = (query||'').toLowerCase();
+  let html = '';
+  CATEGORIES.forEach(cat => {
+    if (catFilter && cat.key !== catFilter) return;
+    const rows = cat.features.filter(f => !q || f.name.toLowerCase().includes(q));
+    if (!rows.length) return;
+    html += `<tr class="cat-row"><td colspan="8">${cat.label}</td></tr>`;
+    rows.forEach(f => {
+      html += `<tr data-cat="${cat.key}"><td class="col-feature">${f.name}</td>`;
+      f.access.forEach(a => {
+        const cfg = ACCESS_CFG[a];
+        html += `<td><span class="ab ${cfg.cls}">${cfg.label}</span></td>`;
+      });
+      html += '</tr>';
+    });
+  });
+  tbody.innerHTML = html || '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink-400)">No features match your search.</td></tr>';
+}
+
+function filterFeatures(v) {
+  const cat = document.getElementById('catFilter').value;
+  renderMatrix(v, cat);
+}
+function filterCategory(v) {
+  const q = document.getElementById('featureSearch').value;
+  renderMatrix(q, v);
+}
+function resetFilters() {
+  document.getElementById('featureSearch').value = '';
+  document.getElementById('catFilter').value = '';
+  renderMatrix('','');
+}
+
+/* ── Build JSON ─────────────────────────────────────────────── */
+function buildJson() {
+  const out = { roles: {}, metadata: {} };
+  ROLE_KEYS.forEach((rk,ri) => {
+    out.roles[rk] = {};
+    CATEGORIES.forEach(cat => {
+      cat.features.forEach(f => {
+        out.roles[rk][f.key] = JSON_MAP[f.access[ri]];
+      });
+    });
+  });
+  // Metadata
+  out.metadata = {
+    org_scope: {
+      admin: 'all_organizations',
+      clinician: 'own_organization',
+      billing_specialist: 'own_organization',
+      credentialing_specialist: 'own_organization',
+      supervisor: 'own_organization',
+      front_desk: 'own_organization',
+      patient: 'none'
+    },
+    patient_scope: {
+      admin: 'all_patients',
+      clinician: 'assigned_patients_only',
+      billing_specialist: 'all_patients_in_org',
+      credentialing_specialist: 'none',
+      supervisor: 'all_patients_in_org',
+      front_desk: 'all_active_patients_in_org',
+      patient: 'own_record_only'
+    },
+    can_view_financial_data: {
+      admin: true, clinician: 'own_patients_balance_only',
+      billing_specialist: true, credentialing_specialist: false,
+      supervisor: 'read_only', front_desk: 'balance_display_only', patient: 'own_only'
+    },
+    can_post_payments:     { admin:true, clinician:false, billing_specialist:true, credentialing_specialist:false, supervisor:false, front_desk:false, patient:false },
+    can_submit_claims:     { admin:true, clinician:false, billing_specialist:true, credentialing_specialist:false, supervisor:false, front_desk:false, patient:false },
+    can_work_denials:      { admin:true, clinician:false, billing_specialist:true, credentialing_specialist:false, supervisor:'read_only', front_desk:false, patient:false },
+    can_manage_credentialing: { admin:true, clinician:'own_record_read_only', billing_specialist:false, credentialing_specialist:true, supervisor:'read_only', front_desk:false, patient:false },
+    can_access_compliance_tools: { admin:true, clinician:false, billing_specialist:false, credentialing_specialist:false, supervisor:'read_only', front_desk:false, patient:false },
+    can_impersonate_or_preview:  { admin:true, clinician:false, billing_specialist:false, credentialing_specialist:false, supervisor:false, front_desk:false, patient:false }
+  };
+  return out;
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return `<span class="json-key">${m}</span>`;
+        return `<span class="json-str">${m}</span>`;
+      }
+      if (/true/.test(m)) return `<span class="json-bool-true">${m}</span>`;
+      if (/false/.test(m)) return `<span class="json-bool-false">${m}</span>`;
+      return `<span class="json-num">${m}</span>`;
+    });
+}
+
+function renderJson() {
+  const raw = JSON.stringify(buildJson(), null, 2);
+  document.getElementById('jsonOutput').innerHTML = syntaxHighlight(raw);
+}
+
+function copyJson() {
+  const raw = JSON.stringify(buildJson(), null, 2);
+  navigator.clipboard.writeText(raw).then(() => {
+    const btn = document.getElementById('copyJsonBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy JSON', 2000);
+  });
+}
+
+/* ── Tabs ───────────────────────────────────────────────────── */
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'json') renderJson();
+}
+
+/* ── Init ───────────────────────────────────────────────────── */
+renderMatrix('','');
+</script>
+</body>
+</html>

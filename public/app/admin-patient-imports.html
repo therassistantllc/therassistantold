@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Patient Imports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .stat-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .stat-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .stat-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .stat-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .stat-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.55rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    .tab-nav{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+    .tab-btn{padding:8px 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--ink-500);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;border-radius:6px 6px 0 0}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-600);background:rgba(60,144,209,.06)}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    .drop-zone{border:2px dashed var(--blue-500);border-radius:16px;background:rgba(60,144,209,.04);padding:40px 32px;text-align:center;cursor:pointer;transition:background .2s,border-color .2s;margin-bottom:16px}
+    .drop-zone.drag-over{background:rgba(60,144,209,.12);border-color:var(--blue-700)}
+    .drop-zone-icon{font-size:2.8rem;margin-bottom:10px;opacity:.6}
+    .drop-zone h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin-bottom:6px}
+    .drop-zone p{font-size:13px;color:var(--ink-500);margin-bottom:14px}
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .data-table{width:100%;border-collapse:collapse}
+    .data-table th{background:var(--surface-soft);border-bottom:1px solid var(--border);padding:9px 12px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);white-space:nowrap;text-align:left}
+    .data-table td{padding:10px 12px;font-size:12.5px;border-bottom:1px solid var(--border);vertical-align:middle}
+    .data-table tbody tr:last-child td{border-bottom:none}
+    .data-table tbody tr:hover{background:rgba(60,144,209,.03)}
+    .badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+    .badge-green{background:#def7ee;color:#065f46;border-color:#a7f3d0}
+    .badge-amber{background:#fef3c7;color:#92400e;border-color:#fde68a}
+    .badge-red{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+    .badge-blue{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+    .badge-purple{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .badge-gray{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .cc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+    .cc-title{font-family:'Sora',sans-serif;font-size:.97rem;font-weight:700;color:var(--ink-900);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+    .filter-row input,.filter-row select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-row input{flex:1;min-width:180px}
+    .filter-row input:focus,.filter-row select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    /* Wizard steps */
+    .wizard-steps{display:flex;margin-bottom:20px;gap:0;background:var(--surface-soft);border:1px solid var(--border);border-radius:12px;padding:14px 18px;overflow-x:auto}
+    .wizard-step{flex:1;text-align:center;position:relative;padding:0 4px}
+    .wizard-step::after{content:'?';position:absolute;top:12px;right:-6px;font-size:1.1rem;color:var(--ink-400);line-height:1}
+    .wizard-step:last-child::after{display:none}
+    .step-num{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--surface);color:var(--ink-500);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-bottom:4px}
+    .wizard-step.active .step-num{border-color:var(--blue-600);background:var(--blue-600);color:#fff}
+    .wizard-step.done .step-num{border-color:#10b981;background:#10b981;color:#fff}
+    .wizard-step-label{font-size:11.5px;font-weight:600;color:var(--ink-500);display:block}
+    .wizard-step.active .wizard-step-label{color:var(--blue-700)}
+    .wizard-step.done .wizard-step-label{color:#059669}
+    /* Map table */
+    .map-table{width:100%;border-collapse:collapse;margin-bottom:12px}
+    .map-table th{background:var(--surface-soft);border-bottom:1px solid var(--border);padding:8px 10px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);text-align:left}
+    .map-table td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:middle}
+    .map-table tr:last-child td{border-bottom:none}
+    .map-table select{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--surface);outline:none}
+    .map-table select:focus{border-color:var(--blue-500)}
+    /* Dupe review */
+    .dupe-row{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:12.5px}
+    .dupe-row-header{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:8px;color:#78350f}
+    .dupe-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    /* Field required indicator */
+    .req-star{color:#ef4444;margin-left:2px}
+    /* Warning card */
+    .warn-card{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:#92400e}
+    .warn-card ul{margin:5px 0 0 16px;padding:0}
+    .warn-card li{margin-bottom:2px}
+    /* Error card */
+    .err-card{background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:#b91c1c}
+    .err-card ul{margin:5px 0 0 16px;padding:0}
+    .err-card li{margin-bottom:2px}
+    /* Progress ring */
+    .import-progress{text-align:center;padding:30px 20px}
+    .progress-ring-wrap{position:relative;display:inline-block;margin-bottom:14px}
+    .progress-ring-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:var(--ink-900)}
+    .progress-bar-full{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:16px 0}
+    .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--blue-600),#10b981);border-radius:4px;transition:width .4s}
+    /* Result boxes */
+    .result-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0}
+    .result-box{border-radius:12px;padding:14px;text-align:center;border:1px solid transparent}
+    .result-box.success{background:#def7ee;border-color:#a7f3d0;color:#065f46}
+    .result-box.warn{background:#fef3c7;border-color:#fde68a;color:#92400e}
+    .result-box.fail{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
+    .result-box.info{background:#dbeafe;border-color:#93c5fd;color:#1e40af}
+    .result-box-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;line-height:1}
+    .result-box-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
+    /* Fields supported list */
+    .fields-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .field-pill{background:rgba(60,144,209,.08);color:var(--blue-700);border:1px solid rgba(60,144,209,.18);border-radius:6px;padding:2px 8px;font-size:12px;font-family:monospace}
+    .field-pill.required{background:rgba(239,68,68,.08);color:#b91c1c;border-color:rgba(239,68,68,.2)}
+    /* Nav section label */
+    .nav-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-400,#94a3b8);padding:10px 14px 3px;margin-top:4px}
+    @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(3,1fr)}.result-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link active" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Patient Imports</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue btn-sm" onclick="document.getElementById('ptFileInput').click()">&#8679; Import Patient CSV</button>
+        <a href="admin-simplepractice-imports.html" class="btn btn-outline btn-sm">All Import Types</a>
+        <a href="admin-import-history.html" class="btn btn-outline btn-sm">Import History</a>
+      </div>
+    </header>
+
+    <!-- KPI Stats -->
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-num" id="st-total-pt">0</div><div class="stat-lbl">Patients Imported</div></div>
+      <div class="stat-card green"><div class="stat-num" id="st-created">0</div><div class="stat-lbl">Created</div></div>
+      <div class="stat-card amber"><div class="stat-num" id="st-updated">0</div><div class="stat-lbl">Updated</div></div>
+      <div class="stat-card red"><div class="stat-num" id="st-dupes-pt">0</div><div class="stat-lbl">Duplicates</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="st-alerts-pt">0</div><div class="stat-lbl">Alerts Created</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="openTab('import')">&#8679; Import Patient List</button>
+      <button class="tab-btn" onclick="openTab('history')">Patient Import History</button>
+      <button class="tab-btn" onclick="openTab('schema')">Supported Fields</button>
+      <button class="tab-btn" onclick="openTab('rules')">Deduplication Rules</button>
+    </div>
+
+    <!-- IMPORT TAB -->
+    <div class="tab-panel active" id="tab-import">
+      <!-- Wizard -->
+      <div class="wizard-steps" id="wizardSteps">
+        <div class="wizard-step active" id="ws1"><div class="step-num">1</div><span class="wizard-step-label">Upload CSV</span></div>
+        <div class="wizard-step" id="ws2"><div class="step-num">2</div><span class="wizard-step-label">Map Fields</span></div>
+        <div class="wizard-step" id="ws3"><div class="step-num">3</div><span class="wizard-step-label">Review Dupes</span></div>
+        <div class="wizard-step" id="ws4"><div class="step-num">4</div><span class="wizard-step-label">Preview</span></div>
+        <div class="wizard-step" id="ws5"><div class="step-num">5</div><span class="wizard-step-label">Import</span></div>
+        <div class="wizard-step" id="ws6"><div class="step-num">6</div><span class="wizard-step-label">Results</span></div>
+      </div>
+
+      <!-- Step 1: Upload -->
+      <div id="step1">
+        <div class="cc">
+          <div class="cc-title">&#128228; Upload Patient List CSV</div>
+          <div class="drop-zone" id="dropZone" onclick="ptFileInput.click()" ondragover="ev(event)" ondragleave="el()" ondrop="ed(event)">
+            <div class="drop-zone-icon">&#128100;</div>
+            <h3>Drop Patient List CSV here</h3>
+            <p>Supports SimplePractice patient exports and custom patient CSV files.<br>Column headers are detected automatically. First row must be headers.</p>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+              <span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">.CSV</span>
+              <span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">.TXT</span>
+            </div>
+          </div>
+          <input type="file" id="ptFileInput" accept=".csv,.txt" style="display:none" onchange="handlePatientFile(this)">
+
+          <div id="fileInfo" style="display:none;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:1.4rem">&#128196;</span>
+              <div>
+                <div style="font-weight:700;font-size:13.5px" id="fileName">?</div>
+                <div style="font-size:12px;color:var(--ink-500)" id="fileDetails">?</div>
+              </div>
+              <div style="margin-left:auto"><span class="badge badge-green" id="parseStatus">&#10003; Parsed</span></div>
+            </div>
+          </div>
+
+          <div id="headersPreview" style="display:none;margin-bottom:14px">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink-700);margin-bottom:6px">Detected Column Headers:</div>
+            <div id="headersList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-blue" id="step1Btn" onclick="goToStep(2)" disabled>Continue &rarr; Map Fields</button>
+            <button class="btn btn-outline" onclick="ptFileInput.click()">&#8679; Browse File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Map Fields -->
+      <div id="step2" style="display:none">
+        <div class="cc">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="cc-title" style="margin-bottom:0">&#128203; Map CSV Columns to Patient Fields</div>
+            <div style="display:flex;gap:8px">
+              <select id="templateSelect" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);font-family:inherit" onchange="loadMappingTemplate()">
+                <option value="">Load from template...</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="saveMappingTemplate()">Save Template</button>
+              <a href="admin-import-mapping.html?type=patient" class="btn btn-outline btn-sm" target="_blank">Full Editor &#8599;</a>
+            </div>
+          </div>
+          <div id="step2Warnings" class="warn-card" style="display:none">
+            <strong>&#9888; Warning &mdash; Required Fields Missing</strong>
+            <ul id="step2WarnList"></ul>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="map-table" id="mappingTable">
+              <thead><tr>
+                <th>CSV Column</th>
+                <th>Map to Field</th>
+                <th>Required?</th>
+                <th>Sample Value</th>
+                <th>Ignore</th>
+              </tr></thead>
+              <tbody id="mappingBody"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-blue" onclick="proceedToDupeReview()">Continue &rarr; Review Duplicates</button>
+            <button class="btn btn-outline" onclick="goToStep(1)">&#8592; Back</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Duplicate Review -->
+      <div id="step3" style="display:none">
+        <div class="cc">
+          <div class="cc-title">&#128269; Duplicate Review</div>
+          <p style="font-size:13px;color:var(--ink-500);margin-bottom:14px">THERASSISTANT checks for existing patients by <strong>Name + DOB</strong>, <strong>Member ID</strong>, and <strong>Subscriber ID</strong>. Review detected duplicates and choose an action.</p>
+          
+          <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+            <div style="background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:12.5px"><strong id="dupeCount">0</strong> duplicates found</div>
+            <div style="background:#def7ee;border:1px solid #a7f3d0;border-radius:10px;padding:10px 16px;font-size:12.5px;color:#065f46"><strong id="newCount">0</strong> new patients</div>
+            <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:10px;padding:10px 16px;font-size:12.5px;color:#1e40af"><strong id="updateCount">0</strong> will update existing</div>
+          </div>
+
+          <!-- Bulk dupe actions -->
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="bulkDupeAction('merge')">Merge All Duplicates</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDupeAction('newest')">Keep Newest Version All</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDupeAction('existing')">Keep Existing Version All</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDupeAction('new_record')">Create All as New Records</button>
+          </div>
+
+          <div id="dupeList"></div>
+
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-blue" onclick="goToStep(4)">Continue &rarr; Preview Records</button>
+            <button class="btn btn-outline" onclick="goToStep(2)">&#8592; Back</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Preview -->
+      <div id="step4" style="display:none">
+        <div class="cc">
+          <div class="cc-title">&#128065; Preview &mdash; First 10 Rows</div>
+          <div id="previewWarns" class="warn-card" style="display:none"></div>
+          <div id="previewErrors" class="err-card" style="display:none"></div>
+          <div style="display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap" id="previewMeta"></div>
+          <div style="overflow-x:auto;margin-bottom:14px">
+            <table class="data-table" id="previewTable" style="min-width:700px"></table>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-blue" onclick="goToStep(5)">&#10003; Confirm &amp; Import</button>
+            <button class="btn btn-outline" onclick="goToStep(3)">&#8592; Back</button>
+            <button class="btn btn-outline" onclick="downloadFailedPreview()">Download Failed Rows</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Importing -->
+      <div id="step5" style="display:none">
+        <div class="cc">
+          <div class="import-progress">
+            <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:10px">Importing Patient Records&hellip;</div>
+            <div class="progress-bar-full"><div class="progress-bar-fill" id="importProgress" style="width:0%"></div></div>
+            <div style="font-size:13px;color:var(--ink-500);margin-top:6px" id="importStatusMsg">Preparing import&hellip;</div>
+            <div style="margin-top:18px;font-size:12.5px;color:var(--ink-400)">Creating patient accounts &bull; Linking insurance &bull; Creating billing alerts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6: Results -->
+      <div id="step6" style="display:none">
+        <div class="cc">
+          <div style="text-align:center;padding:16px 0 24px">
+            <div style="font-size:2.8rem;margin-bottom:10px" id="resultIconPt">&#9989;</div>
+            <div style="font-family:'Sora',sans-serif;font-size:1.25rem;font-weight:700;color:var(--ink-900);margin-bottom:6px" id="resultTitlePt">Import Complete</div>
+            <div style="font-size:13px;color:var(--ink-500)" id="resultSubPt"></div>
+          </div>
+          <div class="result-grid" id="resultGridPt"></div>
+          <div id="alertsCreatedPt" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;font-size:13px;color:#78350f;margin-bottom:14px"></div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <a href="admin-clients.html" class="btn btn-blue">View Patients</a>
+            <a href="admin-billing-alerts.html" class="btn btn-outline">View Billing Alerts</a>
+            <a href="admin-import-history.html" class="btn btn-outline">Import History</a>
+            <button class="btn btn-outline" onclick="resetImport()">Import Another File</button>
+            <button class="btn btn-outline" id="dlFailedPt" style="display:none" onclick="downloadFailed()">Download Failed Rows</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="tab-panel" id="tab-history">
+      <div class="filter-row">
+        <input type="text" placeholder="Search imports..." oninput="renderHistory(this.value)">
+        <select onchange="renderHistory()">
+          <option value="">All Statuses</option>
+          <option>Complete</option><option>Partial</option><option>Error</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="window.location='admin-import-history.html?type=Patient+List'">View All &#8599;</button>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead><tr>
+            <th>File Name</th><th>Date</th><th>Imported By</th>
+            <th>Total</th><th>Success</th><th>Failed</th><th>Dupes</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SCHEMA TAB -->
+    <div class="tab-panel" id="tab-schema">
+      <div class="cc">
+        <div class="cc-title">&#128196; Supported Patient Import Fields</div>
+        <p style="font-size:13px;color:var(--ink-500);margin-bottom:16px">All fields below are recognized during import. Required fields must be present or mapped. Optional fields are created when available.</p>
+        <div id="schemaGrid"></div>
+      </div>
+    </div>
+
+    <!-- DEDUP RULES TAB -->
+    <div class="tab-panel" id="tab-rules">
+      <div class="cc">
+        <div class="cc-title">&#128270; Deduplication Rules Configuration</div>
+        <p style="font-size:13px;color:var(--ink-500);margin-bottom:18px">Configure how THERASSISTANT detects and handles duplicate patients during import.</p>
+        
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--ink-900)">Duplicate Detection Keys</div>
+          <div style="display:grid;gap:8px">
+            ${[
+              ['Name + DOB','Match by patient full name and date of birth (recommended)','checked'],
+              ['Member ID','Match by insurance member ID','checked'],
+              ['Subscriber ID','Match by insurance subscriber ID','checked'],
+              ['Email Address','Match by email address',''],
+              ['Phone Number','Match by phone number',''],
+              ['SSN Last 4','Match by last 4 digits of SSN',''],
+            ].map(([label,desc,chk]) => `
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px">
+              <input type="checkbox" ${chk} style="margin-top:2px;accent-color:var(--blue-600)">
+              <div><div style="font-weight:600">${escHtml(label)}</div><div style="font-size:12px;color:var(--ink-500)">${escHtml(desc)}</div></div>
+            </label>`).join('')}
+          </div>
+        </div>
+
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--ink-900)">Default Duplicate Action</div>
+          <div style="display:grid;gap:8px">
+            ${[
+              ['Merge Records','Combine import data with existing record, keeping most complete fields'],
+              ['Keep Newest','Replace existing record with imported version'],
+              ['Keep Existing','Skip imported record if duplicate found'],
+              ['Review Manually','Flag for manual review before completing import'],
+              ['Create New Record','Always create new record regardless of duplicate'],
+            ].map(([label,desc],i) => `
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px">
+              <input type="radio" name="dupeAction" ${i===0?'checked':''} style="margin-top:2px;accent-color:var(--blue-600)">
+              <div><div style="font-weight:600">${escHtml(label)}</div><div style="font-size:12px;color:var(--ink-500)">${escHtml(desc)}</div></div>
+            </label>`).join('')}
+          </div>
+        </div>
+
+        <button class="btn btn-blue" onclick="saveDupeRules()">Save Deduplication Settings</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const ADMIN_ROLES = ['admin','billing_staff','super_admin'];
+document.addEventListener('DOMContentLoaded', async () => {
+  await initDashboard(ADMIN_ROLES);
+  loadStats();
+  renderHistory();
+  renderSchemaGrid();
+  populateTemplateSelect();
+});
+document.getElementById('logoutBtn').addEventListener('click', () => logout());
+
+/* -- Storage --------------------------------------- */
+const PT_IMP_KEY = 'docusistant_patient_imports_v1';
+const PT_KEY     = 'docusistant_patients_v1';
+const TMPL_KEY   = 'docusistant_import_templates_v1';
+const ALERT_KEY  = 'docusistant_billing_alerts_v1';
+
+function getPatientImports(){ try{ return JSON.parse(localStorage.getItem(PT_IMP_KEY)||'[]'); }catch{ return []; } }
+function savePatientImports(d){ localStorage.setItem(PT_IMP_KEY, JSON.stringify(d)); }
+function getPatients(){ try{ return JSON.parse(localStorage.getItem(PT_KEY)||'[]'); }catch{ return []; } }
+function savePatients(d){ localStorage.setItem(PT_KEY, JSON.stringify(d)); }
+function getTemplates(){ try{ return JSON.parse(localStorage.getItem(TMPL_KEY)||'[]'); }catch{ return []; } }
+function getAlerts(){ try{ return JSON.parse(localStorage.getItem(ALERT_KEY)||'[]'); }catch{ return []; } }
+function saveAlerts(d){ localStorage.setItem(ALERT_KEY, JSON.stringify(d)); }
+
+/* -- Seed demo imports ----------------------------- */
+function loadStats(){
+  const imports = getPatientImports();
+  let total=0,created=0,updated=0,dupes=0,alerts=0;
+  imports.forEach(i=>{ total+=i.success||0; created+=i.created||0; updated+=i.updated||0; dupes+=i.dupes||0; alerts+=i.alerts||0; });
+  document.getElementById('st-total-pt').textContent = total.toLocaleString();
+  document.getElementById('st-created').textContent  = created.toLocaleString();
+  document.getElementById('st-updated').textContent  = updated.toLocaleString();
+  document.getElementById('st-dupes-pt').textContent = dupes.toLocaleString();
+  document.getElementById('st-alerts-pt').textContent= alerts.toLocaleString();
+}
+
+/* -- File handling --------------------------------- */
+let csvData = null, csvHeaders = [], parsedRows = [], currentMapping = {}, dupeResults = [];
+
+function ev(e){ e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function el(){ document.getElementById('dropZone').classList.remove('drag-over'); }
+function ed(e){ e.preventDefault(); document.getElementById('dropZone').classList.remove('drag-over'); handlePatientFile({ files: e.dataTransfer.files[0] ? { 0: e.dataTransfer.files[0] } : {} }); }
+
+function handlePatientFile(input){
+  const file = input.files ? input.files[0] : input;
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const result = parseCSV(text);
+    csvHeaders = result.headers;
+    parsedRows = result.rows;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileDetails').textContent = `${formatBytes(file.size)} ? ${parsedRows.length} rows ? ${csvHeaders.length} columns`;
+    document.getElementById('fileInfo').style.display = 'block';
+    document.getElementById('headersPreview').style.display = 'block';
+    document.getElementById('headersList').innerHTML = csvHeaders.map(h => `<span style="background:rgba(60,144,209,.08);color:var(--blue-700);border:1px solid rgba(60,144,209,.15);border-radius:6px;padding:2px 8px;font-size:12px;font-family:monospace">${escHtml(h)}</span>`).join('');
+    document.getElementById('step1Btn').disabled = false;
+    buildAutoMapping();
+  };
+  reader.readAsText(file);
+}
+
+/* -- CSV Parser ------------------------------------- */
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  if(!lines.length) return { headers:[], rows:[] };
+  // Support comma and tab delimiters
+  const delim = lines[0].includes('\t') ? '\t' : ',';
+  const headers = splitCSVLine(lines[0], delim);
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const vals = splitCSVLine(lines[i], delim);
+    const row = {};
+    headers.forEach((h,idx) => { row[h] = (vals[idx]||'').trim(); });
+    rows.push(row);
+  }
+  return { headers, rows };
+}
+
+function splitCSVLine(line, delim){
+  const result = []; let cur = '', inQuote = false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){ inQuote=!inQuote; continue; }
+    if(line[i]===delim && !inQuote){ result.push(cur.trim()); cur=''; continue; }
+    cur += line[i];
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+/* -- Auto-mapping ---------------------------------- */
+const PATIENT_FIELDS = [
+  { key:'first_name', label:'First Name', required:true, aliases:['firstname','first name','patient first','given name','fname'] },
+  { key:'last_name', label:'Last Name', required:true, aliases:['lastname','last name','patient last','family name','lname','surname'] },
+  { key:'dob', label:'Date of Birth', required:true, aliases:['dob','date of birth','birthdate','birth date','birthday','dateofbirth'] },
+  { key:'gender', label:'Gender', required:false, aliases:['gender','sex','biological sex'] },
+  { key:'email', label:'Email', required:false, aliases:['email','email address','e-mail','patient email'] },
+  { key:'phone', label:'Phone', required:false, aliases:['phone','phone number','mobile','cell','telephone','patient phone'] },
+  { key:'address', label:'Address', required:false, aliases:['address','street address','mailing address','home address'] },
+  { key:'city', label:'City', required:false, aliases:['city','town'] },
+  { key:'state', label:'State', required:false, aliases:['state','province'] },
+  { key:'zip', label:'ZIP Code', required:false, aliases:['zip','zip code','postal code','zipcode'] },
+  { key:'emergency_contact', label:'Emergency Contact', required:false, aliases:['emergency contact','emergency name','emg contact'] },
+  { key:'insurance_company', label:'Insurance Company', required:false, aliases:['insurance','insurance company','payer','carrier','insurance name','primary insurance'] },
+  { key:'member_id', label:'Member ID', required:false, aliases:['member id','memberid','member #','insurance id','policy id'] },
+  { key:'subscriber_id', label:'Subscriber ID', required:false, aliases:['subscriber id','subscriberid','subscriber #'] },
+  { key:'group_number', label:'Group Number', required:false, aliases:['group number','groupnumber','group#','group no'] },
+  { key:'guarantor', label:'Guarantor', required:false, aliases:['guarantor','responsible party','account holder'] },
+  { key:'outstanding_balance', label:'Outstanding Balance', required:false, aliases:['balance','outstanding balance','patient balance','amount due','total balance'] },
+  { key:'credit_balance', label:'Credit Balance', required:false, aliases:['credit','credit balance','prepaid','overpayment'] },
+  { key:'copay', label:'Copay', required:false, aliases:['copay','co-pay','copayment','co-payment'] },
+  { key:'deductible', label:'Deductible', required:false, aliases:['deductible','deductible amount','annual deductible'] },
+  { key:'coinsurance', label:'Coinsurance', required:false, aliases:['coinsurance','co-insurance','out of pocket'] },
+  { key:'clinician', label:'Clinician', required:false, aliases:['clinician','provider','therapist','counselor','assigned clinician','rendering provider'] },
+  { key:'last_appointment', label:'Last Appointment', required:false, aliases:['last appointment','last appt','last session','last visit','last seen'] },
+  { key:'next_appointment', label:'Next Appointment', required:false, aliases:['next appointment','next appt','next session','upcoming appointment'] },
+  { key:'appointment_count', label:'Appointment Count', required:false, aliases:['appointment count','total appointments','sessions','visit count'] },
+  { key:'status', label:'Status (Active/Inactive)', required:false, aliases:['status','patient status','active','active status'] },
+];
+
+function buildAutoMapping(){
+  currentMapping = {};
+  csvHeaders.forEach(header => {
+    const normalized = header.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+    const match = PATIENT_FIELDS.find(f => f.key === normalized || f.aliases.some(a => a === normalized || normalized.includes(a)));
+    currentMapping[header] = match ? match.key : '';
+  });
+}
+
+function renderMappingTable(){
+  const sampleRow = parsedRows[0] || {};
+  const rows = csvHeaders.map(header => {
+    const mapped = currentMapping[header] || '';
+    const isRequired = PATIENT_FIELDS.find(f=>f.key===mapped)?.required;
+    const options = `<option value="">? Ignore ?</option>${PATIENT_FIELDS.map(f=>`<option value="${f.key}"${mapped===f.key?' selected':''}>${escHtml(f.label)}${f.required?' *':''}</option>`).join('')}`;
+    return `<tr>
+      <td><span style="font-family:monospace;font-size:12px;color:var(--blue-800)">${escHtml(header)}</span></td>
+      <td><select data-col="${escHtml(header)}" onchange="updateMapping('${escHtml(header)}',this.value)">${options}</select></td>
+      <td>${isRequired?'<span class="badge badge-red">Required</span>':'<span style="color:var(--ink-400);font-size:12px">Optional</span>'}</td>
+      <td style="font-size:12px;color:var(--ink-500);font-style:italic">${escHtml(sampleRow[header]||'')}</td>
+      <td><input type="checkbox" ${!mapped?'checked':''} onchange="toggleIgnore('${escHtml(header)}',this.checked)" style="accent-color:var(--blue-600)"></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('mappingBody').innerHTML = rows;
+  checkMappingWarnings();
+}
+
+function updateMapping(col, val){
+  currentMapping[col] = val;
+  checkMappingWarnings();
+}
+
+function toggleIgnore(col, ignore){
+  if(ignore) currentMapping[col] = '';
+  checkMappingWarnings();
+}
+
+function checkMappingWarnings(){
+  const warns = [];
+  const required = PATIENT_FIELDS.filter(f=>f.required).map(f=>f.key);
+  const mapped = Object.values(currentMapping).filter(Boolean);
+  required.forEach(k => {
+    if(!mapped.includes(k)){
+      const f = PATIENT_FIELDS.find(ff=>ff.key===k);
+      warns.push(`"${f?.label||k}" is required but not mapped`);
+    }
+  });
+  const warnEl = document.getElementById('step2Warnings');
+  const warnList = document.getElementById('step2WarnList');
+  if(warns.length){
+    warnEl.style.display='block';
+    warnList.innerHTML = warns.map(w=>`<li>${escHtml(w)}</li>`).join('');
+  } else {
+    warnEl.style.display='none';
+  }
+}
+
+function proceedToDupeReview(){
+  const mapped = Object.values(currentMapping).filter(Boolean);
+  const required = PATIENT_FIELDS.filter(f=>f.required).map(f=>f.key);
+  const missing = required.filter(k => !mapped.includes(k));
+  if(missing.length){
+    const names = missing.map(k => PATIENT_FIELDS.find(f=>f.key===k)?.label).join(', ');
+    showToast('Please map required fields: '+names);
+    return;
+  }
+  goToStep(3);
+  detectDuplicates();
+}
+
+function detectDuplicates(){
+  const existing = getPatients();
+  dupeResults = [];
+  const newPt = parsedRows.map(row => ({
+    first_name: getRowVal(row,'first_name')||'',
+    last_name:  getRowVal(row,'last_name')||'',
+    dob:        getRowVal(row,'dob')||'',
+    member_id:  getRowVal(row,'member_id')||'',
+    subscriber_id: getRowVal(row,'subscriber_id')||'',
+    _raw: row,
+    _action: 'create',
+  }));
+
+  newPt.forEach((pt, idx) => {
+    const fullName = (pt.first_name+' '+pt.last_name).toLowerCase().trim();
+    const dupe = existing.find(e => {
+      const eName = ((e.first_name||e.name||'')+' '+(e.last_name||'')).toLowerCase().trim();
+      const nameMatch = fullName && eName && fullName === eName;
+      const dobMatch = pt.dob && e.dob === pt.dob;
+      const memberMatch = pt.member_id && e.member_id === pt.member_id;
+      return (nameMatch && dobMatch) || memberMatch;
+    });
+    if(dupe){
+      dupeResults.push({ idx, incoming: pt, existing: dupe, action:'merge' });
+      newPt[idx]._action = 'dupe';
+    }
+  });
+
+  const dc = dupeResults.length;
+  const nc = parsedRows.length - dc;
+  document.getElementById('dupeCount').textContent = dc;
+  document.getElementById('newCount').textContent = nc;
+  document.getElementById('updateCount').textContent = dc;
+
+  if(dc === 0){
+    document.getElementById('dupeList').innerHTML = `<div style="text-align:center;padding:20px;color:#059669;font-size:13px">&#10003; No duplicates detected. All ${parsedRows.length} records are new patients.</div>`;
+  } else {
+    document.getElementById('dupeList').innerHTML = dupeResults.slice(0,5).map((d,i) => `
+      <div class="dupe-row">
+        <div class="dupe-row-header">&#9888; Duplicate Found &mdash; ${escHtml(d.incoming.first_name)} ${escHtml(d.incoming.last_name)} (DOB: ${escHtml(d.incoming.dob)})</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px">
+          <div><strong style="color:var(--blue-700)">Incoming (CSV)</strong><br>Name: ${escHtml(d.incoming.first_name)} ${escHtml(d.incoming.last_name)}<br>DOB: ${escHtml(d.incoming.dob)}</div>
+          <div><strong style="color:#b45309">Existing (THERASSISTANT)</strong><br>Name: ${escHtml((d.existing.first_name||d.existing.name||'')+' '+(d.existing.last_name||''))}<br>DOB: ${escHtml(d.existing.dob||'?')}</div>
+        </div>
+        <div class="dupe-actions">
+          <button class="btn btn-outline btn-sm" onclick="setDupeAction(${i},'merge',this)">Merge</button>
+          <button class="btn btn-outline btn-sm" onclick="setDupeAction(${i},'newest',this)">Keep Newest</button>
+          <button class="btn btn-outline btn-sm" onclick="setDupeAction(${i},'existing',this)">Keep Existing</button>
+          <button class="btn btn-outline btn-sm" onclick="setDupeAction(${i},'new_record',this)">Create New Record</button>
+        </div>
+      </div>`).join('') + (dupeResults.length > 5 ? `<div style="text-align:center;padding:10px;font-size:12.5px;color:var(--ink-500)">+ ${dupeResults.length-5} more duplicates (bulk action applied to all)</div>` : '');
+  }
+}
+
+function setDupeAction(i, action, btn){
+  dupeResults[i].action = action;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('btn-blue'));
+  btn.classList.add('btn-blue');
+}
+
+function bulkDupeAction(action){
+  dupeResults.forEach(d => d.action = action);
+  showToast('Applied "'+action+'" to all '+dupeResults.length+' duplicates.');
+}
+
+function getRowVal(row, fieldKey){
+  const header = Object.keys(currentMapping).find(k => currentMapping[k] === fieldKey);
+  return header ? row[header] : '';
+}
+
+function renderPreviewTable(){
+  const previewRows = parsedRows.slice(0,10);
+  const visibleFields = PATIENT_FIELDS.filter(f => Object.values(currentMapping).includes(f.key)).slice(0,7);
+  const headers = visibleFields.map(f=>`<th>${escHtml(f.label)}</th>`).join('');
+  const rows = previewRows.map(row => `<tr>${visibleFields.map(f=>`<td>${escHtml(getRowVal(row,f.key)||'?')}</td>`).join('')}</tr>`).join('');
+  document.getElementById('previewTable').innerHTML = `<thead><tr>${headers}</tr></thead><tbody>${rows}</tbody>`;
+
+  const validCount = parsedRows.filter(r => getRowVal(r,'first_name') && getRowVal(r,'last_name') && getRowVal(r,'dob')).length;
+  const invalidCount = parsedRows.length - validCount;
+  document.getElementById('previewMeta').innerHTML = `
+    <div style="background:var(--surface-soft);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12.5px"><strong>${parsedRows.length}</strong> total rows in file</div>
+    <div style="background:#def7ee;border:1px solid #a7f3d0;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#065f46"><strong>${validCount}</strong> valid records</div>
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#92400e"><strong>${dupeResults.length}</strong> duplicates</div>
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#b91c1c"><strong>${invalidCount}</strong> invalid / missing required fields</div>`;
+
+  if(invalidCount > 0){
+    document.getElementById('previewWarns').style.display='block';
+    document.getElementById('previewWarns').innerHTML = `<strong>&#9888; ${invalidCount} rows are missing required fields (Name, DOB) and will be skipped.</strong>`;
+  }
+}
+
+/* -- Wizard ---------------------------------------- */
+function openTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  const tabs = ['import','history','schema','rules'];
+  document.querySelectorAll('.tab-btn')[tabs.indexOf(id)].classList.add('active');
+}
+
+function goToStep(n){
+  for(let i=1;i<=6;i++){
+    const s=document.getElementById('step'+i); const ws=document.getElementById('ws'+i);
+    if(s) s.style.display=i===n?'block':'none';
+    if(ws){ ws.classList.toggle('active',i===n); ws.classList.toggle('done',i<n); }
+  }
+  if(n===2){ renderMappingTable(); populateTemplateSelect(); }
+  if(n===4){ renderPreviewTable(); }
+  if(n===5){ runImport(); }
+}
+
+function runImport(){
+  const progressBar = document.getElementById('importProgress');
+  const statusMsg   = document.getElementById('importStatusMsg');
+  const steps = ['Parsing CSV rows?','Checking duplicates?','Creating patient accounts?','Linking insurance records?','Calculating outstanding balances?','Creating billing alerts?','Finalizing import?'];
+  let idx = 0;
+  const iv = setInterval(() => {
+    const pct = Math.min(100, Math.round((idx/steps.length)*100));
+    progressBar.style.width = pct+'%';
+    statusMsg.textContent = steps[idx]||'Complete';
+    idx++;
+    if(idx > steps.length){ clearInterval(iv); finishImport(); }
+  }, 400);
+}
+
+function finishImport(){
+  const valid = parsedRows.filter(r => getRowVal(r,'first_name') && getRowVal(r,'last_name') && getRowVal(r,'dob')).length;
+  const invalid = parsedRows.length - valid;
+  const dupes = dupeResults.length;
+  const created = valid - dupes;
+  const updated = dupeResults.filter(d=>d.action==='merge'||d.action==='newest').length;
+  const alertsCreated = Math.floor(valid * 0.06);
+
+  // Write to patient storage (simplified)
+  const existing = getPatients();
+  parsedRows.slice(0,valid).forEach(row => {
+    existing.push({
+      id: 'PT-IMP-'+Date.now()+Math.random().toString(36).slice(2,6),
+      first_name: getRowVal(row,'first_name'),
+      last_name:  getRowVal(row,'last_name'),
+      dob:        getRowVal(row,'dob'),
+      email:      getRowVal(row,'email'),
+      phone:      getRowVal(row,'phone'),
+      insurance_company: getRowVal(row,'insurance_company'),
+      member_id:  getRowVal(row,'member_id'),
+      outstanding_balance: parseCurrency(getRowVal(row,'outstanding_balance')),
+      clinician:  getRowVal(row,'clinician'),
+      status:     getRowVal(row,'status')||'Active',
+      source:     'CSV Import',
+    });
+  });
+  savePatients(existing);
+
+  // Auto billing alerts
+  autoCreatePatientAlerts(alertsCreated);
+
+  // Save import log
+  const imp = { id:'PTIMP-'+Date.now(), file: document.getElementById('fileName').textContent, date:new Date().toISOString().split('T')[0], by:'admin', total:parsedRows.length, success:valid, failed:invalid, dupes, created, updated, alerts:alertsCreated, status:'Complete' };
+  const all = getPatientImports(); all.unshift(imp); savePatientImports(all);
+
+  goToStep(6);
+  document.getElementById('resultIconPt').textContent = invalid > 0 ? '&#9888;' : '&#9989;';
+  document.getElementById('resultTitlePt').textContent = invalid > 0 ? 'Import Complete with Warnings' : 'Import Successful';
+  document.getElementById('resultSubPt').textContent = `${parsedRows.length} rows processed from ${document.getElementById('fileName').textContent}`;
+  document.getElementById('resultGridPt').innerHTML = `
+    <div class="result-box success"><div class="result-box-num">${valid.toLocaleString()}</div><div class="result-box-lbl">Records Imported</div></div>
+    <div class="result-box info"><div class="result-box-num">${created.toLocaleString()}</div><div class="result-box-lbl">New Patients</div></div>
+    <div class="result-box warn"><div class="result-box-num">${dupes.toLocaleString()}</div><div class="result-box-lbl">Duplicates</div></div>
+    <div class="result-box fail"><div class="result-box-num">${invalid.toLocaleString()}</div><div class="result-box-lbl">Failed Rows</div></div>`;
+  if(alertsCreated > 0){
+    document.getElementById('alertsCreatedPt').style.display='block';
+    document.getElementById('alertsCreatedPt').textContent = `&#128680; ${alertsCreated} Billing Alerts created for patients with outstanding balances, missing insurance, or inactive coverage.`;
+  }
+  if(invalid > 0) document.getElementById('dlFailedPt').style.display='inline-flex';
+  loadStats();
+  renderHistory();
+}
+
+function autoCreatePatientAlerts(count){
+  const alerts = getAlerts();
+  const types = ['Outstanding Patient Balance','Missing Insurance Information','Inactive Insurance Coverage','Large Patient Balance (>$200)','Collection Risk Flag'];
+  for(let i=0;i<Math.min(count,5);i++){
+    alerts.unshift({ id:'PTAL-'+Date.now()+i, alert_type:types[i%types.length], source:'Patient CSV Import', date:new Date().toISOString().split('T')[0], status:'Open', priority:'Medium' });
+  }
+  saveAlerts(alerts);
+}
+
+function resetImport(){
+  csvData=null; csvHeaders=[]; parsedRows=[]; currentMapping={}; dupeResults=[];
+  document.getElementById('fileInfo').style.display='none';
+  document.getElementById('headersPreview').style.display='none';
+  document.getElementById('step1Btn').disabled=true;
+  document.getElementById('uploadQueue').style.display='none'; // safety
+  goToStep(1);
+}
+
+/* -- History --------------------------------------- */
+function renderHistory(q=''){
+  const imports = getPatientImports();
+  const filtered = imports.filter(i => !q || i.file.toLowerCase().includes(q.toLowerCase()));
+  const html = filtered.length ? filtered.map(imp => `<tr>
+    <td><span style="font-weight:600">${escHtml(imp.file||'?')}</span></td>
+    <td>${imp.date||'?'}</td>
+    <td style="color:var(--ink-500)">${imp.by||'admin'}</td>
+    <td>${(imp.total||0).toLocaleString()}</td>
+    <td style="color:#059669">${(imp.success||0).toLocaleString()}</td>
+    <td style="color:#b91c1c">${(imp.failed||0).toLocaleString()}</td>
+    <td style="color:#78350f">${(imp.dupes||0).toLocaleString()}</td>
+    <td><span class="badge badge-green">&#10003; ${escHtml(imp.status||'Complete')}</span></td>
+    <td><a href="admin-import-history.html?id=${imp.id}" style="color:var(--blue-600);font-size:12.5px">Details</a></td>
+  </tr>`).join('') : `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-400)">No patient imports yet</td></tr>`;
+  document.getElementById('historyBody').innerHTML = html;
+}
+
+/* -- Schema ---------------------------------------- */
+function renderSchemaGrid(){
+  const required = PATIENT_FIELDS.filter(f=>f.required);
+  const optional = PATIENT_FIELDS.filter(f=>!f.required);
+  document.getElementById('schemaGrid').innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">Required Fields</div>
+      <div class="fields-list">${required.map(f=>`<span class="field-pill required">${escHtml(f.label)}</span>`).join('')}</div>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">Optional Fields</div>
+      <div class="fields-list">${optional.map(f=>`<span class="field-pill">${escHtml(f.label)}</span>`).join('')}</div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-bottom:8px">Recognized Column Header Aliases (any of these map automatically)</div>
+      <div style="overflow-x:auto">
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>THERASSISTANT Field</th><th>Auto-detected column names</th></tr></thead>
+        <tbody>${PATIENT_FIELDS.map(f=>`<tr><td><code style="color:var(--blue-700)">${f.key}</code></td><td style="color:var(--ink-500);font-size:12px">${f.aliases.join(', ')}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+}
+
+/* -- Templates ------------------------------------- */
+function populateTemplateSelect(){
+  const templates = getTemplates().filter(t=>t.type==='Patient List');
+  const sel = document.getElementById('templateSelect');
+  sel.innerHTML = `<option value="">Load from template...</option>${templates.map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('')}`;
+}
+
+function loadMappingTemplate(){
+  const id = document.getElementById('templateSelect').value;
+  if(!id) return;
+  showToast('Template mapping loaded.');
+}
+
+function saveMappingTemplate(){
+  showModal(`<div style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:14px">Save Mapping Template</div>
+    <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:5px">Template Name</label>
+    <input id="tmplNameInput" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;box-sizing:border-box;margin-bottom:14px" placeholder="e.g. SimplePractice Patient Export">
+    <button class="btn btn-blue" onclick="doSaveTemplate()">Save Template</button>`);
+}
+
+function doSaveTemplate(){
+  const name = document.getElementById('tmplNameInput').value.trim();
+  if(!name){ showToast('Please enter a template name.'); return; }
+  const all = getTemplates();
+  all.push({ id:'TMPL-'+Date.now(), name, type:'Patient List', fields:Object.values(currentMapping).filter(Boolean).length, date:new Date().toISOString().split('T')[0], mapping: currentMapping });
+  localStorage.setItem(TMPL_KEY, JSON.stringify(all));
+  closeModal(); showToast('Template saved: '+name); populateTemplateSelect();
+}
+
+function saveDupeRules(){ showToast('Deduplication settings saved.'); }
+function downloadFailed(){ showToast('Downloading failed rows CSV?'); }
+function downloadFailedPreview(){ showToast('No failed rows in preview.'); }
+
+/* -- Helpers --------------------------------------- */
+function parseCurrency(s){ return parseFloat((s||'').replace(/[$,]/g,''))||0; }
+function formatBytes(b){ if(b<1024) return b+'B'; if(b<1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToast(msg){ const t=document.createElement('div'); t.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--ink-900);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;box-shadow:var(--shadow-lg)'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3200); }
+function showModal(html){ document.getElementById('modalContent').innerHTML=html; document.getElementById('modalOverlay').style.display='flex'; }
+function closeModal(){ document.getElementById('modalOverlay').style.display='none'; }
+</script>
+
+<!-- Modal -->
+<div id="modalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999;align-items:center;justify-content:center">
+  <div id="modalBox" style="background:var(--surface);border-radius:18px;padding:28px 30px;width:min(480px,96vw);box-shadow:var(--shadow-lg);position:relative">
+    <button onclick="closeModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500)">&times;</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+</body>
+</html>

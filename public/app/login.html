@@ -1,0 +1,182 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<script>
+
+const SUPABASE_URL = "https://kozdkixjhtbfhktpvzvk.supabase.co"
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvemRraXhqaHRiZmhrdHB2enZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTczMzUsImV4cCI6MjA4ODMzMzMzNX0.Wun2eWG5vRdPdkb2c_lsSfTcQ9Y5jJ42kvWGYRgRBVc"
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+
+async function signup(){
+
+const email = document.getElementById("email").value
+const password = document.getElementById("password").value
+
+const { data, error } = await supabaseClient.auth.signUp({
+email: email,
+password: password
+})
+
+if(error){
+alert(error.message)
+}
+else{
+alert("Account created. You can now login.")
+}
+
+}
+
+async function login(){
+
+const email = document.getElementById("email").value
+const password = document.getElementById("password").value
+const rememberMe = document.getElementById("rememberMe").checked
+
+const { data, error } = await supabaseClient.auth.signInWithPassword({
+email: email,
+password: password
+})
+
+if(error){
+alert(error.message)
+}
+else{
+localStorage.setItem("docusistant.rememberMe", rememberMe ? "1" : "0")
+
+// Role-based redirect: read role from Supabase user metadata and send
+// each user type to their designated portal home page.
+const roleDestinations = {
+  super_admin:              'admin-overview.html',
+  admin:                    'admin-dashboard.html',
+  clinician:                'dashboard.html',
+  billing_specialist:       'admin-financial.html',
+  // legacy key kept for existing accounts
+  billing_staff:            'admin-financial.html',
+  credentialing_specialist: 'admin-staff.html',
+  supervisor:               'admin-qa.html',
+  front_desk:               'admin-clients.html',
+  patient:                  'patient-portal.html',
+}
+
+// Check MFA assurance level before routing.
+// If the user has enrolled TOTP but has not yet verified this session,
+// send them to the MFA challenge page first.
+try {
+  const { data: aal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    window.location.href = 'mfa-verify.html'
+    return
+  }
+} catch(_) {}
+
+// Record audit event
+try {
+  const tok = data.session && data.session.access_token
+  if (tok) {
+    const role = (data.user && data.user.user_metadata && data.user.user_metadata.role) || 'clinician'
+    fetch('/api/auth/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ event: 'login', metadata: { portal: 'clinician', role } }),
+    }).catch(() => {})
+  }
+} catch(_) {}
+
+const role = (data.user && data.user.user_metadata && data.user.user_metadata.role) || 'clinician'
+// If the user was redirected from a specific page, send them back there
+const params = new URLSearchParams(window.location.search);
+const returnTo = params.get('returnTo');
+if (returnTo && returnTo.startsWith('/app/') && !returnTo.includes('login')) {
+  window.location.href = returnTo;
+} else {
+  window.location.href = roleDestinations[role] || 'dashboard.html';
+}
+}
+
+}
+
+async function forgotPassword(event){
+event.preventDefault()
+
+const email = document.getElementById("email").value
+if(!email){
+	alert("Enter your email first, then click Forgot password.")
+	return
+}
+
+const { error } = await supabaseClient.auth.resetPasswordForEmail(email)
+if(error){
+	alert(error.message)
+	return
+}
+
+alert("Password reset email sent if the account exists.")
+}
+
+</script>
+
+</head>
+
+<body class="login-body">
+
+<main class="login-shell">
+	<section class="login-brand-panel">
+		<div class="brand-content">
+			<div class="brand-logo">THERASSISTANT</div>
+			<h1>THERASSISTANT</h1>
+			<p class="value-statement">Revenue-aware behavioral health documentation for real clinical workflows.</p>
+			<p class="brand-description">
+				THERASSISTANT helps clinicians convert session activity into compliant documentation,
+				identify missed coding opportunities, and surface quality risks before submission.
+			</p>
+			<div class="brand-pill-row">
+				<span class="brand-pill">Colorado Medicaid Logic</span>
+				<span class="brand-pill">Supabase Secure Auth</span>
+			</div>
+		</div>
+	</section>
+
+	<section class="login-form-panel">
+		<div class="login-card">
+			<h2>Welcome Back</h2>
+			<p class="login-subtitle">Sign in to continue your THERASSISTANT workspace.</p>
+
+			<label class="field-label" for="email">Email</label>
+			<input id="email" class="field-input" type="email" placeholder="you@clinic.org" autocomplete="email">
+
+			<label class="field-label" for="password">Password</label>
+			<input id="password" class="field-input" type="password" placeholder="Enter your password" autocomplete="current-password">
+
+			<div class="login-row">
+				<label class="remember-label">
+					<input id="rememberMe" type="checkbox">
+					<span>Remember me</span>
+				</label>
+				<a class="forgot-link" href="forgot-password.html">Forgot password?</a>
+			</div>
+
+			<button class="btn-primary" onclick="login()">Login</button>
+			<button class="btn-secondary" onclick="signup()">Create Account</button>
+			<p style="text-align:center; margin-top:20px; font-size:13px; color:#6b7280;">
+				Staff or administrator?
+				<a href="admin-login.html" style="color:#6366f1; font-weight:600;">Team portal &rarr;</a>
+			</p>
+		</div>
+	</section>
+</main>
+
+</body>
+
+</html>

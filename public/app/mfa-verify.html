@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT — Verify Identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<style>
+  .mfa-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; margin: 0 auto 20px;
+  }
+  .otp-row {
+    display: flex; gap: 10px; justify-content: center; margin: 24px 0;
+  }
+  .otp-digit {
+    width: 46px; height: 56px; border-radius: 10px;
+    border: 2px solid var(--border, #d1d5db);
+    font-size: 22px; font-weight: 700; text-align: center;
+    font-family: 'Sora', monospace; color: #111;
+    transition: border-color .15s;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .otp-digit::-webkit-outer-spin-button,
+  .otp-digit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .otp-digit:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
+  .mfa-hint { font-size: 13px; color: #6b7280; text-align: center; margin-bottom: 6px; }
+  .mfa-divider { text-align: center; margin: 18px 0; color: #d1d5db; font-size: 13px; }
+  #status-msg { font-size: 14px; text-align: center; margin-bottom: 14px; display: none; }
+  .mfa-cancel { display:block; text-align:center; margin-top:18px; font-size:13px; color:#6b7280; text-decoration:none; }
+  .mfa-cancel:hover { color:#111; }
+  .mfa-setup-link { display:block; text-align:center; margin-top:10px; font-size:13px; color:#6366f1; text-decoration:none; }
+  .mfa-setup-link:hover { text-decoration:underline; }
+  .enroll-panel { display:none; }
+  .enroll-qr { text-align:center; margin:16px 0; }
+  .enroll-qr img { max-width:200px; border-radius:8px; border:1px solid #e5e7eb; }
+  .enroll-qr canvas { max-width:200px; }
+  .secret-box {
+    background:#f3f4f6; border-radius:8px; padding:10px 14px;
+    font-family:monospace; font-size:13px; word-break:break-all;
+    text-align:center; margin:12px 0; color:#374151;
+    border:1px solid #e5e7eb;
+  }
+  .enroll-steps { font-size:13px; color:#374151; line-height:1.7; padding-left:18px; }
+</style>
+
+<script>
+'use strict';
+
+const SUPABASE_URL = "https://kozdkixjhtbfhktpvzvk.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvemRraXhqaHRiZmhrdHB2enZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTczMzUsImV4cCI6MjA4ODMzMzMzNX0.Wun2eWG5vRdPdkb2c_lsSfTcQ9Y5jJ42kvWGYRgRBVc";
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ROLE_HOME = {
+  super_admin:              'admin-overview.html',
+  admin:                    'admin-dashboard.html',
+  clinician:                'dashboard.html',
+  billing_specialist:       'admin-financial.html',
+  credentialing_specialist: 'admin-staff.html',
+  supervisor:               'admin-qa.html',
+  front_desk:               'admin-clients.html',
+  patient:                  'patient-portal.html',
+};
+
+let _factorId     = null;
+let _challengeId  = null;
+let _enrollSecret = null;
+let _enrollFactorId = null;
+let _session      = null;
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? '#dc2626' : '#16a34a';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// Collect code from the OTP digit inputs
+function getOtpCode() {
+  return Array.from(document.querySelectorAll('.otp-digit'))
+    .map(i => i.value.trim())
+    .join('');
+}
+
+// Auto-advance focus as the user types digits
+function initOtpInputs() {
+  const inputs = Array.from(document.querySelectorAll('.otp-digit'));
+  inputs.forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '').slice(0, 1);
+      if (input.value && idx < inputs.length - 1) inputs[idx + 1].focus();
+      if (idx === inputs.length - 1 && getOtpCode().length === 6) submitVerify();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) inputs[idx - 1].focus();
+      if (e.key === 'Enter') submitVerify();
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+      pasted.split('').forEach((ch, i) => { if (inputs[i]) inputs[i].value = ch; });
+      if (inputs[Math.min(pasted.length, inputs.length - 1)]) {
+        inputs[Math.min(pasted.length, inputs.length - 1)].focus();
+      }
+      if (pasted.length === 6) submitVerify();
+    });
+  });
+}
+
+// ── Initialization ────────────────────────────────────────────────────────────
+async function init() {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (!session) {
+    window.location.href = 'login.html';
+    return;
+  }
+  _session = session;
+
+  // Check assurance level
+  const { data: aal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if (aal && aal.currentLevel === 'aal2') {
+    // Already verified — redirect to home
+    const role = (session.user.user_metadata && session.user.user_metadata.role) || 'clinician';
+    window.location.href = ROLE_HOME[role] || 'dashboard.html';
+    return;
+  }
+
+  // List enrolled factors
+  const { data: factorData } = await supabaseClient.auth.mfa.listFactors();
+  const verified = factorData && factorData.totp && factorData.totp.filter(f => f.status === 'verified');
+
+  if (verified && verified.length > 0) {
+    // User has enrolled factors — show verification UI
+    _factorId = verified[0].id;
+    await startChallenge();
+    document.getElementById('verify-panel').style.display = 'block';
+  } else {
+    // No enrolled factor — show enrollment UI
+    document.getElementById('verify-panel').style.display = 'none';
+    document.getElementById('enroll-panel').style.display = 'block';
+    await startEnroll();
+  }
+
+  initOtpInputs();
+}
+
+// ── Challenge (for users with factor enrolled) ───────────────────────────────
+async function startChallenge() {
+  try {
+    const { data, error } = await supabaseClient.auth.mfa.challenge({ factorId: _factorId });
+    if (error) { setStatus(error.message, true); return; }
+    _challengeId = data.id;
+  } catch (err) {
+    setStatus('Could not start MFA challenge. Please try signing in again.', true);
+  }
+}
+
+async function submitVerify() {
+  const code = getOtpCode();
+  if (code.length !== 6) { setStatus('Enter all 6 digits.', true); return; }
+
+  const btn = document.getElementById('verify-btn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  setStatus('');
+
+  try {
+    const { data, error } = await supabaseClient.auth.mfa.verify({
+      factorId:    _factorId,
+      challengeId: _challengeId,
+      code,
+    });
+    if (error) {
+      setStatus(error.message || 'Invalid code. Please try again.', true);
+      document.querySelectorAll('.otp-digit').forEach(i => { i.value = ''; });
+      document.querySelector('.otp-digit').focus();
+      await startChallenge(); // get a fresh challenge
+      return;
+    }
+
+    // Audit log
+    try {
+      const tok = _session && _session.access_token;
+      if (tok) {
+        await fetch('/api/auth/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+          body: JSON.stringify({ event: 'mfa_verified' }),
+        });
+      }
+    } catch (_) {}
+
+    // Redirect to role home
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const role = (session && session.user.user_metadata && session.user.user_metadata.role) || 'clinician';
+    window.location.href = ROLE_HOME[role] || 'dashboard.html';
+
+  } catch (err) {
+    setStatus('Unexpected error. Please try again.', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verify';
+  }
+}
+
+// ── Enrollment (for new users setting up TOTP) ───────────────────────────────
+async function startEnroll() {
+  try {
+    setStatus('');
+    const friendlyName = 'THERASSISTANT (' + ((_session.user && _session.user.email) || 'account') + ')';
+    const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp', friendlyName });
+    if (error) { setStatus(error.message, true); return; }
+
+    _enrollFactorId = data.id;
+    _enrollSecret   = data.totp.secret;
+
+    // Display QR code
+    const qrImg = document.getElementById('enroll-qr-img');
+    if (qrImg) qrImg.src = data.totp.qr_code;
+
+    // Display manual secret
+    const secretEl = document.getElementById('enroll-secret');
+    if (secretEl) secretEl.textContent = data.totp.secret;
+
+    // Start a challenge on the unverified factor for the confirm step
+    const { data: chal, error: chalErr } = await supabaseClient.auth.mfa.challenge({ factorId: _enrollFactorId });
+    if (!chalErr) _challengeId = chal.id;
+
+  } catch (err) {
+    setStatus('Could not set up MFA. Please refresh and try again.', true);
+    console.error(err);
+  }
+}
+
+async function submitEnroll() {
+  const code = getOtpCode();
+  if (code.length !== 6) { setStatus('Enter the 6-digit code from your authenticator app.', true); return; }
+
+  const btn = document.getElementById('enroll-btn');
+  btn.disabled = true;
+  btn.textContent = 'Confirming…';
+  setStatus('');
+
+  try {
+    const { data, error } = await supabaseClient.auth.mfa.verify({
+      factorId:    _enrollFactorId,
+      challengeId: _challengeId,
+      code,
+    });
+    if (error) {
+      setStatus(error.message || 'Invalid code. Check your authenticator app and try again.', true);
+      document.querySelectorAll('.otp-digit').forEach(i => { i.value = ''; });
+      document.querySelector('.otp-digit') && document.querySelector('.otp-digit').focus();
+      return;
+    }
+
+    // Audit log
+    try {
+      const tok = _session && _session.access_token;
+      if (tok) {
+        await fetch('/api/auth/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+          body: JSON.stringify({ event: 'mfa_enrolled' }),
+        });
+      }
+    } catch (_) {}
+
+    // MFA enrolled and verified — proceed to role home
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const role = (session && session.user.user_metadata && session.user.user_metadata.role) || 'clinician';
+    window.location.href = ROLE_HOME[role] || 'dashboard.html';
+
+  } catch (err) {
+    setStatus('Unexpected error. Please try again.', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm & Enable MFA';
+  }
+}
+
+async function cancelAndLogout() {
+  await supabaseClient.auth.signOut();
+  window.location.href = 'login.html';
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</head>
+
+<body class="login-body">
+
+<main class="login-shell" style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
+
+  <section class="login-form-panel" style="flex:1; max-width:440px; margin:auto; padding:32px 16px;">
+    <div class="login-card">
+
+      <div class="mfa-icon">&#128274;</div>
+
+      <!-- ── Verify panel (existing factor) ─────────────────────────── -->
+      <div id="verify-panel" style="display:none;">
+        <h2 style="text-align:center; margin-bottom:6px;">Two-Factor Verification</h2>
+        <p class="mfa-hint">Enter the 6-digit code from your authenticator app.</p>
+
+        <div id="status-msg"></div>
+
+        <div class="otp-row">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 1">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 2">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 3">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 4">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 5">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 6">
+        </div>
+
+        <button id="verify-btn" class="btn-primary" onclick="submitVerify()" style="width:100%;">Verify</button>
+        <a class="mfa-cancel" href="#" onclick="cancelAndLogout(); return false;">Cancel and sign out</a>
+      </div>
+
+      <!-- ── Enroll panel (first-time MFA setup) ────────────────────── -->
+      <div id="enroll-panel" class="enroll-panel">
+        <h2 style="text-align:center; margin-bottom:6px;">Set Up Two-Factor Auth</h2>
+        <p class="mfa-hint">Scan this QR code with an authenticator app (Google Authenticator, Authy, etc.).</p>
+
+        <div class="enroll-qr">
+          <img id="enroll-qr-img" src="" alt="MFA QR code" width="200" height="200">
+        </div>
+
+        <p class="mfa-hint">Or enter this secret manually:</p>
+        <div class="secret-box" id="enroll-secret"></div>
+
+        <ol class="enroll-steps">
+          <li>Open your authenticator app</li>
+          <li>Scan the QR code or enter the key above</li>
+          <li>Enter the 6-digit code shown in the app below</li>
+        </ol>
+
+        <div id="status-msg"></div>
+
+        <div class="otp-row">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 1">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 2">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 3">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 4">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 5">
+          <input class="otp-digit" type="number" inputmode="numeric" maxlength="1" min="0" max="9" aria-label="Digit 6">
+        </div>
+
+        <button id="enroll-btn" class="btn-primary" onclick="submitEnroll()" style="width:100%;">Confirm &amp; Enable MFA</button>
+        <a class="mfa-cancel" href="#" onclick="cancelAndLogout(); return false;">Cancel and sign out</a>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>

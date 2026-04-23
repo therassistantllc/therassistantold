@@ -1,0 +1,585 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>THERASSISTANT — Mental Health Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<style>
+/* Form-specific overrides for this doc tool */
+input[type=text], input[type=number], input[type=time], input[type=date], select, textarea {
+  width: 100%; padding: .5rem .6rem; border: 1px solid var(--border);
+  border-radius: 8px; font: inherit; background: #fff; color: var(--ink-900); font-size: 14px;
+}
+textarea { min-height: 90px; resize: vertical; }
+label { font-size: 13px; color: var(--ink-700); display: block; margin-bottom: 4px; font-weight: 500; }
+.content-card h2 { font-size: 1rem; margin: 1.4rem 0 .6rem; color: var(--ink-900); font-weight: 700;
+     border-bottom: 1px solid var(--border); padding-bottom: .35rem; }
+.section { margin-top: .5rem; }
+.qa { display: flex; align-items: flex-start; gap: 14px; margin: .55rem 0; }
+.q { flex: 0 0 40%; font-weight: 600; color: var(--ink-900); padding-top: .35rem; font-size: 14px; }
+.a { flex: 1; }
+.checkbox-group { display: flex; flex-direction: column; gap: .3rem; }
+.checkbox-item { display: flex; align-items: center; gap: .5rem; line-height: 1.2; font-size: 14px; }
+.checkbox-item input[type=checkbox] { width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--blue-700); }
+.actions { display: flex; justify-content: center; gap: .75rem; margin: 1.1rem 0 1.2rem; }
+.collapse { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 1rem; }
+.collapse-h { background: var(--blue-800); color: #fff; font-weight: 700; padding: .6rem .9rem; cursor: pointer; user-select: none; font-size: 14px; }
+.collapse-c { display: none; background: #fff; padding: 1rem; }
+.collapse-c p { margin: .5rem 0 1rem; }
+.collapse-c strong { color: var(--ink-900); }
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <nav class="sidebar-nav">
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="patients.html">Patients</a>
+      <a class="nav-link" href="scheduling.html">Schedule</a>
+      <a class="nav-link" href="agenda.html">Today's Agenda</a>
+      <a class="nav-link" href="coder-home.html">Start New Session</a>
+      <a class="nav-link" href="saved-reports.html">Saved Reports</a>
+      <a class="nav-link" href="saved-notes.html">Saved Notes</a>
+      <a class="nav-link" href="clinician-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="subscription.html">Subscription</a>
+      <a class="nav-link" href="support-request.html">Help / Support</a>
+      <a class="nav-link" href="settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Mental Health Assessment</h1>
+        <p>H0031 — Documentation tool for mental health assessment and planning</p>
+      </div>
+      <button class="btn btn-outline" onclick="window.location.href='Coder.html?return=1'">← Back to Report</button>
+    </header>
+
+    <div class="content-card" style="margin-top:20px">
+
+  <!-- Administrative -->
+  <div class="section">
+    <h2>Administrative</h2>
+
+    <div class="qa">
+      <div class="q">Date of service</div>
+      <div class="a"><input id="dos" type="date"></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Clinician (name + credentials)</div>
+      <div class="a"><input id="clinician" type="text" placeholder="e.g., Jordan Smith, LPC"></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Place of service</div>
+      <div class="a">
+        <select id="pos">
+          <option>11 — Office</option>
+          <option>02 — Telehealth</option>
+          <option>12 — Home</option>
+          <option>03 — School</option>
+          <option>99 — Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Session start / end times</div>
+      <div class="a">
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <input id="start" type="time"> <span style="color:var(--muted)">to</span> <input id="end" type="time">
+        </div>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Total minutes</div>
+      <div class="a"><input id="mins" type="number" placeholder="e.g., 53"></div>
+    </div>
+  </div>
+
+  <!-- Diagnosis & Context -->
+  <div class="section">
+    <h2>Diagnosis & Context</h2>
+
+    <div class="qa">
+      <div class="q">ICD-10 category</div>
+      <div class="a"><select id="icdCat"></select></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Specific diagnosis</div>
+      <div class="a"><select id="icdCode"></select></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Psychosocial stressor (Z55–Z65)</div>
+      <div class="a"><select id="sdoh"></select></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Additional context / stressors</div>
+      <div class="a"><input id="context" type="text" placeholder="e.g., recent loss; financial stress"></div>
+    </div>
+  </div>
+
+  <!-- Mental Health Assessment (checkbox + free text for 4 fields) -->
+  <div class="section">
+    <h2>Mental Health Assessment</h2>
+
+    <div class="qa">
+      <div class="q">When did symptoms begin?</div>
+      <div class="a">
+        <div id="onsetOpts" class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="within the past 2 weeks">Within the past 2 weeks</label>
+          <label class="checkbox-item"><input type="checkbox" value="within the past month">Within the past month</label>
+          <label class="checkbox-item"><input type="checkbox" value="about 3 months ago">About 3 months ago</label>
+          <label class="checkbox-item"><input type="checkbox" value="about 6 months ago">About 6 months ago</label>
+          <label class="checkbox-item"><input type="checkbox" value="more than a year ago">More than a year ago</label>
+          <label class="checkbox-item"><input type="checkbox" value="since childhood/adolescence">Since childhood/adolescence</label>
+        </div>
+        <input id="onset" type="text" placeholder="Other (free text)">
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Change since last visit</div>
+      <div class="a">
+        <select id="change">
+          <option>Improved</option>
+          <option>Unchanged</option>
+          <option>Worsened</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Severity level</div>
+      <div class="a">
+        <select id="severity">
+          <option>Mild</option>
+          <option>Moderate</option>
+          <option>Severe</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Triggers or aggravating factors</div>
+      <div class="a">
+        <div id="trigOpts" class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="work stress">Work stress</label>
+          <label class="checkbox-item"><input type="checkbox" value="family conflict">Family conflict</label>
+          <label class="checkbox-item"><input type="checkbox" value="financial strain">Financial strain</label>
+          <label class="checkbox-item"><input type="checkbox" value="sleep disruption">Sleep disruption</label>
+          <label class="checkbox-item"><input type="checkbox" value="health concerns">Health concerns</label>
+          <label class="checkbox-item"><input type="checkbox" value="substance use">Substance use</label>
+          <label class="checkbox-item"><input type="checkbox" value="grief/loss">Grief/Loss</label>
+        </div>
+        <input id="trig" type="text" placeholder="Other (free text)">
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Helpful coping strategies</div>
+      <div class="a">
+        <div id="helpsOpts" class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="CBT skills">CBT skills</label>
+          <label class="checkbox-item"><input type="checkbox" value="DBT skills">DBT skills</label>
+          <label class="checkbox-item"><input type="checkbox" value="mindfulness">Mindfulness</label>
+          <label class="checkbox-item"><input type="checkbox" value="behavioral activation">Behavioral activation</label>
+          <label class="checkbox-item"><input type="checkbox" value="social support">Social support</label>
+          <label class="checkbox-item"><input type="checkbox" value="sleep hygiene">Sleep hygiene</label>
+          <label class="checkbox-item"><input type="checkbox" value="exercise">Exercise</label>
+        </div>
+        <input id="helps" type="text" placeholder="Other (free text)">
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Risk assessment summary</div>
+      <div class="a">
+        <div id="riskOpts" class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="denies SI/HI">Denies SI/HI</label>
+          <label class="checkbox-item"><input type="checkbox" value="passive SI, no plan/intent">Passive SI, no plan/intent</label>
+          <label class="checkbox-item"><input type="checkbox" value="active SI without plan">Active SI without plan</label>
+          <label class="checkbox-item"><input type="checkbox" value="active SI with plan (safety planned)">Active SI with plan (safety planned)</label>
+          <label class="checkbox-item"><input type="checkbox" value="no acute risk identified">No acute risk identified</label>
+          <label class="checkbox-item"><input type="checkbox" value="protective factors present">Protective factors present</label>
+        </div>
+        <input id="risk" type="text" placeholder="Details (free text)">
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Functional domains impacted</div>
+      <div class="a">
+        <div id="domains" class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="work/school">Work / School</label>
+          <label class="checkbox-item"><input type="checkbox" value="social/family">Social / Family</label>
+          <label class="checkbox-item"><input type="checkbox" value="ADL">ADL</label>
+          <label class="checkbox-item"><input type="checkbox" value="legal">Legal</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-blue" onclick="generateNote()">Generate Note</button>
+    <button class="btn btn-outline" onclick="copyNote()">Copy</button>
+    <button class="btn btn-ghost" onclick="saveCurrentNote()">&#128190; Save to Saved Notes</button>
+  </div>
+
+  <!-- Collapsible Output -->
+  <div class="collapse">
+    <div class="collapse-h" onclick="toggleCollapse()">Generated SOAP Note</div>
+    <div class="collapse-c" id="noteOut"></div>
+  </div>
+
+    </div><!-- close content-card -->
+  </main>
+</div><!-- close dashboard-shell -->
+<script>
+// ---------- Mini helpers ----------
+const $ = s => document.querySelector(s);
+const $all = s => Array.from(document.querySelectorAll(s));
+const getChecked = id => $all('#'+id+' input[type=checkbox]:checked').map(x=>x.value);
+const joinAnd = a => a.length<2 ? (a[0]||'') : a.slice(0,-1).join(', ') + ' and ' + a[a.length-1];
+function combineChecksAndText(groupId, textId){
+  const vals = getChecked(groupId);
+  const txt = ($('#'+textId)?.value || '').trim();
+  if (txt) vals.push(txt);
+  return vals.length ? joinAnd(vals) : '';
+}
+
+// ---------- SDOH dropdown ----------
+const SDOH = [
+  ["","— Select —"],
+  ["Z55.9 — Education and literacy problem, unspecified","Z55.9 — Education and literacy problem, unspecified"],
+  ["Z56.0 — Unemployment","Z56.0 — Unemployment"],
+  ["Z56.6 — Work-related stress","Z56.6 — Work-related stress"],
+  ["Z59.0 — Homelessness","Z59.0 — Homelessness"],
+  ["Z59.6 — Low income","Z59.6 — Low income"],
+  ["Z59.81 — Housing instability, housed","Z59.81 — Housing instability, housed"],
+  ["Z59.82 — Transportation insecurity","Z59.82 — Transportation insecurity"],
+  ["Z59.86 — Financial insecurity","Z59.86 — Financial insecurity"],
+  ["Z60.2 — Problems related to living alone","Z60.2 — Problems related to living alone"],
+  ["Z63.0 — Problems in relationship with spouse/partner","Z63.0 — Problems in relationship with spouse/partner"],
+  ["Z63.5 — Disruption by separation/divorce","Z63.5 — Disruption by separation/divorce"],
+  ["Z65.4 — Victim of crime and terrorism","Z65.4 — Victim of crime and terrorism"]
+];
+function buildSDOH(){
+  const sel = $('#sdoh'); sel.innerHTML = '';
+  SDOH.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p[0]; o.textContent = p[1];
+    sel.appendChild(o);
+  });
+}
+
+// ---------- ICD-10 (Mental health only; stops at R45.*) ----------
+const ICD_MAP = {
+  "F20–F29 Psychotic disorders": [
+    "F20.0 — Paranoid schizophrenia","F20.1 — Disorganized schizophrenia","F20.2 — Catatonic schizophrenia",
+    "F20.3 — Undifferentiated schizophrenia","F20.5 — Residual schizophrenia","F20.81 — Schizophreniform disorder",
+    "F20.89 — Other schizophrenia","F20.9 — Schizophrenia, unspecified","F21 — Schizotypal disorder",
+    "F22 — Delusional disorders","F23 — Brief psychotic disorder","F24 — Shared psychotic disorder",
+    "F25.0 — Schizoaffective disorder, bipolar type","F25.1 — Schizoaffective disorder, depressive type",
+    "F25.8 — Other schizoaffective disorders","F25.9 — Schizoaffective disorder, unspecified",
+    "F28 — Other psychotic disorder not due to a substance or known physiological condition",
+    "F29 — Unspecified psychosis not due to a substance or known physiological condition"
+  ],
+  "F30–F39 Mood (affective) disorders": [
+    "F30.10 — Manic episode without psychotic symptoms, unspecified",
+    "F30.11 — Manic episode without psychotic symptoms, mild",
+    "F30.12 — Manic episode without psychotic symptoms, moderate",
+    "F30.13 — Manic episode, severe, without psychotic symptoms",
+    "F30.2 — Manic episode, severe with psychotic symptoms",
+    "F30.3 — Manic episode in partial remission",
+    "F30.4 — Manic episode in full remission",
+    "F30.8 — Other manic episodes","F30.9 — Manic episode, unspecified",
+    "F31.0 — Bipolar disorder, current episode hypomanic",
+    "F31.10 — Bipolar disorder, current episode manic without psychotic features, unspecified",
+    "F31.11 — Bipolar disorder, current episode manic without psychotic features, mild",
+    "F31.12 — Bipolar disorder, current episode manic without psychotic features, moderate",
+    "F31.13 — Bipolar disorder, current episode manic without psychotic features, severe",
+    "F31.2 — Bipolar disorder, current episode manic severe with psychotic features",
+    "F31.30 — Bipolar disorder, current episode depressed, mild or moderate severity, unspecified",
+    "F31.31 — Bipolar disorder, current episode depressed, mild",
+    "F31.32 — Bipolar disorder, current episode depressed, moderate",
+    "F31.4 — Bipolar disorder, current episode depressed, severe, without psychotic features",
+    "F31.5 — Bipolar disorder, current episode depressed, severe, with psychotic features",
+    "F31.60 — Bipolar disorder, current episode mixed, unspecified",
+    "F31.61 — Bipolar disorder, current episode mixed, mild",
+    "F31.62 — Bipolar disorder, current episode mixed, moderate",
+    "F31.63 — Bipolar disorder, current episode mixed, severe, without psychotic features",
+    "F31.64 — Bipolar disorder, current episode mixed, severe, with psychotic features",
+    "F31.70 — Bipolar disorder, currently in remission, most recent episode unspecified",
+    "F31.71 — Bipolar disorder, in partial remission, most recent episode hypomanic",
+    "F31.72 — Bipolar disorder, in full remission, most recent episode hypomanic",
+    "F31.73 — Bipolar disorder, in partial remission, most recent episode manic",
+    "F31.74 — Bipolar disorder, in full remission, most recent episode manic",
+    "F31.75 — Bipolar disorder, in partial remission, most recent episode depressed",
+    "F31.76 — Bipolar disorder, in full remission, most recent episode depressed",
+    "F31.77 — Bipolar disorder, in partial remission, most recent episode mixed",
+    "F31.78 — Bipolar disorder, in full remission, most recent episode mixed",
+    "F31.81 — Bipolar II disorder","F31.89 — Other bipolar disorder","F31.9 — Bipolar disorder, unspecified",
+
+    "F32.0 — Major depressive disorder, single episode, mild",
+    "F32.1 — Major depressive disorder, single episode, moderate",
+    "F32.2 — Major depressive disorder, single episode, severe without psychotic features",
+    "F32.3 — Major depressive disorder, single episode, severe with psychotic features",
+    "F32.4 — Major depressive disorder, single episode, in partial remission",
+    "F32.5 — Major depressive disorder, single episode, in full remission",
+    "F32.81 — Premenstrual dysphoric disorder",
+    "F32.89 — Other specified depressive episodes",
+    "F32.9 — Major depressive disorder, single episode, unspecified",
+    "F32.A — Depression, unspecified",
+
+    "F33.0 — Major depressive disorder, recurrent, mild",
+    "F33.1 — Major depressive disorder, recurrent, moderate",
+    "F33.2 — Major depressive disorder, recurrent severe without psychotic features",
+    "F33.3 — Major depressive disorder, recurrent, severe with psychotic symptoms",
+    "F33.40 — Major depressive disorder, recurrent, in remission, unspecified",
+    "F33.41 — Major depressive disorder, recurrent, in partial remission",
+    "F33.42 — Major depressive disorder, recurrent, in full remission",
+    "F33.8 — Other recurrent depressive disorders",
+    "F33.9 — Major depressive disorder, recurrent, unspecified",
+
+    "F34.0 — Cyclothymic disorder","F34.1 — Dysthymic disorder",
+    "F34.81 — Disruptive mood dysregulation disorder",
+    "F34.89 — Other specified persistent mood disorders",
+    "F34.9 — Persistent mood [affective] disorder, unspecified",
+    "F39 — Unspecified mood [affective] disorder"
+  ],
+  "F40–F48 Anxiety, stress-related & somatoform": [
+    "F40.00 — Agoraphobia, unspecified","F40.01 — Agoraphobia with panic disorder","F40.02 — Agoraphobia without panic disorder",
+    "F40.10 — Social phobia, unspecified","F40.11 — Social phobia, generalized",
+    "F40.210 — Arachnophobia","F40.218 — Other animal type phobia","F40.220 — Fear of thunderstorms","F40.228 — Other natural environment type phobia",
+    "F40.230 — Fear of blood","F40.231 — Fear of injections and transfusions","F40.232 — Fear of other medical care","F40.233 — Fear of injury",
+    "F40.240 — Claustrophobia","F40.241 — Acrophobia","F40.242 — Fear of bridges","F40.243 — Fear of flying",
+    "F40.248 — Other situational type phobia","F40.290 — Androphobia","F40.291 — Gynephobia","F40.298 — Other specified phobia",
+    "F40.8 — Other phobic anxiety disorders","F40.9 — Phobic anxiety disorder, unspecified",
+
+    "F41.0 — Panic disorder [episodic paroxysmal anxiety]","F41.1 — Generalized anxiety disorder","F41.3 — Other mixed anxiety disorders",
+    "F41.8 — Other specified anxiety disorders","F41.9 — Anxiety disorder, unspecified",
+
+    "F42.2 — Mixed obsessional thoughts and acts","F42.3 — Hoarding disorder","F42.4 — Excoriation (skin-picking) disorder",
+    "F42.8 — Other obsessive-compulsive disorder","F42.9 — Obsessive-compulsive disorder, unspecified",
+
+    "F43.0 — Acute stress reaction","F43.10 — Post-traumatic stress disorder, unspecified",
+    "F43.11 — Post-traumatic stress disorder, acute","F43.12 — Post-traumatic stress disorder, chronic",
+    "F43.20 — Adjustment disorder, unspecified","F43.21 — Adjustment disorder with depressed mood",
+    "F43.22 — Adjustment disorder with anxiety","F43.23 — Adjustment disorder with mixed anxiety and depressed mood",
+    "F43.24 — Adjustment disorder with disturbance of conduct",
+    "F43.25 — Adjustment disorder with mixed disturbance of emotions and conduct",
+    "F43.29 — Adjustment disorder with other symptoms",
+    "F43.81 — Prolonged grief disorder","F43.89 — Other reactions to severe stress","F43.9 — Reaction to severe stress, unspecified",
+
+    "F44.0 — Dissociative amnesia","F44.1 — Dissociative fugue","F44.2 — Dissociative stupor",
+    "F44.4 — Conversion disorder with motor symptom or deficit","F44.5 — Conversion disorder with seizures or convulsions",
+    "F44.6 — Conversion disorder with sensory symptom or deficit","F44.7 — Conversion disorder with mixed symptom presentation",
+    "F44.81 — Dissociative identity disorder","F44.89 — Other dissociative and conversion disorders",
+    "F44.9 — Dissociative and conversion disorder, unspecified",
+
+    "F45.0 — Somatization disorder","F45.1 — Undifferentiated somatoform disorder",
+    "F45.20 — Hypochondriacal disorder, unspecified","F45.21 — Hypochondriasis","F45.22 — Body dysmorphic disorder","F45.29 — Other hypochondriacal disorders",
+    "F45.41 — Pain disorder exclusively related to psychological factors","F45.42 — Pain disorder with related psychological factors",
+    "F45.8 — Other somatoform disorders","F45.9 — Somatoform disorder, unspecified",
+
+    "F48.1 — Depersonalization-derealization syndrome","F48.2 — Pseudobulbar affect",
+    "F48.8 — Other specified nonpsychotic mental disorders","F48.9 — Nonpsychotic mental disorder, unspecified"
+  ],
+  "F50–F59 Eating, sleep, sexual & other behavioral": [
+    "F50.00 — Anorexia nervosa, unspecified","F50.010 — Anorexia nervosa, restricting type, mild","F50.011 — ... moderate",
+    "F50.012 — ... severe","F50.013 — ... extreme","F50.014 — ... in remission","F50.019 — ... unspecified",
+    "F50.020 — Anorexia nervosa, binge eating/purging type, mild","F50.021 — ... moderate","F50.022 — ... severe",
+    "F50.023 — ... extreme","F50.024 — ... in remission","F50.029 — ... unspecified",
+    "F50.20 — Bulimia nervosa, unspecified","F50.21 — Bulimia nervosa, mild","F50.22 — Bulimia nervosa, moderate",
+    "F50.23 — Bulimia nervosa, severe","F50.24 — Bulimia nervosa, extreme","F50.25 — Bulimia nervosa, in remission",
+    "F50.810 — Binge eating disorder, mild","F50.811 — ... moderate","F50.812 — ... severe","F50.813 — ... extreme","F50.814 — ... in remission",
+    "F50.819 — Binge eating disorder, unspecified","F50.82 — Avoidant/restrictive food intake disorder","F50.83 — Pica in adults",
+    "F50.84 — Rumination disorder in adults","F50.89 — Other specified eating disorder","F50.9 — Eating disorder, unspecified",
+
+    "F51.01 — Primary insomnia","F51.02 — Adjustment insomnia","F51.03 — Paradoxical insomnia","F51.04 — Psychophysiologic insomnia",
+    "F51.05 — Insomnia due to other mental disorder","F51.09 — Other insomnia not due to a substance or known physiological condition",
+    "F51.11 — Primary hypersomnia","F51.12 — Insufficient sleep syndrome","F51.13 — Hypersomnia due to other mental disorder",
+    "F51.19 — Other hypersomnia not due to a substance or known physiological condition",
+    "F51.3 — Sleepwalking [somnambulism]","F51.4 — Sleep terrors [night terrors]","F51.5 — Nightmare disorder",
+    "F51.8 — Other sleep disorders not due to a substance or known physiological condition",
+    "F51.9 — Sleep disorder not due to a substance or known physiological condition, unspecified",
+
+    "F52.0 — Hypoactive sexual desire disorder","F52.1 — Sexual aversion disorder","F52.21 — Male erectile disorder",
+    "F52.22 — Female sexual arousal disorder","F52.31 — Female orgasmic disorder","F52.32 — Male orgasmic disorder",
+    "F52.4 — Premature ejaculation","F52.5 — Vaginismus not due to a substance or known physiological condition",
+    "F52.6 — Dyspareunia not due to a substance or known physiological condition",
+    "F52.8 — Other sexual dysfunction not due to a substance or known physiological condition",
+    "F52.9 — Unspecified sexual dysfunction not due to a substance or known physiological condition",
+
+    "F53.0 — Postpartum depression","F53.1 — Puerperal psychosis",
+    "F54 — Psychological and behavioral factors associated with disorders or diseases classified elsewhere",
+    "F55.0 — Abuse of antacids","F55.1 — Abuse of herbal or folk remedies","F55.2 — Abuse of laxatives","F55.3 — Abuse of steroids or hormones",
+    "F55.4 — Abuse of vitamins","F55.8 — Abuse of other non-psychoactive substances",
+    "F59 — Unspecified behavioral syndromes associated with physiological disturbances and physical factors"
+  ],
+  "F60–F69 Personality & behavior": [
+    "F60.0 — Paranoid personality disorder","F60.1 — Schizoid personality disorder","F60.2 — Antisocial personality disorder",
+    "F60.3 — Borderline personality disorder","F60.4 — Histrionic personality disorder","F60.5 — Obsessive-compulsive personality disorder",
+    "F60.6 — Avoidant personality disorder","F60.7 — Dependent personality disorder","F60.81 — Narcissistic personality disorder",
+    "F60.89 — Other specific personality disorders","F60.9 — Personality disorder, unspecified",
+    "F63.0 — Pathological gambling","F63.1 — Pyromania","F63.2 — Kleptomania","F63.3 — Trichotillomania",
+    "F63.81 — Intermittent explosive disorder","F63.89 — Other impulse disorders","F63.9 — Impulse disorder, unspecified",
+    "F64.0 — Transsexualism","F64.1 — Dual role transvestism","F64.2 — Gender identity disorder of childhood","F64.8 — Other gender identity disorders",
+    "F64.9 — Gender identity disorder, unspecified",
+    "F65.0 — Fetishism","F65.1 — Transvestic fetishism","F65.2 — Exhibitionism","F65.3 — Voyeurism","F65.4 — Pedophilia",
+    "F65.50 — Sadomasochism, unspecified","F65.51 — Sexual masochism","F65.52 — Sexual sadism","F65.81 — Frotteurism","F65.89 — Other paraphilias","F65.9 — Paraphilia, unspecified",
+    "F66 — Other sexual disorders",
+    "F68.10 — Factitious disorder imposed on self, unspecified",
+    "F68.11 — ... with predominantly psychological signs and symptoms",
+    "F68.12 — ... with predominantly physical signs and symptoms",
+    "F68.13 — ... with combined psychological and physical signs and symptoms",
+    "F68.8 — Other specified disorders of adult personality and behavior",
+    "F68.A — Factitious disorder imposed on another",
+    "F69 — Unspecified disorder of adult personality and behavior"
+  ],
+  "F70–F79 Intellectual disabilities": [
+    "F70 — Mild intellectual disabilities","F71 — Moderate intellectual disabilities","F72 — Severe intellectual disabilities","F73 — Profound intellectual disabilities",
+    "F78.A1 — SYNGAP1-related intellectual disability","F78.A9 — Other genetic related intellectual disability","F79 — Unspecified intellectual disabilities"
+  ],
+  "F80–F89 Developmental & pervasive": [
+    "F80.0 — Phonological disorder","F80.1 — Expressive language disorder","F80.2 — Mixed receptive-expressive language disorder",
+    "F80.4 — Speech and language development delay due to hearing loss","F80.81 — Childhood onset fluency disorder",
+    "F80.82 — Social pragmatic communication disorder","F80.89 — Other developmental disorders of speech and language","F80.9 — Developmental disorder of speech and language, unspecified",
+    "F81.0 — Specific reading disorder","F81.2 — Mathematics disorder","F81.81 — Disorder of written expression","F81.89 — Other developmental disorders of scholastic skills","F81.9 — Developmental disorder of scholastic skills, unspecified",
+    "F82 — Specific developmental disorder of motor function",
+    "F84.0 — Autistic disorder","F84.2 — Rett's syndrome","F84.3 — Other childhood disintegrative disorder","F84.5 — Asperger's syndrome","F84.8 — Other pervasive developmental disorders","F84.9 — Pervasive developmental disorder, unspecified",
+    "F88 — Other disorders of psychological development","F89 — Unspecified disorder of psychological development"
+  ],
+  "F90–F98 Childhood/adolescence disorders": [
+    "F90.0 — Attention-deficit hyperactivity disorder, predominantly inattentive type",
+    "F90.1 — ... predominantly hyperactive type","F90.2 — ... combined type","F90.8 — ... other type","F90.9 — ... unspecified type",
+    "F91.0 — Conduct disorder confined to family context","F91.1 — Conduct disorder, childhood-onset type","F91.2 — Conduct disorder, adolescent-onset type",
+    "F91.3 — Oppositional defiant disorder","F91.8 — Other conduct disorders","F91.9 — Conduct disorder, unspecified",
+    "F93.0 — Separation anxiety disorder of childhood","F93.8 — Other childhood emotional disorders","F93.9 — Childhood emotional disorder, unspecified",
+    "F94.0 — Selective mutism","F94.1 — Reactive attachment disorder of childhood","F94.2 — Disinhibited attachment disorder of childhood",
+    "F94.8 — Other childhood disorders of social functioning","F94.9 — Childhood disorder of social functioning, unspecified",
+    "F95.0 — Transient tic disorder","F95.1 — Chronic motor or vocal tic disorder","F95.2 — Tourette's disorder","F95.8 — Other tic disorders","F95.9 — Tic disorder, unspecified",
+    "F98.0 — Enuresis not due to a substance or known physiological condition",
+    "F98.1 — Encopresis not due to a substance or known physiological condition",
+    "F98.21 — Rumination disorder of infancy and childhood","F98.29 — Other feeding disorders of infancy and early childhood",
+    "F98.3 — Pica of infancy and childhood","F98.4 — Stereotyped movement disorders","F98.5 — Adult onset fluency disorder",
+    "F98.8 — Other specified behavioral and emotional disorders with onset usually occurring in childhood and adolescence",
+    "F98.9 — Unspecified behavioral and emotional disorders with onset usually occurring in childhood and adolescence"
+  ],
+  "F99 Other mental disorder": [
+    "F99 — Mental disorder, not otherwise specified"
+  ],
+  "R45 — Symptoms of emotional state": [
+    "R45.0 — Nervousness","R45.1 — Restlessness and agitation","R45.2 — Unhappiness","R45.3 — Demoralization and apathy",
+    "R45.4 — Irritability and anger","R45.5 — Hostility","R45.6 — Violent behavior","R45.7 — State of emotional shock and stress, unspecified",
+    "R45.81 — Low self-esteem","R45.82 — Worries","R45.83 — Excessive crying of child, adolescent or adult","R45.84 — Anhedonia",
+    "R45.850 — Homicidal ideations","R45.851 — Suicidal ideations","R45.86 — Emotional lability","R45.87 — Impulsiveness",
+    "R45.88 — Nonsuicidal self-harm","R45.89 — Other symptoms and signs involving emotional state"
+  ]
+};
+
+function buildICD(){
+  const cat = $('#icdCat');
+  cat.innerHTML = '<option>— Select —</option>';
+  Object.keys(ICD_MAP).forEach(k=>{
+    const o=document.createElement('option');
+    o.textContent=k; cat.appendChild(o);
+  });
+}
+function buildCodes(){
+  const codeSel = $('#icdCode');
+  codeSel.innerHTML = '<option>— Select —</option>';
+  (ICD_MAP[$('#icdCat').value] || []).forEach(c=>{
+    const o=document.createElement('option');
+    o.textContent=c; codeSel.appendChild(o);
+  });
+}
+
+// ---------- Collapsible ----------
+function toggleCollapse(){
+  const c = $('.collapse-c');
+  c.style.display = (c.style.display==='block') ? 'none' : 'block';
+}
+
+// ---------- Generator ----------
+function generateNote(){
+  const diag = $('#icdCode').value || $('#icdCat').value || 'a mental health condition';
+  const onset = combineChecksAndText('onsetOpts','onset') || 'recent months';
+  const change = ($('#change').value||'Improved').toLowerCase();
+  const sev = ($('#severity').value||'Mild').toLowerCase();
+  const trig = combineChecksAndText('trigOpts','trig') || 'psychosocial stressors';
+  const helps = combineChecksAndText('helpsOpts','helps') || 'current coping efforts';
+  const risk = combineChecksAndText('riskOpts','risk') || 'no acute safety concerns';
+  const domains = getChecked('domains');
+  const func = domains.length ? joinAnd(domains) : 'relevant areas';
+  const sdoh = $('#sdoh').value || 'N/A';
+  const context = $('#context').value || '';
+  const noteHTML = `
+  <p><strong>Subjective Report</strong><br>
+  Client presenting with ${diag}, which began approximately ${onset} ago. Symptoms have ${change} over time.
+  Client reports symptoms are triggered or worsened by ${trig}. Attempts to manage symptoms include ${helps}.
+  Risk assessment revealed ${risk}. Diagnostic impression supported by presenting history and symptom pattern.
+  Symptoms are currently ${sev}, with functional impairment in ${func}. The current level of care remains medically necessary to address impairment and maintain progress.</p>
+
+  <p><strong>Assessment</strong><br>
+  ${diag} supported by clinical findings, self-report, and functional indicators. Severity assessed as ${sev}.
+  Functional impairment noted within ${func}. The diagnosis remains appropriate. Continued therapy is medically
+  necessary for stabilization, skill acquisition, and reduction of symptoms related to ${sdoh}.
+  ${context ? ('Contextual factors include ' + context + '.') : ''}</p>
+
+  <p><strong>Codes:</strong><br>
+  ICD-10: ${diag}<br>
+  HCPCS: H0031 — Mental Health Assessment<br>
+  Provider: ${$('#clinician').value}<br>
+  Date: ${$('#dos').value} | POS: ${$('#pos').value}</p>
+  `;
+  localStorage.setItem('docusistant_doc_completed_H0031', '1');
+  $('#noteOut').innerHTML = noteHTML;
+  $('.collapse-c').style.display = 'block';
+}
+
+function saveCurrentNote(){
+  const content = $('#noteOut').innerText || '';
+  if (!content.trim()) { alert('Generate a note first, then save.'); return; }
+  saveDocNote('H0031 Mental Health Assessment', content);
+}
+
+// ---------- Copy ----------
+function copyNote(){
+  const tmp = document.createElement('textarea');
+  tmp.value = $('#noteOut').innerText;
+  document.body.appendChild(tmp);
+  tmp.select(); document.execCommand('copy'); document.body.removeChild(tmp);
+  alert('Note copied to clipboard.');
+}
+
+// ---------- Init ----------
+document.addEventListener('DOMContentLoaded', ()=>{
+  // defaults
+  $('#dos').value = new Date().toISOString().slice(0,10);
+  $('#mins').value = 60;
+  buildICD(); buildCodes(); buildSDOH();
+  $('#icdCat').addEventListener('change', buildCodes);
+  initDashboard(CLINICIAN_ROLES);
+});
+</script>
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

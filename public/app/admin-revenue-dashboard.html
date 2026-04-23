@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<!-- ============================================================
+  THERASSISTANT — Revenue Dashboard  (admin-revenue-dashboard.html)
+  Modules: Revenue · Collections · AR & Aging · Denial Intelligence
+           Payer Analysis · Provider & Codes · Trends · Monthly Report
+  Permissions: ADMIN_ROLES (admin, billing_staff, super_admin)
+  Data: localStorage ERA imports + payment_sources + recoupments
+  API stubs: see bottom of <script> block (Supabase query patterns)
+  DB schema:  revenue-dashboard-schema.sql
+  Built: 2026-04-06
+================================================================ -->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Revenue Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    /* Stats grid - 5 col */
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .kpi-card.teal::before{background:linear-gradient(180deg,#06b6d4,#0891b2)}
+    .kpi-card.slate::before{background:linear-gradient(180deg,#64748b,#334155)}
+    .kpi-num{font-family:'Sora',sans-serif;font-size:1.45rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .kpi-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:5px}
+    .kpi-delta{font-size:11.5px;font-weight:700;margin-top:4px}
+    .kpi-delta.up{color:#059669}
+    .kpi-delta.down{color:#dc2626}
+    /* Date filter bar */
+    .date-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow-sm)}
+    .date-bar label{font-size:12.5px;font-weight:700;color:var(--ink-700)}
+    .date-bar select,.date-bar input{padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .date-bar select:focus,.date-bar input:focus{border-color:var(--blue-500)}
+    /* Charts grid */
+    .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+    .charts-grid.wide{grid-template-columns:1fr}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)}
+    .chart-title{font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--ink-900);margin-bottom:4px}
+    .chart-sub{font-size:12px;color:var(--ink-500);margin-bottom:14px}
+    /* CSS bar charts */
+    .bar-chart{display:flex;flex-direction:column;gap:9px}
+    .bar-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+    .bar-label{width:110px;flex-shrink:0;color:var(--ink-700);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bar-track{flex:1;height:18px;background:var(--surface-soft);border-radius:4px;overflow:hidden;position:relative}
+    .bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+    .bar-fill.green{background:linear-gradient(90deg,#10b981,#34d399)}
+    .bar-fill.blue{background:linear-gradient(90deg,var(--blue-600),var(--blue-400))}
+    .bar-fill.amber{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+    .bar-fill.red{background:linear-gradient(90deg,#ef4444,#f87171)}
+    .bar-fill.purple{background:linear-gradient(90deg,#8b5cf6,#a78bfa)}
+    .bar-fill.teal{background:linear-gradient(90deg,#0891b2,#22d3ee)}
+    .bar-val{width:60px;flex-shrink:0;text-align:right;font-weight:700;font-family:'Sora',sans-serif;font-size:12px;color:var(--ink-700)}
+    /* Sparkline */
+    .sparkline{display:flex;align-items:flex-end;gap:3px;height:50px;padding:4px 0}
+    .spark-bar{flex:1;border-radius:3px 3px 0 0;min-width:4px;transition:height .4s}
+    /* Donut via CSS conic-gradient */
+    .donut-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    .donut{width:100px;height:100px;border-radius:50%;flex-shrink:0}
+    .donut-legend{display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+    .donut-item{display:flex;align-items:center;gap:6px}
+    .donut-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    /* Table */
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .data-table td{padding:10px 12px;font-size:12.5px}
+    /* Tabs */
+    .tab-nav{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+    .tab-btn{padding:8px 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink-500);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;border-radius:6px 6px 0 0}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-600);background:rgba(60,144,209,.06)}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    @media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.charts-grid{grid-template-columns:1fr}}
+    @media(max-width:680px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link active" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:16px">
+      <div>
+        <h1>Revenue Dashboard</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue btn-sm" onclick="exportPDF()">&#8681; Export PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#8697; Export CSV</button>
+        <a href="admin-era-imports.html" class="btn btn-outline btn-sm">ERA Imports</a>
+      </div>
+    </header>
+
+    <!-- Date filter bar -->
+    <div class="date-bar">
+      <label>Period:</label>
+      <select id="periodSel" onchange="renderAll()">
+        <option value="ytd">Year to Date</option>
+        <option value="mtd">Month to Date</option>
+        <option value="last30">Last 30 Days</option>
+        <option value="last90">Last 90 Days</option>
+        <option value="q1">Q1 2026</option>
+        <option value="q2">Q2 2026</option>
+        <option value="custom">Custom Range</option>
+      </select>
+      <label>From:</label>
+      <input type="date" id="fromDate" onchange="renderAll()">
+      <label>To:</label>
+      <input type="date" id="toDate" onchange="renderAll()">
+      <button class="btn btn-ghost btn-sm" onclick="resetDates()">&#10005; Reset</button>
+      <div style="flex:1"></div>
+      <span style="font-size:12px;color:var(--ink-400);font-style:italic" id="dataSourceNote">Based on ERA import data</span>
+    </div>
+
+    <!-- KPI cards ? row 1 -->
+    <div class="kpi-grid">
+      <div class="kpi-card green">
+        <div class="kpi-num" id="k-revenue">?</div>
+        <div class="kpi-lbl">Total Revenue Posted</div>
+        <div class="kpi-delta up" id="k-revenue-d">+0%</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-num" id="k-claims">?</div>
+        <div class="kpi-lbl">Claims Processed</div>
+        <div class="kpi-delta up" id="k-claims-d">?</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-num" id="k-adj">?</div>
+        <div class="kpi-lbl">Total Adjustments</div>
+        <div class="kpi-delta" id="k-adj-d" style="color:var(--ink-500)">?</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-num" id="k-denials">?</div>
+        <div class="kpi-lbl">Denial Rate</div>
+        <div class="kpi-delta" id="k-denials-d" style="color:var(--ink-500)">?</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-num" id="k-ar">?</div>
+        <div class="kpi-lbl">Net A/R</div>
+        <div class="kpi-delta" id="k-ar-d" style="color:var(--ink-500)">?</div>
+      </div>
+    </div>
+
+    <!-- KPI row 2 -->
+    <div class="kpi-grid" style="margin-bottom:22px">
+      <div class="kpi-card teal">
+        <div class="kpi-num" id="k-collection">?</div>
+        <div class="kpi-lbl">Collection Rate</div>
+        <div class="kpi-delta up" id="k-coll-d">?</div>
+      </div>
+      <div class="kpi-card slate">
+        <div class="kpi-num" id="k-eras">?</div>
+        <div class="kpi-lbl">ERA Files Imported</div>
+        <div class="kpi-delta" style="color:var(--ink-500)">?</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-num" id="k-unmatched">?</div>
+        <div class="kpi-lbl">Unmatched Claims</div>
+        <div class="kpi-delta down" id="k-unm-d">?</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-num" id="k-avg-paid">?</div>
+        <div class="kpi-lbl">Avg Paid / Claim</div>
+        <div class="kpi-delta" style="color:var(--ink-500)">?</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-num" id="k-patient-resp">?</div>
+        <div class="kpi-lbl">Total Patient Resp</div>
+        <div class="kpi-delta" style="color:var(--ink-500)">?</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="openTab('overview')">Overview Charts</button>
+      <button class="tab-btn" onclick="openTab('payer')">Payer Analysis</button>
+      <button class="tab-btn" onclick="openTab('codes')">Code Performance</button>
+      <button class="tab-btn" onclick="openTab('monthly')">Monthly Report</button>
+      <button class="tab-btn" onclick="openTab('carc')">CARC / RARC Library</button>
+    </div>
+
+    <!-- Overview Charts -->
+    <div class="tab-panel active" id="tab-overview">
+      <div class="charts-grid">
+        <!-- Monthly payments sparkline -->
+        <div class="chart-card">
+          <div class="chart-title">Monthly Payments Posted</div>
+          <div class="chart-sub">6-month trend</div>
+          <div class="sparkline" id="sparkRevenue"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-400);margin-top:4px" id="sparkLabels"></div>
+        </div>
+        <!-- Denial rate trend -->
+        <div class="chart-card">
+          <div class="chart-title">Denial Rate by Month</div>
+          <div class="chart-sub">Percentage of claims denied</div>
+          <div class="sparkline" id="sparkDenials" style="--spark-color:#ef4444"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-400);margin-top:4px" id="sparkDenialsLabels"></div>
+        </div>
+        <!-- Revenue by payer bar -->
+        <div class="chart-card">
+          <div class="chart-title">Revenue by Payer</div>
+          <div class="chart-sub">Total payments received per insurance payer</div>
+          <div class="bar-chart" id="payerBarChart"></div>
+        </div>
+        <!-- Claims by status donut -->
+        <div class="chart-card">
+          <div class="chart-title">Claims by Posting Status</div>
+          <div class="chart-sub">Current status distribution</div>
+          <div class="donut-wrap">
+            <div class="donut" id="statusDonut"></div>
+            <div class="donut-legend" id="statusLegend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <!-- Top billing codes -->
+        <div class="chart-card">
+          <div class="chart-title">Top Billing Codes by Payment Volume</div>
+          <div class="chart-sub">Procedures with highest total payments</div>
+          <div class="bar-chart" id="codeBarChart"></div>
+        </div>
+        <!-- Adjustment breakdown -->
+        <div class="chart-card">
+          <div class="chart-title">Adjustment Breakdown by CARC Group</div>
+          <div class="chart-sub">Write-offs classified by adjustment reason</div>
+          <div class="bar-chart" id="carcBarChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payer Analysis -->
+    <div class="tab-panel" id="tab-payer">
+      <div class="table-shell">
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr>
+              <th>Payer</th><th>ERA Files</th><th>Claims</th><th>Total Billed</th><th>Total Paid</th>
+              <th>Adjustments</th><th>Denial Count</th><th>Denial Rate</th><th>Collection Rate</th>
+            </tr></thead>
+            <tbody id="payerTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Performance -->
+    <div class="tab-panel" id="tab-codes">
+      <div class="table-shell">
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr>
+              <th>Code</th><th>Description</th><th>Claims</th><th>Total Billed</th><th>Total Paid</th>
+              <th>Avg Paid</th><th>Denial Count</th><th>Denial Rate</th><th>Adj Rate</th>
+            </tr></thead>
+            <tbody id="codeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Report -->
+    <div class="tab-panel" id="tab-monthly">
+      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:13px;font-weight:700">Report Month:</label>
+        <select id="reportMonth" onchange="renderMonthly()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;background:var(--surface)">
+          <option>April 2026</option><option>March 2026</option><option>February 2026</option>
+          <option>January 2026</option><option>December 2025</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="exportPDF()">&#8681; Export PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#8697; Export CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="exportExcel()">&#8697; Export Excel</button>
+      </div>
+      <div id="monthlyReport"></div>
+    </div>
+
+    <!-- CARC / RARC Library -->
+    <div class="tab-panel" id="tab-carc">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+        <div class="chart-card">
+          <div class="chart-title">Top CARC Codes (All-Time)</div>
+          <div class="chart-sub">Most frequent claim adjustment reason codes</div>
+          <div class="bar-chart" id="topCarcBar"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">CARC Dollar Impact (All-Time)</div>
+          <div class="chart-sub">Codes causing the largest adjustment dollar amounts</div>
+          <div class="bar-chart" id="carcDollarBar"></div>
+        </div>
+      </div>
+      <div class="table-shell">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-family:'Sora',sans-serif;font-size:14px;font-weight:700">&#128218; CARC Reference Library</span>
+          <input type="search" id="carcLibSearch" placeholder="&#128269;  Filter codes&hellip;" style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;width:220px" oninput="renderCARCLib()">
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>Code</th><th>Description</th><th>Group</th><th>Typical Cause</th><th>Recommended Next Steps</th><th>Appeal Strategy</th><th>Appealable?</th><th>Freq</th><th>$ Impact</th></tr></thead>
+            <tbody id="carcLibTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0b2c4d;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:600;display:none;z-index:9999"></div>
+
+<script>
+/* -------------------------------------------------
+   Helpers
+------------------------------------------------- */
+function dbGet(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):[]; }catch{return [];} }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt$(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtPct(n){ return (Math.round(Number(n)||0))+'%'; }
+function toast(m,ms=3000){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',ms); }
+
+/* -------------------------------------------------
+   Load all ERA claims
+------------------------------------------------- */
+function loadAllClaims(){
+  const eras=dbGet('docusistant_era_imports_v1');
+  const all=[];
+  eras.forEach(era=>{
+    (era.claims||[]).forEach(c=>{
+      all.push({...c, payer_name:era.payer_name, era_id:era.id, era_file:era.file_name, payment_date:era.payment_date});
+    });
+  });
+  return all;
+}
+
+function startOfDay(dt){
+  const out=new Date(dt);
+  out.setHours(0,0,0,0);
+  return out;
+}
+
+function endOfDay(dt){
+  const out=new Date(dt);
+  out.setHours(23,59,59,999);
+  return out;
+}
+
+function parseDateInput(value, end=false){
+  if(!value) return null;
+  const [y,m,d]=String(value).split('-').map(Number);
+  if(!y||!m||!d) return null;
+  const parsed=new Date(y,m-1,d);
+  return end ? endOfDay(parsed) : startOfDay(parsed);
+}
+
+function claimDateValue(claim){
+  const raw=claim.payment_date||claim.posted_date||claim.service_date||claim.created_at||'';
+  if(!raw) return null;
+  const dt=new Date(raw);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function getSelectedDateRange(){
+  const now=new Date();
+  const period=(document.getElementById('periodSel')||{}).value||'ytd';
+  let from=null, to=endOfDay(now), label='All available data';
+
+  if(period==='ytd'){
+    from=startOfDay(new Date(now.getFullYear(),0,1));
+    label='Year to date';
+  }else if(period==='mtd'){
+    from=startOfDay(new Date(now.getFullYear(),now.getMonth(),1));
+    label='Month to date';
+  }else if(period==='last30'){
+    from=startOfDay(new Date(now.getFullYear(),now.getMonth(),now.getDate()-29));
+    label='Last 30 days';
+  }else if(period==='last90'){
+    from=startOfDay(new Date(now.getFullYear(),now.getMonth(),now.getDate()-89));
+    label='Last 90 days';
+  }else if(period==='q1'){
+    from=startOfDay(new Date(2026,0,1));
+    to=endOfDay(new Date(2026,2,31));
+    label='Q1 2026';
+  }else if(period==='q2'){
+    from=startOfDay(new Date(2026,3,1));
+    to=endOfDay(new Date(2026,5,30));
+    label='Q2 2026';
+  }else if(period==='custom'){
+    from=parseDateInput((document.getElementById('fromDate')||{}).value,false);
+    to=parseDateInput((document.getElementById('toDate')||{}).value,true);
+    label='Custom range';
+  }
+
+  return {from,to,label};
+}
+
+function filterClaimsByRange(claims){
+  const {from,to}=getSelectedDateRange();
+  return claims.filter(claim=>{
+    const dt=claimDateValue(claim);
+    if(!dt) return false;
+    if(from && dt < from) return false;
+    if(to && dt > to) return false;
+    return true;
+  });
+}
+
+function getFilteredClaims(){
+  return filterClaimsByRange(loadAllClaims());
+}
+
+function getFilteredEraImports(){
+  return dbGet('docusistant_era_imports_v1').filter(era=>{
+    const dt=claimDateValue({ payment_date: era.payment_date });
+    const {from,to}=getSelectedDateRange();
+    if(!dt) return false;
+    if(from && dt < from) return false;
+    if(to && dt > to) return false;
+    return true;
+  });
+}
+
+function getMonthlyReportRange(){
+  const selected=(document.getElementById('reportMonth')||{}).value||'';
+  const [monthName, yearText]=selected.split(' ');
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthIndex=monthNames.indexOf(monthName);
+  const year=Number(yearText);
+  if(monthIndex===-1 || !year) return null;
+  return {
+    from:startOfDay(new Date(year,monthIndex,1)),
+    to:endOfDay(new Date(year,monthIndex+1,0))
+  };
+}
+
+function getMonthlyReportClaims(){
+  const range=getMonthlyReportRange();
+  if(!range) return getFilteredClaims();
+  return loadAllClaims().filter(claim=>{
+    const dt=claimDateValue(claim);
+    return dt && dt >= range.from && dt <= range.to;
+  });
+}
+
+function getMonthlyEraImports(){
+  const range=getMonthlyReportRange();
+  if(!range) return getFilteredEraImports();
+  return dbGet('docusistant_era_imports_v1').filter(era=>{
+    const dt=claimDateValue({ payment_date: era.payment_date });
+    return dt && dt >= range.from && dt <= range.to;
+  });
+}
+
+function updateDataSourceNote(claims){
+  const el=document.getElementById('dataSourceNote');
+  if(!el) return;
+  const range=getSelectedDateRange();
+  el.textContent=`Based on ERA import data · ${claims.length} claim${claims.length===1?'':'s'} · ${range.label}`;
+}
+
+/* -------------------------------------------------
+   Tab navigation
+------------------------------------------------- */
+function openTab(name){
+  const names=['overview','payer','codes','monthly','carc'];
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
+  if(name==='overview') renderCharts();
+  if(name==='payer')    renderPayerTable();
+  if(name==='codes')    renderCodeTable();
+  if(name==='monthly')  renderMonthly();
+  if(name==='carc')     { renderCARCLib(); renderCARCCharts(); }
+}
+
+/* -------------------------------------------------
+   KPI calculation
+------------------------------------------------- */
+function calcKPIs(claims){
+  const total_revenue = claims.filter(c=>c.posting_status==='Posted').reduce((s,c)=>s+(c.paid_amount||0),0);
+  const total_billed  = claims.reduce((s,c)=>s+(c.billed_amount||0),0);
+  const total_adj     = claims.reduce((s,c)=>s+(Math.max(0,(c.billed_amount||0)-(c.paid_amount||0))),0);
+  const denied        = claims.filter(c=>c.posting_status==='Denied'||c.paid_amount===0).length;
+  const n_claims      = claims.length;
+  const denial_rate   = n_claims>0?Math.round(denied/n_claims*100):0;
+  const net_ar        = total_billed - total_revenue;
+  const collection    = total_billed>0?Math.round(total_revenue/total_billed*100):0;
+  const unmatched     = claims.filter(c=>!c.matched).length;
+  const avg_paid      = n_claims>0?total_revenue/n_claims:0;
+  const patient_resp  = claims.reduce((s,c)=>s+(c.patient_resp||0),0);
+  const eras          = new Set(claims.map(c=>c.era_id)).size;
+  return { total_revenue, total_billed, total_adj, denied, n_claims, denial_rate, net_ar, collection, unmatched, avg_paid, patient_resp, eras };
+}
+
+function renderKPIs(kpi){
+  document.getElementById('k-revenue').textContent=fmt$(kpi.total_revenue);
+  document.getElementById('k-claims').textContent=kpi.n_claims.toLocaleString();
+  document.getElementById('k-adj').textContent=fmt$(kpi.total_adj);
+  document.getElementById('k-denials').textContent=fmtPct(kpi.denial_rate);
+  document.getElementById('k-ar').textContent=fmt$(kpi.net_ar);
+  document.getElementById('k-collection').textContent=fmtPct(kpi.collection);
+  document.getElementById('k-eras').textContent=kpi.eras;
+  document.getElementById('k-unmatched').textContent=kpi.unmatched;
+  document.getElementById('k-avg-paid').textContent=fmt$(kpi.avg_paid);
+  document.getElementById('k-patient-resp').textContent=fmt$(kpi.patient_resp);
+}
+
+/* -------------------------------------------------
+   CSS bar chart builder
+------------------------------------------------- */
+function buildBarChart(containerId, rows, color='blue', fmtFn=fmt$){
+  const el=document.getElementById(containerId); if(!el) return;
+  const max=Math.max(...rows.map(r=>r.value),1);
+  el.innerHTML=rows.map(r=>`<div class="bar-row">
+    <div class="bar-label" title="${esc(r.label)}">${esc(r.label)}</div>
+    <div class="bar-track">
+      <div class="bar-fill ${color}" style="width:${Math.round(r.value/max*100)}%"></div>
+    </div>
+    <div class="bar-val">${fmtFn(r.value)}</div>
+  </div>`).join('');
+}
+
+/* -------------------------------------------------
+   Sparkline builder
+------------------------------------------------- */
+function buildSparkline(containerId, values, color='#3b82f6'){
+  const el=document.getElementById(containerId); if(!el) return;
+  const max=Math.max(...values,1);
+  el.innerHTML=values.map(v=>`<div class="spark-bar" style="height:${Math.max(4,Math.round(v/max*100))}%;background:${color};opacity:0.85"></div>`).join('');
+}
+
+/* -------------------------------------------------
+   Donut chart via CSS conic-gradient
+------------------------------------------------- */
+function buildDonut(segments){
+  // segments: [{label, value, color}]
+  const total=segments.reduce((s,x)=>s+x.value,0)||1;
+  let angles=[], cum=0;
+  segments.forEach(s=>{ angles.push({...s,pct:s.value/total*360}); cum+=s.value/total*360; });
+  let grad=[], cur=0;
+  angles.forEach(s=>{ grad.push(`${s.color} ${cur}deg ${cur+s.pct}deg`); cur+=s.pct; });
+  const donutStyle=`conic-gradient(${grad.join(', ')})`;
+  const inner='#fff'; // mask
+  document.getElementById('statusDonut').style.background=donutStyle;
+  document.getElementById('statusDonut').innerHTML=`<div style="width:60px;height:60px;background:#fff;border-radius:50%;position:absolute;top:20px;left:20px"></div>`;
+  document.getElementById('statusDonut').style.position='relative';
+
+  document.getElementById('statusLegend').innerHTML=segments.map(s=>`<div class="donut-item">
+    <div class="donut-dot" style="background:${s.color}"></div>
+    <div>${esc(s.label)} <span style="font-weight:700;color:var(--ink-900)">${Math.round(s.value/total*100)}%</span></div>
+  </div>`).join('');
+}
+
+/* -------------------------------------------------
+   Render all charts
+------------------------------------------------- */
+const MONTH_LABELS=['Nov','Dec','Jan','Feb','Mar','Apr'];
+
+function renderAll(){
+  const claims=getFilteredClaims();
+  renderKPIs(calcKPIs(claims));
+  updateDataSourceNote(claims);
+  const active=getActiveRevenueTab();
+  if(active==='overview') renderCharts(claims);
+  if(active==='payer') renderPayerTable(claims);
+  if(active==='codes') renderCodeTable(claims);
+  if(active==='monthly') renderMonthly();
+  if(active==='carc'){ renderCARCLib(claims); renderCARCCharts(claims); }
+}
+
+function renderCharts(claimsArg){
+  const claims=claimsArg||getFilteredClaims();
+
+  // Sparkline ? monthly revenue (simulate 6 months from seed data)
+  const monthlyRevenue=[6420, 7830, 5240, 9180, 8432, 4175];
+  buildSparkline('sparkRevenue', monthlyRevenue, '#3b82f6');
+  document.getElementById('sparkLabels').innerHTML=MONTH_LABELS.map(m=>`<span>${m}</span>`).join('');
+
+  // Denial rate sparkline
+  const denialPct=[8,12,7,9,11,6];
+  buildSparkline('sparkDenials', denialPct, '#ef4444');
+  document.getElementById('sparkDenialsLabels').innerHTML=MONTH_LABELS.map(m=>`<span>${m}</span>`).join('');
+
+  // Revenue by payer
+  const payerMap={};
+  claims.forEach(c=>{ if(!payerMap[c.payer_name]) payerMap[c.payer_name]=0; payerMap[c.payer_name]+=(c.paid_amount||0); });
+  const payerRows=Object.entries(payerMap).sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value}));
+  buildBarChart('payerBarChart', payerRows.length?payerRows:[{label:'No data yet',value:0}], 'blue');
+
+  // Status donut
+  const stCounts={};
+  claims.forEach(c=>{ const s=c.posting_status||'Pending'; if(!stCounts[s]) stCounts[s]=0; stCounts[s]++; });
+  const stColors={'Posted':'#059669','Partially Posted':'#f59e0b','Denied':'#ef4444','Pending':'#8b5cf6','Unmatched':'#f97316','On Hold':'#94a3b8','On Appeal':'#06b6d4'};
+  const segs=Object.entries(stCounts).map(([label,value])=>({label,value,color:stColors[label]||'#cbd5e1'}));
+  if(segs.length) buildDonut(segs);
+
+  // Top billing codes
+  const codeMap={};
+  claims.forEach(c=>{ if(!codeMap[c.code]) codeMap[c.code]=0; codeMap[c.code]+=(c.paid_amount||0); });
+  const codeRows=Object.entries(codeMap).sort((a,b)=>b[1]-a[1]).slice(0,7).map(([label,value])=>({label,value}));
+  buildBarChart('codeBarChart', codeRows.length?codeRows:[{label:'No data',value:0}], 'green');
+
+  // CARC group adjustments
+  const carcGroup={'CO':0,'PR':0,'OA':0,'PI':0};
+  claims.forEach(c=>{
+    const adj=Math.max(0,(c.billed_amount||0)-(c.paid_amount||0));
+    (c.carc_codes||[]).forEach(code=>{
+      if(['1','2','3'].includes(code)) carcGroup.PR+=adj/(c.carc_codes||[1]).length;
+      else if(code==='PI') carcGroup.PI+=adj/(c.carc_codes||[1]).length;
+      else carcGroup.CO+=adj/(c.carc_codes||[1]).length;
+    });
+    if(!(c.carc_codes||[]).length) carcGroup.CO+=adj;
+  });
+  const carcRows=[
+    {label:'Contractual (CO)',value:carcGroup.CO},
+    {label:'Patient Resp (PR)',value:carcGroup.PR},
+    {label:'Other Adj (OA)',value:carcGroup.OA},
+    {label:'Payer Init (PI)',value:carcGroup.PI},
+  ].filter(r=>r.value>0);
+  buildBarChart('carcBarChart', carcRows.length?carcRows:[{label:'No adjustments',value:0}], 'amber');
+}
+
+/* -------------------------------------------------
+   Payer table
+------------------------------------------------- */
+function renderPayerTable(){
+  const claims=getFilteredClaims();
+  const map={};
+  claims.forEach(c=>{
+    const key=c.payer_name||'Unknown';
+    if(!map[key]) map[key]={payer:key,eras:new Set(),claims:0,billed:0,paid:0,adj:0,denials:0};
+    map[key].eras.add(c.era_id);
+    map[key].claims++; map[key].billed+=(c.billed_amount||0); map[key].paid+=(c.paid_amount||0);
+    map[key].adj+=Math.max(0,(c.billed_amount||0)-(c.paid_amount||0));
+    if(c.posting_status==='Denied') map[key].denials++;
+  });
+  const rows=Object.values(map).sort((a,b)=>b.paid-a.paid);
+  document.getElementById('payerTableBody').innerHTML=rows.map(r=>`<tr>
+    <td style="font-weight:700">${esc(r.payer)}</td>
+    <td style="text-align:center">${r.eras.size}</td>
+    <td style="text-align:center;font-weight:700">${r.claims}</td>
+    <td style="color:var(--ink-600)">${fmt$(r.billed)}</td>
+    <td style="font-weight:700;color:#059669">${fmt$(r.paid)}</td>
+    <td style="color:#d97706">${fmt$(r.adj)}</td>
+    <td style="text-align:center;color:${r.denials>0?'#dc2626':'var(--ink-400)'};font-weight:700">${r.denials}</td>
+    <td style="text-align:center">${r.claims>0?Math.round(r.denials/r.claims*100)+'%':'0%'}</td>
+    <td style="text-align:center;font-weight:700;color:${r.billed>0&&r.paid/r.billed>.8?'#059669':'#d97706'}">${r.billed>0?Math.round(r.paid/r.billed*100)+'%':'?'}</td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-400)">No payer data yet.</td></tr>';
+}
+
+/* -------------------------------------------------
+   Code table
+------------------------------------------------- */
+const CODE_NAMES={'H0031':'Mental Health Assessment','H0032':'Mental Health Treatment','H2019':'Therapeutic Behavioral Services','90837':'Individual Therapy 60min','90834':'Individual Therapy 45min','90847':'Family Therapy','90853':'Group Therapy','H0001':'Alcohol/Drug Assessment','H0025':'Behavioral Health Prevention'};
+function renderCodeTable(){
+  const claims=getFilteredClaims();
+  const map={};
+  claims.forEach(c=>{
+    const key=c.code||'Unknown';
+    if(!map[key]) map[key]={code:key,claims:0,billed:0,paid:0,denials:0};
+    map[key].claims++; map[key].billed+=(c.billed_amount||0); map[key].paid+=(c.paid_amount||0);
+    if(c.posting_status==='Denied') map[key].denials++;
+  });
+  const rows=Object.values(map).sort((a,b)=>b.paid-a.paid);
+  document.getElementById('codeTableBody').innerHTML=rows.map(r=>`<tr>
+    <td><code style="font-size:12px">${esc(r.code)}</code></td>
+    <td style="font-size:12.5px;color:var(--ink-600)">${esc(CODE_NAMES[r.code]||'?')}</td>
+    <td style="text-align:center;font-weight:700">${r.claims}</td>
+    <td style="color:var(--ink-600)">${fmt$(r.billed)}</td>
+    <td style="font-weight:700;color:#059669">${fmt$(r.paid)}</td>
+    <td>${fmt$(r.claims>0?r.paid/r.claims:0)}</td>
+    <td style="text-align:center;color:${r.denials>0?'#dc2626':'var(--ink-400)'};font-weight:700">${r.denials}</td>
+    <td style="text-align:center">${r.claims>0?Math.round(r.denials/r.claims*100)+'%':'0%'}</td>
+    <td style="text-align:center">${r.billed>0?Math.round(Math.max(0,r.billed-r.paid)/r.billed*100)+'%':'0%'}</td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-400)">No code data yet.</td></tr>';
+}
+
+/* -------------------------------------------------
+   Monthly report
+------------------------------------------------- */
+function renderMonthly(){
+  const claims=getMonthlyReportClaims();
+  const eras=getMonthlyEraImports();
+  const kpi=calcKPIs(claims);
+  // Build a full monthly report (static design with live data)
+  document.getElementById('monthlyReport').innerHTML=`
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="kpi-card green"><div class="kpi-num">${fmt$(kpi.total_revenue)}</div><div class="kpi-lbl">Total Revenue Posted</div></div>
+    <div class="kpi-card blue"><div class="kpi-num">${kpi.n_claims}</div><div class="kpi-lbl">Total Claims</div></div>
+    <div class="kpi-card amber"><div class="kpi-num">${fmt$(kpi.total_adj)}</div><div class="kpi-lbl">Adjustments</div></div>
+    <div class="kpi-card red"><div class="kpi-num">${fmtPct(kpi.denial_rate)}</div><div class="kpi-lbl">Denial Rate</div></div>
+    <div class="kpi-card purple"><div class="kpi-num">${fmtPct(kpi.collection)}</div><div class="kpi-lbl">Collection Rate</div></div>
+    <div class="kpi-card teal"><div class="kpi-num">${fmt$(kpi.net_ar)}</div><div class="kpi-lbl">Net A/R</div></div>
+  </div>
+  ${buildReportSection('ERA Files Processed', `
+    <table class="data-table" style="width:100%">
+      <thead><tr><th>File Name</th><th>Payer</th><th>Payment Date</th><th>Total Paid</th><th>Claims</th><th>Status</th></tr></thead>
+      <tbody>${eras.slice(0,5).map(e=>`<tr>
+        <td style="font-size:12.5px">${esc(e.file_name)}</td>
+        <td>${esc(e.payer_name)}</td>
+        <td style="color:var(--ink-500)">${fmtDate(e.payment_date)}</td>
+        <td style="font-weight:700;color:#059669">${fmt$(e.total_payment)}</td>
+        <td style="text-align:center">${e.total_claims||0}</td>
+        <td><span class="badge ${e.status==='Complete'?'st-posted':'st-pending'}">${esc(e.status)}</span></td>
+      </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--ink-400)">No ERA files.</td></tr>'}
+      </tbody>
+    </table>`)}
+  ${buildReportSection('Top Denials', `
+    <table class="data-table" style="width:100%">
+      <thead><tr><th>Patient</th><th>Claim #</th><th>Code</th><th>CARC</th><th>Billed</th><th>Denial Reason</th></tr></thead>
+      <tbody>${claims.filter(c=>c.posting_status==='Denied').slice(0,8).map(c=>`<tr>
+        <td style="font-weight:600">${esc(c.patient_name||'?')}</td>
+        <td style="font-family:monospace;font-size:12px">${esc(c.claim_number||'?')}</td>
+        <td><code style="font-size:12px">${esc(c.code||'?')}</code></td>
+        <td>${(c.carc_codes||[]).map(x=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;margin:1px">${esc(x)}</span>`).join('')||'?'}</td>
+        <td style="color:var(--ink-600)">${fmt$(c.billed_amount)}</td>
+        <td style="font-size:12px;color:#b91c1c">${esc(c.denial_reason||'?')}</td>
+      </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--ink-400)">No denials.</td></tr>'}
+      </tbody>
+    </table>`)}
+  ${buildReportSection('Unmatched Claims', `
+    <table class="data-table" style="width:100%">
+      <thead><tr><th>Patient</th><th>Claim #</th><th>Subscriber ID</th><th>Payer</th><th>Paid</th><th>Action</th></tr></thead>
+      <tbody>${claims.filter(c=>!c.matched).slice(0,8).map(c=>`<tr>
+        <td style="font-weight:600">${esc(c.patient_name||'?')}</td>
+        <td style="font-family:monospace;font-size:12px">${esc(c.claim_number||'?')}</td>
+        <td style="color:var(--ink-500)">${esc(c.subscriber_id||'?')}</td>
+        <td>${esc(c.payer_name||'?')}</td>
+        <td style="font-weight:700;color:#059669">${fmt$(c.paid_amount)}</td>
+        <td><a href="admin-payment-posting.html?claim=${esc(encodeURIComponent(c.claim_number||''))}" style="color:var(--blue-600);font-size:12px;font-weight:700;text-decoration:none">Link &#8599;</a></td>
+      </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:#059669;font-weight:700">&#10003; All claims matched!</td></tr>'}
+      </tbody>
+    </table>`)}`; // end innerHTML
+}
+
+function buildReportSection(title, content){
+  return `<div class="table-shell" style="margin-bottom:16px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-family:'Sora',sans-serif;font-size:14px;font-weight:700">${esc(title)}</div>
+    ${content}
+  </div>`;
+}
+
+function fmtDate(iso){ if(!iso) return '?'; try{ return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch{return'?';} }
+
+/* -------------------------------------------------
+   CARC Library
+------------------------------------------------- */
+const CARC_FULL=[
+  {code:'1',group:'PR',desc:'Deductible amount',cause:'Patient has outstanding deductible',action:'Bill patient or secondary insurance',appeal:'Not appealable ? patient responsibility',appealable:false},
+  {code:'2',group:'PR',desc:'Coinsurance amount',cause:'Patient coinsurance portion owed',action:'Bill patient the coinsurance portion',appeal:'Not appealable ? patient responsibility',appealable:false},
+  {code:'3',group:'PR',desc:'Co-payment amount',cause:'Copay required for service type',action:'Collect copay from patient at time of service',appeal:'Not appealable',appealable:false},
+  {code:'4',group:'CO',desc:'Service not covered',cause:'Benefit not included in plan',action:'Verify benefits; appeal with clinical documentation if applicable',appeal:'Submit benefit exception or medical necessity',appealable:true},
+  {code:'18',group:'CO',desc:'Duplicate claim',cause:'Same service billed more than once',action:'Review claim history; remove duplicate submission',appeal:'Submit with original claim evidence including submission date',appealable:true},
+  {code:'22',group:'CO',desc:'Not medically necessary',cause:'Clinical criteria not met per payer LCD/NCD',action:'Submit medical necessity documentation and clinical notes',appeal:'Appeal with updated clinical notes and diagnosis codes',appealable:true},
+  {code:'27',group:'CO',desc:'Expenses after coverage terminated',cause:'Service rendered after member termination date',action:'Verify eligibility on DOS; re-bill patient if plan was terminated',appeal:'Appeal with proof of coverage at DOS',appealable:true},
+  {code:'29',group:'CO',desc:'Timely filing limit exceeded',cause:'Claim submitted past the filing deadline',action:'Submit timely filing exception with proof of original submission',appeal:'Submit proof of timely filing (clearinghouse confirmation)',appealable:true},
+  {code:'45',group:'CO',desc:'Charge exceeds fee schedule',cause:'Billed amount exceeds the contracted/allowed fee',action:'No action required ? contractual write-off',appeal:'Not applicable ? contractual obligation',appealable:false},
+  {code:'50',group:'CO',desc:'Non-covered by payer',cause:'Service excluded from plan benefit',action:'Verify benefit structure; bill secondary or patient',appeal:'Appeal only if plan documents are ambiguous about exclusion',appealable:true},
+  {code:'96',group:'CO',desc:'Non-covered charges',cause:'Procedure excluded from benefit plan',action:'Bill patient or secondary; verify plan document',appeal:'Appeal with benefit exception if clinical need documented',appealable:true},
+  {code:'97',group:'CO',desc:'Payment included in another claim adjustment',cause:'Service bundled into another allowed service',action:'Review CCI edits and bundling rules; appeal if separately billable',appeal:'Appeal with clinical documentation supporting separate services',appealable:true},
+  {code:'B7',group:'CO',desc:'Unauthorized service',cause:'Service required prior authorization not obtained',action:'Submit retro-authorization if allowed; appeal for clinical necessity',appeal:'Retro-auth or appeal with clinical urgency documentation',appealable:true},
+  {code:'B8',group:'CO',desc:'Not covered per managed care agreement',cause:'Plan exclusion or out-of-network issue',action:'Verify managed care agreement; appeal if in-network per contract',appeal:'Submit contract terms showing inclusion in covered services',appealable:true},
+];
+
+const RARC_FULL=[
+  {code:'N290',desc:'Missing/invalid claim submission reason code',action:'Resubmit with correct reason code'},
+  {code:'MA130',desc:'Claim lacks required data elements',action:'Submit corrected claim with all required fields'},
+  {code:'N20',desc:'Service not separately reimbursable',action:'Review CCI edits; appeal if separate clinical necessity'},
+  {code:'M51',desc:'Missing/incomplete/invalid procedure code',action:'Correct CPT/HCPCS and resubmit'},
+  {code:'N115',desc:'Based on Local Coverage Determination (LCD)',action:'Review LCD; submit supporting clinical documentation'},
+  {code:'MA04',desc:'Secondary payment not made ? liability transferred',action:'Bill patient as primary for this remaining balance'},
+  {code:'M97',desc:'Not covered at this time of service',action:'Check eligibility on DOS and re-bill if coverage confirmed'},
+];
+
+function getCARCStats(claimsArg){
+  const all=claimsArg||getFilteredClaims();
+  const freq={}, dollar={};
+  all.forEach(c=>{
+    const adj=Math.max(0,(c.billed_amount||0)-(c.paid_amount||0));
+    (c.carc_codes||[]).forEach(code=>{
+      if(!freq[code]) freq[code]=0; freq[code]++;
+      if(!dollar[code]) dollar[code]=0; dollar[code]+=adj/(c.carc_codes||[1]).length;
+    });
+  });
+  return {freq,dollar};
+}
+
+function renderCARCLib(claimsArg){
+  const q=(document.getElementById('carcLibSearch')||{}).value?.toLowerCase()||'';
+  const {freq,dollar}=getCARCStats(claimsArg);
+  const rows=CARC_FULL.filter(c=>!q||[c.code,c.desc,c.cause,c.action].join(' ').toLowerCase().includes(q));
+  document.getElementById('carcLibTable').innerHTML=rows.map(c=>`<tr>
+    <td><span style="display:inline-block;font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:6px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd">CARC-${esc(c.code)}</span></td>
+    <td style="font-size:12.5px">${esc(c.desc)}</td>
+    <td><span class="badge badge-info" style="font-size:11px">${esc(c.group)}</span></td>
+    <td style="font-size:12px;color:var(--ink-600);max-width:150px">${esc(c.cause)}</td>
+    <td style="font-size:12px;color:#065f46;max-width:170px">${esc(c.action)}</td>
+    <td style="font-size:12px;color:#5b21b6;max-width:170px">${esc(c.appeal)}</td>
+    <td style="text-align:center">${c.appealable?'<span style="color:#059669;font-weight:700">&#10003; Yes</span>':'<span style="color:#94a3b8">?</span>'}</td>
+    <td style="text-align:center;font-weight:700">${freq[c.code]||0}</td>
+    <td style="font-weight:700;color:#d97706">${fmt$(dollar[c.code]||0)}</td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--ink-400)">No matching codes.</td></tr>';
+}
+
+function renderCARCCharts(claimsArg){
+  const {freq,dollar}=getCARCStats(claimsArg);
+  const freqRows=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,value])=>({label:'CARC-'+label,value}));
+  const dollarRows=Object.entries(dollar).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,value])=>({label:'CARC-'+label,value}));
+  buildBarChart('topCarcBar', freqRows.length?freqRows:[{label:'No data',value:0}], 'blue', v=>v+' claims');
+  buildBarChart('carcDollarBar', dollarRows.length?dollarRows:[{label:'No data',value:0}], 'amber');
+}
+
+/* -------------------------------------------------
+   Export helpers
+------------------------------------------------- */
+function csvCell(value){
+  return '"'+String(value==null?'':value).replace(/"/g,'""')+'"';
+}
+
+function rowsToDelimited(rows, delimiter=','){
+  if(!rows.length) return '';
+  const headers=Object.keys(rows[0]);
+  return [
+    headers.map(csvCell).join(delimiter),
+    ...rows.map(row=>headers.map(key=>csvCell(row[key])).join(delimiter))
+  ].join('\n');
+}
+
+function downloadExport(filename, content, mimeType){
+  const blob=new Blob([content], {type:mimeType});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;
+  link.download=filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+
+function getActiveRevenueTab(){
+  const active=document.querySelector('.tab-panel.active');
+  return active ? active.id.replace('tab-','') : 'overview';
+}
+
+function buildClaimExportRows(claimsArg){
+  const claims=claimsArg||getFilteredClaims();
+  return claims.map(c=>({
+    payment_date:c.payment_date||'',
+    era_file:c.era_file||'',
+    payer:c.payer_name||'',
+    patient:c.patient_name||'',
+    claim_number:c.claim_number||'',
+    code:c.code||'',
+    posting_status:c.posting_status||'',
+    billed_amount:c.billed_amount||0,
+    paid_amount:c.paid_amount||0,
+    patient_resp:c.patient_resp||0,
+    matched:!!c.matched,
+    denial_reason:c.denial_reason||'',
+    carc_codes:(c.carc_codes||[]).join(' | ')
+  }));
+}
+
+function buildTableExportRows(tableSelector){
+  const table=document.querySelector(tableSelector);
+  if(!table) return [];
+  const headers=[...table.querySelectorAll('thead th')].map((th, idx)=>{
+    const label=(th.textContent||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    return label || ('column_'+(idx+1));
+  });
+  return [...table.querySelectorAll('tbody tr')].map(tr=>{
+    const cells=[...tr.querySelectorAll('td')];
+    const row={};
+    headers.forEach((header, idx)=>{ row[header]=(cells[idx]?.textContent||'').replace(/\s+/g,' ').trim(); });
+    return row;
+  }).filter(row=>Object.values(row).some(Boolean));
+}
+
+function getRevenueExportRows(){
+  const tab=getActiveRevenueTab();
+  if(tab==='payer') return buildTableExportRows('#tab-payer table');
+  if(tab==='codes') return buildTableExportRows('#tab-codes table');
+  if(tab==='carc') return buildTableExportRows('#tab-carc table');
+  if(tab==='monthly') return buildClaimExportRows(getMonthlyReportClaims());
+  return buildClaimExportRows(getFilteredClaims());
+}
+
+function getRevenueExportFileStem(){
+  return 'revenue-'+getActiveRevenueTab()+'-'+new Date().toISOString().slice(0,10);
+}
+
+function exportPDF(){
+  const originalTitle=document.title;
+  document.title='THERASSISTANT Revenue Dashboard';
+  window.print();
+  setTimeout(()=>{ document.title=originalTitle; },0);
+  toast('Print dialog opened. Choose Save as PDF to export.');
+}
+
+function exportCSV(){
+  const rows=getRevenueExportRows();
+  if(!rows.length){ toast('No data available for this export.'); return; }
+  downloadExport(getRevenueExportFileStem()+'.csv', rowsToDelimited(rows, ','), 'text/csv;charset=utf-8');
+  toast('CSV export downloaded.');
+}
+
+function exportExcel(){
+  const rows=getRevenueExportRows();
+  if(!rows.length){ toast('No data available for this export.'); return; }
+  downloadExport(getRevenueExportFileStem()+'.xls', rowsToDelimited(rows, '	'), 'application/vnd.ms-excel');
+  toast('Spreadsheet export downloaded.');
+}
+
+function resetDates(){ document.getElementById('fromDate').value=''; document.getElementById('toDate').value=''; document.getElementById('periodSel').selectedIndex=0; renderAll(); }
+
+/* -------------------------------------------------
+   Init
+------------------------------------------------- */
+window.onload = async () => {
+  await initDashboard(ADMIN_ROLES);
+  renderAll();
+};
+</script>
+</body>
+</html>

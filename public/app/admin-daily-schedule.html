@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin — Daily Schedule</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
+    .admin-badge{
+      display:inline-block;
+      background:rgba(251,191,36,.18);
+      border:1px solid rgba(251,191,36,.35);
+      color:#fbbf24;
+      font-size:10px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      padding:3px 10px;
+      border-radius:999px;
+      margin-bottom:10px;
+    }
+
+    .nav-group-label{
+      font-size:9.5px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      color:rgba(255,255,255,.35);
+      padding:18px 13px 4px;
+      pointer-events:none;
+      user-select:none;
+    }
+
+    .nav-group-label:first-of-type{
+      padding-top:4px;
+    }
+
+    .kpi-row{
+      display:grid;
+      grid-template-columns:repeat(6,1fr);
+      gap:12px;
+      margin-bottom:20px;
+    }
+
+    .kpi-card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:13px;
+      padding:14px 16px;
+      box-shadow:var(--shadow-sm);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .kpi-card::before{
+      content:'';
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:3px;
+    }
+
+    .kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#7c3aed)}
+    .kpi-card.teal::before{background:linear-gradient(180deg,#14b8a6,#0f766e)}
+
+    .kpi-num{
+      font-family:'Sora',sans-serif;
+      font-size:1.7rem;
+      font-weight:700;
+      color:var(--ink-900);
+      line-height:1;
+    }
+
+    .kpi-lbl{
+      font-size:10.5px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      color:var(--ink-500);
+      margin-top:4px;
+    }
+
+    .toolbar{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:13px;
+      padding:12px 16px;
+      box-shadow:var(--shadow-sm);
+    }
+
+    .toolbar-title{
+      font-family:'Sora',sans-serif;
+      font-size:15px;
+      font-weight:700;
+      color:var(--ink-900);
+      white-space:nowrap;
+    }
+
+    .nav-date-btns{
+      display:flex;
+      align-items:center;
+      gap:5px;
+    }
+
+    .nav-date-btns button{
+      width:28px;
+      height:28px;
+      border:1px solid var(--border);
+      border-radius:7px;
+      background:var(--surface);
+      cursor:pointer;
+      font-size:15px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--ink-700);
+      font-family:inherit;
+    }
+
+    .nav-date-btns button:hover{
+      background:#f0f7ff;
+      border-color:var(--blue-400);
+    }
+
+    .date-label{
+      font-size:14px;
+      font-weight:700;
+      color:var(--ink-900);
+      min-width:180px;
+      text-align:center;
+    }
+
+    .today-btn{
+      padding:5px 12px;
+      border:1px solid var(--border);
+      border-radius:7px;
+      background:var(--surface);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+      color:var(--ink-700);
+      font-family:inherit;
+      transition:all .15s;
+    }
+
+    .today-btn:hover{
+      border-color:var(--blue-500);
+      color:var(--blue-700);
+    }
+
+    .toolbar-spacer{
+      flex:1;
+    }
+
+    .date-input{
+      padding:6px 10px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      font-size:12.5px;
+      font-family:inherit;
+      background:var(--surface);
+      color:var(--ink-900);
+      outline:none;
+    }
+
+    .date-input:focus{
+      border-color:var(--blue-600);
+      box-shadow:0 0 0 3px rgba(47,121,183,.12);
+    }
+
+    .filter-strip{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-bottom:16px;
+    }
+
+    .filter-strip select,
+    .filter-strip input{
+      padding:7px 11px;
+      border:1px solid var(--border);
+      border-radius:9px;
+      font-size:12.5px;
+      background:var(--surface);
+      color:var(--ink-900);
+      font-family:inherit;
+      outline:none;
+      transition:border-color .16s,box-shadow .16s;
+    }
+
+    .filter-strip select:focus,
+    .filter-strip input:focus{
+      border-color:var(--blue-600);
+      box-shadow:0 0 0 3px rgba(47,121,183,.12);
+    }
+
+    .filter-strip input[type="search"]{
+      min-width:220px;
+    }
+
+    .timeline-wrap{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .provider-group{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:var(--shadow-sm);
+    }
+
+    .provider-hdr{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:13px 18px;
+      background:#f5f9fe;
+      border-bottom:1px solid var(--border);
+    }
+
+    .provider-avatar{
+      width:36px;
+      height:36px;
+      border-radius:50%;
+      background:linear-gradient(135deg,var(--blue-700),var(--blue-500));
+      color:#fff;
+      font-size:13px;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+    }
+
+    .provider-name{
+      font-size:14px;
+      font-weight:700;
+      color:var(--ink-900);
+    }
+
+    .provider-meta{
+      font-size:12px;
+      color:var(--ink-500);
+    }
+
+    .provider-count{
+      margin-left:auto;
+      font-size:12px;
+      font-weight:700;
+      color:var(--blue-700);
+      background:var(--blue-100);
+      border:1px solid var(--blue-200);
+      padding:3px 10px;
+      border-radius:999px;
+    }
+
+    .appt-list{
+      display:flex;
+      flex-direction:column;
+    }
+
+    .appt-row{
+      display:grid;
+      grid-template-columns:80px 1fr auto;
+      gap:14px;
+      align-items:center;
+      padding:12px 18px;
+      border-bottom:1px solid var(--border);
+      transition:background .1s;
+      cursor:pointer;
+      outline:none;
+    }
+
+    .appt-row:last-child{
+      border-bottom:none;
+    }
+
+    .appt-row:hover,
+    .appt-row:focus{
+      background:#f0f7ff;
+    }
+
+    .appt-time{
+      font-size:13px;
+      font-weight:700;
+      color:var(--ink-700);
+      white-space:nowrap;
+      text-align:right;
+    }
+
+    .appt-duration{
+      font-size:11px;
+      color:var(--ink-500);
+      text-align:right;
+    }
+
+    .appt-card{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      min-width:0;
+    }
+
+    .appt-color-bar{
+      width:4px;
+      min-height:38px;
+      border-radius:4px;
+      flex-shrink:0;
+      align-self:stretch;
+    }
+
+    .appt-info{
+      flex:1;
+      min-width:0;
+    }
+
+    .appt-patient{
+      font-size:13.5px;
+      font-weight:700;
+      color:var(--ink-900);
+    }
+
+    .appt-type{
+      font-size:12px;
+      color:var(--ink-700);
+      margin-top:1px;
+    }
+
+    .appt-meta{
+      font-size:11.5px;
+      color:var(--ink-500);
+      margin-top:2px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .appt-actions{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .telehealth-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:3px;
+      font-size:10.5px;
+      font-weight:700;
+      padding:2px 7px;
+      border-radius:999px;
+      background:#ede9fe;
+      color:#5b21b6;
+      border:1px solid #ddd6fe;
+      vertical-align:middle;
+      margin-left:6px;
+    }
+
+    .badge{
+      display:inline-block;
+      border-radius:999px;
+      padding:3px 8px;
+      font-size:11px;
+      font-weight:700;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+
+    .badge-draft{color:#475569;background:#f1f5f9;border-color:#cbd5e1}
+    .badge-scheduled{color:#1e40af;background:#dbeafe;border-color:#93c5fd}
+    .badge-confirmed{color:#065f46;background:#d1fae5;border-color:#6ee7b7}
+    .badge-arrived{color:#0f766e;background:#ccfbf1;border-color:#5eead4}
+    .badge-in-session{color:#5b21b6;background:#ede9fe;border-color:#a78bfa}
+    .badge-completed{color:#065f46;background:#d1fae5;border-color:#6ee7b7}
+    .badge-no-show{color:#7f1d1d;background:#fee2e2;border-color:#fca5a5}
+    .badge-cancelled{color:#78350f;background:#fef3c7;border-color:#fcd34d}
+    .badge-rescheduled{color:#1e3a5f;background:#dbeafe;border-color:#93c5fd}
+
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(11,44,77,.45);
+      z-index:1200;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+
+    .modal-backdrop.open{
+      display:flex;
+    }
+
+    .modal{
+      background:var(--surface);
+      border-radius:18px;
+      box-shadow:var(--shadow-lg);
+      border:1px solid var(--border);
+      width:min(560px,100%);
+      max-height:90vh;
+      overflow-y:auto;
+      animation:fadeSlideUp 180ms ease-out both;
+    }
+
+    .modal-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:20px 24px 16px;
+      border-bottom:1px solid var(--border);
+    }
+
+    .modal-title{
+      font-family:'Sora',sans-serif;
+      font-size:17px;
+      font-weight:700;
+      color:var(--ink-900);
+    }
+
+    .modal-close{
+      background:none;
+      border:none;
+      cursor:pointer;
+      font-size:20px;
+      color:var(--ink-500);
+      padding:4px;
+      line-height:1;
+      border-radius:6px;
+    }
+
+    .modal-close:hover{
+      background:#f0f0f0;
+    }
+
+    .modal-body{
+      padding:20px 24px;
+    }
+
+    .modal-footer{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      padding:14px 24px;
+      border-top:1px solid var(--border);
+      flex-wrap:wrap;
+    }
+
+    .field-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .field-row.full{
+      grid-template-columns:1fr;
+    }
+
+    .field-group{
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+    }
+
+    .field-label{
+      font-size:11.5px;
+      font-weight:700;
+      color:var(--ink-700);
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+
+    .field-val{
+      font-size:13.5px;
+      color:var(--ink-900);
+      font-weight:500;
+    }
+
+    .field-input{
+      border:1px solid var(--border);
+      border-radius:9px;
+      padding:9px 12px;
+      font-size:13.5px;
+      color:var(--ink-900);
+      font-family:inherit;
+      background:var(--surface);
+      outline:none;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .field-input:focus{
+      border-color:var(--blue-600);
+      box-shadow:0 0 0 3px rgba(47,121,183,.12);
+    }
+
+    .empty-state{
+      text-align:center;
+      padding:48px 24px;
+      color:var(--ink-500);
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:14px;
+      box-shadow:var(--shadow-sm);
+    }
+
+    .empty-icon{
+      font-size:2.5rem;
+      margin-bottom:12px;
+    }
+
+    .empty-msg{
+      font-size:14px;
+      font-weight:600;
+      color:var(--ink-700);
+    }
+
+    @keyframes fadeSlideUp{
+      from{
+        opacity:0;
+        transform:translateY(8px);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0);
+      }
+    }
+
+    @media(max-width:1100px){
+      .kpi-row{
+        grid-template-columns:repeat(3,1fr);
+      }
+    }
+
+    @media(max-width:720px){
+      .kpi-row{
+        grid-template-columns:repeat(2,1fr);
+      }
+
+      .appt-row{
+        grid-template-columns:1fr;
+        gap:8px;
+      }
+
+      .appt-time,
+      .appt-duration{
+        text-align:left;
+      }
+
+      .field-row{
+        grid-template-columns:1fr;
+      }
+
+      .date-label{
+        min-width:unset;
+      }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+
+      <div class="nav-group-label">Calendar</div>
+      <a class="nav-link active" href="admin-calendar.html">Daily Schedule</a>
+      <a class="nav-link" href="admin-calendar.html?view=weekly">Weekly Schedule</a>
+      <a class="nav-link" href="admin-calendar.html?view=monthly">Monthly Schedule</a>
+      <a class="nav-link" href="admin-calendar.html?section=waitlist">Waitlist</a>
+      <a class="nav-link" href="admin-calendar.html?section=recurring">Recurring Appointments</a>
+      <a class="nav-link" href="admin-calendar.html?section=no-shows">No-Shows &amp; Cancellations</a>
+
+      <div class="nav-group-label">Clients</div>
+      <a class="nav-link" href="admin-client-list.html">Client List</a>
+      <a class="nav-link" href="admin-client-dashboard.html?id=new">Add New Client</a>
+
+      <div class="nav-group-label">Billing</div>
+      <a class="nav-link" href="admin-insurance-dashboard.html">Insurance</a>
+      <a class="nav-link" href="admin-claims-dashboard.html">Claims</a>
+      <a class="nav-link" href="admin-payments-dashboard.html">Payments</a>
+
+      <div class="nav-group-label">Documents</div>
+      <a class="nav-link" href="admin-document-center.html">Document Center</a>
+      <a class="nav-link" href="admin-document-center.html?type=intake">Intake Forms</a>
+      <a class="nav-link" href="admin-document-center.html?type=treatment">Treatment Plans</a>
+      <a class="nav-link" href="admin-document-center.html?type=notes">Progress Notes</a>
+      <a class="nav-link" href="admin-document-center.html?type=superbills">Superbills</a>
+      <a class="nav-link" href="admin-document-center.html?type=statements">Statements</a>
+
+      <div class="nav-group-label">Communication</div>
+      <a class="nav-link" href="admin-messages.html">Messages</a>
+      <a class="nav-link" href="support-center.html">Tickets</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+
+      <div class="nav-group-label">Reports</div>
+      <a class="nav-link" href="admin-financial-reports.html">Financial Reports</a>
+      <a class="nav-link" href="admin-claim-reports.html">Claim Reports</a>
+      <a class="nav-link" href="admin-eligibility-reports.html">Eligibility Reports</a>
+      <a class="nav-link" href="admin-productivity-reports.html">Productivity Reports</a>
+      <a class="nav-link" href="admin-audit-reports.html">Audit Reports</a>
+
+      <div class="nav-group-label">Admin</div>
+      <a class="nav-link" href="admin-users.html">Users</a>
+      <a class="nav-link" href="admin-roles.html">Roles &amp; Permissions</a>
+      <a class="nav-link" href="admin-payers.html">Payers</a>
+      <a class="nav-link" href="admin-service-codes.html">Service Codes</a>
+      <a class="nav-link" href="admin-smart-phrases.html">Smart Phrases</a>
+      <a class="nav-link" href="admin-integrations.html">Integrations</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main" id="mainContent">
+    <header class="dashboard-header" style="margin-bottom:24px">
+      <div>
+        <h1>Daily Schedule</h1>
+        <p>Provider appointment timeline for the selected day</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-outline btn-sm" href="admin-calendar.html?view=weekly">Weekly View</a>
+        <a class="btn btn-outline btn-sm" href="admin-calendar.html?view=monthly">Monthly View</a>
+        <button class="btn btn-blue btn-sm" id="btnNewAppt" type="button">+ New Appointment</button>
+      </div>
+    </header>
+
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi-card blue"><div class="kpi-num" id="kpiTotal">—</div><div class="kpi-lbl">Total Appts</div></div>
+      <div class="kpi-card green"><div class="kpi-num" id="kpiCompleted">—</div><div class="kpi-lbl">Completed</div></div>
+      <div class="kpi-card teal"><div class="kpi-num" id="kpiUpcoming">—</div><div class="kpi-lbl">Upcoming</div></div>
+      <div class="kpi-card red"><div class="kpi-num" id="kpiNoShow">—</div><div class="kpi-lbl">No-Shows</div></div>
+      <div class="kpi-card amber"><div class="kpi-num" id="kpiCancelled">—</div><div class="kpi-lbl">Cancelled</div></div>
+      <div class="kpi-card purple"><div class="kpi-num" id="kpiUtil">—</div><div class="kpi-lbl">Utilization</div></div>
+    </div>
+
+    <div class="toolbar" role="toolbar" aria-label="Schedule navigation">
+      <span class="toolbar-title">📅</span>
+      <div class="nav-date-btns">
+        <button id="btnPrevDay" type="button" aria-label="Previous day">‹</button>
+        <span class="date-label" id="selectedDateLabel"></span>
+        <button id="btnNextDay" type="button" aria-label="Next day">›</button>
+      </div>
+      <button class="today-btn" id="btnToday" type="button" aria-label="Go to today's schedule">Today</button>
+      <div class="toolbar-spacer"></div>
+      <input class="date-input" type="date" id="datePicker" aria-label="Jump to date">
+    </div>
+
+    <div class="filter-strip" role="search" aria-label="Schedule filters">
+      <label for="fProvider" class="sr-only">Filter by provider</label>
+      <select id="fProvider" aria-label="Provider">
+        <option value="">All Providers</option>
+      </select>
+
+      <label for="fApptType" class="sr-only">Filter by appointment type</label>
+      <select id="fApptType" aria-label="Appointment type">
+        <option value="">All Types</option>
+      </select>
+
+      <label for="fStatus" class="sr-only">Filter by status</label>
+      <select id="fStatus" aria-label="Status">
+        <option value="">All Statuses</option>
+        <option>Scheduled</option>
+        <option>Confirmed</option>
+        <option>Arrived</option>
+        <option>In Session</option>
+        <option>Completed</option>
+        <option>No-Show</option>
+        <option>Cancelled</option>
+        <option>Rescheduled</option>
+      </select>
+
+      <label for="fLocation" class="sr-only">Filter by location</label>
+      <select id="fLocation" aria-label="Location">
+        <option value="">All Locations</option>
+      </select>
+
+      <label for="fSearch" class="sr-only">Search patient or provider</label>
+      <input type="search" id="fSearch" placeholder="🔎 Search patient or provider…" aria-label="Search patient or provider">
+    </div>
+
+    <div class="timeline-wrap" id="timeline"></div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle" aria-describedby="detailModalBody">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="detailModalTitle">Appointment Details</span>
+      <button class="modal-close" id="btnCloseDetail" type="button" aria-label="Close modal">&times;</button>
+    </div>
+    <div class="modal-body" id="detailModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCloseDetailFooter" type="button">Close</button>
+      <button class="btn btn-outline btn-sm" id="btnModalReschedule" type="button">Reschedule</button>
+      <button class="btn btn-blue btn-sm" id="btnModalStatusEdit" type="button">Update Status</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="statusModal" role="dialog" aria-modal="true" aria-labelledby="statusModalTitle" aria-describedby="statusPatientLabel">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title" id="statusModalTitle">Update Appointment Status</span>
+      <button class="modal-close" id="btnCloseStatus" type="button" aria-label="Close modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--ink-700);margin-bottom:14px" id="statusPatientLabel"></p>
+      <label for="newStatusSelect" class="field-label" style="display:block;margin-bottom:6px">New Status</label>
+      <select id="newStatusSelect" class="field-input" aria-label="Select new status">
+        <option>Scheduled</option>
+        <option>Confirmed</option>
+        <option>Arrived</option>
+        <option>In Session</option>
+        <option>Completed</option>
+        <option>No-Show</option>
+        <option>Cancelled</option>
+        <option>Rescheduled</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCancelStatus" type="button">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveStatus" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="newApptModal" role="dialog" aria-modal="true" aria-labelledby="newApptModalTitle" aria-describedby="newApptModalDesc">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="newApptModalTitle">New Appointment</span>
+      <button class="modal-close" id="btnCloseNewAppt" type="button" aria-label="Close modal">&times;</button>
+    </div>
+    <div class="modal-body" id="newApptModalDesc">
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="naPatient">Patient Name</label>
+          <input class="field-input" id="naPatient" type="text" placeholder="Full name" autocomplete="off">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="naProvider">Provider</label>
+          <input class="field-input" id="naProvider" type="text" placeholder="Provider name" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="naType">Appointment Type</label>
+          <input class="field-input" id="naType" type="text" placeholder="e.g. Individual Therapy" autocomplete="off">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="naDate">Date</label>
+          <input class="field-input" id="naDate" type="date">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="naStart">Start Time</label>
+          <input class="field-input" id="naStart" type="time">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="naEnd">End Time</label>
+          <input class="field-input" id="naEnd" type="time">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="naLocation">Location</label>
+          <input class="field-input" id="naLocation" type="text" placeholder="Room / Telehealth" autocomplete="off">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="naPayer">Payer</label>
+          <input class="field-input" id="naPayer" type="text" placeholder="Insurance payer" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field-row full">
+        <div class="field-group" style="flex-direction:row;align-items:center;gap:10px;margin-top:4px">
+          <input id="naTelehealth" type="checkbox" style="width:16px;height:16px;cursor:pointer">
+          <label for="naTelehealth" class="field-label" style="text-transform:none;letter-spacing:0;margin:0;cursor:pointer">Telehealth appointment</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCancelNewAppt" type="button">Cancel</button>
+      <button class="btn btn-blue btn-sm" id="btnSaveNewAppt" type="button">Save Appointment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ───────────────────────── Helpers ───────────────────────── */
+
+function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeText(value, fallback = '—') {
+  return value == null || value === '' ? fallback : String(value);
+}
+
+function toTime(value) {
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function isValidIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function fmtDate(iso) {
+  if (!isValidIsoDate(iso)) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function fmtDateShort(iso) {
+  if (!isValidIsoDate(iso)) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function fmtTime(value) {
+  if (!value) return '—';
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return '—';
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (
+    Number.isNaN(h) || Number.isNaN(m) ||
+    h < 0 || h > 23 || m < 0 || m > 59
+  ) return '—';
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ap}`;
+}
+
+function parseTimeToMinutes(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (
+    Number.isNaN(h) || Number.isNaN(m) ||
+    h < 0 || h > 23 || m < 0 || m > 59
+  ) return null;
+  return h * 60 + m;
+}
+
+function minutesToDuration(start, end) {
+  const s = parseTimeToMinutes(start);
+  const e = parseTimeToMinutes(end);
+  if (s == null || e == null || e <= s) return null;
+  return e - s;
+}
+
+function providerInitials(name) {
+  const cleaned = String(name || 'Unassigned Provider')
+    .replace(/^Dr\.\s*/i, '')
+    .trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'UP';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function lsGet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.warn('[admin-daily-schedule] Failed to parse localStorage key:', key, err);
+      return [];
+    }
+  } catch (err) {
+    console.warn('[admin-daily-schedule] localStorage unavailable:', err);
+    return [];
+  }
+}
+
+function lsSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn('[admin-daily-schedule] Failed to write localStorage key:', key, err);
+  }
+}
+
+function sortAppointments(list) {
+  return list.slice().sort(function (a, b) {
+    return String(a.start || '').localeCompare(String(b.start || ''));
+  });
+}
+
+/* ───────────────────────── Constants ───────────────────────── */
+
+const TODAY_ISO = new Date().toISOString().slice(0, 10);
+const STORAGE_KEY = 'therassistant_daily_appts_v1';
+
+const TYPE_COLORS = {
+  'Individual Therapy': '#2f79b7',
+  'Psychotherapy 53+ min': '#2f79b7',
+  'Group Therapy': '#8b5cf6',
+  'Family Therapy': '#d97706',
+  'Med Management': '#059669',
+  'Substance Use Assessment': '#dc2626',
+  'Intake': '#0f766e'
+};
+
+const STATUS_CLASS_MAP = {
+  'Scheduled': 'badge-scheduled',
+  'Confirmed': 'badge-confirmed',
+  'Arrived': 'badge-arrived',
+  'In Session': 'badge-in-session',
+  'Completed': 'badge-completed',
+  'No-Show': 'badge-no-show',
+  'Cancelled': 'badge-cancelled',
+  'Rescheduled': 'badge-rescheduled'
+};
+
+const SEED_APPTS = [
+  {id:'APT-001',date:'__TODAY__',start:'08:00',end:'09:00',duration:60,patient:'Marcus Johnson',patientId:'PAT-001',provider:'Dr. Sarah Chen',providerId:'PROV-1',type:'Individual Therapy',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'Completed',notes:'Follow-up on coping strategies'},
+  {id:'APT-002',date:'__TODAY__',start:'09:00',end:'09:55',duration:55,patient:'Linda Patterson',patientId:'PAT-002',provider:'Dr. Sarah Chen',providerId:'PROV-1',type:'Psychotherapy 53+ min',payer:'Aetna Better Health',location:'Room 101',telehealth:false,status:'Completed',notes:''},
+  {id:'APT-003',date:'__TODAY__',start:'10:00',end:'10:30',duration:30,patient:'Tyler Cruz',patientId:'PAT-003',provider:'Dr. Sarah Chen',providerId:'PROV-1',type:'Med Management',payer:'Colorado Medicaid',location:'Room 101',telehealth:false,status:'In Session',notes:''},
+  {id:'APT-004',date:'__TODAY__',start:'11:00',end:'12:00',duration:60,patient:'Destiny Williams',patientId:'PAT-004',provider:'Dr. Sarah Chen',providerId:'PROV-1',type:'Individual Therapy',payer:'BCBS CO',location:'Telehealth',telehealth:true,status:'Confirmed',notes:''},
+  {id:'APT-005',date:'__TODAY__',start:'13:00',end:'14:00',duration:60,patient:'James Rivera',patientId:'PAT-005',provider:'Dr. Michael Torres',providerId:'PROV-2',type:'Substance Use Assessment',payer:'Colorado Medicaid',location:'Room 202',telehealth:false,status:'Completed',notes:'H0001 completed'},
+  {id:'APT-006',date:'__TODAY__',start:'14:00',end:'15:00',duration:60,patient:'Sofia Martinez',patientId:'PAT-006',provider:'Dr. Michael Torres',providerId:'PROV-2',type:'Individual Therapy',payer:'United Healthcare',location:'Room 202',telehealth:false,status:'No-Show',notes:'Patient did not call'},
+  {id:'APT-007',date:'__TODAY__',start:'15:00',end:'16:00',duration:60,patient:'Elijah Thompson',patientId:'PAT-007',provider:'Dr. Michael Torres',providerId:'PROV-2',type:'Group Therapy',payer:'Colorado Medicaid',location:'Group Room A',telehealth:false,status:'Scheduled',notes:''},
+  {id:'APT-008',date:'__TODAY__',start:'16:00',end:'17:00',duration:60,patient:'Aaliyah Brown',patientId:'PAT-008',provider:'Dr. Michael Torres',providerId:'PROV-2',type:'Individual Therapy',payer:'Cigna BH',location:'Telehealth',telehealth:true,status:'Scheduled',notes:''},
+  {id:'APT-009',date:'__TODAY__',start:'09:00',end:'10:00',duration:60,patient:'Noah Davis',patientId:'PAT-009',provider:'Dr. Priya Nair',providerId:'PROV-3',type:'Family Therapy',payer:'Anthem BCBS',location:'Room 303',telehealth:false,status:'Arrived',notes:'Family session'},
+  {id:'APT-010',date:'__TODAY__',start:'10:30',end:'11:30',duration:60,patient:'Isabella Wilson',patientId:'PAT-010',provider:'Dr. Priya Nair',providerId:'PROV-3',type:'Individual Therapy',payer:'Humana BH',location:'Room 303',telehealth:false,status:'Cancelled',notes:'Patient requested cancellation'},
+  {id:'APT-011',date:'__TODAY__',start:'13:30',end:'14:30',duration:60,patient:'Robert Kim',patientId:'PAT-011',provider:'Dr. Priya Nair',providerId:'PROV-3',type:'Psychotherapy 53+ min',payer:'Colorado Medicaid',location:'Telehealth',telehealth:true,status:'Scheduled',notes:''},
+  {id:'APT-012',date:'__TODAY__',start:'08:30',end:'09:00',duration:30,patient:'Carmen Reyes',patientId:'PAT-012',provider:'Dr. James Liu',providerId:'PROV-4',type:'Med Management',payer:'Anthem BCBS',location:'Room 404',telehealth:false,status:'Completed',notes:'Medication review'},
+  {id:'APT-013',date:'__TODAY__',start:'10:00',end:'11:00',duration:60,patient:'Denise Morgan',patientId:'PAT-013',provider:'Dr. James Liu',providerId:'PROV-4',type:'Individual Therapy',payer:'United BH',location:'Room 404',telehealth:false,status:'Cancelled',notes:'Provider cancelled — conflict'},
+  {id:'APT-014',date:'__TODAY__',start:'14:00',end:'15:00',duration:60,patient:'Brian Walsh',patientId:'PAT-014',provider:'Dr. James Liu',providerId:'PROV-4',type:'Substance Use Assessment',payer:'CCHA',location:'Room 404',telehealth:false,status:'Scheduled',notes:'Initial assessment'}
+];
+
+/* ───────────────────────── State ───────────────────────── */
+
+const state = {
+  selectedDate: TODAY_ISO,
+  focusedApptId: null,
+  lastFocusedElement: null
+};
+
+/* ───────────────────────── Seeding ───────────────────────── */
+
+function seedIfEmpty() {
+  const existing = lsGet(STORAGE_KEY);
+  if (existing.length) return;
+
+  const seededAt = new Date().toISOString();
+  const data = SEED_APPTS.map(function (appt) {
+    return Object.assign({}, appt, {
+      date: String(appt.date || '').replace('__TODAY__', TODAY_ISO),
+      seededAt: seededAt
+    });
+  });
+
+  lsSet(STORAGE_KEY, data);
+}
+
+/* ───────────────────────── Data helpers ───────────────────────── */
+
+function getAppointments() {
+  return lsGet(STORAGE_KEY);
+}
+
+function saveAppointments(appts) {
+  lsSet(STORAGE_KEY, appts);
+}
+
+function getUniqueValues(field) {
+  return Array.from(
+    new Set(
+      getAppointments()
+        .map(function (a) { return String(a[field] || '').trim(); })
+        .filter(Boolean)
+    )
+  ).sort(function (a, b) { return a.localeCompare(b); });
+}
+
+function statusBadge(status) {
+  const text = safeText(status, 'Unknown');
+  const cls = STATUS_CLASS_MAP[text] || 'badge-draft';
+  return `<span class="badge ${cls}">${esc(text)}</span>`;
+}
+
+function typeColor(type) {
+  return TYPE_COLORS[type] || '#64748b';
+}
+
+function providerSummary(list) {
+  const total = list.length;
+  const completed = list.filter(function (a) { return a.status === 'Completed'; }).length;
+  const noShows = list.filter(function (a) { return a.status === 'No-Show'; }).length;
+  return `${total} appt${total !== 1 ? 's' : ''} · ${completed} completed · ${noShows} no-show`;
+}
+
+function getFilteredAppointments() {
+  const provider = (document.getElementById('fProvider')?.value || '').trim();
+  const apptType = (document.getElementById('fApptType')?.value || '').trim();
+  const status = (document.getElementById('fStatus')?.value || '').trim();
+  const location = (document.getElementById('fLocation')?.value || '').trim();
+  const query = (document.getElementById('fSearch')?.value || '').trim().toLowerCase();
+
+  return sortAppointments(
+    getAppointments().filter(function (a) {
+      if ((a.date || '') !== state.selectedDate) return false;
+      if (provider && (a.provider || '') !== provider) return false;
+      if (apptType && (a.type || '') !== apptType) return false;
+      if (status && (a.status || '') !== status) return false;
+      if (location && (a.location || '') !== location) return false;
+
+      if (query) {
+        const patient = String(a.patient || '').toLowerCase();
+        const prov = String(a.provider || '').toLowerCase();
+        if (!patient.includes(query) && !prov.includes(query)) return false;
+      }
+
+      return true;
+    })
+  );
+}
+
+function findAppointmentById(id) {
+  return getAppointments().find(function (a) { return a.id === id; }) || null;
+}
+
+function updateAppointment(id, updater) {
+  if (!id) return false;
+  const appts = getAppointments();
+  const idx = appts.findIndex(function (a) { return a.id === id; });
+  if (idx === -1) return false;
+
+  const updated = Object.assign({}, appts[idx]);
+  updater(updated);
+  updated.lastUpdated = new Date().toISOString();
+
+  appts[idx] = updated;
+  saveAppointments(appts);
+  return true;
+}
+
+/* ───────────────────────── Filters ───────────────────────── */
+
+function refillSelect(selectId, values, defaultLabel) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+
+  const current = sel.value;
+  sel.innerHTML = '';
+  const base = document.createElement('option');
+  base.value = '';
+  base.textContent = defaultLabel;
+  sel.appendChild(base);
+
+  values.forEach(function (value) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    sel.appendChild(opt);
+  });
+
+  if (Array.from(sel.options).some(function (o) { return o.value === current; })) {
+    sel.value = current;
+  }
+}
+
+function populateFilters() {
+  refillSelect('fProvider', getUniqueValues('provider'), 'All Providers');
+  refillSelect('fApptType', getUniqueValues('type'), 'All Types');
+  refillSelect('fLocation', getUniqueValues('location'), 'All Locations');
+}
+
+/* ───────────────────────── KPI rendering ───────────────────────── */
+
+function updateKpis(appts) {
+  const total = appts.length;
+  const completed = appts.filter(function (a) { return a.status === 'Completed'; }).length;
+  const upcoming = appts.filter(function (a) { return ['Scheduled', 'Confirmed'].includes(a.status || ''); }).length;
+  const noShow = appts.filter(function (a) { return a.status === 'No-Show'; }).length;
+  const cancelled = appts.filter(function (a) { return a.status === 'Cancelled'; }).length;
+  const utilized = appts.filter(function (a) { return ['Completed', 'Arrived', 'In Session'].includes(a.status || ''); }).length;
+  const util = total ? Math.round((utilized / total) * 100) : 0;
+
+  document.getElementById('kpiTotal').textContent = String(total);
+  document.getElementById('kpiCompleted').textContent = String(completed);
+  document.getElementById('kpiUpcoming').textContent = String(upcoming);
+  document.getElementById('kpiNoShow').textContent = String(noShow);
+  document.getElementById('kpiCancelled').textContent = String(cancelled);
+  document.getElementById('kpiUtil').textContent = util + '%';
+}
+
+/* ───────────────────────── Row rendering ───────────────────────── */
+
+function renderAppointmentRow(a) {
+  const patient = safeText(a.patient);
+  const start = fmtTime(a.start);
+  const end = fmtTime(a.end);
+  const duration = a.duration != null && a.duration !== '' ? String(a.duration) : '—';
+  const type = safeText(a.type);
+  const location = safeText(a.location);
+  const payer = safeText(a.payer);
+
+  return `
+    <div class="appt-row" data-id="${esc(a.id)}" role="button" tabindex="0" aria-label="Appointment for ${esc(patient)} at ${esc(start)}">
+      <div>
+        <div class="appt-time">${esc(start)}</div>
+        <div class="appt-duration">${esc(duration)} min</div>
+      </div>
+      <div class="appt-card">
+        <div class="appt-color-bar" style="background:${typeColor(a.type)}"></div>
+        <div class="appt-info">
+          <div class="appt-patient">
+            ${esc(patient)}
+            ${a.telehealth ? '<span class="telehealth-chip">&#128250; Telehealth</span>' : ''}
+          </div>
+          <div class="appt-type">${esc(type)}</div>
+          <div class="appt-meta">
+            <span>&#127970; ${esc(location)}</span>
+            <span>&#128179; ${esc(payer)}</span>
+            <span>${esc(start)} &ndash; ${esc(end)}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        ${statusBadge(a.status)}
+        <div class="appt-actions">
+          <button class="btn btn-outline btn-sm js-arrived" data-id="${esc(a.id)}" type="button" aria-label="Mark arrived — ${esc(patient)}">Arrived</button>
+          <button class="btn btn-danger btn-sm js-noshow" data-id="${esc(a.id)}" type="button" aria-label="Mark no-show — ${esc(patient)}">No-Show</button>
+          <button class="btn btn-ghost btn-sm js-cancel" data-id="${esc(a.id)}" type="button" aria-label="Cancel appointment — ${esc(patient)}">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTimeline() {
+  const appts = getFilteredAppointments();
+  const timeline = document.getElementById('timeline');
+
+  document.getElementById('selectedDateLabel').textContent = fmtDateShort(state.selectedDate);
+  document.getElementById('datePicker').value = state.selectedDate;
+  updateKpis(appts);
+
+  if (!appts.length) {
+    timeline.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">&#128197;</div>
+        <div class="empty-msg">No appointments found for ${esc(fmtDateShort(state.selectedDate))}</div>
+        <p style="font-size:13px;margin-top:8px">Try changing the date or adjusting your filters.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const byProvider = {};
+  appts.forEach(function (a) {
+    const provider = String(a.provider || '').trim() || 'Unassigned Provider';
+    if (!byProvider[provider]) byProvider[provider] = [];
+    byProvider[provider].push(a);
+  });
+
+  const providerNames = Object.keys(byProvider).sort(function (a, b) {
+    return a.localeCompare(b);
+  });
+
+  timeline.innerHTML = providerNames.map(function (provider) {
+    const list = sortAppointments(byProvider[provider]);
+    return `
+      <div class="provider-group">
+        <div class="provider-hdr">
+          <div class="provider-avatar">${esc(providerInitials(provider))}</div>
+          <div>
+            <div class="provider-name">${esc(provider)}</div>
+            <div class="provider-meta">${esc(providerSummary(list))}</div>
+          </div>
+          <span class="provider-count">${list.length} appt${list.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="appt-list">
+          ${list.map(renderAppointmentRow).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ───────────────────────── Modal helpers ───────────────────────── */
+
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  state.lastFocusedElement = document.activeElement;
+  modal.classList.add('open');
+
+  const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable) focusable.focus();
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.remove('open');
+
+  if (state.lastFocusedElement && typeof state.lastFocusedElement.focus === 'function') {
+    state.lastFocusedElement.focus();
+  }
+  state.lastFocusedElement = null;
+}
+
+/* ───────────────────────── Detail modal ───────────────────────── */
+
+function openDetail(id) {
+  const appt = findAppointmentById(id);
+  if (!appt) return;
+
+  state.focusedApptId = id;
+
+  document.getElementById('detailModalBody').innerHTML = `
+    <div class="field-row">
+      <div class="field-group">
+        <div class="field-label">Patient</div>
+        <div class="field-val">${esc(safeText(appt.patient))}</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Provider</div>
+        <div class="field-val">${esc(safeText(appt.provider))}</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <div class="field-label">Date</div>
+        <div class="field-val">${esc(fmtDateShort(appt.date))}</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Time</div>
+        <div class="field-val">
+          ${esc(fmtTime(appt.start))} &ndash; ${esc(fmtTime(appt.end))}
+          (${esc(String(appt.duration ?? '—'))} min)
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <div class="field-label">Appointment Type</div>
+        <div class="field-val">${esc(safeText(appt.type))}</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Status</div>
+        <div class="field-val">${statusBadge(appt.status)}</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <div class="field-label">Location</div>
+        <div class="field-val">
+          ${esc(safeText(appt.location))}
+          ${appt.telehealth ? ' <span class="telehealth-chip">&#128250; Telehealth</span>' : ''}
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Payer</div>
+        <div class="field-val">${esc(safeText(appt.payer))}</div>
+      </div>
+    </div>
+
+    ${appt.notes ? `
+      <div class="field-row full">
+        <div class="field-group">
+          <div class="field-label">Notes</div>
+          <div class="field-val">${esc(appt.notes)}</div>
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  openModal('detailModal');
+}
+
+function closeDetail() {
+  closeModal('detailModal');
+  state.focusedApptId = null;
+}
+
+/* ───────────────────────── Status modal ───────────────────────── */
+
+function openStatusModal(id) {
+  const appt = findAppointmentById(id);
+  if (!appt) return;
+
+  state.focusedApptId = id;
+  document.getElementById('statusPatientLabel').textContent =
+    `Updating status for: ${safeText(appt.patient)} — ${fmtTime(appt.start)}`;
+  document.getElementById('newStatusSelect').value = safeText(appt.status, 'Scheduled');
+
+  closeModal('detailModal');
+  openModal('statusModal');
+}
+
+function saveStatus() {
+  if (!state.focusedApptId) return;
+
+  const newStatus = document.getElementById('newStatusSelect').value;
+  const ok = updateAppointment(state.focusedApptId, function (appt) {
+    appt.status = newStatus;
+  });
+
+  if (!ok) return;
+
+  closeModal('statusModal');
+  state.focusedApptId = null;
+  renderTimeline();
+}
+
+function setStatus(id, status) {
+  const ok = updateAppointment(id, function (appt) {
+    appt.status = status;
+  });
+  if (ok) renderTimeline();
+}
+
+/* ───────────────────────── New appointment modal ───────────────────────── */
+
+function openNewAppointmentModal() {
+  const dateInput = document.getElementById('naDate');
+  if (dateInput) dateInput.value = state.selectedDate;
+  openModal('newApptModal');
+}
+
+function closeNewAppointmentModal() {
+  closeModal('newApptModal');
+}
+
+function saveNewAppointment() {
+  const patient = (document.getElementById('naPatient')?.value || '').trim();
+  const provider = (document.getElementById('naProvider')?.value || '').trim();
+  const type = (document.getElementById('naType')?.value || '').trim();
+  const date = document.getElementById('naDate')?.value || '';
+  const start = document.getElementById('naStart')?.value || '';
+  const end = document.getElementById('naEnd')?.value || '';
+  const location = (document.getElementById('naLocation')?.value || '').trim();
+  const payer = (document.getElementById('naPayer')?.value || '').trim();
+  const telehealth = !!document.getElementById('naTelehealth')?.checked;
+
+  if (!patient || !date || !start) {
+    alert('Patient name, date, and start time are required.');
+    return;
+  }
+
+  const duration = minutesToDuration(start, end);
+  const appts = getAppointments();
+
+  appts.push({
+    id: 'APT-' + Date.now(),
+    date: date,
+    start: start,
+    end: end,
+    duration: duration,
+    patient: patient,
+    provider: provider,
+    type: type,
+    payer: payer,
+    location: location,
+    telehealth: telehealth,
+    status: 'Scheduled',
+    notes: '',
+    createdAt: new Date().toISOString()
+  });
+
+  saveAppointments(appts);
+  populateFilters();
+  closeNewAppointmentModal();
+  renderTimeline();
+}
+
+/* ───────────────────────── Date navigation ───────────────────────── */
+
+function shiftDate(days) {
+  const base = isValidIsoDate(state.selectedDate) ? state.selectedDate : TODAY_ISO;
+  const d = new Date(base + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) {
+    state.selectedDate = TODAY_ISO;
+    renderTimeline();
+    return;
+  }
+  d.setDate(d.getDate() + days);
+  state.selectedDate = d.toISOString().slice(0, 10);
+  renderTimeline();
+}
+
+/* ───────────────────────── Event binding ───────────────────────── */
+
+function bindEvents() {
+  document.getElementById('btnPrevDay')?.addEventListener('click', function () {
+    shiftDate(-1);
+  });
+
+  document.getElementById('btnNextDay')?.addEventListener('click', function () {
+    shiftDate(1);
+  });
+
+  document.getElementById('btnToday')?.addEventListener('click', function () {
+    state.selectedDate = TODAY_ISO;
+    renderTimeline();
+  });
+
+  document.getElementById('datePicker')?.addEventListener('change', function (e) {
+    state.selectedDate = e.target.value || TODAY_ISO;
+    renderTimeline();
+  });
+
+  ['fProvider', 'fApptType', 'fStatus', 'fLocation'].forEach(function (id) {
+    document.getElementById(id)?.addEventListener('change', renderTimeline);
+  });
+
+  document.getElementById('fSearch')?.addEventListener('input', renderTimeline);
+
+  document.getElementById('btnCloseDetail')?.addEventListener('click', closeDetail);
+  document.getElementById('btnCloseDetailFooter')?.addEventListener('click', closeDetail);
+
+  document.getElementById('btnModalStatusEdit')?.addEventListener('click', function () {
+    if (state.focusedApptId) openStatusModal(state.focusedApptId);
+  });
+
+  document.getElementById('btnModalReschedule')?.addEventListener('click', function () {
+    if (!state.focusedApptId) return;
+    setStatus(state.focusedApptId, 'Rescheduled');
+    closeDetail();
+  });
+
+  document.getElementById('btnCloseStatus')?.addEventListener('click', function () {
+    closeModal('statusModal');
+  });
+
+  document.getElementById('btnCancelStatus')?.addEventListener('click', function () {
+    closeModal('statusModal');
+  });
+
+  document.getElementById('btnSaveStatus')?.addEventListener('click', saveStatus);
+
+  document.getElementById('btnNewAppt')?.addEventListener('click', openNewAppointmentModal);
+  document.getElementById('btnCloseNewAppt')?.addEventListener('click', closeNewAppointmentModal);
+  document.getElementById('btnCancelNewAppt')?.addEventListener('click', closeNewAppointmentModal);
+  document.getElementById('btnSaveNewAppt')?.addEventListener('click', saveNewAppointment);
+
+  document.addEventListener('click', function (e) {
+    const arrivedBtn = e.target.closest('.js-arrived[data-id]');
+    if (arrivedBtn) {
+      e.stopPropagation();
+      setStatus(arrivedBtn.dataset.id, 'Arrived');
+      return;
+    }
+
+    const noShowBtn = e.target.closest('.js-noshow[data-id]');
+    if (noShowBtn) {
+      e.stopPropagation();
+      setStatus(noShowBtn.dataset.id, 'No-Show');
+      return;
+    }
+
+    const cancelBtn = e.target.closest('.js-cancel[data-id]');
+    if (cancelBtn) {
+      e.stopPropagation();
+      setStatus(cancelBtn.dataset.id, 'Cancelled');
+      return;
+    }
+
+    const row = e.target.closest('.appt-row[data-id]');
+    if (row && !e.target.closest('button')) {
+      openDetail(row.dataset.id);
+      return;
+    }
+
+    const backdrop = e.target.closest('.modal-backdrop.open');
+    if (backdrop && e.target === backdrop) {
+      closeModal(backdrop.id);
+      if (backdrop.id === 'detailModal') state.focusedApptId = null;
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      const openBackdrop = document.querySelector('.modal-backdrop.open');
+      if (openBackdrop) {
+        closeModal(openBackdrop.id);
+        if (openBackdrop.id === 'detailModal') state.focusedApptId = null;
+      }
+      return;
+    }
+
+    if (e.key === 'Enter' || e.key === ' ') {
+      if (e.target.closest('button')) return;
+      const row = document.activeElement?.closest('.appt-row[data-id]');
+      if (row) {
+        e.preventDefault();
+        openDetail(row.dataset.id);
+      }
+    }
+  });
+}
+
+/* ───────────────────────── Init ───────────────────────── */
+
+window.addEventListener('load', async function () {
+  if (typeof initDashboard !== 'function' || typeof ADMIN_ROLES === 'undefined') {
+    console.warn('[admin-daily-schedule] Auth dependencies not available — running in demo mode.');
+  } else {
+    try {
+      await initDashboard(ADMIN_ROLES);
+    } catch (err) {
+      console.error('[admin-daily-schedule] Init failed:', err);
+    }
+  }
+
+  seedIfEmpty();
+  populateFilters();
+  bindEvents();
+  renderTimeline();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Payment Posting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .stat-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+    .stat-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+    .stat-card.amber::before{background:linear-gradient(180deg,#f59e0b,#b45309)}
+    .stat-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+    .stat-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#5b21b6)}
+    .stat-card.teal::before{background:linear-gradient(180deg,#06b6d4,#0891b2)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.35rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+    /* Toolbar */
+    .post-toolbar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow-sm)}
+    /* Filter row */
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    .filter-row input,.filter-row select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit;outline:none}
+    .filter-row input{flex:1;min-width:160px}
+    .filter-row input:focus,.filter-row select:focus{border-color:var(--blue-500)}
+    /* Table */
+    .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+    .data-table thead th{font-size:11.5px;padding:9px 10px;white-space:nowrap}
+    .data-table td{padding:9px 10px;font-size:12px;vertical-align:middle}
+    .data-table tr.selected>td{background:rgba(60,144,209,.08)}
+    /* Status badges */
+    .st-posted{background:#def7ee;color:#065f46;border:1px solid #a7f3d0}
+    .st-partial{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .st-denied{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+    .st-pending{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+    .st-unmatched{background:#fff7ed;color:#9a3412;border:1px solid #fdba74}
+    .st-hold{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+    .st-appeal{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
+    .st-recoup{background:#fdf2f8;color:#701a75;border:1px solid #f0abfc}
+    /* Action menu */
+    .action-dropdown{position:relative;display:inline-block}
+    .action-menu{position:absolute;right:0;top:100%;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);z-index:100;min-width:190px;padding:4px;display:none}
+    .action-menu.open{display:block}
+    .action-menu button{display:block;width:100%;text-align:left;padding:7px 12px;font-size:12.5px;border:none;background:none;cursor:pointer;border-radius:7px;font-family:inherit;color:var(--ink-900)}
+    .action-menu button:hover{background:var(--surface-soft)}
+    .action-menu hr{margin:3px 8px;border:none;border-top:1px solid var(--border)}
+    /* Note modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(11,44,77,.55);z-index:1200;display:none;align-items:center;justify-content:center}
+    .modal-box{background:#fff;border-radius:18px;box-shadow:var(--shadow-lg);width:min(480px,95vw);padding:26px 28px}
+    .modal-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:12px}
+    .form-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-700);margin-bottom:4px}
+    .form-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;background:var(--surface);color:var(--ink-900)}
+    .form-input:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+    @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link active" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Payment Posting</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue btn-sm" onclick="postAllMatched()">&#10003; Post All Matched</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#8697; Export CSV</button>
+        <a href="admin-era-imports.html" class="btn btn-outline btn-sm">&#8592; ERA Imports</a>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-num" id="s-total">0</div><div class="stat-lbl">Total Claims</div></div>
+      <div class="stat-card green"><div class="stat-num" id="s-posted">$0</div><div class="stat-lbl">Posted</div></div>
+      <div class="stat-card amber"><div class="stat-num" id="s-pending">0</div><div class="stat-lbl">Pending</div></div>
+      <div class="stat-card red"><div class="stat-num" id="s-denied">0</div><div class="stat-lbl">Denials</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="s-unmatched">0</div><div class="stat-lbl">Unmatched</div></div>
+      <div class="stat-card teal"><div class="stat-num" id="s-appeal">0</div><div class="stat-lbl">On Appeal</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="post-toolbar">
+      <span style="font-size:12.5px;font-weight:700;color:var(--ink-700)">Bulk Actions:</span>
+      <button class="btn btn-blue btn-sm" onclick="bulkPost()">&#10003; Post Selected</button>
+      <button class="btn btn-outline btn-sm" onclick="bulkHold()">&#9889; Hold Selected</button>
+      <button class="btn btn-outline btn-sm" onclick="bulkAppeal()">&#9998; Mark Appeal</button>
+      <button class="btn btn-outline btn-sm" onclick="bulkAlert()">&#9888; Create Alerts</button>
+      <div style="flex:1"></div>
+      <span id="selCount" style="font-size:12.5px;color:var(--ink-500);font-weight:600">0 selected</span>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <input type="search" id="qSearch" placeholder="&#128269;  Search patient, claim #, ERA file, payer&hellip;" oninput="renderTable()">
+      <select id="qStatus" onchange="renderTable()">
+        <option value="">All Statuses</option>
+        <option>Pending</option><option>Posted</option><option>Partially Posted</option><option>Denied</option><option>Unmatched</option><option>On Hold</option><option>On Appeal</option><option>Recoupment</option>
+      </select>
+      <select id="qPayer" onchange="renderTable()">
+        <option value="">All Payers</option>
+        <option>Colorado Medicaid</option><option>Aetna Better Health</option><option>United BH</option><option>Anthem BCBS</option><option>CCHA</option>
+      </select>
+      <select id="qERA" onchange="renderTable()">
+        <option value="">All ERA Files</option>
+      </select>
+      <input type="date" id="qFrom" onchange="renderTable()" title="DOS from">
+      <input type="date" id="qTo" onchange="renderTable()" title="DOS to">
+      <button class="btn btn-ghost btn-sm" onclick="clearFilters()">&#10005;</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-shell">
+      <div style="overflow-x:auto">
+        <table class="data-table" id="postingTable">
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" title="Select all"></th>
+            <th>ERA File</th>
+            <th>Claim #</th>
+            <th>Patient</th>
+            <th>Payer</th>
+            <th>DOS</th>
+            <th>Code</th>
+            <th>Billed</th>
+            <th>Allowed</th>
+            <th>Paid</th>
+            <th>Adj</th>
+            <th>Pat Resp</th>
+            <th>CARC</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="postingBody"></tbody>
+        </table>
+      </div>
+      <div id="postingEmpty" style="display:none;text-align:center;padding:44px;color:var(--ink-500)">
+        No claims in the posting queue.<br>
+        <a href="admin-era-imports.html" style="color:var(--blue-600);font-weight:700;font-size:13px;text-decoration:none">&#8592; Import an ERA file to populate this queue</a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Post Modal -->
+<div class="modal-overlay" id="postModal" onclick="if(event.target===this)closePostModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="postModalTitle">Post Payment</div>
+    <div id="postModalInfo" style="background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div class="form-label">Posting Date</div>
+        <input type="date" class="form-input" id="pmPostDate" value="">
+      </div>
+      <div>
+        <div class="form-label">Amount to Post</div>
+        <input type="number" class="form-input" id="pmAmount" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div>
+        <div class="form-label">Post To</div>
+        <select class="form-input" id="pmPostTo">
+          <option value="primary">Primary Insurance (Payer)</option>
+          <option value="secondary">Secondary Insurance</option>
+          <option value="patient">Patient Balance</option>
+          <option value="writeoff">Write-Off</option>
+        </select>
+      </div>
+      <div>
+        <div class="form-label">Internal Note</div>
+        <textarea class="form-input" id="pmNote" rows="2" placeholder="Optional note about this posting&hellip;"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closePostModal()">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="savePost('Partially Posted')">Post Partially</button>
+      <button class="btn btn-blue btn-sm" onclick="savePost('Posted')">Post Full Amount</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Modal -->
+<div class="modal-overlay" id="noteModal" onclick="if(event.target===this)closeNoteModal()">
+  <div class="modal-box">
+    <div class="modal-title">Add Internal Note</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div class="form-label">Note</div>
+        <textarea class="form-input" id="noteText" rows="4" placeholder="Enter your note about this claim&hellip;"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closeNoteModal()">Cancel</button>
+      <button class="btn btn-blue btn-sm" onclick="saveNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0b2c4d;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:600;display:none;z-index:9999"></div>
+
+<script>
+/* -------------------------------------------------
+   Helpers
+------------------------------------------------- */
+function dbGet(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):[]; }catch{return [];} }
+function dbSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt$(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(iso){ if(!iso) return '?'; try{ return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch{return'?';} }
+function toast(m,ms=3000){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',ms); }
+function getParam(n){ return new URLSearchParams(location.search).get(n)||''; }
+
+/* -------------------------------------------------
+   Build queue from ERA imports
+------------------------------------------------- */
+function buildQueueFromERA(eraId, claimNum){
+  const imports=dbGet('docusistant_era_imports_v1');
+  let allClaims=[];
+  imports.forEach(era=>{
+    (era.claims||[]).forEach(c=>{
+      allClaims.push({ ...c, era_id:era.id, era_file:era.file_name, payer_name:era.payer_name, era_payment_date:era.payment_date });
+    });
+  });
+  if(eraId)   allClaims=allClaims.filter(c=>c.era_id===eraId);
+  if(claimNum) allClaims=allClaims.filter(c=>c.claim_number===claimNum);
+  return allClaims;
+}
+
+/* -------------------------------------------------
+   Status map
+------------------------------------------------- */
+const stMap={
+  'Posted':'st-posted','Partially Posted':'st-partial','Denied':'st-denied',
+  'Pending':'st-pending','Unmatched':'st-unmatched','On Hold':'st-hold',
+  'On Appeal':'st-appeal','Recoupment':'st-recoup'
+};
+
+/* -------------------------------------------------
+   State
+------------------------------------------------- */
+let QUEUE=[]; // all rows currently shown
+let activeMenuId=null;
+let postTargetIdx=null;
+let noteTargetIdx=null;
+let selected=new Set();
+
+/* -------------------------------------------------
+   Render
+------------------------------------------------- */
+function getFiltered(){
+  const q=(document.getElementById('qSearch')||{}).value?.toLowerCase()||'';
+  const st=(document.getElementById('qStatus')||{}).value||'';
+  const py=(document.getElementById('qPayer')||{}).value||'';
+  const era=(document.getElementById('qERA')||{}).value||'';
+  const from=(document.getElementById('qFrom')||{}).value||'';
+  const to=(document.getElementById('qTo')||{}).value||'';
+
+  return QUEUE.filter(c=>{
+    if(q&&![c.claim_number,c.patient_name,c.era_file,c.payer_name,c.code].join(' ').toLowerCase().includes(q)) return false;
+    if(st&&c.posting_status!==st) return false;
+    if(py&&c.payer_name!==py) return false;
+    if(era&&c.era_id!==era) return false;
+    if(from&&c.dos&&c.dos<from) return false;
+    if(to&&c.dos&&c.dos>to) return false;
+    return true;
+  });
+}
+
+function renderTable(){
+  const rows=getFiltered();
+  const body=document.getElementById('postingBody');
+  const empty=document.getElementById('postingEmpty');
+  if(!rows.length){ body.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  body.innerHTML=rows.map((c,i)=>`<tr class="${selected.has(c._idx)?'selected':''}" id="pr-${i}">
+    <td><input type="checkbox" ${selected.has(c._idx)?'checked':''} onchange="toggleRow(${i}, this.checked)"></td>
+    <td style="font-size:11.5px;color:var(--ink-500);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.era_file||'')}">${esc(c.era_file||'?')}</td>
+    <td style="font-family:monospace;font-size:11.5px;white-space:nowrap">${esc(c.claim_number||'?')}</td>
+    <td style="font-weight:700;white-space:nowrap">${esc(c.patient_name||'?')}</td>
+    <td style="font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.payer_name||'')}">${esc(c.payer_name||'?')}</td>
+    <td style="white-space:nowrap;color:var(--ink-600)">${fmtDate(c.dos)}</td>
+    <td><code style="font-size:11.5px">${esc(c.code||'?')}</code></td>
+    <td style="text-align:right;color:var(--ink-600)">${fmt$(c.billed_amount)}</td>
+    <td style="text-align:right;color:var(--ink-600)">${fmt$(c.allowed_amount||c.paid_amount||0)}</td>
+    <td style="text-align:right;font-weight:700;color:#059669">${fmt$(c.paid_amount)}</td>
+    <td style="text-align:right;color:#d97706">${fmt$(Math.max(0,(c.billed_amount||0)-(c.paid_amount||0)))}</td>
+    <td style="text-align:right;color:${(c.patient_resp||0)>0?'#b45309':'var(--ink-400)'}">${fmt$(c.patient_resp)}</td>
+    <td>
+      ${(c.carc_codes||[]).slice(0,2).map(x=>`<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;margin:1px" title="${esc(x)}">${esc(x)}</span>`).join('')}
+      ${(c.carc_codes||[]).length>2?`<span style="font-size:10.5px;color:var(--ink-500)">+${(c.carc_codes||[]).length-2}</span>`:''}
+    </td>
+    <td><span class="badge ${stMap[c.posting_status]||'st-pending'}">${esc(c.posting_status||'Pending')}</span></td>
+    <td>
+      <div class="action-dropdown" id="ad-${i}">
+        <button class="btn btn-outline btn-sm" onclick="toggleMenu(${i},event)" style="padding:4px 10px">&#8942; &#9660;</button>
+        <div class="action-menu" id="am-${i}">
+          <button onclick="openPostModal(${i},'Posted')">&#10003; Post Payment</button>
+          <button onclick="openPostModal(${i},'Partially Posted')">&#189; Partially Post</button>
+          <hr>
+          <button onclick="setStatus(${i},'Unmatched')">&#10067; Mark Unmatched</button>
+          <button onclick="setStatus(${i},'On Hold')">&#9889; Place On Hold</button>
+          <hr>
+          <button onclick="setStatus(${i},'On Appeal')">&#9998; Mark Appeal</button>
+          <button onclick="setStatus(${i},'Recoupment')">&#8652; Mark Recoupment</button>
+          <hr>
+          <button onclick="openNoteModal(${i})">&#128203; Add Note</button>
+          <button onclick="createBillingAlert(${i})">&#9888; Create Billing Alert</button>
+          <button onclick="createTicket(${i})">&#127926; Create Ticket</button>
+          <hr>
+          <button onclick="viewERA(${i})">&#128451; View ERA File</button>
+          <button onclick="viewPatient(${i})">&#128100; View Patient</button>
+        </div>
+      </div>
+    </td>
+  </tr>`).join('');
+}
+
+function toggleMenu(i, e){
+  e.stopPropagation();
+  const id='am-'+i;
+  if(activeMenuId && activeMenuId!==id) document.getElementById(activeMenuId)?.classList.remove('open');
+  const el=document.getElementById(id);
+  if(el) el.classList.toggle('open');
+  activeMenuId=el?.classList.contains('open')?id:null;
+}
+document.addEventListener('click',()=>{ if(activeMenuId){ document.getElementById(activeMenuId)?.classList.remove('open'); activeMenuId=null; } });
+
+/* -------------------------------------------------
+   Row selection
+------------------------------------------------- */
+function toggleRow(i, checked){
+  const rows=getFiltered();
+  const idx=rows[i]?._idx;
+  if(idx===undefined) return;
+  if(checked) selected.add(idx); else selected.delete(idx);
+  document.getElementById('selCount').textContent=selected.size+' selected';
+  const row=document.getElementById('pr-'+i);
+  if(row) row.classList.toggle('selected',checked);
+}
+function toggleAll(checked){
+  const rows=getFiltered();
+  if(checked) rows.forEach(r=>selected.add(r._idx));
+  else        rows.forEach(r=>selected.delete(r._idx));
+  document.getElementById('selCount').textContent=selected.size+' selected';
+  renderTable();
+}
+
+/* -------------------------------------------------
+   Row actions
+------------------------------------------------- */
+function getRow(i){ return getFiltered()[i]||null; }
+function setStatus(i, st){
+  const c=getRow(i); if(!c||c._idx===undefined) return;
+  QUEUE[c._idx].posting_status=st;
+  saveQueue(); renderTable(); updateStats();
+  toast('Status updated to "'+st+'".');
+  closeMenu();
+}
+function closeMenu(){ if(activeMenuId){ document.getElementById(activeMenuId)?.classList.remove('open'); activeMenuId=null; } }
+
+function viewERA(i){ const c=getRow(i); if(c?.era_id) window.open('admin-era-detail.html?id='+encodeURIComponent(c.era_id),'_blank'); }
+function viewPatient(i){ const c=getRow(i); if(c?.linked_patient_id) window.open('admin-patient-detail.html?id='+encodeURIComponent(c.linked_patient_id),'_blank'); else toast('No linked patient record.'); }
+function createBillingAlert(i){ toast('Billing alert created for this claim.'); closeMenu(); }
+function createTicket(i){ toast('Support ticket created for this claim.'); closeMenu(); }
+
+/* -------------------------------------------------
+   Post Modal
+------------------------------------------------- */
+function openPostModal(i, mode){
+  const c=getRow(i); if(!c) return;
+  postTargetIdx=c._idx;
+  document.getElementById('postModalTitle').textContent=mode==='Posted'?'Post Full Payment':'Post Partial Payment';
+  document.getElementById('postModalInfo').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div><div style="font-size:10.5px;font-weight:700;color:var(--ink-500)">PATIENT</div><div style="font-weight:700;font-size:13px">${esc(c.patient_name||'?')}</div></div>
+      <div><div style="font-size:10.5px;font-weight:700;color:var(--ink-500)">CLAIM #</div><div style="font-weight:700;font-size:12px;font-family:monospace">${esc(c.claim_number||'?')}</div></div>
+      <div><div style="font-size:10.5px;font-weight:700;color:var(--ink-500)">PAID AMOUNT</div><div style="font-weight:700;font-size:14px;color:#059669">${fmt$(c.paid_amount)}</div></div>
+    </div>`;
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('pmPostDate').value=today;
+  document.getElementById('pmAmount').value=c.paid_amount||0;
+  document.getElementById('pmNote').value='';
+  document.getElementById('postModal').style.display='flex';
+  closeMenu();
+}
+function closePostModal(){ document.getElementById('postModal').style.display='none'; postTargetIdx=null; }
+function savePost(st){
+  if(postTargetIdx===null) return;
+  QUEUE[postTargetIdx].posting_status=st;
+  QUEUE[postTargetIdx].posted_amount=parseFloat(document.getElementById('pmAmount').value)||0;
+  QUEUE[postTargetIdx].posted_date=document.getElementById('pmPostDate').value||'';
+  QUEUE[postTargetIdx].note=(QUEUE[postTargetIdx].note||'')+(document.getElementById('pmNote').value?'\n'+document.getElementById('pmNote').value:'');
+  saveQueue(); renderTable(); updateStats(); closePostModal();
+  toast('Payment '+st.toLowerCase()+'.');
+}
+
+/* -------------------------------------------------
+   Note Modal
+------------------------------------------------- */
+function openNoteModal(i){ const c=getRow(i); if(!c) return; noteTargetIdx=c._idx; document.getElementById('noteText').value=c.note||''; document.getElementById('noteModal').style.display='flex'; closeMenu(); }
+function closeNoteModal(){ document.getElementById('noteModal').style.display='none'; noteTargetIdx=null; }
+function saveNote(){ if(noteTargetIdx===null) return; QUEUE[noteTargetIdx].note=document.getElementById('noteText').value||''; saveQueue(); closeNoteModal(); toast('Note saved.'); }
+
+/* -------------------------------------------------
+   Bulk actions
+------------------------------------------------- */
+function bulkPost(){
+  if(!selected.size){ toast('Select claims first.'); return; }
+  selected.forEach(idx=>{ if(QUEUE[idx]?.posting_status==='Pending'||QUEUE[idx]?.posting_status==='Unmatched') QUEUE[idx].posting_status='Posted'; });
+  saveQueue(); selected.clear(); document.getElementById('selCount').textContent='0 selected'; renderTable(); updateStats();
+  toast('Selected claims posted.');
+}
+function bulkHold(){
+  if(!selected.size){ toast('Select claims first.'); return; }
+  selected.forEach(idx=>{ if(QUEUE[idx]) QUEUE[idx].posting_status='On Hold'; });
+  saveQueue(); selected.clear(); document.getElementById('selCount').textContent='0 selected'; renderTable(); updateStats();
+  toast('Selected claims placed on hold.');
+}
+function bulkAppeal(){
+  if(!selected.size){ toast('Select claims first.'); return; }
+  selected.forEach(idx=>{ if(QUEUE[idx]) QUEUE[idx].posting_status='On Appeal'; });
+  saveQueue(); selected.clear(); document.getElementById('selCount').textContent='0 selected'; renderTable(); updateStats();
+  toast('Selected claims marked for appeal.');
+}
+function bulkAlert(){
+  if(!selected.size){ toast('Select claims first.'); return; }
+  toast('Billing alerts created for '+selected.size+' claims.');
+  selected.clear(); document.getElementById('selCount').textContent='0 selected';
+}
+function postAllMatched(){
+  let count=0;
+  QUEUE.forEach(c=>{ if(c.matched&&c.posting_status==='Pending'){ c.posting_status='Posted'; count++; } });
+  saveQueue(); renderTable(); updateStats();
+  toast('Posted '+count+' matched claims.');
+}
+
+/* -------------------------------------------------
+   Persist queue changes back to ERA imports
+------------------------------------------------- */
+function saveQueue(){
+  // Update posting statuses in era_imports
+  const all=dbGet('docusistant_era_imports_v1');
+  all.forEach(era=>{
+    (era.claims||[]).forEach(c=>{
+      const q=QUEUE.find(q=>q.era_id===era.id&&q.claim_number===c.claim_number);
+      if(q) c.posting_status=q.posting_status;
+    });
+  });
+  dbSet('docusistant_era_imports_v1',all);
+}
+
+/* -------------------------------------------------
+   Export CSV
+------------------------------------------------- */
+function exportCSV(){
+  const rows=getFiltered();
+  if(!rows.length){ toast('No data to export.'); return; }
+  const hdr='ERA File,Claim #,Patient,Payer,DOS,Code,Billed,Allowed,Paid,Adj,Patient Resp,CARC,Status\n';
+  const csv=rows.map(c=>[c.era_file,c.claim_number,c.patient_name,c.payer_name,c.dos,c.code,
+    c.billed_amount,c.allowed_amount||c.paid_amount||0,c.paid_amount,
+    Math.max(0,(c.billed_amount||0)-(c.paid_amount||0)),c.patient_resp||0,
+    (c.carc_codes||[]).join(';'),c.posting_status
+  ].map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(hdr+csv); a.download='payment_posting_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
+/* -------------------------------------------------
+   Stats row
+------------------------------------------------- */
+function updateStats(){
+  const total=QUEUE.length;
+  const postedAmt=QUEUE.filter(c=>c.posting_status==='Posted').reduce((s,c)=>s+(c.paid_amount||0),0);
+  const pending  =QUEUE.filter(c=>c.posting_status==='Pending').length;
+  const denied   =QUEUE.filter(c=>c.posting_status==='Denied').length;
+  const unmatched=QUEUE.filter(c=>c.posting_status==='Unmatched'||!c.matched).length;
+  const appeal   =QUEUE.filter(c=>c.posting_status==='On Appeal').length;
+  document.getElementById('s-total').textContent=total;
+  document.getElementById('s-posted').textContent=fmt$(postedAmt);
+  document.getElementById('s-pending').textContent=pending;
+  document.getElementById('s-denied').textContent=denied;
+  document.getElementById('s-unmatched').textContent=unmatched;
+  document.getElementById('s-appeal').textContent=appeal;
+}
+
+/* -------------------------------------------------
+   Populate ERA filter dropdown
+------------------------------------------------- */
+function populateERAFilter(){
+  const sel=document.getElementById('qERA'); if(!sel) return;
+  const seen=new Map();
+  QUEUE.forEach(c=>{ if(!seen.has(c.era_id)) seen.set(c.era_id,c.era_file); });
+  sel.innerHTML='<option value="">All ERA Files</option>'+[...seen.entries()].map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`).join('');
+}
+
+/* -------------------------------------------------
+   Filters
+------------------------------------------------- */
+function clearFilters(){
+  ['qSearch','qStatus','qPayer','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('qERA').selectedIndex=0;
+  renderTable();
+}
+
+/* -------------------------------------------------
+   Init
+------------------------------------------------- */
+window.onload = async () => {
+  await initDashboard(ADMIN_ROLES);
+  const eraId=getParam('eraId');
+  const claimNum=getParam('claim');
+  let raw=buildQueueFromERA(eraId,claimNum);
+  // Add _idx for stable reference
+  raw.forEach((c,i)=>{ c._idx=i; });
+  QUEUE=raw;
+  populateERAFilter();
+  updateStats();
+  renderTable();
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin &mdash; Patient Invoices</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    /* Bucket tabs */
+    .bucket-tabs{display:flex;gap:4px;padding:0 0 14px;flex-wrap:wrap}
+    .bucket-tab{padding:7px 13px;border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s;font-family:inherit}
+    .bucket-tab:hover{border-color:var(--blue-500);color:var(--blue-600);background:var(--blue-100)}
+    .bucket-tab.active{background:var(--blue-600);color:#fff;border-color:var(--blue-700)}
+    .bucket-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;font-size:10.5px;font-weight:700;background:rgba(0,0,0,.1);color:inherit}
+    .bucket-tab:not(.active) .bucket-badge{background:var(--blue-100);color:var(--blue-700)}
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+    .stat-card.blue{background:linear-gradient(135deg,#eff6ff,#dbeafe)}
+    .stat-card.green{background:linear-gradient(135deg,#f0fdf4,#dcfce7)}
+    .stat-card.amber{background:linear-gradient(135deg,#fffbeb,#fef3c7)}
+    .stat-card.red{background:linear-gradient(135deg,#fff1f2,#fee2e2)}
+    .stat-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+    .stat-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--ink-500);margin-top:4px}
+    .stat-sub{font-size:12px;color:var(--ink-500);margin-top:2px}
+    /* Table */
+    .table-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+    .table-toolbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px}
+    .empty-state{text-align:center;padding:48px 20px;color:var(--ink-500)}
+    .empty-icon{font-size:2.2rem;margin-bottom:10px}
+    .empty-msg{font-size:14px}
+    .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid transparent}
+    .inv-ready{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+    .inv-reminder{background:#fffbeb;color:#92400e;border-color:#fde68a}
+    .inv-aging{background:#fff7ed;color:#c2410c;border-color:#fdba74}
+    .inv-overdue{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+    .inv-mail{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .inv-matched{background:#f0fdf4;color:#065f46;border-color:#a7f3d0}
+    .inv-unmatched{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+    .inv-paid{background:#f0fdf4;color:#166534;border-color:#86efac}
+    @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:600px){.stats-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link active" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:18px">
+      <div>
+        <h1>Patient Invoices</h1>
+        <p>Manage patient billing statements, reminders, and payment matching</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" id="btnExportCSV">&#8595; Export CSV</button>
+        <button class="btn btn-sm" id="btnNewInvoice">&#43; New Invoice</button>
+      </div>
+    </header>
+
+    <!-- KPI Stats -->
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-num" id="kpiTotal">0</div>
+        <div class="stat-lbl">Total Invoices</div>
+        <div class="stat-sub" id="kpiTotalSub"></div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-num" id="kpiOutstanding">$0</div>
+        <div class="stat-lbl">Outstanding Balance</div>
+        <div class="stat-sub" id="kpiOutstandingSub"></div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-num" id="kpiMatched">0</div>
+        <div class="stat-lbl">Matched Payments</div>
+        <div class="stat-sub" id="kpiMatchedSub"></div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-num" id="kpiUnmatched">0</div>
+        <div class="stat-lbl">Unmatched Payments</div>
+        <div class="stat-sub" id="kpiUnmatchedSub"></div>
+      </div>
+    </div>
+
+    <!-- Bucket Tabs -->
+    <div role="tablist" class="bucket-tabs" id="invoiceBuckets" aria-label="Invoice filter buckets">
+      <button role="tab" aria-selected="true"  class="bucket-tab active" data-bucket="all">All <span class="bucket-badge" id="bk-all">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="ready">Ready <span class="bucket-badge" id="bk-ready">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="reminder">Reminders <span class="bucket-badge" id="bk-reminder">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="aging_30">30-Day <span class="bucket-badge" id="bk-aging_30">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="aging_60">60-Day <span class="bucket-badge" id="bk-aging_60">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="aging_90">90-Day <span class="bucket-badge" id="bk-aging_90">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="mail_queue">Mail Queue <span class="bucket-badge" id="bk-mail_queue">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="matched">Matched Payments <span class="bucket-badge" id="bk-matched">0</span></button>
+      <button role="tab" aria-selected="false" class="bucket-tab" data-bucket="unmatched">Unmatched <span class="bucket-badge" id="bk-unmatched">0</span></button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-toolbar">
+        <span id="tableCount" style="font-size:13px;font-weight:600;color:var(--ink-500)">0 invoices</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="search" id="fSearch" placeholder="Search patient, invoice #&hellip;" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;min-width:220px">
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="selectAll" aria-label="Select all"></th>
+              <th>Invoice #</th>
+              <th>Patient</th>
+              <th>DOS</th>
+              <th>Code</th>
+              <th>Amount</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th>Days Out</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="invoiceBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt$(n){ const v=Number(n||0); return '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// ── Mock invoices ─────────────────────────────────────────────────────────
+const MOCK_INVOICES = [
+  { id:'INV-00001', patient:'Marcus Johnson',    dos:'2026-03-15', code:'H0031', amount:40.00,  paid:40.00,  balance:0,     status:'paid',     due:'2026-04-15', payment_match:'matched' },
+  { id:'INV-00002', patient:'Destiny Williams',  dos:'2026-03-18', code:'90837', amount:150.00, paid:0,      balance:150.00,status:'ready',    due:'2026-04-18', payment_match:'unmatched' },
+  { id:'INV-00003', patient:'James Rivera',      dos:'2026-03-20', code:'H0001', amount:75.00,  paid:0,      balance:75.00, status:'reminder', due:'2026-04-05', payment_match:'unmatched' },
+  { id:'INV-00004', patient:'Sofia Martinez',    dos:'2026-03-10', code:'H0031', amount:0,      paid:0,      balance:0,     status:'paid',     due:'2026-04-10', payment_match:'matched' },
+  { id:'INV-00005', patient:'Elijah Thompson',   dos:'2026-03-22', code:'H0031', amount:0,      paid:0,      balance:0,     status:'paid',     due:'2026-04-22', payment_match:'matched' },
+  { id:'INV-00006', patient:'Aaliyah Brown',     dos:'2026-03-05', code:'90834', amount:22.00,  paid:0,      balance:22.00, status:'aging_30', due:'2026-04-04', payment_match:'unmatched' },
+  { id:'INV-00007', patient:'Noah Davis',        dos:'2026-03-25', code:'90837', amount:180.00, paid:0,      balance:180.00,status:'ready',    due:'2026-04-25', payment_match:'unmatched' },
+  { id:'INV-00008', patient:'Isabella Wilson',   dos:'2026-03-12', code:'H0001', amount:0,      paid:0,      balance:0,     status:'paid',     due:'2026-04-12', payment_match:'matched' },
+  { id:'INV-00009', patient:'Liam Garcia',       dos:'2026-02-28', code:'90837', amount:180.00, paid:0,      balance:180.00,status:'aging_60', due:'2026-03-29', payment_match:'unmatched' },
+  { id:'INV-00010', patient:'Emma Jackson',      dos:'2026-03-28', code:'H0031', amount:40.00,  paid:0,      balance:40.00, status:'reminder', due:'2026-04-10', payment_match:'unmatched' },
+  { id:'INV-00011', patient:'Olivia Harris',     dos:'2026-02-15', code:'H0001', amount:0,      paid:0,      balance:0,     status:'paid',     due:'2026-03-15', payment_match:'matched' },
+  { id:'INV-00012', patient:'William Lee',       dos:'2026-03-18', code:'90837', amount:310.00, paid:0,      balance:310.00,status:'mail_queue',due:'2026-03-25',payment_match:'unmatched' },
+  { id:'INV-00013', patient:'Ava Robinson',      dos:'2026-03-08', code:'H0032', amount:62.00,  paid:0,      balance:62.00, status:'aging_90', due:'2026-03-08', payment_match:'unmatched' },
+  { id:'INV-00014', patient:'Ethan Clark',       dos:'2026-04-01', code:'90837', amount:180.00, paid:0,      balance:180.00,status:'ready',    due:'2026-05-01', payment_match:'unmatched' },
+  { id:'INV-00015', patient:'Mia Lewis',         dos:'2026-03-30', code:'H0031', amount:0,      paid:0,      balance:0,     status:'paid',     due:'2026-04-30', payment_match:'matched' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────
+let filtered = [...MOCK_INVOICES];
+let activeBucket = 'all';
+let searchTerm = '';
+
+// ── Bucket matching ───────────────────────────────────────────────────────
+function matchBucket(inv, bucket) {
+  if (bucket === 'all')       return true;
+  if (bucket === 'ready')     return inv.status === 'ready';
+  if (bucket === 'reminder')  return inv.status === 'reminder';
+  if (bucket === 'aging_30')  return inv.status === 'aging_30';
+  if (bucket === 'aging_60')  return inv.status === 'aging_60';
+  if (bucket === 'aging_90')  return inv.status === 'aging_90';
+  if (bucket === 'mail_queue') return inv.status === 'mail_queue';
+  if (bucket === 'matched')   return inv.payment_match === 'matched';
+  if (bucket === 'unmatched') return inv.payment_match === 'unmatched' && inv.balance > 0;
+  return true;
+}
+
+function updateBucketBadges() {
+  const buckets = ['all','ready','reminder','aging_30','aging_60','aging_90','mail_queue','matched','unmatched'];
+  buckets.forEach(b => {
+    const el = document.getElementById('bk-' + b);
+    if (el) el.textContent = MOCK_INVOICES.filter(inv => matchBucket(inv, b)).length;
+  });
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+function computeKpis() {
+  const all = MOCK_INVOICES;
+  const total = all.length;
+  const outstanding = all.reduce((s, i) => s + (i.balance || 0), 0);
+  const matched = all.filter(i => i.payment_match === 'matched').length;
+  const unmatched = all.filter(i => i.payment_match === 'unmatched' && i.balance > 0).length;
+
+  document.getElementById('kpiTotal').textContent = total;
+  document.getElementById('kpiTotalSub').textContent = all.filter(i => i.status === 'ready').length + ' ready to send';
+  document.getElementById('kpiOutstanding').textContent = fmt$(outstanding);
+  document.getElementById('kpiOutstandingSub').textContent = all.filter(i => i.balance > 100).length + ' over $100';
+  document.getElementById('kpiMatched').textContent = matched;
+  document.getElementById('kpiMatchedSub').textContent = Math.round(matched / total * 100) + '% of invoices';
+  document.getElementById('kpiUnmatched').textContent = unmatched;
+  document.getElementById('kpiUnmatchedSub').textContent = fmt$(all.filter(i=>i.payment_match==='unmatched').reduce((s,i)=>s+i.balance,0)) + ' pending';
+}
+
+// ── Status label + badge ──────────────────────────────────────────────────
+function statusLabel(s) {
+  return { ready:'Ready', reminder:'Reminder', aging_30:'30-Day', aging_60:'60-Day', aging_90:'90+ Day',
+           mail_queue:'Mail Queue', paid:'Paid' }[s] || s;
+}
+function statusClass(s) {
+  return { ready:'inv-ready', reminder:'inv-reminder', aging_30:'inv-aging', aging_60:'inv-aging',
+           aging_90:'inv-overdue', mail_queue:'inv-mail', paid:'inv-paid' }[s] || 'inv-unmatched';
+}
+function daysOut(due) {
+  if (!due) return null;
+  return Math.floor((Date.now() - new Date(due).getTime()) / 86400000);
+}
+
+// ── Render table ──────────────────────────────────────────────────────────
+function renderTable() {
+  const data = filtered.filter(inv => {
+    if (!searchTerm) return true;
+    return inv.patient.toLowerCase().includes(searchTerm) || inv.id.toLowerCase().includes(searchTerm);
+  });
+  document.getElementById('tableCount').textContent = data.length + ' invoice' + (data.length !== 1 ? 's' : '') + ' found';
+
+  const tbody = document.getElementById('invoiceBody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">&#128196;</div><div class="empty-msg">No invoices match your filter</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(inv => {
+    const days = daysOut(inv.due);
+    let daysStr;
+    if (days === null) {
+      daysStr = '&mdash;';
+    } else if (days <= 0) {
+      daysStr = `<span style="color:var(--ink-500)">${Math.abs(days)}d remaining</span>`;
+    } else {
+      const color = days > 60 ? '#b91c1c' : days > 30 ? '#d97706' : 'var(--ink-700)';
+      daysStr = `<span style="color:${color};font-weight:700">${days}d past due</span>`;
+    }
+    return `<tr>
+      <td><input type="checkbox" data-inv-id="${esc(inv.id)}"></td>
+      <td style="font-size:12px;color:var(--blue-700);font-weight:600">${esc(inv.id)}</td>
+      <td style="font-weight:600">${esc(inv.patient)}</td>
+      <td style="font-size:12.5px">${inv.dos || '&mdash;'}</td>
+      <td><code style="font-size:12px">${esc(inv.code)}</code></td>
+      <td style="text-align:right">${fmt$(inv.amount)}</td>
+      <td style="text-align:right;color:var(--ink-500)">${fmt$(inv.paid)}</td>
+      <td style="text-align:right;font-weight:700;color:${inv.balance > 0 ? '#b45309' : 'var(--ink-500)'}">${fmt$(inv.balance)}</td>
+      <td><span class="badge ${statusClass(inv.status)}">${statusLabel(inv.status)}</span></td>
+      <td style="font-size:12.5px">${inv.due || '&mdash;'}</td>
+      <td style="font-size:12px">${daysStr}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" data-inv-action="send" data-inv-id="${esc(inv.id)}" style="margin-right:4px">Send</button>
+        <button class="btn btn-outline btn-sm" data-inv-action="view" data-inv-id="${esc(inv.id)}">View</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Apply bucket filter ───────────────────────────────────────────────────
+function applyBucket(bucket) {
+  activeBucket = bucket;
+  filtered = MOCK_INVOICES.filter(inv => matchBucket(inv, bucket));
+  renderTable();
+}
+
+// ── Delegated events ──────────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  const bt = e.target.closest('[data-bucket]');
+  if (bt) {
+    document.querySelectorAll('[data-bucket]').forEach(b => {
+      b.classList.toggle('active', b === bt);
+      b.setAttribute('aria-selected', b === bt ? 'true' : 'false');
+    });
+    applyBucket(bt.dataset.bucket);
+    return;
+  }
+  const invBtn = e.target.closest('[data-inv-action]');
+  if (invBtn) {
+    const invAction = invBtn.dataset.invAction;
+    const invId     = invBtn.dataset.invId;
+    if (invAction === 'send')       alert('Send invoice ' + invId + ' to patient.\n(Connect to email/mail service in production)');
+    else if (invAction === 'view')  alert('Open invoice detail for ' + invId + '.');
+    return;
+  }
+  if (e.target.closest('#btnNewInvoice'))  { alert('New invoice form — connect to billing module.'); return; }
+  if (e.target.closest('#btnExportCSV'))   { exportCSV(); return; }
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'fSearch') {
+    searchTerm = e.target.value.toLowerCase().trim();
+    renderTable();
+  }
+});
+
+// ── Export CSV ────────────────────────────────────────────────────────────
+function exportCSV() {
+  const rows = filtered.map(inv => [inv.id, inv.patient, inv.dos, inv.code, inv.amount, inv.paid, inv.balance, inv.status, inv.due]);
+  const headers = ['Invoice #','Patient','DOS','Code','Amount','Paid','Balance','Status','Due Date'];
+  function q(v){ return '"' + String(v==null?'':v).replace(/"/g,'""') + '"'; }
+  const csv = [headers.map(q), ...rows.map(r => r.map(q))].join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'patient-invoices.csv';
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  if (typeof initDashboard === 'function' && typeof ADMIN_ROLES !== 'undefined') {
+    await initDashboard(ADMIN_ROLES);
+  }
+  computeKpis();
+  updateBucketBadges();
+  filtered = [...MOCK_INVOICES];
+  renderTable();
+});
+</script>
+</body>
+</html>

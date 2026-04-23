@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Payments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.kpi-card.blue::before{background:linear-gradient(180deg,var(--blue-500),var(--blue-700))}
+.kpi-card.teal::before{background:linear-gradient(180deg,#14b8a6,#0f766e)}
+.kpi-card.green::before{background:linear-gradient(180deg,#10b981,#059669)}
+.kpi-card.amber::before{background:linear-gradient(180deg,#f59e0b,#d97706)}
+.kpi-card.red::before{background:linear-gradient(180deg,#ef4444,#b91c1c)}
+.kpi-card.purple::before{background:linear-gradient(180deg,#8b5cf6,#6d28d9)}
+.kpi-num{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:700;color:var(--ink-900);line-height:1}
+.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-top:4px}
+.kpi-sub{font-size:11px;color:var(--ink-500);margin-top:2px}
+.cm-tabbar{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.cm-tab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;transition:color .14s,border-color .14s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cm-tab:hover{color:var(--ink-900)}
+.cm-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.cm-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;font-size:10px;font-weight:800;background:#dbeafe;color:#1e40af}
+.cm-tab-badge-red{background:#fee2e2;color:#b91c1c}
+.cm-tab-badge-amber{background:#fef3c7;color:#92400e}
+.cm-tab.active .cm-tab-badge{background:var(--blue-600);color:#fff}
+.cm-panel{display:none}.cm-panel.active{display:block}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+.filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+.filter-bar input{min-width:200px;flex:1}
+.filter-bar select{min-width:130px}
+.filter-count{font-size:12px;color:var(--ink-500);margin-left:auto;white-space:nowrap}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.data-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.data-tbl th{background:#f5f9fe;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border)}
+.data-tbl td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.data-tbl tr:last-child td{border-bottom:none}
+.data-tbl tbody tr{cursor:pointer;transition:background .12s}
+.data-tbl tbody tr:hover{background:rgba(60,144,209,.04)}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-green{background:#d1fae5;color:#065f46}.badge-amber{background:#fef3c7;color:#92400e}.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-blue{background:#dbeafe;color:#1e40af}.badge-gray{background:#f3f4f6;color:#374151}.badge-purple{background:#ede9fe;color:#5b21b6}.badge-teal{background:#ccfbf1;color:#0f5445}
+.act-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--ink-700);font-family:inherit;transition:all .12s}
+.act-btn:hover{background:#f0f7ff;border-color:var(--blue-400);color:var(--blue-700)}
+.act-btn-blue{background:var(--blue-600);color:#fff;border-color:var(--blue-700)}.act-btn-blue:hover{background:var(--blue-700)}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;display:none}.drawer-backdrop.open{display:block}
+.drawer-panel{position:fixed;top:0;right:0;bottom:0;width:520px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:901;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:24px}
+.drawer-panel.open{transform:translateX(0)}
+.drawer-close{position:absolute;top:16px;right:16px;border:none;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--ink-500);padding:4px}.drawer-close:hover{color:var(--ink-900)}
+.drawer-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink-900);margin:0 0 4px;padding-right:32px}
+.drawer-sub{font-size:12px;color:var(--ink-500);margin:0 0 20px}
+.drawer-section{margin-bottom:18px}
+.drawer-section-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-500);margin-bottom:8px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}.field-row.wide{grid-template-columns:1fr}
+.field-item label{font-size:11px;font-weight:700;color:var(--ink-500);display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+.field-item span{font-size:13px;color:var(--ink-900)}
+.detail-line-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.detail-line-tbl th{padding:7px 10px;background:#f5f9fe;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border);text-align:left}
+.detail-line-tbl td{padding:8px 10px;border-bottom:1px solid var(--border)}.detail-line-tbl tr:last-child td{border-bottom:none}
+.post-form{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:20px;box-shadow:var(--shadow-sm);max-width:800px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}.form-row.triple{grid-template-columns:1fr 1fr 1fr}
+.form-group label{font-size:11.5px;font-weight:700;color:var(--ink-700);display:block;margin-bottom:5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.form-group textarea{resize:vertical;min-height:72px}
+.form-actions{display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+@media(max-width:800px){.kpi-strip{grid-template-columns:repeat(3,1fr)}.form-row,.form-row.triple{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div><h1>Payments</h1><p>ERA, VCC, check, manual posting, exceptions, and overpayments — one module.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" id="btnExport" type="button">Export</button>
+      <button class="btn btn-blue btn-sm" id="btnPostPayment" type="button">+ Post Payment</button>
+    </div>
+  </header>
+
+  <div class="kpi-strip">
+    <div class="kpi-card blue"><div class="kpi-num">$142.8k</div><div class="kpi-lbl">Posted MTD</div><div class="kpi-sub">+12% vs last month</div></div>
+    <div class="kpi-card teal"><div class="kpi-num">18</div><div class="kpi-lbl">ERA Pending</div><div class="kpi-sub">3 errors</div></div>
+    <div class="kpi-card amber"><div class="kpi-num">42</div><div class="kpi-lbl">Unmatched</div><div class="kpi-sub">$18.4k</div></div>
+    <div class="kpi-card red"><div class="kpi-num">9</div><div class="kpi-lbl">Exceptions</div><div class="kpi-sub">Needs review</div></div>
+    <div class="kpi-card purple"><div class="kpi-num">6</div><div class="kpi-lbl">Overpayments</div><div class="kpi-sub">$2.1k pending</div></div>
+    <div class="kpi-card green"><div class="kpi-num">$8.3k</div><div class="kpi-lbl">Refunds</div><div class="kpi-sub">This month</div></div>
+  </div>
+
+  <div class="cm-tabbar" id="tabBar">
+    <button class="cm-tab active" data-tab="era">ERA <span class="cm-tab-badge cm-tab-badge-amber" id="tb-era">18</span></button>
+    <button class="cm-tab" data-tab="vcc">VCC <span class="cm-tab-badge" id="tb-vcc">7</span></button>
+    <button class="cm-tab" data-tab="check">Check <span class="cm-tab-badge" id="tb-chk">5</span></button>
+    <button class="cm-tab" data-tab="manual">Manual Posting</button>
+    <button class="cm-tab" data-tab="unmatched">Unmatched <span class="cm-tab-badge cm-tab-badge-amber" id="tb-unmatched">42</span></button>
+    <button class="cm-tab" data-tab="overpayments">Overpayments <span class="cm-tab-badge cm-tab-badge-red" id="tb-over">6</span></button>
+    <button class="cm-tab" data-tab="exceptions">Exceptions <span class="cm-tab-badge cm-tab-badge-red" id="tb-exc">9</span></button>
+  </div>
+
+  <div class="cm-panel active" id="panel-era">
+    <div class="filter-bar">
+      <input type="search" id="era-search" placeholder="Search ERA files…">
+      <select id="era-status-filter"><option value="">All Statuses</option><option>Pending</option><option>Imported</option><option>Error</option><option>Partial</option></select>
+      <select id="era-payer-filter"><option value="">All Payers</option><option>Aetna</option><option>BCBS</option><option>Cigna</option><option>United</option><option>Humana</option></select>
+      <input type="date" id="era-date-filter">
+      <span class="filter-count" id="era-count">18 files</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>File Name</th><th>Payer</th><th>Date</th><th>Amount</th><th>Sessions</th><th>Status</th><th>Actions</th></tr></thead><tbody id="era-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-vcc">
+    <div class="filter-bar">
+      <input type="search" id="vcc-search" placeholder="Search VCC payments…">
+      <select id="vcc-status-filter"><option value="">All Statuses</option><option>Pending</option><option>Posted</option><option>Expired</option><option>Declined</option></select>
+      <select id="vcc-payer-filter"><option value="">All Payers</option><option>Aetna</option><option>BCBS</option><option>Cigna</option><option>United</option></select>
+      <span class="filter-count" id="vcc-count">7 payments</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Card #</th><th>Payer</th><th>Amount</th><th>Issue Date</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vcc-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-check">
+    <div class="filter-bar">
+      <input type="search" id="chk-search" placeholder="Search check payments…">
+      <select id="chk-status-filter"><option value="">All Statuses</option><option>Received</option><option>Deposited</option><option>Posted</option><option>Returned</option></select>
+      <span class="filter-count" id="chk-count">5 checks</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Check #</th><th>Payer</th><th>Amount</th><th>Received</th><th>Deposit Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="chk-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-manual">
+    <div class="post-form">
+      <div style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:16px">Manual Payment Entry</div>
+      <div class="form-row">
+        <div class="form-group"><label>Payment Type</label><select id="mp-type"><option>ERA</option><option>VCC</option><option>Check</option><option>Cash</option><option>Patient Payment</option><option>Other</option></select></div>
+        <div class="form-group"><label>Payer / Source</label><input type="text" id="mp-payer" placeholder="Payer name or patient"></div>
+      </div>
+      <div class="form-row triple">
+        <div class="form-group"><label>Amount</label><input type="number" id="mp-amount" placeholder="0.00" step="0.01"></div>
+        <div class="form-group"><label>Check / Ref #</label><input type="text" id="mp-ref" placeholder="Reference number"></div>
+        <div class="form-group"><label>Payment Date</label><input type="date" id="mp-date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Patient / Claim</label><input type="text" id="mp-patient" placeholder="Patient name or Claim ID"></div>
+        <div class="form-group"><label>Service Code</label><input type="text" id="mp-code" placeholder="CPT code (optional)"></div>
+      </div>
+      <div class="form-row wide">
+        <div class="form-group"><label>Notes</label><textarea id="mp-notes" placeholder="Internal notes about this payment…"></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-blue btn-sm" id="btnPostManual" type="button">Post Payment</button>
+        <button class="btn btn-outline btn-sm" id="btnClearForm" type="button">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cm-panel" id="panel-unmatched">
+    <div class="filter-bar">
+      <input type="search" id="um-search" placeholder="Search unmatched payments…">
+      <select id="um-payer-filter"><option value="">All Payers</option><option>Aetna</option><option>BCBS</option><option>Cigna</option><option>United</option><option>Humana</option></select>
+      <select id="um-reason-filter"><option value="">All Reasons</option><option>No Matching Claim</option><option>Amount Mismatch</option><option>Duplicate</option><option>Patient Not Found</option></select>
+      <span class="filter-count" id="um-count">42 payments</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Ref #</th><th>Payer</th><th>Amount</th><th>Date</th><th>Reason</th><th>Days Pending</th><th>Actions</th></tr></thead><tbody id="um-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-overpayments">
+    <div class="filter-bar">
+      <input type="search" id="ov-search" placeholder="Search overpayments…">
+      <select id="ov-status-filter"><option value="">All Statuses</option><option>Pending Review</option><option>Refund Issued</option><option>Applied to Balance</option><option>Disputed</option></select>
+      <span class="filter-count" id="ov-count">6 overpayments</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Patient / Payer</th><th>Claim</th><th>Paid</th><th>Expected</th><th>Overage</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ov-tbody"></tbody></table></div>
+  </div>
+
+  <div class="cm-panel" id="panel-exceptions">
+    <div class="filter-bar">
+      <input type="search" id="exc-search" placeholder="Search exceptions…">
+      <select id="exc-type-filter"><option value="">All Types</option><option>ERA Parse Error</option><option>Invalid NPI</option><option>Payer Mismatch</option><option>Amount Discrepancy</option><option>Duplicate Payment</option></select>
+      <select id="exc-severity-filter"><option value="">All Severities</option><option>Critical</option><option>High</option><option>Medium</option></select>
+      <span class="filter-count" id="exc-count">9 exceptions</span>
+    </div>
+    <div class="tbl-wrap"><table class="data-tbl"><thead><tr><th>Type</th><th>Description</th><th>Amount</th><th>Payer</th><th>Date</th><th>Severity</th><th>Actions</th></tr></thead><tbody id="exc-tbody"></tbody></table></div>
+  </div>
+</main>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<div class="drawer-panel" id="drawerPanel">
+  <button class="drawer-close" id="drawerClose" aria-label="Close">&#215;</button>
+  <h2 class="drawer-title" id="drawerTitle">Payment Detail</h2>
+  <p class="drawer-sub" id="drawerSub"></p>
+  <div id="drawerBody"></div>
+</div>
+
+<script>
+'use strict';
+const PAYERS=['Aetna','BCBS','Cigna','United Healthcare','Humana','Magellan','Tricare','Medicare','Medicaid'];
+const rd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const fmt$=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate=d=>d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+const ago=n=>{const d=new Date();d.setDate(d.getDate()-n);return d;};
+const future=n=>{const d=new Date();d.setDate(d.getDate()+n);return d;};
+function badge(cls,label){return`<span class="badge badge-${cls}">${label}</span>`;}
+
+const ERA_DATA=Array.from({length:18},(_,i)=>({id:`ERA-${2024100+i}`,file:`remit_${PAYERS[i%PAYERS.length].replace(/ /g,'_')}_${20241000+i}.835`,payer:PAYERS[i%PAYERS.length],date:fmtDate(ago(rd(0,14))),amount:rd(1200,18000),sessions:rd(4,40),status:['Pending','Imported','Error','Partial','Imported','Imported','Pending','Error'][i%8]}));
+const VCC_DATA=Array.from({length:7},(_,i)=>({id:`VCC-${3000+i}`,card:`****-****-****-${1000+rd(0,8999)}`,payer:PAYERS[i%PAYERS.length],amount:rd(400,6000),issued:fmtDate(ago(rd(0,20))),expiry:fmtDate(future(rd(5,60))),status:['Pending','Posted','Pending','Expired','Pending','Declined','Posted'][i%7]}));
+const CHK_DATA=Array.from({length:5},(_,i)=>({id:`CHK-${4000+i}`,number:`${10000+rd(0,89999)}`,payer:PAYERS[i%PAYERS.length],amount:rd(600,8000),received:fmtDate(ago(rd(0,10))),deposit:i<3?fmtDate(ago(rd(0,5))):'Pending',status:['Received','Deposited','Posted','Received','Returned'][i%5]}));
+const UM_DATA=Array.from({length:42},(_,i)=>({id:`UM-${5000+i}`,ref:`REF${20000+i}`,payer:PAYERS[i%PAYERS.length],amount:rd(80,1400),date:fmtDate(ago(rd(0,30))),reason:['No Matching Claim','Amount Mismatch','Duplicate','Patient Not Found','ERA Parse Error','No Matching Claim','Amount Mismatch'][i%7],days:rd(1,45)}));
+const OV_DATA=Array.from({length:6},(_,i)=>{const paid=rd(400,1800),expected=rd(200,400);return{id:`OV-${6000+i}`,patient:['Smith, James','Garcia, Maria','Johnson, Lee','Williams, Anne','Brown, David','Jones, Ruth'][i],claim:`CLM-${10000+i}`,paid,expected,overage:paid-expected,date:fmtDate(ago(rd(0,20))),status:['Pending Review','Refund Issued','Applied to Balance','Disputed','Pending Review','Pending Review'][i%6]};});
+const EXC_DATA=Array.from({length:9},(_,i)=>({id:`EXC-${7000+i}`,type:['ERA Parse Error','Invalid NPI','Payer Mismatch','Amount Discrepancy','Duplicate Payment','ERA Parse Error','Invalid NPI','Payer Mismatch','Amount Discrepancy'][i%9],desc:['File format invalid on line 42','Provider NPI not found in system','Payer ID does not match contract','Remit amount differs from claim by $'+rd(10,400),'Duplicate ERA file detected','Missing PLB segment','NPI validation failed','Unknown payer code 9812','Balance mismatch after adjustment'][i],amount:rd(0,2000),payer:PAYERS[i%PAYERS.length],date:fmtDate(ago(rd(0,7))),severity:['Critical','High','High','Medium','High','Critical','Medium','Low','Medium'][i%9]}));
+
+function eraB(s){return badge({Imported:'green',Pending:'amber',Error:'red',Partial:'purple'}[s]||'gray',s);}
+function vccB(s){return badge({Posted:'green',Pending:'amber',Expired:'gray',Declined:'red'}[s]||'gray',s);}
+function chkB(s){return badge({Posted:'green',Deposited:'teal',Received:'blue',Returned:'red'}[s]||'gray',s);}
+function ovB(s){return badge({'Pending Review':'amber','Refund Issued':'green','Applied to Balance':'teal','Disputed':'red'}[s]||'gray',s);}
+function sevB(s){return badge({Critical:'red',High:'amber',Medium:'blue',Low:'gray'}[s]||'gray',s);}
+
+function renderERA(){const q=document.getElementById('era-search').value.toLowerCase(),st=document.getElementById('era-status-filter').value,py=document.getElementById('era-payer-filter').value;
+  const rows=ERA_DATA.filter(r=>(!q||(r.file+r.payer).toLowerCase().includes(q))&&(!st||r.status===st)&&(!py||r.payer===py));
+  document.getElementById('era-count').textContent=`${rows.length} of ${ERA_DATA.length} files`;
+  document.getElementById('era-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="era"><td style="font-weight:600;color:var(--ink-900);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.file}</td><td>${r.payer}</td><td>${r.date}</td><td>${fmt$(r.amount)}</td><td>${r.sessions}</td><td>${eraB(r.status)}</td><td><button class="act-btn" data-action="review" data-id="${r.id}" data-src="era">Review</button>${r.status==='Error'?`<button class="act-btn" data-action="retry" data-id="${r.id}" data-src="era">Retry</button>`:''}</td></tr>`).join('');}
+
+function renderVCC(){const q=document.getElementById('vcc-search').value.toLowerCase(),st=document.getElementById('vcc-status-filter').value,py=document.getElementById('vcc-payer-filter').value;
+  const rows=VCC_DATA.filter(r=>(!q||(r.card+r.payer).toLowerCase().includes(q))&&(!st||r.status===st)&&(!py||r.payer===py));
+  document.getElementById('vcc-count').textContent=`${rows.length} of ${VCC_DATA.length} payments`;
+  document.getElementById('vcc-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="vcc"><td style="font-family:monospace;font-size:12px">${r.card}</td><td>${r.payer}</td><td style="font-weight:700">${fmt$(r.amount)}</td><td>${r.issued}</td><td>${r.expiry}</td><td>${vccB(r.status)}</td><td>${r.status==='Pending'?`<button class="act-btn act-btn-blue" data-action="post" data-id="${r.id}" data-src="vcc">Post</button>`:''}<button class="act-btn" data-action="review" data-id="${r.id}" data-src="vcc">Detail</button></td></tr>`).join('');}
+
+function renderCHK(){const q=document.getElementById('chk-search').value.toLowerCase(),st=document.getElementById('chk-status-filter').value;
+  const rows=CHK_DATA.filter(r=>(!q||(r.number+r.payer).toLowerCase().includes(q))&&(!st||r.status===st));
+  document.getElementById('chk-count').textContent=`${rows.length} of ${CHK_DATA.length} checks`;
+  document.getElementById('chk-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="chk"><td style="font-weight:600">#${r.number}</td><td>${r.payer}</td><td style="font-weight:700">${fmt$(r.amount)}</td><td>${r.received}</td><td>${r.deposit}</td><td>${chkB(r.status)}</td><td><button class="act-btn" data-action="review" data-id="${r.id}" data-src="chk">Detail</button></td></tr>`).join('');}
+
+function renderUM(){const q=document.getElementById('um-search').value.toLowerCase(),py=document.getElementById('um-payer-filter').value,rn=document.getElementById('um-reason-filter').value;
+  const rows=UM_DATA.filter(r=>(!q||(r.ref+r.payer).toLowerCase().includes(q))&&(!py||r.payer===py)&&(!rn||r.reason===rn));
+  document.getElementById('um-count').textContent=`${rows.length} of ${UM_DATA.length} payments`;
+  document.getElementById('um-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="um"><td style="font-weight:600">${r.ref}</td><td>${r.payer}</td><td style="font-weight:700">${fmt$(r.amount)}</td><td>${r.date}</td><td><span class="badge badge-amber">${r.reason.length>22?r.reason.slice(0,20)+'…':r.reason}</span></td><td><span class="badge ${r.days>30?'badge-red':r.days>14?'badge-amber':'badge-gray'}">${r.days}d</span></td><td><button class="act-btn act-btn-blue" data-action="match" data-id="${r.id}" data-src="um">Match</button> <button class="act-btn" data-action="review" data-id="${r.id}" data-src="um">Detail</button></td></tr>`).join('');}
+
+function renderOV(){const q=document.getElementById('ov-search').value.toLowerCase(),st=document.getElementById('ov-status-filter').value;
+  const rows=OV_DATA.filter(r=>(!q||(r.patient+r.claim).toLowerCase().includes(q))&&(!st||r.status===st));
+  document.getElementById('ov-count').textContent=`${rows.length} of ${OV_DATA.length} overpayments`;
+  document.getElementById('ov-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="ov"><td style="font-weight:600">${r.patient}</td><td>${r.claim}</td><td>${fmt$(r.paid)}</td><td>${fmt$(r.expected)}</td><td style="font-weight:700;color:#b91c1c">${fmt$(r.overage)}</td><td>${r.date}</td><td>${ovB(r.status)}</td><td><button class="act-btn" data-action="review" data-id="${r.id}" data-src="ov">Resolve</button></td></tr>`).join('');}
+
+function renderEXC(){const q=document.getElementById('exc-search').value.toLowerCase(),t=document.getElementById('exc-type-filter').value,sv=document.getElementById('exc-severity-filter').value;
+  const rows=EXC_DATA.filter(r=>(!q||(r.type+r.desc+r.payer).toLowerCase().includes(q))&&(!t||r.type===t)&&(!sv||r.severity===sv));
+  document.getElementById('exc-count').textContent=`${rows.length} of ${EXC_DATA.length} exceptions`;
+  document.getElementById('exc-tbody').innerHTML=rows.map(r=>`<tr data-id="${r.id}" data-src="exc"><td>${badge('red',r.type.length>18?r.type.slice(0,16)+'…':r.type)}</td><td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.desc}</td><td>${r.amount?fmt$(r.amount):'—'}</td><td>${r.payer}</td><td>${r.date}</td><td>${sevB(r.severity)}</td><td><button class="act-btn act-btn-blue" data-action="resolve" data-id="${r.id}" data-src="exc">Resolve</button></td></tr>`).join('');}
+
+const RENDER_MAP={era:renderERA,vcc:renderVCC,check:renderCHK,unmatched:renderUM,overpayments:renderOV,exceptions:renderEXC};
+const VALID=['era','vcc','check','manual','unmatched','overpayments','exceptions'];
+
+function setTab(tab){const t=VALID.includes(tab)?tab:'era';
+  document.querySelectorAll('.cm-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.querySelectorAll('.cm-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));
+  if(RENDER_MAP[t])RENDER_MAP[t]();
+  const u=new URL(window.location.href);u.searchParams.set('tab',t);history.replaceState(null,'',u);}
+
+function openDrawer(id,src){
+  let item,html='';
+  if(src==='era'){item=ERA_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=item.file;
+    document.getElementById('drawerSub').textContent=`ERA · ${item.payer} · ${item.date}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Summary</div><div class="field-row"><div class="field-item"><label>Payer</label><span>${item.payer}</span></div><div class="field-item"><label>Date</label><span>${item.date}</span></div></div><div class="field-row"><div class="field-item"><label>Amount</label><span style="font-weight:700">${fmt$(item.amount)}</span></div><div class="field-item"><label>Sessions</label><span>${item.sessions}</span></div></div><div class="field-row wide"><div class="field-item"><label>Status</label><span>${eraB(item.status)}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Sample Line Items</div><table class="detail-line-tbl"><thead><tr><th>Session</th><th>CPT</th><th>Billed</th><th>Paid</th><th>Adj</th></tr></thead><tbody>${Array.from({length:5},(_,i)=>`<tr><td>TX-${20000+i}</td><td>9${rd(0,9)}8${rd(0,9)}${rd(0,9)}</td><td>${fmt$(rd(100,350))}</td><td>${fmt$(rd(80,320))}</td><td>${fmt$(rd(0,40))}</td></tr>`).join('')}</tbody></table></div>`;
+  } else if(src==='vcc'){item=VCC_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=`VCC ${item.card}`;
+    document.getElementById('drawerSub').textContent=`Virtual Card · ${item.payer}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Card Details</div><div class="field-row"><div class="field-item"><label>Payer</label><span>${item.payer}</span></div><div class="field-item"><label>Amount</label><span style="font-weight:700">${fmt$(item.amount)}</span></div></div><div class="field-row"><div class="field-item"><label>Issue Date</label><span>${item.issued}</span></div><div class="field-item"><label>Expiry</label><span>${item.expiry}</span></div></div><div class="field-row wide"><div class="field-item"><label>Status</label><span>${vccB(item.status)}</span></div></div></div>`;
+  } else if(src==='um'){item=UM_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=`Unmatched: ${item.ref}`;
+    document.getElementById('drawerSub').textContent=`${item.payer} · ${item.days} days pending`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Payment Details</div><div class="field-row"><div class="field-item"><label>Ref</label><span>${item.ref}</span></div><div class="field-item"><label>Payer</label><span>${item.payer}</span></div></div><div class="field-row"><div class="field-item"><label>Amount</label><span style="font-weight:700">${fmt$(item.amount)}</span></div><div class="field-item"><label>Date</label><span>${item.date}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Resolution Options</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="act-btn act-btn-blue">Match to Claim</button><button class="act-btn">Apply to Patient</button><button class="act-btn">Mark as Refund</button><button class="act-btn">Write Off</button></div></div>`;
+  } else if(src==='ov'){item=OV_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=`Overpayment: ${item.claim}`;
+    document.getElementById('drawerSub').textContent=`${item.patient} · ${item.date}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Overpayment Details</div><div class="field-row"><div class="field-item"><label>Patient</label><span>${item.patient}</span></div><div class="field-item"><label>Claim</label><span>${item.claim}</span></div></div><div class="field-row"><div class="field-item"><label>Paid</label><span>${fmt$(item.paid)}</span></div><div class="field-item"><label>Expected</label><span>${fmt$(item.expected)}</span></div></div><div class="field-row"><div class="field-item"><label>Overage</label><span style="font-weight:700;color:#b91c1c">${fmt$(item.overage)}</span></div><div class="field-item"><label>Status</label><span>${ovB(item.status)}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="act-btn act-btn-blue">Issue Refund</button><button class="act-btn">Apply to Balance</button><button class="act-btn">Mark Disputed</button></div></div>`;
+  } else if(src==='exc'){item=EXC_DATA.find(r=>r.id===id);if(!item)return;
+    document.getElementById('drawerTitle').textContent=`Exception: ${item.type}`;
+    document.getElementById('drawerSub').textContent=`${item.payer} · ${item.date}`;
+    html=`<div class="drawer-section"><div class="drawer-section-title">Exception Details</div><div class="field-row wide"><div class="field-item"><label>Description</label><span>${item.desc}</span></div></div><div class="field-row"><div class="field-item"><label>Payer</label><span>${item.payer}</span></div><div class="field-item"><label>Severity</label><span>${sevB(item.severity)}</span></div></div><div class="field-row"><div class="field-item"><label>Amount</label><span>${item.amount?fmt$(item.amount):'—'}</span></div><div class="field-item"><label>Date</label><span>${item.date}</span></div></div></div><div class="drawer-section"><div class="drawer-section-title">Resolution</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="act-btn act-btn-blue">Mark Resolved</button><button class="act-btn">Reassign</button><button class="act-btn">Escalate</button></div></div>`;
+  } else return;
+  document.getElementById('drawerBody').innerHTML=html;
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('drawerPanel').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawerBackdrop').classList.remove('open');document.getElementById('drawerPanel').classList.remove('open');}
+
+document.getElementById('tabBar').addEventListener('click',e=>{const b=e.target.closest('.cm-tab');if(b)setTab(b.dataset.tab);});
+document.getElementById('drawerBackdrop').addEventListener('click',closeDrawer);
+document.getElementById('drawerClose').addEventListener('click',closeDrawer);
+document.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-action]');if(!btn)return;
+  const{action,id,src}=btn.dataset;
+  if(['review','match','resolve','post'].includes(action))openDrawer(id,src);
+  else if(action==='retry'){const r=ERA_DATA.find(x=>x.id===id);if(r){r.status='Pending';renderERA();}}
+});
+['era-search','era-status-filter','era-payer-filter','era-date-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderERA);el?.addEventListener('change',renderERA);});
+['vcc-search','vcc-status-filter','vcc-payer-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderVCC);el?.addEventListener('change',renderVCC);});
+['chk-search','chk-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderCHK);el?.addEventListener('change',renderCHK);});
+['um-search','um-payer-filter','um-reason-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderUM);el?.addEventListener('change',renderUM);});
+['ov-search','ov-status-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderOV);el?.addEventListener('change',renderOV);});
+['exc-search','exc-type-filter','exc-severity-filter'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',renderEXC);el?.addEventListener('change',renderEXC);});
+document.getElementById('btnPostPayment')?.addEventListener('click',()=>setTab('manual'));
+document.getElementById('btnClearForm')?.addEventListener('click',()=>{['mp-type','mp-payer','mp-amount','mp-ref','mp-date','mp-patient','mp-code','mp-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.tagName==='SELECT'?el.selectedIndex=0:el.value='';});});
+
+setTab(new URLSearchParams(window.location.search).get('tab')||'era');
+</script>
+</body>
+</html>

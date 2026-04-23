@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT - Resume Draft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+</head>
+
+<body class="dashboard-body">
+
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <span class="clinician-badge" style="display:none">Clinician</span>
+  </aside>
+
+  <main class="dashboard-main">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>Resume Draft</h1>
+        <p>Pick up where you left off &mdash; unfinished notes and reports waiting for completion.</p>
+      </div>
+      <a class="btn btn-blue" href="Coder.html" style="white-space:nowrap">&#43; Start New Session</a>
+    </header>
+
+    <!-- Summary metrics -->
+    <div class="inner-grid-4 section-gap">
+      <div class="content-card" style="padding:16px 20px;">
+        <div class="metric-label">Open Drafts</div>
+        <div class="metric-value" id="draftCount" style="font-size:24px;">--</div>
+        <div class="metric-subtext">Awaiting completion</div>
+      </div>
+      <div class="content-card" style="padding:16px 20px;">
+        <div class="metric-label">Avg. Completion</div>
+        <div class="metric-value" id="avgCompletion" style="font-size:24px;">--</div>
+        <div class="metric-subtext">Across all drafts</div>
+      </div>
+      <div class="content-card" style="padding:16px 20px;">
+        <div class="metric-label">Oldest Draft</div>
+        <div class="metric-value" id="oldestDraft" style="font-size:24px;">--</div>
+        <div class="metric-subtext">Days since last edit</div>
+      </div>
+      <div class="content-card" style="padding:16px 20px;">
+        <div class="metric-label">Nearly Done</div>
+        <div class="metric-value" id="nearlyDone" style="font-size:24px;">--</div>
+        <div class="metric-subtext">&ge;75% complete</div>
+      </div>
+    </div>
+
+    <!-- Drafts table -->
+    <div class="content-card section-gap">
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <span class="search-icon">&#128269;</span>
+          <input class="filter-input" id="draftSearch" type="text" placeholder="Search by draft name or client&hellip;" oninput="filterDrafts()">
+        </div>
+        <select class="filter-select" id="filterWorkflow" onchange="filterDrafts()">
+          <option value="">All Workflow Types</option>
+          <option value="Intake Assessment">Intake Assessment</option>
+          <option value="Treatment Plan">Treatment Plan</option>
+          <option value="Individual Therapy">Individual Therapy</option>
+          <option value="Group Session">Group Session</option>
+          <option value="Crisis Intervention">Crisis Intervention</option>
+          <option value="Progress Note">Progress Note</option>
+        </select>
+        <select class="filter-select" id="filterCompletion" onchange="filterDrafts()">
+          <option value="">Any Completion</option>
+          <option value="low">Below 50%</option>
+          <option value="mid">50% &ndash; 74%</option>
+          <option value="high">75% and above</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Draft Name</th>
+              <th>Client Name</th>
+              <th>Workflow Type</th>
+              <th style="min-width:180px;">Completion</th>
+              <th>Last Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="draftsBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div id="noDraftResults" style="display:none;padding:24px;text-align:center;color:var(--ink-500);font-size:14px;">
+        No drafts match your current filters.
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Rename modal -->
+<div id="renameModal" style="display:none;position:fixed;inset:0;background:rgba(11,44,77,0.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:18px;padding:28px 30px;max-width:420px;width:90%;box-shadow:0 28px 70px rgba(13,53,94,0.28);">
+    <h3 style="margin-bottom:12px;font-size:18px;">Rename Draft</h3>
+    <input class="settings-input" id="renameInput" type="text" placeholder="New draft name&hellip;" style="margin-bottom:16px;">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeRename()">Cancel</button>
+      <button class="btn btn-blue" onclick="applyRename()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DRAFTS = [
+  { name:"Devon R. - Therapy Note",        client:"Devon R.",   type:"Individual Therapy",  pct:45,  updated:"2026-03-27" },
+  { name:"Alonzo B. - Therapy + Coding",   client:"Alonzo B.",  type:"Individual Therapy",  pct:62,  updated:"2026-03-19" },
+  { name:"Yusuf A. - Group Documentation", client:"Yusuf A.",   type:"Group Session",        pct:30,  updated:"2026-03-08" },
+  { name:"Tamara H. - Intake Draft",       client:"Tamara H.",  type:"Intake Assessment",    pct:78,  updated:"2026-04-01" },
+  { name:"Brianna C. - Treatment Plan",    client:"Brianna C.", type:"Treatment Plan",       pct:90,  updated:"2026-04-01" },
+  { name:"Jerome D. - Crisis Note",        client:"Jerome D.",  type:"Crisis Intervention",  pct:55,  updated:"2026-03-15" },
+  { name:"Fatima L. - Progress Note",      client:"Fatima L.",  type:"Progress Note",        pct:20,  updated:"2026-03-03" },
+];
+
+let currentRenameRow = null;
+
+function pctClass(p) {
+  if (p < 40) return "danger";
+  if (p < 75) return "warn";
+  return "";
+}
+
+function renderDraftRows(data) {
+  const body = document.getElementById("draftsBody");
+  body.innerHTML = data.map((d, i) => `
+    <tr>
+      <td><strong>${d.name}</strong></td>
+      <td>${d.client}</td>
+      <td>${d.type}</td>
+      <td>
+        <div class="progress-wrap">
+          <div class="progress-bar">
+            <div class="progress-fill ${pctClass(d.pct)}" style="width:${d.pct}%"></div>
+          </div>
+          <span class="progress-pct">${d.pct}%</span>
+        </div>
+      </td>
+      <td class="muted">${formatDate(d.updated)}</td>
+      <td>
+        <div class="action-btns">
+          <a class="btn btn-blue btn-sm" href="Coder.html">Resume</a>
+          <button class="btn btn-ghost btn-sm" onclick="openRename(this, '${d.name.replace(/'/g,"\\'")}')">Rename</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteDraft('${d.client}', this)">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+
+  document.getElementById("noDraftResults").style.display = data.length === 0 ? "block" : "none";
+}
+
+function formatDate(iso) {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function filterDrafts() {
+  const q      = document.getElementById("draftSearch").value.toLowerCase();
+  const wf     = document.getElementById("filterWorkflow").value;
+  const cplt   = document.getElementById("filterCompletion").value;
+
+  const filtered = DRAFTS.filter(d => {
+    if (q && !d.name.toLowerCase().includes(q) && !d.client.toLowerCase().includes(q)) return false;
+    if (wf && d.type !== wf) return false;
+    if (cplt === "low"  && d.pct >= 50) return false;
+    if (cplt === "mid"  && (d.pct < 50 || d.pct >= 75)) return false;
+    if (cplt === "high" && d.pct < 75) return false;
+    return true;
+  });
+
+  renderDraftRows(filtered);
+}
+
+function openRename(btn, currentName) {
+  currentRenameRow = btn.closest("tr");
+  document.getElementById("renameInput").value = currentName;
+  const modal = document.getElementById("renameModal");
+  modal.style.display = "flex";
+}
+
+function closeRename() {
+  document.getElementById("renameModal").style.display = "none";
+  currentRenameRow = null;
+}
+
+function applyRename() {
+  const newName = document.getElementById("renameInput").value.trim();
+  if (!newName) return;
+  if (currentRenameRow) {
+    currentRenameRow.querySelector("td strong").textContent = newName;
+  }
+  closeRename();
+}
+
+function confirmDeleteDraft(clientName, btn) {
+  if (confirm(`Delete draft for ${clientName}? This cannot be undone.`)) {
+    btn.closest("tr").remove();
+    updateSummary();
+  }
+}
+
+function updateSummary() {
+  document.getElementById("draftCount").textContent     = DRAFTS.length;
+  const avg = Math.round(DRAFTS.reduce((a, d) => a + d.pct, 0) / DRAFTS.length);
+  document.getElementById("avgCompletion").textContent  = avg + "%";
+  const today = new Date();
+  const maxDays = Math.max(...DRAFTS.map(d => Math.floor((today - new Date(d.updated)) / 86400000)));
+  document.getElementById("oldestDraft").textContent    = maxDays + "d";
+  document.getElementById("nearlyDone").textContent     = DRAFTS.filter(d => d.pct >= 75).length;
+}
+
+window.onload = async () => {
+  await initDashboard(CLINICIAN_ROLES);
+  renderDraftRows(DRAFTS);
+  updateSummary();
+};
+</script>
+
+<script src="chat-widget.js?v=1"></script>
+</body>
+</html>

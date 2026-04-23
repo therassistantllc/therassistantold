@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THERASSISTANT Admin ? Reports &amp; Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="shared.js?v=2"></script>
+  <script src="sidebar.js?v=2"></script>
+  <style>
+    .admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:18px}
+    .filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink-900);font-family:inherit}
+    .filter-bar input{flex:1;min-width:180px}
+    .tab-row{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px}
+    .tab-btn{padding:8px 18px;font-size:13px;font-weight:700;color:var(--ink-500);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s;font-family:inherit}
+    .tab-btn.active{color:var(--blue-700);border-bottom-color:var(--blue-700)}
+    .tab-btn:hover{color:var(--ink-900)}
+    .preview-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;display:flex;align-items:center;justify-content:center;padding:24px}
+    .preview-box{background:#fff;border-radius:16px;padding:28px;max-width:680px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+    .preview-box h2{font-size:1.1rem;margin-bottom:12px}
+    .preview-close{float:right;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-500);margin-top:-4px}
+    pre.preview-content{font-size:12px;line-height:1.6;white-space:pre-wrap;background:#f8f9fb;border-radius:8px;padding:16px;border:1px solid var(--border);max-height:360px;overflow-y:auto}
+    .pagination{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--ink-600)}
+    .pagination button{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:13px;font-family:inherit}
+    .pagination button:disabled{opacity:.4;cursor:not-allowed}
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="sidebar-logo">THERASSISTANT</div>
+    <div class="sidebar-product">THERASSISTANT</div>
+    <div class="admin-badge">Admin Portal</div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Main</div>
+      <a class="nav-link" href="admin-dashboard.html">Dashboard</a>
+      <a class="nav-link" href="admin-clients.html">Patients</a>
+      <a class="nav-link" href="admin-add-client.html">Add New Client</a>
+      <a class="nav-link" href="admin-scheduling.html">Scheduling</a>
+      <a class="nav-link" href="admin-billing-alerts.html">Billing Alerts</a>
+      <a class="nav-link" href="admin-claims.html">Claims</a>
+      <a class="nav-link" href="admin-denials.html">Denials</a>
+      <a class="nav-link" href="admin-patient-invoices.html">Patient Invoices</a>
+      <a class="nav-link" href="admin-qa.html">Work Queues</a>
+      <a class="nav-link" href="admin-revenue-dashboard.html">Revenue</a>
+      <div class="nav-group-label">Operations</div>
+      <a class="nav-link" href="admin-eligibility.html">Eligibility</a>
+      <a class="nav-link" href="admin-era-imports.html">ERA Imports</a>
+      <a class="nav-link" href="admin-payment-posting.html">Payment Posting</a>
+      <a class="nav-link" href="admin-stripe-reconciliation.html">Stripe Reconciliation</a>
+      <a class="nav-link" href="support-center.html">Support Tickets</a>
+      <a class="nav-link" href="admin-chat.html">Live Chat</a>
+      <a class="nav-link" href="admin-correspondence.html">Correspondence</a>
+      <div class="nav-group-label">Administration</div>
+      <a class="nav-link" href="admin-users.html">User Management</a>
+      <a class="nav-link" href="admin-credentialing.html">Credentialing</a>
+      <a class="nav-link" href="admin-subscriptions.html">Subscriptions</a>
+      <a class="nav-link" href="admin-notifications.html">Notifications</a>
+      <a class="nav-link active" href="admin-reports.html">Reports</a>
+      <a class="nav-link" href="admin-settings.html">Settings</a>
+      <button class="nav-link nav-logout" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dashboard-header" style="margin-bottom:20px">
+      <div>
+        <h1>Saved Reports</h1>
+        <p id="userLabel">Loading&hellip;</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#8595; Export CSV</button>
+      </div>
+    </header>
+
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-reports" onclick="switchTab('reports')">Coding Reports <span id="reportsCount" class="badge badge-draft" style="margin-left:4px">0</span></button>
+      <button class="tab-btn" id="tab-notes" onclick="switchTab('notes')">Saved Notes <span id="notesCount" class="badge badge-draft" style="margin-left:4px">0</span></button>
+    </div>
+
+    <div id="panelReports" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="reportSearch" placeholder="Search by client, provider, code, payer&hellip;" oninput="renderReports()">
+        <select id="reportProviderFilter" onchange="renderReports()">
+          <option value="">All Providers</option>
+        </select>
+        <select id="reportCodeFilter" onchange="renderReports()">
+          <option value="">All Codes</option>
+          <option value="H0031">H0031</option>
+          <option value="H0001">H0001</option>
+          <option value="H0032">H0032</option>
+          <option value="90837">90837</option>
+          <option value="90791">90791</option>
+        </select>
+        <select id="reportPayerFilter" onchange="renderReports()">
+          <option value="">All Payers</option>
+          <option>Colorado Medicaid</option>
+          <option>Aetna Better Health</option>
+          <option>United BH</option>
+          <option>Anthem BCBS</option>
+        </select>
+        <select id="reportSort" onchange="renderReports()">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="provider">Provider A?Z</option>
+          <option value="client">Client A?Z</option>
+        </select>
+        <span id="rpgInfo" style="font-size:13px;color:var(--ink-500)"></span>
+      </div>
+      <div class="table-wrap">
+        <!-- Bulk toolbar -->
+        <div id="reportsBulkToolbar" style="display:none;align-items:center;gap:10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin-bottom:10px;flex-wrap:wrap">
+          <span id="reportsBulkCount" style="font-size:13px;font-weight:700;color:var(--blue-700)">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="bulkReportsExport()">&#8595; Export CSV</button>
+          <button class="btn btn-outline btn-sm" style="color:#b91c1c;border-color:#fca5a5" onclick="bulkReportsClear()">Clear</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th style="width:32px"><input type="checkbox" id="reportsSelectAll" title="Select all" onchange="toggleSelectAllReports(this)"></th><th>Report ID</th><th>Date</th><th>Provider</th><th>Client</th><th>Codes Used</th><th>Payer</th><th>Last Modified</th><th>Actions</th></tr></thead>
+          <tbody id="reportsBody"></tbody>
+        </table>
+      </div>
+      <div id="reportsEmpty" style="display:none;text-align:center;padding:30px;font-size:13px;color:var(--ink-500)">No reports yet.</div>
+      <div class="pagination">
+        <span id="rpPageInfo"></span>
+        <button id="rpPrev" onclick="changeRPPage(-1)" disabled>&#8592; Prev</button>
+        <button id="rpNext" onclick="changeRPPage(1)">Next &#8594;</button>
+      </div>
+    </div>
+
+    <div id="panelNotes" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow-sm)">
+      <div class="filter-bar">
+        <input type="search" id="noteSearch" placeholder="Search notes&hellip;" oninput="renderNotes()">
+        <select id="noteSort" onchange="renderNotes()">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+        <span id="ntgInfo" style="font-size:13px;color:var(--ink-500)"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Preview</th><th>Actions</th></tr></thead>
+          <tbody id="notesBody"></tbody>
+        </table>
+      </div>
+      <div id="notesEmpty" style="display:none;text-align:center;padding:30px;font-size:13px;color:var(--ink-500)">No notes yet.</div>
+      <div class="pagination">
+        <span id="ntPageInfo"></span>
+        <button id="ntPrev" onclick="changeNTPage(-1)" disabled>&#8592; Prev</button>
+        <button id="ntNext" onclick="changeNTPage(1)">Next &#8594;</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Preview modal -->
+<div class="preview-modal" id="previewModal" style="display:none" onclick="if(event.target===this)closePreview()">
+  <div class="preview-box">
+    <button class="preview-close" onclick="closePreview()">&times;</button>
+    <h2 id="previewTitle">Preview</h2>
+    <pre class="preview-content" id="previewContent"></pre>
+  </div>
+</div>
+
+<script>
+const PAGE_SIZE = 20;
+let rpPage = 1, ntPage = 1;
+let allReports = [], allNotes = [];
+let filtReps = [], filtNotes = [];
+let activeTab = 'reports';
+
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(iso){if(!iso)return'?';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function firstCode(codesStr){const m=(codesStr||'').match(/\b(H\d{4}|90\d{3}|96\d{3})\b/);return m?m[1]:'?';}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('panelReports').style.display  = tab==='reports'?'block':'none';
+  document.getElementById('panelNotes').style.display    = tab==='notes'?'block':'none';
+  document.getElementById('tab-reports').className='tab-btn'+(tab==='reports'?' active':'');
+  document.getElementById('tab-notes').className  ='tab-btn'+(tab==='notes'?' active':'');
+}
+
+function renderReports() {
+  const q   = (document.getElementById('reportSearch').value||'').toLowerCase();
+  const srt = document.getElementById('reportSort').value;
+  filtReps = allReports.filter(r=>{
+    if (!q) return true;
+    return (r.provider||'').toLowerCase().includes(q)||
+           (r.client||'').toLowerCase().includes(q)||
+           (r.codes||'').toLowerCase().includes(q)||
+           (r.clientDOB||'').toLowerCase().includes(q);
+  });
+  if (srt==='newest') filtReps.sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt));
+  else if (srt==='oldest') filtReps.sort((a,b)=>new Date(a.savedAt)-new Date(b.savedAt));
+  else if (srt==='provider') filtReps.sort((a,b)=>(a.provider||'').localeCompare(b.provider||''));
+  else if (srt==='client') filtReps.sort((a,b)=>(a.client||'').localeCompare(b.client||''));
+  rpPage = 1;
+  renderRPPage();
+}
+
+function renderRPPage() {
+  const start = (rpPage-1)*PAGE_SIZE;
+  const page  = filtReps.slice(start, start+PAGE_SIZE);
+  const total = Math.ceil(filtReps.length/PAGE_SIZE);
+  document.getElementById('rpgInfo').textContent    = `${filtReps.length} report${filtReps.length!==1?'s':''}`;
+  document.getElementById('rpPageInfo').textContent = `Page ${rpPage} of ${Math.max(1,total)}`;
+  document.getElementById('rpPrev').disabled = rpPage<=1;
+  document.getElementById('rpNext').disabled = rpPage>=total;
+  document.getElementById('reportsEmpty').style.display = filtReps.length?'none':'block';
+  document.getElementById('reportsBody').innerHTML = page.map((r,i)=>`
+    <tr>
+      <td style="padding:10px 8px"><input type="checkbox" class="report-bulk-check" data-idx="${start+i}" onchange="updateReportsBulkToolbar()"></td>
+      <td class="muted">${fmtDate(r.savedAt)}</td>
+      <td>${escHtml(r.provider||'?')}</td>
+      <td>${escHtml(r.client||'?')}</td>
+      <td class="muted">${escHtml(r.sessionType||'?')}</td>
+      <td><span class="badge badge-code">${escHtml(firstCode(r.codes))}</span></td>
+      <td><button class="btn btn-outline btn-sm" onclick="previewReport(${start+i})">View</button></td>
+    </tr>`).join('');
+}
+
+function changeRPPage(d){rpPage+=d;renderRPPage();}
+
+function renderNotes() {
+  const q   = (document.getElementById('noteSearch').value||'').toLowerCase();
+  const srt = document.getElementById('noteSort').value;
+  filtNotes = allNotes.filter(n=>{
+    if (!q) return true;
+    return (n.title||'').toLowerCase().includes(q)||
+           (n.content||'').toLowerCase().includes(q)||
+           (n.type||'').toLowerCase().includes(q);
+  });
+  if (srt==='newest') filtNotes.sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt));
+  else filtNotes.sort((a,b)=>new Date(a.savedAt)-new Date(b.savedAt));
+  ntPage = 1;
+  renderNTPage();
+}
+
+function renderNTPage() {
+  const start = (ntPage-1)*PAGE_SIZE;
+  const page  = filtNotes.slice(start, start+PAGE_SIZE);
+  const total = Math.ceil(filtNotes.length/PAGE_SIZE);
+  document.getElementById('ntgInfo').textContent    = `${filtNotes.length} note${filtNotes.length!==1?'s':''}`;
+  document.getElementById('ntPageInfo').textContent = `Page ${ntPage} of ${Math.max(1,total)}`;
+  document.getElementById('ntPrev').disabled = ntPage<=1;
+  document.getElementById('ntNext').disabled = ntPage>=total;
+  document.getElementById('notesEmpty').style.display = filtNotes.length?'none':'block';
+  document.getElementById('notesBody').innerHTML = page.map((n,i)=>`
+    <tr>
+      <td class="muted">${fmtDate(n.savedAt)}</td>
+      <td>${escHtml(n.title||'Untitled')}</td>
+      <td class="muted">${escHtml(n.type||'?')}</td>
+      <td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((n.content||'').substring(0,60))}${(n.content||'').length>60?'?':''}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="previewNote(${start+i})">View</button></td>
+    </tr>`).join('');
+}
+
+function changeNTPage(d){ntPage+=d;renderNTPage();}
+
+function previewReport(idx) {
+  const r = filtReps[idx];
+  if (!r) return;
+  document.getElementById('previewTitle').textContent = `Report ? ${r.client||'Unknown Client'} (${fmtDate(r.savedAt)})`;
+  document.getElementById('previewContent').textContent = [
+    `Provider: ${r.provider||'?'}`, `Client: ${r.client||'?'}`,`Date of Birth: ${r.clientDOB||'?'}`,
+    `Session Type: ${r.sessionType||'?'}`, ``,`--- Codes ---`,r.codes||'None',``,`--- Notes ---`,r.notes||'None'
+  ].join('\n');
+  document.getElementById('previewModal').style.display='flex';
+}
+
+function previewNote(idx) {
+  const n = filtNotes[idx];
+  if (!n) return;
+  document.getElementById('previewTitle').textContent = n.title||'Note';
+  document.getElementById('previewContent').textContent = n.content||'(empty)';
+  document.getElementById('previewModal').style.display='flex';
+}
+
+function closePreview(){ document.getElementById('previewModal').style.display='none'; }
+
+function exportCSV() {
+  if (activeTab==='reports') {
+    const rows=[['Date','Provider','Client','DOB','Session Type','Codes','Notes']];
+    allReports.forEach(r=>rows.push([fmtDate(r.savedAt),r.provider||'',r.client||'',r.clientDOB||'',r.sessionType||'',(r.codes||'').replace(/\n/g,' | '),(r.notes||'').replace(/\n/g,' ').substring(0,200)]));
+    downloadCSV('reports.csv', rows);
+  } else {
+    const rows=[['Date','Title','Type','Content']];
+    allNotes.forEach(n=>rows.push([fmtDate(n.savedAt),n.title||'',n.type||'',(n.content||'').replace(/\n/g,' ').substring(0,500)]));
+    downloadCSV('notes.csv', rows);
+  }
+}
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function updateReportsBulkToolbar() {
+  const checked = document.querySelectorAll('.report-bulk-check:checked');
+  const toolbar = document.getElementById('reportsBulkToolbar');
+  document.getElementById('reportsBulkCount').textContent = checked.length + ' selected';
+  toolbar.style.display = checked.length ? 'flex' : 'none';
+  const sa = document.getElementById('reportsSelectAll');
+  if(sa) sa.indeterminate = checked.length > 0 && checked.length < document.querySelectorAll('.report-bulk-check').length;
+}
+function toggleSelectAllReports(cb) {
+  document.querySelectorAll('.report-bulk-check').forEach(c => { c.checked = cb.checked; });
+  updateReportsBulkToolbar();
+}
+function bulkReportsClear() {
+  document.querySelectorAll('.report-bulk-check').forEach(c => { c.checked = false; });
+  const sa = document.getElementById('reportsSelectAll'); if(sa) sa.checked = false;
+  updateReportsBulkToolbar();
+}
+function bulkReportsExport() {
+  const idxs = Array.from(document.querySelectorAll('.report-bulk-check:checked')).map(c=>parseInt(c.dataset.idx));
+  const sel = idxs.map(i=>filtReps[i]).filter(Boolean);
+  const rows=[['Date','Provider','Client','DOB','Session Type','Codes','Notes']];
+  sel.forEach(r=>rows.push([fmtDate(r.savedAt),r.provider||'',r.client||'',r.clientDOB||'',r.sessionType||'',(r.codes||'').replace(/\n/g,' | '),(r.notes||'').replace(/\n/g,' ').substring(0,200)]));
+  downloadCSV('reports-export.csv', rows);
+}
+
+window.onload = async () => {
+  const user = await initDashboard(ADMIN_ROLES);
+  if (!user) return;
+  allReports = getStoredCoderReports();
+  allNotes   = getStoredNotes();
+  document.getElementById('reportsCount').textContent = allReports.length;
+  document.getElementById('notesCount').textContent   = allNotes.length;
+  renderReports();
+  renderNotes();
+};
+</script>
+</body>
+</html>

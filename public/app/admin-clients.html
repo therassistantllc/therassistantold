@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THERASSISTANT Admin - Clients</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js?v=2"></script>
+<script src="sidebar.js?v=2"></script>
+<style>
+.admin-badge{display:inline-block;background:rgba(251,191,36,.18);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+.mod-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}.mod-tab{border:none;background:none;padding:10px 14px;font:600 12.5px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.mod-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)}.kpi-num{font-family:'Sora',sans-serif;font-size:1.65rem;font-weight:700;line-height:1;color:var(--ink-900)}.kpi-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);margin-top:6px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:14px}.toolbar input,.toolbar select{padding:8px 11px;border:1px solid var(--border);border-radius:8px;font:13px inherit;background:var(--surface);color:var(--ink-900);outline:none}.toolbar input{flex:1;min-width:220px}.toolbar input:focus,.toolbar select:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(60,144,209,.1)}
+.workspace{display:grid;grid-template-columns:1.3fr .9fr;gap:14px}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm)}.card-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}.card-title{font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--ink-900)}
+.flow-switch{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#f8fbff;border:1px solid #dbeafe;border-radius:12px;padding:12px 14px;margin:0 0 14px}.flow-switch-title{font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em}.flow-switch-sub{font-size:12px;color:var(--ink-600)}
+.table-wrap{overflow:auto}.data-table{width:100%;border-collapse:collapse;font-size:12.5px}.data-table th{background:#f5f9fe;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);border-bottom:1px solid var(--border)}.data-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}.data-table tr:last-child td{border-bottom:none}.data-table tbody tr{cursor:pointer;transition:background .12s}.data-table tbody tr:hover{background:rgba(60,144,209,.04)}
+.client-cell{display:flex;align-items:center;gap:10px}.client-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--blue-500),var(--blue-700));color:#fff;font-size:12px;font-weight:700;flex-shrink:0}.client-name{font-weight:700;color:var(--ink-900)}.client-sub{font-size:11px;color:var(--ink-500)}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}.st-active{background:#dcfce7;color:#166534;border-color:#86efac}.st-onboarding{background:#dbeafe;color:#1e40af;border-color:#93c5fd}.st-past-due{background:#fef3c7;color:#92400e;border-color:#fde68a}.st-suspended{background:#f1f5f9;color:#475569;border-color:#cbd5e1}.st-trial{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}.st-churn{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px}.mini{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-soft)}.mini h4{margin:0 0 4px;font-size:12px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.06em}.mini strong{font-family:'Sora',sans-serif;font-size:1.2rem;color:var(--ink-900)}
+.queue-list{padding:10px 14px 14px}.queue-item{padding:10px 0;border-bottom:1px solid var(--border)}.queue-item:last-child{border-bottom:none}.queue-item-title{font-size:13px;font-weight:700;color:var(--ink-900)}.queue-item-sub{font-size:12px;color:var(--ink-500);margin-top:3px}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(10,24,40,.4);opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}.drawer-backdrop.open{opacity:1;pointer-events:auto}.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,calc(100vw - 220px));background:#fff;box-shadow:-10px 0 36px rgba(0,0,0,.16);transform:translateX(100%);transition:transform .22s cubic-bezier(.2,.7,.2,1);z-index:901;display:flex;flex-direction:column}.drawer.open{transform:translateX(0)}
+.drawer-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}.drawer-id{font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:var(--blue-800)}.drawer-name{font-size:15px;font-weight:700;color:var(--ink-900);margin-top:2px}.drawer-sub{font-size:12px;color:var(--ink-500);margin-top:4px}.drawer-close{margin-left:auto;border:1px solid var(--border);background:var(--surface);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;color:var(--ink-500)}
+.drawer-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:0 18px;border-bottom:1px solid var(--border)}.drawer-tab{border:none;background:none;padding:10px 8px;font:600 12px inherit;color:var(--ink-500);border-bottom:2px solid transparent;cursor:pointer}.drawer-tab.active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.drawer-body{display:grid;grid-template-columns:1fr 240px;gap:0;flex:1;min-height:0}.drawer-main{padding:16px 18px;overflow:auto;border-right:1px solid var(--border)}.drawer-side{padding:16px;overflow:auto;background:var(--surface-soft)}.drawer-panel{display:none}.drawer-panel.active{display:block}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}.field{padding:6px 0;border-bottom:1px solid var(--border)}.field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500);margin-bottom:2px}.field span{font-size:12.5px;color:var(--ink-900);font-weight:600}
+.timeline{display:flex;flex-direction:column;gap:10px}.timeline-item{padding-left:16px;position:relative}.timeline-item::before{content:'';position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:var(--blue-500)}.timeline-title{font-size:12.5px;font-weight:700;color:var(--ink-900)}.timeline-meta{font-size:11px;color:var(--ink-500);margin-top:2px}
+.empty{padding:26px 18px;color:var(--ink-500);font-size:13px;text-align:center}.note{font-size:12px;color:var(--ink-500);margin-top:12px}
+@media(max-width:1100px){.workspace,.drawer-body,.kpis{grid-template-columns:1fr}}@media(max-width:700px){.drawer{width:100%}.field-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+<aside class="dashboard-sidebar">
+  <div class="sidebar-logo">THERASSISTANT</div>
+  <div class="sidebar-product">THERASSISTANT</div>
+  <div class="admin-badge">Admin Portal</div>
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin navigation"></nav>
+</aside>
+<main class="dashboard-main">
+  <header class="dashboard-header" style="margin-bottom:16px">
+    <div>
+      <h1>Clients</h1>
+      <p>Account management, onboarding, financial, credentialing, communications, and tasks in one workspace.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" id="btnOpenSelected">Open Selected</button>
+      <button class="btn btn-blue btn-sm" id="btnAddClient">+ Add Client</button>
+      <button class="btn btn-outline btn-sm" id="btnClientOnboarding">Client Onboarding Flow</button>
+      <button class="btn btn-outline btn-sm" id="btnClinicianOnboarding">Clinician Onboarding Flow</button>
+    </div>
+  </header>
+  <div class="kpis" id="kpiGrid"></div>
+  <div class="mod-tabs" id="tabBar">
+    <button class="mod-tab active" data-tab="active-clients">Active Clients</button>
+    <button class="mod-tab" data-tab="onboarding">Onboarding</button>
+    <button class="mod-tab" data-tab="financials">Financials</button>
+    <button class="mod-tab" data-tab="credentialing">Credentialing</button>
+    <button class="mod-tab" data-tab="communications">Communications</button>
+    <button class="mod-tab" data-tab="tasks">Tasks</button>
+  </div>
+  <div class="toolbar">
+    <input type="search" id="searchInput" placeholder="Search client, practice, NPI, staff...">
+    <select id="staffFilter"><option value="">All Staff</option></select>
+    <select id="stateFilter"><option value="">All States</option></select>
+    <div style="font-size:12px;color:var(--ink-500);margin-left:auto" id="resultCount"></div>
+  </div>
+  <div class="flow-switch" id="flowSwitchBanner">
+    <div>
+      <div class="flow-switch-title">Two Separate Onboarding Workflows</div>
+      <div class="flow-switch-sub">Client onboarding handles account setup. Clinician onboarding handles credentialing and readiness.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+      <button class="btn btn-outline btn-sm" id="btnClientFlowBanner">Open Client Flow</button>
+      <button class="btn btn-outline btn-sm" id="btnClinicianFlowBanner">Open Clinician Flow</button>
+    </div>
+  </div>
+  <div class="workspace">
+    <section class="card">
+      <div class="card-head"><div class="card-title" id="tableTitle">Client Portfolio</div><div style="font-size:12px;color:var(--ink-500)">Click any row to open the in-page drawer</div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Client</th><th>Status</th><th>Plan</th><th>Revenue</th><th>AR</th><th>Staff</th><th>Issues</th></tr></thead>
+          <tbody id="clientRows"></tbody>
+        </table>
+      </div>
+    </section>
+    <aside class="card">
+      <div class="card-head"><div class="card-title">Module Snapshot</div></div>
+      <div class="mini-grid" id="miniGrid"></div>
+      <div class="queue-list" id="queueList"></div>
+    </aside>
+  </div>
+  <p class="note">The Clients module now keeps selection and detail in the same page. Legacy client list and detail routes can redirect here with an id in the query string.</p>
+</main>
+</div>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="clientDrawer" aria-label="Client detail drawer">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-id" id="drawerId">CLIENT</div>
+      <div class="drawer-name" id="drawerName">Client</div>
+      <div class="drawer-sub" id="drawerSub"></div>
+    </div>
+    <button class="drawer-close" id="drawerClose">×</button>
+  </div>
+  <div class="drawer-tabs" id="drawerTabs">
+    <button class="drawer-tab active" data-panel="overview">Overview</button>
+    <button class="drawer-tab" data-panel="financials">Financials</button>
+    <button class="drawer-tab" data-panel="credentialing">Credentialing</button>
+    <button class="drawer-tab" data-panel="communications">Communications</button>
+    <button class="drawer-tab" data-panel="tasks">Tasks</button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-main">
+      <section class="drawer-panel active" id="panel-overview"><div class="field-grid" id="overviewFields"></div></section>
+      <section class="drawer-panel" id="panel-financials"><div class="field-grid" id="financialFields"></div><div style="margin-top:16px" class="timeline" id="financialTimeline"></div></section>
+      <section class="drawer-panel" id="panel-credentialing"><div class="field-grid" id="credentialFields"></div></section>
+      <section class="drawer-panel" id="panel-communications"><div class="timeline" id="communicationTimeline"></div></section>
+      <section class="drawer-panel" id="panel-tasks"><div class="timeline" id="taskTimeline"></div></section>
+    </div>
+    <aside class="drawer-side">
+      <div class="card-title" style="margin-bottom:12px">Quick Summary</div>
+      <div class="field"><label>Status</label><span id="sideStatus"></span></div>
+      <div class="field"><label>Assigned Staff</label><span id="sideStaff"></span></div>
+      <div class="field"><label>Patients</label><span id="sidePatients"></span></div>
+      <div class="field"><label>Open Alerts</label><span id="sideAlerts"></span></div>
+      <div class="field"><label>Open Tickets</label><span id="sideTickets"></span></div>
+      <div class="field"><label>Claims Issues</label><span id="sideClaims"></span></div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+        <a class="btn btn-outline btn-sm" id="drillToPayments" href="admin-payments.html?tab=payment-posting">Open Payments</a>
+        <a class="btn btn-outline btn-sm" id="drillToComms" href="admin-communications.html?tab=client-messages">Open Communications</a>
+      </div>
+    </aside>
+  </div>
+</aside>
+<script>
+const CLIENTS = [
+  {id:'CLIENT-001',name:'Dr. Sarah Mitchell',practice:'Mountain View Behavioral Health',email:'s.mitchell@mvbh.com',state:'CO',status:'Active',plan:'Professional',revenue:1850,ar:4200,patients:38,alerts:3,tickets:1,claims:2,staff:'Marco D.',npi:'1234567890',onboarding:'Complete',cred:'Approved',messages:5,tasks:['Review renewal strategy','Quarterly business review due'],updated:'2026-04-03'},
+  {id:'CLIENT-002',name:'Alex Rivera, LCSW',practice:'Sunrise Counseling Center',email:'alex@sunrisecounseling.com',state:'CO',status:'Active',plan:'Starter',revenue:680,ar:1100,patients:14,alerts:1,tickets:0,claims:1,staff:'Sarah K.',npi:'2345678901',onboarding:'Stable',cred:'Needs BCBS follow-up',messages:2,tasks:['Confirm BCBS enrollment'],updated:'2026-04-02'},
+  {id:'CLIENT-003',name:'Dr. James Thornton',practice:'Aspen Ridge Psychiatry',email:'j.thornton@aspenridge.com',state:'CO',status:'Active',plan:'Enterprise',revenue:3200,ar:8400,patients:72,alerts:7,tickets:3,claims:5,staff:'Lena P.',npi:'3456789012',onboarding:'Complete',cred:'Recredentialing in 30 days',messages:8,tasks:['Prepare recredentialing packet','Resolve open ERA mismatch'],updated:'2026-04-04'},
+  {id:'CLIENT-004',name:'Maria Santos, LPC',practice:'Boulder Wellness Group',email:'m.santos@boulderwell.com',state:'CO',status:'Churn Risk',plan:'Professional',revenue:1200,ar:6800,patients:28,alerts:9,tickets:4,claims:6,staff:'Tyler R.',npi:'4567890123',onboarding:'At risk',cred:'Current',messages:6,tasks:['Escalate churn risk outreach','Review alert aging'],updated:'2026-03-21'},
+  {id:'CLIENT-005',name:'Dr. Kevin Park',practice:'Denver Metro Behavioral Health',email:'k.park@denvermetrobh.com',state:'CO',status:'Trial',plan:'Trial',revenue:0,ar:0,patients:8,alerts:0,tickets:1,claims:0,staff:'Sarah K.',npi:'5678901234',onboarding:'Trial ending soon',cred:'Pending CAQH',messages:3,tasks:['Conversion call due 4/15'],updated:'2026-04-01'},
+  {id:'CLIENT-006',name:'Tanya Brooks, LCSW',practice:'Community Mental Health Services',email:'t.brooks@cmhs.org',state:'CO',status:'Onboarding',plan:'Starter',revenue:0,ar:0,patients:6,alerts:0,tickets:2,claims:0,staff:'Tyler R.',npi:'8901234567',onboarding:'Documents in progress',cred:'Enrollment started',messages:4,tasks:['Confirm contract packet','Schedule workflow training'],updated:'2026-04-02'}
+];
+const STATE={tab:'active-clients',query:'',staff:'',state:'',selectedId:null,drawerPanel:'overview'};
+const $=id=>document.getElementById(id);
+const fmt$=n=>'$'+(n||0).toLocaleString();
+const initials=s=>String(s||'?').split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase();
+const statusClass=s=>({Active:'st-active',Onboarding:'st-onboarding','Past Due':'st-past-due',Suspended:'st-suspended',Trial:'st-trial','Churn Risk':'st-churn'})[s]||'st-active';
+function badge(s){return '<span class="badge '+statusClass(s)+'">'+s+'</span>';}
+function filteredClients(){return CLIENTS.filter(client=>{if(STATE.query){const hay=[client.name,client.practice,client.npi,client.staff].join(' ').toLowerCase();if(!hay.includes(STATE.query)) return false;} if(STATE.staff&&client.staff!==STATE.staff) return false; if(STATE.state&&client.state!==STATE.state) return false; if(STATE.tab==='active-clients'&&!['Active','Trial'].includes(client.status)) return false; if(STATE.tab==='onboarding'&&!['Onboarding','Trial'].includes(client.status)) return false; if(STATE.tab==='financials'&&!(client.ar>0||client.revenue>0)) return false; if(STATE.tab==='credentialing'&&!(client.cred||'').toLowerCase().includes('pending')&&!(client.cred||'').toLowerCase().includes('recredentialing')) return false; if(STATE.tab==='communications'&&client.messages===0) return false; if(STATE.tab==='tasks'&&(!client.tasks||!client.tasks.length)) return false; return true;});}
+function renderTabs(){document.querySelectorAll('.mod-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===STATE.tab)); const u=new URL(location.href); u.searchParams.set('tab',STATE.tab); if(STATE.selectedId) u.searchParams.set('id',STATE.selectedId); else u.searchParams.delete('id'); history.replaceState(null,'',u);}
+function renderKpis(){const active=CLIENTS.filter(c=>c.status==='Active').length, onboarding=CLIENTS.filter(c=>['Onboarding','Trial'].includes(c.status)).length, ar=CLIENTS.reduce((s,c)=>s+c.ar,0), msgs=CLIENTS.reduce((s,c)=>s+c.messages,0); $('kpiGrid').innerHTML=[['Active Clients',active],['Onboarding',onboarding],['Outstanding AR',fmt$(ar)],['Messages',msgs]].map(([l,v])=>'<div class="kpi"><div class="kpi-num">'+v+'</div><div class="kpi-lbl">'+l+'</div></div>').join('');}
+function renderWorkspace(){const rows=filteredClients(); $('resultCount').textContent=rows.length+' of '+CLIENTS.length+' clients'; $('tableTitle').textContent=({'active-clients':'Active Client Portfolio',onboarding:'Onboarding Pipeline',financials:'Financial Accounts',credentialing:'Credentialing Status',communications:'Communication Worklist',tasks:'Client Task Queue'})[STATE.tab]; $('flowSwitchBanner').style.display=STATE.tab==='onboarding'?'flex':'none'; $('clientRows').innerHTML=rows.length?rows.map(client=>'<tr data-id="'+client.id+'"><td><div class="client-cell"><div class="client-avatar">'+initials(client.name)+'</div><div><div class="client-name">'+client.name+'</div><div class="client-sub">'+client.practice+'</div></div></div></td><td>'+badge(client.status)+'</td><td>'+client.plan+'</td><td>'+fmt$(client.revenue)+'</td><td>'+fmt$(client.ar)+'</td><td>'+client.staff+'</td><td>'+(client.alerts+client.tickets+client.claims)+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">No clients match this view.</td></tr>'; const focus=rows.slice(0,4); $('miniGrid').innerHTML=[['Clients',rows.length],['Revenue',fmt$(rows.reduce((s,c)=>s+c.revenue,0))],['AR',fmt$(rows.reduce((s,c)=>s+c.ar,0))],['Tasks',rows.reduce((s,c)=>s+(c.tasks?c.tasks.length:0),0)]].map(([l,v])=>'<div class="mini"><h4>'+l+'</h4><strong>'+v+'</strong></div>').join(''); $('queueList').innerHTML=focus.map(client=>'<div class="queue-item"><div class="queue-item-title">'+client.name+'</div><div class="queue-item-sub">'+client.staff+' · '+client.cred+' · '+client.tasks[0]+'</div></div>').join('');}
+function openDrawer(id){const client=CLIENTS.find(c=>c.id===id); if(!client) return; STATE.selectedId=id; $('drawerId').textContent=client.id; $('drawerName').textContent=client.name; $('drawerSub').textContent=client.practice+' · '+client.email; $('overviewFields').innerHTML=[['Practice',client.practice],['Email',client.email],['State',client.state],['NPI',client.npi],['Status',badge(client.status)],['Plan',client.plan],['Onboarding',client.onboarding],['Last Update',client.updated]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+(String(v).includes('<span')?v:v)+'</span></div>').join(''); $('financialFields').innerHTML=[['Monthly Revenue',fmt$(client.revenue)],['Outstanding AR',fmt$(client.ar)],['Open Claims Issues',client.claims],['Alerts',client.alerts]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+v+'</span></div>').join(''); $('financialTimeline').innerHTML=['Revenue reviewed in monthly close','AR escalated to billing follow-up','Payer mix exception logged'].map((t,i)=>'<div class="timeline-item"><div class="timeline-title">'+t+'</div><div class="timeline-meta">'+['Today','2 days ago','6 days ago'][i]+'</div></div>').join(''); $('credentialFields').innerHTML=[['Credentialing Status',client.cred],['Assigned Staff',client.staff],['Onboarding State',client.onboarding],['Primary Practice',client.practice]].map(([l,v])=>'<div class="field"><label>'+l+'</label><span>'+v+'</span></div>').join(''); $('communicationTimeline').innerHTML=Array.from({length:Math.max(2,client.messages?2:1)}).map((_,i)=>'<div class="timeline-item"><div class="timeline-title">'+(i===0?'Client message follow-up':'Account outreach logged')+'</div><div class="timeline-meta">'+['Today','3 days ago'][i]+'</div></div>').join(''); $('taskTimeline').innerHTML=(client.tasks||['No open tasks']).map((task,i)=>'<div class="timeline-item"><div class="timeline-title">'+task+'</div><div class="timeline-meta">'+(i===0?'Open':'Queued')+'</div></div>').join(''); $('sideStatus').innerHTML=badge(client.status); $('sideStaff').textContent=client.staff; $('sidePatients').textContent=client.patients; $('sideAlerts').textContent=client.alerts; $('sideTickets').textContent=client.tickets; $('sideClaims').textContent=client.claims; $('drillToPayments').href='admin-payments.html?tab=payment-posting&id='+client.id; $('drillToComms').href='admin-communications.html?tab=client-messages&id='+client.id; $('drawerBackdrop').classList.add('open'); $('clientDrawer').classList.add('open'); renderTabs();}
+function closeDrawer(){STATE.selectedId=null; $('drawerBackdrop').classList.remove('open'); $('clientDrawer').classList.remove('open'); renderTabs();}
+function switchDrawerPanel(panel){STATE.drawerPanel=panel; document.querySelectorAll('.drawer-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.panel===panel)); document.querySelectorAll('.drawer-panel').forEach(el=>el.classList.toggle('active',el.id==='panel-'+panel));}
+function initFilters(){[...new Set(CLIENTS.map(c=>c.staff))].sort().forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;$('staffFilter').appendChild(o);}); [...new Set(CLIENTS.map(c=>c.state))].sort().forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;$('stateFilter').appendChild(o);});}
+function init(){const params=new URLSearchParams(window.location.search); const tab=params.get('tab'); if(tab) STATE.tab=tab; renderKpis(); initFilters(); renderTabs(); renderWorkspace(); const id=params.get('id'); if(id) openDrawer(id); $('tabBar').addEventListener('click',e=>{const btn=e.target.closest('.mod-tab'); if(!btn) return; STATE.tab=btn.dataset.tab; renderTabs(); renderWorkspace();}); $('searchInput').addEventListener('input',e=>{STATE.query=e.target.value.trim().toLowerCase(); renderWorkspace();}); $('staffFilter').addEventListener('change',e=>{STATE.staff=e.target.value; renderWorkspace();}); $('stateFilter').addEventListener('change',e=>{STATE.state=e.target.value; renderWorkspace();}); $('clientRows').addEventListener('click',e=>{const row=e.target.closest('tr[data-id]'); if(row) openDrawer(row.dataset.id);}); $('drawerBackdrop').addEventListener('click',closeDrawer); $('drawerClose').addEventListener('click',closeDrawer); $('drawerTabs').addEventListener('click',e=>{const btn=e.target.closest('.drawer-tab'); if(btn) switchDrawerPanel(btn.dataset.panel);}); $('btnOpenSelected').addEventListener('click',()=>{if(STATE.selectedId) openDrawer(STATE.selectedId); else if(filteredClients()[0]) openDrawer(filteredClients()[0].id);}); $('btnAddClient').addEventListener('click',()=>{window.location.href='admin-add-client.html';}); $('btnClientOnboarding').addEventListener('click',()=>{window.location.href='admin-add-client.html';}); $('btnClinicianOnboarding').addEventListener('click',()=>{window.location.href='admin-clinician-onboarding.html';}); $('btnClientFlowBanner').addEventListener('click',()=>{window.location.href='admin-add-client.html';}); $('btnClinicianFlowBanner').addEventListener('click',()=>{window.location.href='admin-clinician-onboarding.html';});}
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
