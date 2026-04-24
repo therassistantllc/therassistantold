@@ -90,6 +90,10 @@ export function getNoteStatusLabel(status: NoteStatus): string {
 export function getClaimCreationGate(appointment: ScheduleAppointment): ClaimCreationGate {
   const blockers: string[] = [];
 
+  if (!appointment.encounterId) {
+    blockers.push("Encounter must be resolved before claim creation.");
+  }
+
   if (appointment.claim) {
     blockers.push("Claim already exists for this encounter.");
   }

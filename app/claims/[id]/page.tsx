@@ -27,6 +27,7 @@ export default function ClaimDetailsPage({ params }: ClaimDetailsPageProps) {
   const [claim, setClaim] = React.useState<Claim | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState<"overview" | "services" | "financial" | "activity">("overview");
 
   React.useEffect(() => {
     let active = true;
@@ -86,38 +87,118 @@ export default function ClaimDetailsPage({ params }: ClaimDetailsPageProps) {
       <ClaimHeader claim={claim} />
       
       <div className="max-w-[1800px] mx-auto px-6 py-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Charge</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">${(claim.total_charges || 0).toFixed(2)}</div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Remaining</div>
+            <div className="mt-1 text-xl font-bold text-amber-700">
+              ${((claim.remaining_insurance_balance || 0) + (claim.remaining_patient_balance || 0)).toFixed(2)}
+            </div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Service Lines</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">{claim.service_lines.length}</div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Alerts</div>
+            <div className="mt-1 text-xl font-bold text-red-700">{claim.alerts.length}</div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Activity Items</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">{claim.notes.length + claim.history.length}</div>
+          </div>
+        </div>
+
+        <div className="mb-5 border-b border-gray-200">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("overview")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 ${
+                activeTab === "overview"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("services")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 ${
+                activeTab === "services"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Services ({claim.service_lines.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("financial")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 ${
+                activeTab === "financial"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Financial
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("activity")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 ${
+                activeTab === "activity"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Activity ({claim.notes.length + claim.history.length})
+            </button>
+          </div>
+        </div>
+
         <div className="flex gap-6">
           {/* Main Content */}
           <div className="flex-1 space-y-6">
-            {/* Claim Overview */}
-            <ClaimOverviewCard claim={claim} />
-            
-            {/* Patient Information */}
-            <PatientInfoCard patient={claim.patient} />
-            
-            {/* Insurance Information */}
-            <InsuranceInfoCard 
-              primaryInsurance={claim.primary_insurance}
-              secondaryInsurance={claim.secondary_insurance}
-            />
-            
-            {/* Diagnosis Codes */}
-            <DiagnosisTable diagnosisCodes={claim.diagnosis_codes} />
-            
-            {/* Service Lines */}
-            <ServiceLineTable 
-              serviceLines={claim.service_lines}
-              diagnosisCodes={claim.diagnosis_codes}
-            />
-            
-            {/* Financial Summary */}
-            <FinancialSummary claim={claim} />
-            
-            {/* Claim Notes & Activity */}
-            <ClaimNotesPanel notes={claim.notes} claimId={claim.id} />
-            
-            {/* Claim History Timeline */}
-            <ClaimTimeline history={claim.history} />
+            {activeTab === "overview" && (
+              <>
+                <ClaimOverviewCard claim={claim} />
+                <PatientInfoCard patient={claim.patient} />
+                <InsuranceInfoCard
+                  primaryInsurance={claim.primary_insurance}
+                  secondaryInsurance={claim.secondary_insurance}
+                />
+              </>
+            )}
+
+            {activeTab === "services" && (
+              <>
+                <DiagnosisTable diagnosisCodes={claim.diagnosis_codes} />
+                <ServiceLineTable
+                  serviceLines={claim.service_lines}
+                  diagnosisCodes={claim.diagnosis_codes}
+                />
+              </>
+            )}
+
+            {activeTab === "financial" && (
+              <FinancialSummary claim={claim} />
+            )}
+
+            {activeTab === "activity" && (
+              <>
+                <div id="claim-notes">
+                  <ClaimNotesPanel notes={claim.notes} claimId={claim.id} />
+                </div>
+                <div id="claim-timeline">
+                  <ClaimTimeline history={claim.history} />
+                </div>
+              </>
+            )}
           </div>
           
           {/* Sticky Sidebar */}

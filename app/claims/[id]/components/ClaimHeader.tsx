@@ -1,4 +1,5 @@
 import { Claim } from "@/lib/types/claim";
+import Link from "next/link";
 
 interface ClaimHeaderProps {
   claim: Claim;
@@ -23,14 +24,22 @@ export default function ClaimHeader({ claim }: ClaimHeaderProps) {
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-[1800px] mx-auto px-6 py-4">
+        <div className="mb-2 text-xs text-gray-500">
+          <Link href="/billing" className="text-blue-700 hover:underline">Billing</Link>
+          <span className="mx-2">/</span>
+          <Link href="/billing/ready-to-submit" className="text-blue-700 hover:underline">Ready to Submit</Link>
+          <span className="mx-2">/</span>
+          <span className="font-medium text-gray-700">{claim.claim_number}</span>
+        </div>
+
         <div className="flex items-center justify-between">
           {/* Left: Claim Info */}
           <div className="flex items-center gap-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{claim.claim_number}</h1>
               <div className="flex items-center gap-3 mt-1 text-sm text-gray-600">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[claim.status]}`}>
-                  {claim.status.replace(/_/g, " ").toUpperCase()}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[claim.status || "draft"]}`}>
+                  {(claim.status || "draft").replace(/_/g, " ").toUpperCase()}
                 </span>
                 <span>Submitted: {claim.submission_date || "Not submitted"}</span>
                 <span>DOS: {claim.dos_from} - {claim.dos_to}</span>
@@ -55,39 +64,24 @@ export default function ClaimHeader({ claim }: ClaimHeaderProps) {
           
           {/* Right: Quick Actions */}
           <div className="flex items-center gap-2">
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Save Draft
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              Submit Claim
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Mark as Corrected
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50">
-              Void Claim
-            </button>
-            
-            <div className="border-l border-gray-200 h-8 mx-2"></div>
-            
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Print CMS-1500
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Export PDF
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Add Note
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Route to Biller
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              View ERA
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-              Claim History
-            </button>
+            <Link
+              href="/billing/ready-to-submit"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Back to Queue
+            </Link>
+            <Link
+              href="/billing/payment-posting"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Open Payments
+            </Link>
+            <Link
+              href="/billing/batches"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Submission Batches
+            </Link>
           </div>
         </div>
       </div>

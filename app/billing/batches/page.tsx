@@ -1,91 +1,163 @@
+// File: app/billing/batches/page.tsx
 "use client";
 
-import { getMockSubmissionBatches } from "@/lib/data/mock-billing";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 
-export default function SubmissionBatchesPage() {
-  const batches = getMockSubmissionBatches();
-  
-  const statusColors: Record<string, string> = {
-    pending: "bg-gray-100 text-gray-800",
-    submitted: "bg-blue-100 text-blue-800",
-    accepted: "bg-green-100 text-green-800",
-    partially_rejected: "bg-yellow-100 text-yellow-800",
-    failed: "bg-red-100 text-red-800"
+type SubmissionBatch = {
+  id: string;
+  batch_number?: string;
+  created_at?: string;
+  claim_count?: number;
+  total_charge_amount?: number;
+  status?: string;
+};
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_CANONICAL_API_BASE || "http://localhost:4000";
+const DEFAULT_ORGANIZATION_ID =
+  process.env.NEXT_PUBLIC_ORGANIZATION_ID || "org-demo";
+
+function getOrganizationId(): string {
+  if (typeof window === "undefined") return DEFAULT_ORGANIZATION_ID;
+  return (
+    window.localStorage.getItem("organization_id") ||
+    window.localStorage.getItem("org_id") ||
+    DEFAULT_ORGANIZATION_ID
+  );
+}
+
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const supabaseAuthKey = Object.keys(window.localStorage).find(
+    (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+  );
+
+  if (!supabaseAuthKey) return null;
+
+  try {
+    const raw = window.localStorage.getItem(supabaseAuthKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { access_token?: string };
+    return parsed.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSubmissionBatches(): Promise<SubmissionBatch[]> {
+  const response = await fetch(
+    `${API_BASE}/api/billing/batches?organization_id=${encodeURIComponent(getOrganizationId())}`,
+    {
+      headers: {
+        ...(getAccessToken()
+          ? { Authorization: `Bearer ${getAccessToken()}` }
+          : {}),
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    batches?: SubmissionBatch[];
+    items?: SubmissionBatch[];
   };
 
+  return payload.batches || payload.items || [];
+}
+
+export default function BillingBatchesPage() {
+  const [batches, setBatches] = useState<SubmissionBatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await fetchSubmissionBatches();
+        if (active) setBatches(data);
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to load batches");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1800px] mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Submission Batches</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            View and manage claim submission batches
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Submission Batches</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Backend-backed claim submission batches.
           </p>
         </div>
-        
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+
+        {loading ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-gray-600">
+            Loading batches...
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+            {error}
+          </div>
+        ) : batches.length === 0 ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-gray-600">
+            No batches found.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submission Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted By</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claims</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Failed</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Batch</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Created</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Claims</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Charge</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {batches.map((batch) => (
-                  <tr key={batch.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <Link href={`/billing/batches/${batch.id}`} className="text-blue-600 hover:text-blue-800 font-mono text-sm">
-                        {batch.batch_number}
-                      </Link>
+                  <tr key={batch.id}>
+                    <td className="px-4 py-3 text-gray-900">
+                      {batch.batch_number || batch.id}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {new Date(batch.submission_date).toLocaleString()}
+                    <td className="px-4 py-3 text-gray-700">
+                      {batch.created_at || "--"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{batch.submitted_by_name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">{batch.claim_count}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 font-mono">${batch.total_amount.toFixed(2)}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[batch.status]}`}>
-                        {batch.status.replace(/_/g, " ").toUpperCase()}
-                      </span>
+                    <td className="px-4 py-3 text-gray-700">
+                      {batch.claim_count ?? 0}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {batch.failed_claims_count > 0 ? (
-                        <span className="text-red-600 font-medium">{batch.failed_claims_count}</span>
-                      ) : (
-                        <span className="text-gray-400">0</span>
-                      )}
+                    <td className="px-4 py-3 text-gray-700">
+                      ${Number(batch.total_charge_amount || 0).toFixed(2)}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100">
-                          Download 837
-                        </button>
-                        <button className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                          View Claims
-                        </button>
-                        {batch.failed_claims_count > 0 && (
-                          <button className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100">
-                            Retry Failed
-                          </button>
-                        )}
-                      </div>
+                    <td className="px-4 py-3 text-gray-700">
+                      {batch.status || "--"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -80,4 +80,5 @@ venv/
 *.log
 
 # local installers / binaries
-*.exe
+*.exe.env
+.tmp.driveupload/

@@ -6,8 +6,11 @@ interface ServiceLineTableProps {
 }
 
 export default function ServiceLineTable({ serviceLines, diagnosisCodes }: ServiceLineTableProps) {
+  const lines = serviceLines || [];
+  const codes = diagnosisCodes || [];
+  
   const calculateTotal = () => {
-    return serviceLines.reduce((sum, line) => sum + line.charge_amount, 0);
+    return lines.reduce((sum, line) => sum + line.charge_amount, 0);
   };
 
   return (
@@ -39,7 +42,7 @@ export default function ServiceLineTable({ serviceLines, diagnosisCodes }: Servi
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {serviceLines.map((line, index) => (
+            {lines.map((line, index) => (
               <tr key={line.id} className="hover:bg-gray-50">
                 <td className="px-3 py-3 whitespace-nowrap text-gray-700 font-medium">
                   {index + 1}

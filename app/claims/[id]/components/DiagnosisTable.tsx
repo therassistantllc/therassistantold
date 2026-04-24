@@ -5,6 +5,8 @@ interface DiagnosisTableProps {
 }
 
 export default function DiagnosisTable({ diagnosisCodes }: DiagnosisTableProps) {
+  const codes = diagnosisCodes || [];
+  
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -39,7 +41,7 @@ export default function DiagnosisTable({ diagnosisCodes }: DiagnosisTableProps) 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {diagnosisCodes.map((dx, index) => (
+            {codes.map((dx, index) => (
               <tr key={dx.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -94,11 +96,11 @@ export default function DiagnosisTable({ diagnosisCodes }: DiagnosisTableProps) 
             ))}
             
             {/* Empty rows for additional diagnoses */}
-            {Array.from({ length: Math.max(0, 12 - diagnosisCodes.length) }).map((_, i) => (
+            {Array.from({ length: Math.max(0, 12 - codes.length) }).map((_, i) => (
               <tr key={`empty-${i}`} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="font-mono text-sm text-gray-400">
-                    {String.fromCharCode(65 + diagnosisCodes.length + i)}
+                    {String.fromCharCode(65 + codes.length + i)}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

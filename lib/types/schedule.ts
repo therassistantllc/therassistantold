@@ -17,7 +17,7 @@ export interface ClaimSummary {
 
 export interface ScheduleAppointment {
   id: string;
-  encounterId: string;
+  encounterId?: string | null;
   appointmentDate: string; // YYYY-MM-DD
   appointmentTime: string; // HH:mm
   clientId: string;

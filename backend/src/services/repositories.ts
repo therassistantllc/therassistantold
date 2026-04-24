@@ -16,6 +16,7 @@ import type {
   PaymentPostingRecord,
   SupportTicketRecord,
   WorkqueueItemRecord,
+  AppointmentRecord,
 } from "../../../shared/contracts";
 
 export interface EncounterRepository {
@@ -42,6 +43,25 @@ export interface ClaimRepository {
   listServiceLines(organization_id: string, claim_id: string): Promise<ClaimServiceLineRecord[]>;
   listSubmissions(organization_id: string, claim_id: string): Promise<ClaimSubmissionRecord[]>;
   listStatusInquiries(organization_id: string, claim_id: string): Promise<ClaimStatusInquiryRecord[]>;
+  listReadyToSubmit(organization_id: string): Promise<Array<{
+    claim_id: string;
+    claim_number: string;
+    client_name: string | null;
+    payer_name: string | null;
+    date_of_service_from: string;
+    total_charge_amount: string | number;
+    readiness_status: "ready" | "warning" | "blocked";
+    blockers: string[];
+    warnings: string[];
+  }>>;
+  listSubmissionBatches(organization_id: string): Promise<Array<{
+    id: string;
+    batch_number: string;
+    created_at: string;
+    claim_count: number;
+    total_charge_amount: string | number;
+    status: string;
+  }>>;
   createClaim(claim: ClaimRecord, service_lines: ClaimServiceLineRecord[]): Promise<{ claim: ClaimRecord; service_lines: ClaimServiceLineRecord[] }>;
 }
 
@@ -59,11 +79,22 @@ export interface AlertRepository {
 }
 
 export interface TicketRepository {
+  create(ticket: SupportTicketRecord): Promise<SupportTicketRecord>;
   listByClaimId(organization_id: string, claim_id: string): Promise<SupportTicketRecord[]>;
+  listByEncounterId(organization_id: string, encounter_id: string): Promise<SupportTicketRecord[]>;
 }
 
 export interface PaymentRepository {
   findPostingByReference(organization_id: string, posting_reference: string): Promise<PaymentPostingRecord | null>;
+  listUnpostedPayments(organization_id: string): Promise<Array<{
+    id: string;
+    source_type: string | null;
+    payer_name: string | null;
+    patient_name: string | null;
+    received_at: string | null;
+    amount: string | number;
+    status: string | null;
+  }>>;
 }
 
 export interface ScheduleRepository {
@@ -75,4 +106,22 @@ export interface ScheduleRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ total: number; rows: unknown[] }>;
+  getAppointmentById(
+    organization_id: string,
+    appointment_id: string,
+  ): Promise<AppointmentRecord | null>;
+  getEncounterByAppointmentId(
+    organization_id: string,
+    appointment_id: string,
+  ): Promise<EncounterRecord | null>;
+  createEncounterForAppointment(args: {
+    organization_id: string;
+    appointment: AppointmentRecord;
+    requested_by_user_id?: string;
+  }): Promise<EncounterRecord>;
+  setAppointmentEncounterIdIfColumnExists(
+    organization_id: string,
+    appointment_id: string,
+    encounter_id: string,
+  ): Promise<void>;
 }

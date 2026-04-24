@@ -8,11 +8,11 @@ import {
   getNoteStatusLabel,
 } from "@/lib/utils/schedule";
 import ScheduleStatusBadge from "./ScheduleStatusBadge";
-import Link from "next/link";
 
 interface AppointmentRowCardProps {
   appointment: ScheduleAppointment;
-  loadingAction?: "eligibility" | "claim" | "ticket";
+  loadingAction?: "eligibility" | "claim" | "ticket" | "encounter";
+  onOpenEncounter: (appointment: ScheduleAppointment) => void;
   onOpenClient: (appointment: ScheduleAppointment) => void;
   onCollect: (appointment: ScheduleAppointment) => void;
   onRouteToBiller: (appointment: ScheduleAppointment) => void;
@@ -24,6 +24,7 @@ interface AppointmentRowCardProps {
 export default function AppointmentRowCard({
   appointment,
   loadingAction,
+  onOpenEncounter,
   onOpenClient,
   onCollect,
   onRouteToBiller,
@@ -80,7 +81,7 @@ export default function AppointmentRowCard({
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Encounter</p>
-          <p className="font-mono">{appointment.encounterId}</p>
+          <p className="font-mono">{appointment.encounterId || "--"}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Claim Number</p>
@@ -95,12 +96,14 @@ export default function AppointmentRowCard({
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Link
-          href={`/sessions/${appointment.encounterId}`}
+        <button
+          type="button"
+          onClick={() => onOpenEncounter(appointment)}
+          disabled={loadingAction === "encounter"}
           className="rounded-lg bg-blue-600 text-white px-4 py-1.5 text-xs font-semibold hover:bg-blue-700"
         >
-          Open Encounter
-        </Link>
+          {loadingAction === "encounter" ? "Opening..." : "Open Encounter"}
+        </button>
         <button
           type="button"
           onClick={() => onOpenClient(appointment)}

@@ -24,7 +24,7 @@ const commands: Command[] = [
   { id: "nav-patients", label: "Go to Patients", category: "Navigation", action: "/patients", icon: "👥", keywords: ["patients", "directory"] },
   { id: "nav-billing", label: "Go to Billing", category: "Navigation", action: "/billing", icon: "💰", keywords: ["billing", "claims", "payments"] },
   { id: "nav-claims", label: "Go to Claim Center", category: "Navigation", action: "/billing/claims", icon: "📄", keywords: ["claims", "submissions"] },
-  { id: "nav-payments", label: "Go to Payment Posting", category: "Navigation", action: "/billing/unposted-payments", icon: "💳", keywords: ["payments", "posting", "era"] },
+  { id: "nav-payments", label: "Go to Payment Center", category: "Navigation", action: "/billing/payment-posting", icon: "💳", keywords: ["payments", "posting", "era"] },
   
   // Quick Actions
   { id: "create-appointment", label: "Create Appointment", category: "Quick Actions", action: "create-appointment", icon: "➕", keywords: ["new", "appointment", "schedule"] },
@@ -54,6 +54,28 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
       cmd.keywords.some((k) => k.includes(searchLower))
     );
   });
+
+  function executeCommand(command: Command) {
+    if (command.action.startsWith("/")) {
+      router.push(command.action);
+    } else {
+      const routeByAction: Record<string, string> = {
+        "create-appointment": "/scheduling",
+        "create-claim": "/billing/claims",
+        "create-payment": "/billing/payment-posting",
+        "create-note": "/scheduling",
+        "create-ticket": "/scheduling",
+        "create-task": "/scheduling",
+        "search-patients": "/patients",
+        "search-claims": "/billing/claims",
+        "search-payments": "/billing/payments",
+        "search-notes": "/scheduling",
+      };
+
+      router.push(routeByAction[command.action] || "/dashboard");
+    }
+    onClose();
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -90,16 +112,6 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
       setSelectedIndex(0);
     }
   }, [isOpen]);
-
-  const executeCommand = (command: Command) => {
-    if (command.action.startsWith("/")) {
-      router.push(command.action);
-    } else {
-      // Handle custom actions
-      console.log("Execute:", command.action);
-    }
-    onClose();
-  };
 
   if (!isOpen) return null;
 
@@ -146,7 +158,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
                 <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
                   {category}
                 </div>
-                {cmds.map((cmd, idx) => {
+                {cmds.map((cmd) => {
                   const globalIndex = filteredCommands.indexOf(cmd);
                   return (
                     <button

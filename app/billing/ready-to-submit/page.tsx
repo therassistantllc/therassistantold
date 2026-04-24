@@ -1,266 +1,212 @@
+// File: app/billing/ready-to-submit/page.tsx
 "use client";
 
-import { useState } from "react";
-import { getReadyClaimsList } from "@/lib/data/mock-billing";
-import { getMockClaim } from "@/lib/data/mock-claims";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-export default function ReadyToSubmitPage() {
-  const [selectedClaims, setSelectedClaims] = useState<string[]>([]);
-  const readyClaims = getReadyClaimsList();
-  
-  const toggleClaim = (claimId: string) => {
-    setSelectedClaims(prev => 
-      prev.includes(claimId) 
-        ? prev.filter(id => id !== claimId)
-        : [...prev, claimId]
-    );
-  };
-  
-  const toggleAll = () => {
-    if (selectedClaims.length === readyClaims.length) {
-      setSelectedClaims([]);
-    } else {
-      setSelectedClaims(readyClaims.map(c => c.claim_id));
-    }
-  };
-  
-  const totalSelectedAmount = selectedClaims.length * 350; // Mock calculation
+type ReadyClaimItem = {
+  claim_id: string;
+  claim_number?: string;
+  client_name?: string;
+  payer_name?: string;
+  date_of_service_from?: string;
+  total_charge_amount?: number;
+  readiness_status?: "ready" | "warning" | "blocked";
+  blockers?: string[];
+  warnings?: string[];
+};
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_CANONICAL_API_BASE || "http://localhost:4000";
+
+const DEFAULT_ORGANIZATION_ID =
+  process.env.NEXT_PUBLIC_ORGANIZATION_ID || "org-demo";
+
+function getOrganizationId(): string {
+  if (typeof window === "undefined") {
+    return DEFAULT_ORGANIZATION_ID;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Ready to Submit</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                {readyClaims.length} claims ready for submission
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                Export Selected
-              </button>
-              <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                Submit {selectedClaims.length} Claims
-              </button>
-            </div>
+    window.localStorage.getItem("organization_id") ||
+    window.localStorage.getItem("org_id") ||
+    DEFAULT_ORGANIZATION_ID
+  );
+}
+
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const supabaseAuthKey = Object.keys(window.localStorage).find(
+    (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+  );
+
+  if (!supabaseAuthKey) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(supabaseAuthKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as { access_token?: string };
+    return parsed.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchReadyClaims(): Promise<ReadyClaimItem[]> {
+  const organizationId = getOrganizationId();
+  const token = getAccessToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/billing/ready-to-submit?organization_id=${encodeURIComponent(organizationId)}`,
+    {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    claims?: ReadyClaimItem[];
+    items?: ReadyClaimItem[];
+  };
+
+  return payload.claims || payload.items || [];
+}
+
+export default function ReadyToSubmitPage() {
+  const [claims, setClaims] = useState<ReadyClaimItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await fetchReadyClaims();
+        if (active) {
+          setClaims(data);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to load claims");
+          setClaims([]);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const readyCount = useMemo(
+    () => claims.filter((claim) => claim.readiness_status === "ready").length,
+    [claims],
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Ready to Submit</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Backend-backed claims ready for billing submission.
+            </p>
+          </div>
+          <div className="rounded-lg border bg-white px-4 py-2 text-sm">
+            Ready claims: <span className="font-semibold">{readyCount}</span>
           </div>
         </div>
-      </div>
-      
-      <div className="max-w-[1800px] mx-auto px-6 py-6">
-        <div className="flex gap-6">
-          {/* Left Filter Panel */}
-          <div className="w-64 shrink-0">
-            <div className="bg-white rounded-lg border border-gray-200 p-4 sticky top-24">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Filters</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Insurance Company
-                  </label>
-                  <select className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                    <option>All</option>
-                    <option>Anthem BCBS</option>
-                    <option>UnitedHealthcare</option>
-                    <option>Cigna</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Provider
-                  </label>
-                  <select className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                    <option>All Providers</option>
-                    <option>Dr. Martinez</option>
-                    <option>Dr. Chen</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Validation Status
-                  </label>
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-2" />
-                      <span className="text-sm text-gray-700">Ready (No Issues)</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-2" />
-                      <span className="text-sm text-gray-700">Has Warnings</span>
-                    </label>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Aging Days
-                  </label>
-                  <select className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                    <option>All</option>
-                    <option>0-7 days</option>
-                    <option>8-14 days</option>
-                    <option>15+ days</option>
-                  </select>
-                </div>
-                
-                <button className="w-full px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100">
-                  Apply Filters
-                </button>
-                <button className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                  Reset
-                </button>
-              </div>
-            </div>
+
+        {loading ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-gray-600">
+            Loading claims...
           </div>
-          
-          {/* Main Content */}
-          <div className="flex-1 space-y-4">
-            {/* Bulk Actions Toolbar */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedClaims.length === readyClaims.length}
-                    onChange={toggleAll}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    {selectedClaims.length} selected
-                  </span>
-                </div>
-                
-                {selectedClaims.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <button className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                      Route to Biller
-                    </button>
-                    <button className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                      Mark as Hold
-                    </button>
-                    <button className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                      Add Note
-                    </button>
-                    <button className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                      Assign Staff
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Claims Table */}
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left"><input type="checkbox" checked={selectedClaims.length === readyClaims.length} onChange={toggleAll} className="w-4 h-4" /></th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claim ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOS</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Insurance</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CPT</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aging</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {readyClaims.map((validation) => {
-                      const claim = getMockClaim(validation.claim_id);
-                      return (
-                        <tr key={validation.claim_id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedClaims.includes(validation.claim_id)}
-                              onChange={() => toggleClaim(validation.claim_id)}
-                              className="w-4 h-4 text-blue-600"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Link href={`/claims/${validation.claim_id}`} className="text-blue-600 hover:text-blue-800 font-mono text-sm">
-                              {claim.claim_number}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{claim.patient.first_name} {claim.patient.last_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{claim.dos_from}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{claim.primary_insurance.payer_name.slice(0, 20)}...</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{claim.rendering_provider?.name.slice(0, 15)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-mono">{claim.service_lines.map(l => l.cpt_code).join(", ")}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-mono">${claim.total_charges.toFixed(2)}</td>
-                          <td className="px-4 py-3">
-                            {validation.has_errors ? (
-                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">Error</span>
-                            ) : validation.has_warnings ? (
-                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">Warning</span>
-                            ) : (
-                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Ready</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{validation.validation_score}%</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{validation.aging_days}d</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+            {error}
           </div>
-          
-          {/* Right Summary Panel */}
-          <div className="w-80 shrink-0">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-24">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Submission Summary</h3>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Claims Selected</span>
-                  <span className="text-lg font-bold text-gray-900">{selectedClaims.length}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Amount</span>
-                  <span className="text-lg font-bold text-gray-900">${totalSelectedAmount.toFixed(2)}</span>
-                </div>
-                
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="text-xs font-medium text-gray-700 mb-2">Insurance Breakdown</div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Anthem BCBS</span>
-                      <span className="text-gray-900">{selectedClaims.length}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {selectedClaims.length > 0 && (
-                  <>
-                    <button className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                      Submit {selectedClaims.length} Claims
-                    </button>
-                    
-                    <div className="text-xs text-gray-500 text-center">
-                      Claims will be submitted to Office Ally clearinghouse
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+        ) : claims.length === 0 ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-gray-600">
+            No claims ready to submit.
           </div>
-        </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Claim</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Client</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Payer</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">DOS</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Charge</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {claims.map((claim) => (
+                  <tr key={claim.claim_id}>
+                    <td className="px-4 py-3 text-gray-900">
+                      {claim.claim_number || claim.claim_id}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {claim.client_name || "--"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {claim.payer_name || "--"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {claim.date_of_service_from || "--"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {typeof claim.total_charge_amount === "number"
+                        ? `$${claim.total_charge_amount.toFixed(2)}`
+                        : "--"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full border px-2 py-1 text-xs font-medium capitalize">
+                        {claim.readiness_status || "ready"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/claims/${claim.claim_id}`}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        Open Claim
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

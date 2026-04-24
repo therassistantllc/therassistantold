@@ -58,7 +58,8 @@ export function validateClaimCreation(input: ValidateClaimCreationInput): ClaimR
     source_object_type: "encounter", source_object_id: input.encounter.id,
   }));
 
-  if (!input.encounter.date_of_service) addBlocker(result, makeRule({
+  const dateOfService = (input.encounter as any).date_of_service || (input.encounter as any).service_date;
+  if (!dateOfService) addBlocker(result, makeRule({
     rule_code: "CLAIM_DATE_OF_SERVICE_MISSING", severity: "blocker", message: "Date of service is required before claim creation.",
     source_object_type: "encounter", source_object_id: input.encounter.id, field_path: "date_of_service",
   }));

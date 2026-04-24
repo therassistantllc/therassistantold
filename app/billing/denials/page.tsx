@@ -21,7 +21,7 @@ interface Denial {
 export default function DenialsPage() {
   const mockDenials: Denial[] = [
     {
-      id: "1",
+      id: "11111111-1111-1111-1111-111111111111",
       claimNumber: "CLM-2024-0032",
       patient: "Sarah Johnson",
       dos: "2026-03-15",
@@ -33,7 +33,7 @@ export default function DenialsPage() {
       denialDate: "2026-04-10"
     },
     {
-      id: "2",
+      id: "22222222-2222-2222-2222-222222222222",
       claimNumber: "CLM-2024-0028",
       patient: "Michael Davis",
       dos: "2026-03-12",
@@ -45,7 +45,7 @@ export default function DenialsPage() {
       denialDate: "2026-04-08"
     },
     {
-      id: "3",
+      id: "33333333-3333-3333-3333-333333333333",
       claimNumber: "CLM-2024-0025",
       patient: "Jennifer Martinez",
       dos: "2026-03-08",

@@ -153,14 +153,11 @@ export type TicketStatus =
   | "closed";
 
 export type WorkqueueStatus =
-  | "new"
-  | "triage"
-  | "assigned"
-  | "waiting_external"
-  | "waiting_internal"
-  | "ready"
-  | "completed"
-  | "archived";
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "resolved"
+  | "closed";
 
 export type WorkqueuePriority = "low" | "normal" | "high" | "urgent";
 
@@ -323,7 +320,7 @@ export interface ClaimRecord extends AuditFields {
 }
 
 export interface WorkqueueItemRecord extends AuditFields {
-  workqueue_type: WorkqueueType;
+  work_type: string;
   status: WorkqueueStatus;
   priority: WorkqueuePriority;
   source_object_type: SourceObjectType;
@@ -333,8 +330,8 @@ export interface WorkqueueItemRecord extends AuditFields {
   claim_id: UUID | null;
   assigned_to_user_id: UUID | null;
   due_at: ISODateTime | null;
-  started_at: ISODateTime | null;
-  completed_at: ISODateTime | null;
+  resolved_at: ISODateTime | null;
+  closed_at: ISODateTime | null;
   title: string;
   description: string | null;
   context_payload: Record<string, unknown>;
@@ -631,6 +628,17 @@ export interface GetScheduleDayRequest extends PagingRequest {
 export interface GetScheduleDayResponse extends PagingResponse {
   date: ISODate;
   rows: ScheduleAppointmentRow[];
+}
+
+export interface ResolveEncounterForAppointmentRequest {
+  organization_id: UUID;
+  appointment_id: UUID;
+  requested_by_user_id?: UUID;
+}
+
+export interface ResolveEncounterForAppointmentResponse {
+  encounterId: any;
+  encounter_id: UUID;
 }
 
 export interface GetEncounterWorkspaceRequest {

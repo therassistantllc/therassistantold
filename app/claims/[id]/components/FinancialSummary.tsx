@@ -19,7 +19,7 @@ export default function FinancialSummary({ claim }: FinancialSummaryProps) {
               Total Charges
             </div>
             <div className="text-2xl font-bold text-blue-900">
-              ${claim.total_charges.toFixed(2)}
+              ${(claim.total_charges || 0).toFixed(2)}
             </div>
           </div>
           

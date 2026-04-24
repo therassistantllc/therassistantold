@@ -3,15 +3,18 @@ import type {
   BillingService,
   ClaimService,
   EncounterService,
+  ScheduleService,
   WorkqueueService,
 } from "../services/interfaces";
 import type { RequireRole } from "./auth";
 import { createBillingRoutes } from "./billing";
 import { createClaimRoutes } from "./claims";
 import { createEncounterRoutes } from "./encounters";
+import { createScheduleRoutes } from "./schedule";
 import { createWorkqueueRoutes } from "./workqueue";
 
 export function createApiRouter(args: {
+  scheduleService: ScheduleService;
   encounterService: EncounterService;
   claimService: ClaimService;
   workqueueService: WorkqueueService;
@@ -19,6 +22,11 @@ export function createApiRouter(args: {
   requireRole: RequireRole;
 }): Router {
   const router = Router();
+
+  router.use(createScheduleRoutes({
+    scheduleService: args.scheduleService,
+    requireRole: args.requireRole,
+  }));
 
   router.use(createEncounterRoutes({
     encounterService: args.encounterService,

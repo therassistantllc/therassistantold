@@ -39,6 +39,48 @@ export function createBillingRoutes(args: {
   );
 
   router.get(
+    "/billing/unposted-payments",
+    requireRole(["billing_specialist", "supervisor", "admin", "super_admin", "clinician"]),
+    asyncHandler(async (req, res) => {
+      const organization_id = String(req.query.organization_id || "").trim();
+      if (!organization_id) {
+        return badRequest(res, "organization_id is required");
+      }
+
+      const payments = await billingService.getUnpostedPayments(organization_id);
+      return ok(res, { payments });
+    }),
+  );
+
+  router.get(
+    "/billing/ready-to-submit",
+    requireRole(["billing_specialist", "supervisor", "admin", "super_admin", "clinician"]),
+    asyncHandler(async (req, res) => {
+      const organization_id = String(req.query.organization_id || "").trim();
+      if (!organization_id) {
+        return badRequest(res, "organization_id is required");
+      }
+
+      const claims = await billingService.getReadyToSubmitClaims(organization_id);
+      return ok(res, { claims });
+    }),
+  );
+
+  router.get(
+    "/billing/batches",
+    requireRole(["billing_specialist", "supervisor", "admin", "super_admin", "clinician"]),
+    asyncHandler(async (req, res) => {
+      const organization_id = String(req.query.organization_id || "").trim();
+      if (!organization_id) {
+        return badRequest(res, "organization_id is required");
+      }
+
+      const batches = await billingService.getSubmissionBatches(organization_id);
+      return ok(res, { batches });
+    }),
+  );
+
+  router.get(
     "/billing/client-snapshot/:clientId",
     requireRole(["billing_specialist", "supervisor", "admin", "super_admin", "clinician"]),
     asyncHandler(async (req, res) => {

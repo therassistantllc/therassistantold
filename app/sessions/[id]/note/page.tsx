@@ -1,50 +1,53 @@
 "use client";
 
+import { use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface NotePageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default function NotePage({ params }: NotePageProps) {
   const router = useRouter();
+  const { id } = use(params);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <div className="text-blue-600 text-5xl mb-4">📝</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Clinical Note Workspace</h1>
-        <p className="text-gray-600 mb-6">
-          This is a placeholder for the clinical note editor.
-          <br />
-          Encounter ID: <code className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{params.id}</code>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="w-full max-w-2xl rounded-lg border border-gray-200 bg-white p-8">
+        <h1 className="text-2xl font-bold text-gray-900">Clinical Note Workspace</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Encounter <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs">{id}</code>
+          . Use these actions to continue documentation and billing workflows.
         </p>
-        <div className="space-y-3">
-          <p className="text-sm text-gray-500">
-            The note workspace will include:
-          </p>
-          <ul className="text-sm text-gray-600 text-left max-w-md mx-auto space-y-2">
-            <li>• SOAP note template or structured documentation</li>
-            <li>• Diagnosis selection and coding</li>
-            <li>• Service code recommendation</li>
-            <li>• Digital signature workflow</li>
-            <li>• Auto-save and version history</li>
-          </ul>
-        </div>
-        <div className="mt-8 flex gap-3 justify-center">
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <Link
+            href={`/sessions/${id}`}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Return to Encounter
+          </Link>
+          <Link
+            href="/scheduling"
+            className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Open Schedule
+          </Link>
+          <Link
+            href="/billing/claims"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Open Claim Center
+          </Link>
           <button
+            type="button"
             onClick={() => router.back()}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            ← Back to Encounter
-          </button>
-          <button
-            onClick={() => router.push(`/sessions/${params.id}`)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            Return to Encounter Workspace
+            Back
           </button>
         </div>
       </div>

@@ -24,9 +24,9 @@ export default function ClaimCenterPage() {
 
   // Mock data
   const mockClaims: Claim[] = [
-    { id: "1", claimNumber: "CLM-2024-0045", patient: "Sarah Johnson", dos: "2026-04-20", provider: "Dr. Chen", insurance: "Anthem BCBS", amount: 150, status: "ready", aging: 0 },
-    { id: "2", claimNumber: "CLM-2024-0044", patient: "Michael Smith", dos: "2026-04-19", provider: "Dr. Johnson", insurance: "UnitedHealthcare", amount: 200, status: "ready", aging: 1 },
-    { id: "3", claimNumber: "CLM-2024-0043", patient: "Emily Davis", dos: "2026-04-18", provider: "Dr. Chen", insurance: "Cigna", amount: 150, status: "submitted", aging: 2 },
+    { id: "11111111-1111-1111-1111-111111111111", claimNumber: "CLM-2024-0045", patient: "Sarah Johnson", dos: "2026-04-20", provider: "Dr. Chen", insurance: "Anthem BCBS", amount: 150, status: "ready", aging: 0 },
+    { id: "22222222-2222-2222-2222-222222222222", claimNumber: "CLM-2024-0044", patient: "Michael Smith", dos: "2026-04-19", provider: "Dr. Johnson", insurance: "UnitedHealthcare", amount: 200, status: "ready", aging: 1 },
+    { id: "33333333-3333-3333-3333-333333333333", claimNumber: "CLM-2024-0043", patient: "Emily Davis", dos: "2026-04-18", provider: "Dr. Chen", insurance: "Cigna", amount: 150, status: "submitted", aging: 2 },
   ];
 
   const tabs = [

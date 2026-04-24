@@ -1,3 +1,5 @@
+-- File: backend/db/schema/canonical/04_encounters_notes.sql
+
 CREATE TABLE IF NOT EXISTS encounters (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
@@ -7,7 +9,7 @@ CREATE TABLE IF NOT EXISTS encounters (
   encounter_status encounter_status NOT NULL DEFAULT 'scheduled',
   started_at timestamptz,
   ended_at timestamptz,
-  service_date date GENERATED ALWAYS AS ((scheduled_start_at AT TIME ZONE 'UTC')::date) STORED,
+  service_date date,
   required_billing_fields_complete boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -18,9 +20,14 @@ CREATE TABLE IF NOT EXISTS encounters (
   CHECK (ended_at IS NULL OR started_at IS NULL OR ended_at >= started_at)
 );
 
--- generated column cannot see appointments, so replace with service_date physical field
-ALTER TABLE encounters DROP COLUMN IF EXISTS service_date;
-ALTER TABLE encounters ADD COLUMN IF NOT EXISTS service_date date;
+CREATE INDEX IF NOT EXISTS idx_encounters_org_appt
+  ON encounters (organization_id, appointment_id);
+
+CREATE INDEX IF NOT EXISTS idx_encounters_org_client
+  ON encounters (organization_id, client_id, service_date);
+
+CREATE INDEX IF NOT EXISTS idx_encounters_org_provider
+  ON encounters (organization_id, provider_id, service_date);
 
 CREATE TABLE IF NOT EXISTS encounter_notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,6 +46,9 @@ CREATE TABLE IF NOT EXISTS encounter_notes (
   archived_at timestamptz
 );
 
+CREATE INDEX IF NOT EXISTS idx_encounter_notes_org_encounter
+  ON encounter_notes (organization_id, encounter_id);
+
 CREATE TABLE IF NOT EXISTS encounter_diagnoses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
@@ -56,7 +66,8 @@ CREATE TABLE IF NOT EXISTS encounter_diagnoses (
   CHECK (sequence_number > 0)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_encounter_dx_sequence ON encounter_diagnoses (organization_id, encounter_id, sequence_number);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_encounter_dx_sequence
+  ON encounter_diagnoses (organization_id, encounter_id, sequence_number);
 
 CREATE TABLE IF NOT EXISTS encounter_service_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,7 +94,8 @@ CREATE TABLE IF NOT EXISTS encounter_service_lines (
   CHECK (sequence_number > 0)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_encounter_service_sequence ON encounter_service_lines (organization_id, encounter_id, sequence_number);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_encounter_service_sequence
+  ON encounter_service_lines (organization_id, encounter_id, sequence_number);
 
 SELECT apply_updated_at_trigger('encounters');
 SELECT apply_updated_at_trigger('encounter_notes');
