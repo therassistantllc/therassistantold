@@ -1,7 +1,10 @@
+// File: next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  turbopack: {
+    root: "C:/Users/Thera/therassistant-clean",
+  },
 };
 
 export default nextConfig;
