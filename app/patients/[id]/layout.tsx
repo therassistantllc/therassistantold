@@ -1,56 +1,95 @@
-// File: app/patients/[id]/layout.tsx
+// app/patients/[id]/layout.tsx
 "use client";
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import AppShell from "@/components/layout/AppShell";
 
-const tabs = [
-  { href: "", label: "Patient Info / Profile" },
-  { href: "/documents", label: "Documents" },
-  { href: "/billing-settings", label: "Billing Settings" },
-  { href: "/patient-billing", label: "Patient Billing" },
-];
+type PatientLayoutProps = {
+  children: ReactNode;
+};
 
-function normalize(path: string) {
-  return path.replace(/\/$/, "");
+type TabDefinition = {
+  label: string;
+  href: string;
+  isActive: (pathname: string) => boolean;
+};
+
+function cn(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
 }
 
-export default function PatientChartLayout({ children }: { children: ReactNode }) {
-  const params = useParams<{ id: string }>();
+export default function PatientLayout({ children }: PatientLayoutProps) {
   const pathname = usePathname();
-  const patientId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const base = `/patients/${patientId}`;
+  const params = useParams<{ id: string }>();
+  const patientId = params?.id ?? "";
+
+  const tabs: TabDefinition[] = [
+    {
+      label: "Overview",
+      href: `/patients/${patientId}`,
+      isActive: (currentPath) => currentPath === `/patients/${patientId}`,
+    },
+    {
+      label: "Billing",
+      href: `/patients/${patientId}/patient-billing`,
+      isActive: (currentPath) =>
+        currentPath === `/patients/${patientId}/patient-billing` ||
+        currentPath.startsWith(`/patients/${patientId}/patient-billing/`),
+    },
+    {
+      label: "Files",
+      href: `/patients/${patientId}/documents`,
+      isActive: (currentPath) =>
+        currentPath === `/patients/${patientId}/documents` ||
+        currentPath.startsWith(`/patients/${patientId}/documents/`),
+    },
+  ];
 
   return (
-    <AppShell>
-      <main className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-7xl px-6 py-6">
-          <div className="mb-6 flex flex-wrap gap-2">
-            {tabs.map((tab) => {
-              const href = `${base}${tab.href}`;
-              const active = normalize(pathname) === normalize(href);
-              return (
-                <Link
-                  key={tab.label}
-                  href={href}
-                  className={[
-                    "rounded-xl px-3 py-2 text-sm transition",
-                    active
-                      ? "bg-gray-900 text-white"
-                      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  {tab.label}
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-4">
+          <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
+            <ol className="flex flex-wrap items-center gap-2">
+              <li>
+                <Link href="/patients" className="hover:text-slate-700">
+                  Patients
                 </Link>
-              );
-            })}
+              </li>
+              <li aria-hidden="true">/</li>
+              <li className="text-slate-700">Patient Chart</li>
+            </ol>
+          </nav>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 sm:px-6">
+            <div className="flex flex-wrap gap-6">
+              {tabs.map((tab) => {
+                const active = tab.isActive(pathname);
+
+                return (
+                  <Link
+                    key={tab.href}
+                    href={tab.href}
+                    className={cn(
+                      "inline-flex items-center border-b-2 px-1 py-4 text-sm font-medium transition-colors",
+                      active
+                        ? "border-blue-600 text-blue-700"
+                        : "border-transparent text-slate-600 hover:text-slate-900",
+                    )}
+                  >
+                    {tab.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
 
-          {children}
+          <div className="px-4 py-6 sm:px-6">{children}</div>
         </div>
-      </main>
-    </AppShell>
+      </div>
+    </div>
   );
 }
