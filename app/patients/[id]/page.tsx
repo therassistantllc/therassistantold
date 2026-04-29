@@ -153,10 +153,10 @@ function calculateAge(dateOfBirth: string | null | undefined) {
 
   const now = new Date();
   let age = now.getFullYear() - dob.getFullYear();
-  const hasNotHadBirthdayYet =
+  const hasNotHadBirthdayYet =- dob.getFullYear();
     now.getMonth() < dob.getMonth() ||
     (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate());
-
+    (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate());
   if (hasNotHadBirthdayYet) {
     age -= 1;
   }
