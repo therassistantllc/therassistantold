@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:workflow": "tsx scripts/canonical-workflow-smoke-test.ts"
+    "test:workflow": "tsx scripts/canonical-workflow-smoke-test.ts",
+    "test:smoke": "tsx scripts/run-all-smoke-tests.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
