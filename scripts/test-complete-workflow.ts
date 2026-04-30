@@ -39,7 +39,6 @@ async function createAppointment(patientId: string): Promise<WorkflowResult> {
     scheduled_start_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
     scheduled_end_at: new Date(Date.now() + 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString(), // +1 hour
     status: "scheduled",
-    notes: "Test appointment created via workflow script",
   };
 
   const { data, error } = await supabase
