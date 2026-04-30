@@ -38,7 +38,6 @@ async function createAppointment(patientId: string): Promise<WorkflowResult> {
     appointment_type: "Initial Consultation",
     scheduled_start_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
     scheduled_end_at: new Date(Date.now() + 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString(), // +1 hour
-    status: "scheduled",
   };
 
   const { data, error } = await supabase
@@ -338,7 +337,6 @@ async function runCompleteWorkflow() {
     // Step 3: Create and Sign Note
     const noteResult = await createNote({
       encounterId: encounter.id,
-      status: "signed",
     });
     if (!noteResult.success) {
       throw new Error("Note creation failed");
@@ -347,7 +345,6 @@ async function runCompleteWorkflow() {
     // Step 4: Create Claim
     const claimResult = await createClaim({
       encounterId: encounter.id,
-      status: "ready_to_submit",
     });
     if (!claimResult.success) {
       throw new Error("Claim creation failed");
