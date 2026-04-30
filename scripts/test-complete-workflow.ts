@@ -418,7 +418,6 @@ async function createWorkqueueItem(
     encounter_id: encounterId,
     claim_id: claimId,
     work_type: "claim_follow_up",
-    status: "pending",
     title: "Follow up on submitted claim",
     description: "Monitor claim status and payment",
     priority: "normal",
