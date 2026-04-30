@@ -15,21 +15,6 @@ import type {
   ClaimRecord,
   InsurancePolicyRecord,
 } from "@/lib/types";
-import {
-  CalendarIcon,
-  DocumentTextIcon,
-  CreditCardIcon,
-  BanknotesIcon,
-  DocumentDuplicateIcon,
-  ChatBubbleLeftIcon,
-  ClockIcon,
-  PlusIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ClipboardDocumentListIcon,
-  UserIcon,
-} from "@heroicons/react/24/outline";
 
 type TabKey =
   | "overview"
@@ -240,18 +225,18 @@ export default function PatientWorkspacePage() {
     return alertList;
   }, [balances, primaryInsurance, claims, notes]);
 
-  const tabs: Array<{ key: TabKey; label: string; icon: React.ComponentType<any> }> = [
-    { key: "overview", label: "Overview", icon: ClipboardDocumentListIcon },
-    { key: "demographics", label: "Demographics", icon: UserIcon },
-    { key: "insurance", label: "Insurance", icon: CreditCardIcon },
-    { key: "appointments", label: "Appointments", icon: CalendarIcon },
-    { key: "encounters", label: "Encounters", icon: DocumentTextIcon },
-    { key: "notes", label: "Notes", icon: DocumentDuplicateIcon },
-    { key: "claims", label: "Claims", icon: ClipboardDocumentListIcon },
-    { key: "payments", label: "Payments", icon: BanknotesIcon },
-    { key: "documents", label: "Documents", icon: DocumentDuplicateIcon },
-    { key: "messages", label: "Messages", icon: ChatBubbleLeftIcon },
-    { key: "activity", label: "Activity Log", icon: ClockIcon },
+  const tabs: Array<{ key: TabKey; label: string }> = [
+    { key: "overview", label: "Overview" },
+    { key: "demographics", label: "Demographics" },
+    { key: "insurance", label: "Insurance" },
+    { key: "appointments", label: "Appointments" },
+    { key: "encounters", label: "Encounters" },
+    { key: "notes", label: "Notes" },
+    { key: "claims", label: "Claims" },
+    { key: "payments", label: "Payments" },
+    { key: "documents", label: "Documents" },
+    { key: "messages", label: "Messages" },
+    { key: "activity", label: "Activity Log" },
   ];
 
   if (loading) {
@@ -299,14 +284,12 @@ export default function PatientWorkspacePage() {
                     <span className="text-blue-700">{primaryInsurance?.plan_name || "No insurance"}</span>
                   </div>
                   {primaryInsurance?.active_flag ? (
-                    <div className="flex items-center gap-1 text-sm text-green-700">
-                      <CheckCircleIcon className="h-4 w-4" />
-                      <span>Active</span>
+                    <div className="rounded-lg bg-green-50 px-3 py-1 text-sm font-medium text-green-700">
+                      Active
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1 text-sm text-red-700">
-                      <XCircleIcon className="h-4 w-4" />
-                      <span>Inactive</span>
+                    <div className="rounded-lg bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
+                      Inactive
                     </div>
                   )}
                 </div>
@@ -345,10 +328,9 @@ export default function PatientWorkspacePage() {
                     {alerts.map((alert, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800"
+                        className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
                       >
-                        <ExclamationTriangleIcon className="h-3 w-3" />
-                        <span>{alert}</span>
+                        ⚠ {alert}
                       </div>
                     ))}
                   </div>
@@ -358,16 +340,14 @@ export default function PatientWorkspacePage() {
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/scheduling"
-                  className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
                 >
-                  <CalendarIcon className="h-4 w-4" />
                   New Appointment
                 </Link>
                 <Link
                   href="/encounters/new"
-                  className="flex items-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+                  className="rounded-lg border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
                 >
-                  <PlusIcon className="h-4 w-4" />
                   Create Encounter
                 </Link>
               </div>
@@ -377,19 +357,17 @@ export default function PatientWorkspacePage() {
           <div className="mx-auto max-w-7xl px-6">
             <div className="flex gap-1 overflow-x-auto border-t border-gray-200 pt-2">
               {tabs.map((tab) => {
-                const Icon = tab.icon;
                 const isActive = activeTab === tab.key;
                 return (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                       isActive
                         ? "border-blue-600 text-blue-600"
                         : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
                     {tab.label}
                   </button>
                 );
