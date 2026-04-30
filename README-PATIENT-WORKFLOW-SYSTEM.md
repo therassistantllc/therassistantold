@@ -4,7 +4,7 @@ Complete patient journey implementation from appointment through payment.
 
 ## Workflow Architecture
 
-```
+```text
 ┌─────────────┐
 │ Appointment │  createAppointment(patientId)
 └──────┬──────┘
@@ -129,7 +129,7 @@ This will:
 
 ### Expected Output
 
-```
+```console
 🚀 Starting Complete Patient Workflow Test
 ==========================================
 
