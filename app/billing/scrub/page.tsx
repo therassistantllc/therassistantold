@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { EncounterDiagnosisRecord, EncounterRecord, EncounterServiceLineRecord } from "@/lib/types";
@@ -77,7 +77,6 @@ export default function ClaimScrubQueuePage() {
         if (serviceLines.length === 0) issues.push("No encounter service lines");
         if (serviceLines.some((item) => !item.cpt_hcpcs_code)) issues.push("Missing CPT/HCPCS");
         if (serviceLines.some((item) => !item.place_of_service_code)) issues.push("Missing place of service");
-        if (serviceLines.some((item) => !item.ready_for_claim)) issues.push("Service line not ready for claim");
 
         return {
           ...encounter,

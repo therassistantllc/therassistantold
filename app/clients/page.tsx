@@ -6,12 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { ClientRecord } from "@/lib/types";
+import { useActiveContext } from "@/lib/store/activeContext";
 
 export default function ClientsPage() {
   const [rows, setRows] = useState<ClientRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Global Active Context
+  const { setContext } = useActiveContext();
 
   useEffect(() => {
     let active = true;
@@ -61,6 +65,22 @@ export default function ClientsPage() {
       );
     });
   }, [rows, search]);
+
+  function handlePatientClick(patient: ClientRecord) {
+    const patientName = [patient.first_name, patient.last_name].filter(Boolean).join(" ") || 
+      patient.preferred_name || 
+      `Patient ${patient.id.slice(0, 8)}`;
+    
+    setContext({
+      patientId: patient.id,
+      patientName,
+      // Clear appointment/encounter context since we're selecting a new patient
+      appointmentId: null,
+      appointmentDate: null,
+      encounterId: null,
+      encounterStatus: null,
+    });
+  }
 
   return (
     <AppShell>
@@ -115,7 +135,14 @@ export default function ClientsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredRows.map((row) => (
-                      <tr key={row.id} className="text-sm text-gray-700">
+                      <tr 
+                        key={row.id} 
+                        onClick={() => {
+                          handlePatientClick(row);
+                          window.location.href = `/patients/${row.id}`;
+                        }}
+                        className="cursor-pointer text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                      >
                         <td className="px-4 py-3">{[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"}</td>
                         <td className="px-4 py-3">{row.preferred_name ?? "—"}</td>
                         <td className="px-4 py-3">{row.date_of_birth ?? "—"}</td>
@@ -123,8 +150,15 @@ export default function ClientsPage() {
                         <td className="px-4 py-3">{row.email ?? "—"}</td>
                         <td className="px-4 py-3">{row.mrn ?? "—"}</td>
                         <td className="px-4 py-3">
-                          <Link href={`/clients/${row.id}`} className="text-blue-700 hover:underline">
-                            Open Chart
+                          <Link 
+                            href={`/patients/${row.id}`} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePatientClick(row);
+                            }}
+                            className="text-blue-700 hover:underline"
+                          >
+                            Open Workspace
                           </Link>
                         </td>
                       </tr>

@@ -176,6 +176,8 @@ export interface ClaimServiceLineRecord {
   charge_amount?: string | null;
   allowed_amount?: string | null;
   paid_amount?: string | null;
+  service_line_status?: string | null;
+  place_of_service_code?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   created_by_user_id?: string | null;

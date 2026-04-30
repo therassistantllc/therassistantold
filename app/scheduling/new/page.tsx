@@ -2,6 +2,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { ClientRecord, InsurancePolicyRecord } from "@/lib/types";
@@ -61,6 +62,7 @@ function defaultPosForAppointmentType(type: AppointmentFormState["appointment_ty
 }
 
 export default function NewAppointmentPage() {
+  const router = useRouter();
   const [form, setForm] = useState<AppointmentFormState>(initialState);
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [providers, setProviders] = useState<ProviderRecord[]>([]);
@@ -178,8 +180,12 @@ export default function NewAppointmentPage() {
     }
 
     setSuccess(`Appointment created: ${data.id}`);
-    setForm(initialState);
     setSaving(false);
+    
+    // Redirect to patient chart
+    setTimeout(() => {
+      router.push(`/patients/${form.client_id}`);
+    }, 500);
   }
 
   return (

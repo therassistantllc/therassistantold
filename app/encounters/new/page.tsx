@@ -2,9 +2,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { AppointmentRecord } from "@/lib/types";
+import { useActiveContext } from "@/lib/store/activeContext";
 
 interface EncounterFormState {
   appointment_id: string;
@@ -55,6 +57,9 @@ export default function NewEncounterPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Global Active Context
+  const { appointmentId, patientId } = useActiveContext();
+
   useEffect(() => {
     let active = true;
 
@@ -86,6 +91,13 @@ export default function NewEncounterPage() {
       active = false;
     };
   }, []);
+
+  // Auto-populate form from global active context
+  useEffect(() => {
+    if (appointmentId && !form.appointment_id) {
+      setForm((c) => ({ ...c, appointment_id: appointmentId }));
+    }
+  }, [appointmentId, form.appointment_id]);
 
   const selectedAppointment = useMemo(
     () => appointments.find((item) => item.id === form.appointment_id) ?? null,
@@ -170,11 +182,28 @@ export default function NewEncounterPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
+              {!appointmentId && !form.appointment_id && (
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center shadow-sm">
+                  <div className="text-lg font-semibold text-gray-900">No appointment selected</div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    Select an appointment from the Scheduling page to pre-populate this form, or choose one manually below.
+                  </div>
+                  <Link
+                    href="/scheduling"
+                    className="mt-5 inline-block rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+                  >
+                    Go to Scheduling
+                  </Link>
+                </div>
+              )}
+
               <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">1. Select Appointment</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">1. {appointmentId ? 'Appointment (from active context)' : 'Select Appointment'}</h2>
                   <p className="mt-1 text-sm text-gray-600">
-                    Encounter client and provider will be copied from the selected appointment.
+                    {appointmentId 
+                      ? 'Appointment was automatically selected from active context. You can change it if needed.'
+                      : 'Encounter client and provider will be copied from the selected appointment.'}
                   </p>
                 </div>
 
@@ -192,6 +221,11 @@ export default function NewEncounterPage() {
                     </option>
                   ))}
                 </select>
+                {appointmentId && form.appointment_id === appointmentId && (
+                  <div className="mt-2 text-xs text-blue-600">
+                    ✓ Auto-populated from active context
+                  </div>
+                )}
               </section>
 
               <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

@@ -1,1 +1,3 @@
+# Claude Guidelines
+
 @AGENTS.md

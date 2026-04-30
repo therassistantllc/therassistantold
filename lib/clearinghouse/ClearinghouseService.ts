@@ -179,7 +179,7 @@ export class ClearinghouseService {
       transaction_type: "270",
       direction: "outbound",
       status: "created",
-      request_payload: adapterInput,
+      request_payload: adapterInput as unknown as Record<string, unknown>,
       sent_at: new Date().toISOString(),
     });
 
@@ -195,11 +195,11 @@ export class ClearinghouseService {
       status: "parsed",
       control_number: result.controlNumber,
       correlation_id: result.correlationId,
-      request_payload: adapterInput,
+      request_payload: adapterInput as unknown as Record<string, unknown>,
       response_payload: result.normalized.rawBenefits ?? {},
       raw_request: result.rawRequest,
       raw_response: result.rawResponse,
-      parsed_summary: result.normalized,
+      parsed_summary: result.normalized as unknown as Record<string, unknown>,
       sent_at: outbound?.sent_at ?? new Date().toISOString(),
       received_at: new Date().toISOString(),
     });
@@ -212,7 +212,7 @@ export class ClearinghouseService {
           correlation_id: result.correlationId,
           raw_request: result.rawRequest,
           status: "sent",
-          request_payload: adapterInput,
+          request_payload: adapterInput as unknown as Record<string, unknown>,
         })
         .eq("id", outbound.id);
     }
@@ -348,7 +348,7 @@ export class ClearinghouseService {
       transaction_type: "276",
       direction: "outbound",
       status: "created",
-      request_payload: adapterInput,
+      request_payload: adapterInput as unknown as Record<string, unknown>,
       sent_at: new Date().toISOString(),
     });
 
@@ -365,11 +365,11 @@ export class ClearinghouseService {
       status: "parsed",
       control_number: result.controlNumber,
       correlation_id: result.correlationId,
-      request_payload: adapterInput,
+      request_payload: adapterInput as unknown as Record<string, unknown>,
       response_payload: result.normalized.rawStatus ?? {},
       raw_request: result.rawRequest,
       raw_response: result.rawResponse,
-      parsed_summary: result.normalized,
+      parsed_summary: result.normalized as unknown as Record<string, unknown>,
       sent_at: outbound?.sent_at ?? new Date().toISOString(),
       received_at: new Date().toISOString(),
     });
@@ -382,7 +382,7 @@ export class ClearinghouseService {
           correlation_id: result.correlationId,
           raw_request: result.rawRequest,
           status: "sent",
-          request_payload: adapterInput,
+          request_payload: adapterInput as unknown as Record<string, unknown>,
         })
         .eq("id", outbound.id);
     }

@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
+import RightWorkflowDrawer from "@/components/workflow/RightWorkflowDrawer";
+import EncounterWorkflowTracker from "@/components/workflow/EncounterWorkflowTracker";
+import { deriveEncounterWorkflowStatus, type WorkflowStatus } from "@/lib/workflow/deriveEncounterWorkflowStatus";
+import type { EncounterRecord, ClaimRecord } from "@/lib/types";
+import { useActiveContext } from "@/lib/store/activeContext";
 
 interface AppointmentRecord {
   id: string;
@@ -231,7 +236,16 @@ export default function SchedulingPage() {
   const [providerFilter, setProviderFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [colorMode, setColorMode] = useState<ColorMode>("status");
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string>("");
+  const [showWarnings, setShowWarnings] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Global Active Context
+  const { patientId, appointmentId, encounterId, setContext, clearContext } = useActiveContext();
+
+  // Workflow-related state for selected appointment
+  const [selectedEncounter, setSelectedEncounter] = useState<EncounterRecord | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<ClaimRecord | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -273,8 +287,18 @@ export default function SchedulingPage() {
     );
     setEligibilityChecks(eligibilityResponses.filter(Boolean) as EligibilityCheck[]);
 
-    if (appointmentRows[0]) {
-      setSelectedAppointmentId(appointmentRows[0].id);
+    if (appointmentRows[0] && !appointmentId) {
+      // Auto-select first appointment if no appointment is selected
+      const firstAppointment = appointmentRows[0];
+      const firstPatient = (patientResp.data ?? []).find((p: ClientRecord) => p.id === firstAppointment.client_id);
+      setContext({
+        appointmentId: firstAppointment.id,
+        patientId: firstAppointment.client_id ?? null,
+        patientName: firstPatient
+          ? patientLabel(firstPatient)
+          : null,
+        appointmentDate: firstAppointment.scheduled_start_at ?? null,
+      });
     }
 
     setLoading(false);
@@ -324,8 +348,8 @@ export default function SchedulingPage() {
   }, [providerById, providerFilter, providers, visibleAppointments]);
 
   const selectedAppointment = useMemo(
-    () => appointments.find((item) => item.id === selectedAppointmentId) ?? null,
-    [appointments, selectedAppointmentId]
+    () => appointments.find((item) => item.id === appointmentId) ?? null,
+    [appointments, appointmentId]
   );
 
   const warningCount = useMemo(() => {
@@ -371,6 +395,62 @@ export default function SchedulingPage() {
     await load();
   }
 
+  async function loadWorkflowDataForAppointment(appointmentId: string) {
+    setWorkflowLoading(true);
+    setSelectedEncounter(null);
+    setSelectedClaim(null);
+
+    // Find encounter for this appointment
+    const { data: encounterData } = await supabase
+      .from("encounters")
+      .select("*")
+      .eq("appointment_id", appointmentId)
+      .is("archived_at", null)
+      .single();
+
+    if (encounterData) {
+      setSelectedEncounter(encounterData as EncounterRecord);
+
+      // Update global context with encounter ID
+      setContext({
+        encounterId: encounterData.id,
+        encounterStatus: encounterData.encounter_status ?? null,
+      });
+
+      // Find claim for this encounter
+      const { data: claimData } = await supabase
+        .from("claims")
+        .select("*")
+        .eq("encounter_id", encounterData.id)
+        .is("archived_at", null)
+        .single();
+
+      if (claimData) {
+        setSelectedClaim(claimData as ClaimRecord);
+      }
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  function handleAppointmentSelect(selectedAppointmentId: string) {
+    const appointment = appointments.find((a) => a.id === selectedAppointmentId);
+    if (!appointment) return;
+
+    const patient = patients.find((p) => p.id === appointment.client_id);
+
+    // Set global active context
+    setContext({
+      appointmentId: selectedAppointmentId,
+      patientId: appointment.client_id ?? null,
+      patientName: patient ? patientLabel(patient) : null,
+      appointmentDate: appointment.scheduled_start_at ?? null,
+    });
+
+    setDrawerOpen(true);
+    void loadWorkflowDataForAppointment(selectedAppointmentId);
+  }
+
   function renderAppointmentChips(dayAppointments: AppointmentRecord[]) {
     if (dayAppointments.length === 0) {
       return <div className="text-xs text-gray-400">No appointments</div>;
@@ -389,8 +469,8 @@ export default function SchedulingPage() {
               <button
                 key={appointment.id}
                 type="button"
-                onClick={() => setSelectedAppointmentId(appointment.id)}
-                className={`w-full rounded-lg border px-2 py-2 text-left shadow-sm ${colorClass} ${selectedAppointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
+                onClick={() => handleAppointmentSelect(appointment.id)}
+                className={`w-full rounded-lg border px-2 py-2 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
               >
                 <div className="text-[11px] font-medium opacity-80">
                   {formatBlockTime(appointment.scheduled_start_at)}
@@ -417,15 +497,74 @@ export default function SchedulingPage() {
     <AppShell>
       <main className="min-h-screen bg-[#f7f7f8]">
         <div className="mx-auto max-w-[1440px] px-4 py-4 lg:px-6">
-          <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+          {/* Operational Summary Bar */}
+          <section className="mb-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Today's Appts</div>
+              <div className="mt-1 text-2xl font-bold text-gray-900">{visibleAppointments.length}</div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Encounters Missing</div>
+              <div className="mt-1 text-2xl font-bold text-amber-600">—</div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Notes Unsigned</div>
+              <div className="mt-1 text-2xl font-bold text-amber-600">—</div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Eligibility Missing</div>
+              <div className="mt-1 text-2xl font-bold text-red-600">{warningCount}</div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Ready to Bill</div>
+              <div className="mt-1 text-2xl font-bold text-green-600">—</div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="text-xs text-gray-500">Billing Alerts</div>
+              <div className="mt-1 text-2xl font-bold text-red-600">—</div>
+            </div>
+          </section>
+
+          <div className="grid gap-4">
             <div className="space-y-4">
               <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <div className="flex items-center justify-between gap-4">
                   <div className="font-medium">You have {warningCount} warning message{warningCount === 1 ? "" : "s"}</div>
-                  <button type="button" className="rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white">
-                    View
+                  <button 
+                    type="button" 
+                    onClick={() => setShowWarnings((prev) => !prev)} 
+                    className="rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                  >
+                    {showWarnings ? "Hide" : "View"}
                   </button>
                 </div>
+                {showWarnings && warningCount > 0 && (
+                  <div className="mt-3 max-h-64 space-y-2 overflow-y-auto border-t border-amber-200 pt-3">
+                    {visibleAppointments
+                      .filter((appointment) => {
+                        const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+                        return !eligibility || eligibility.status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
+                      })
+                      .map((appointment) => {
+                        const patient = patients.find((p) => p.id === appointment.client_id);
+                        const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+                        const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "";
+                        const reason = !eligibility
+                          ? "No eligibility check"
+                          : eligibility.status !== "active"
+                            ? `Status: ${eligibility.status}`
+                            : "Eligibility check older than 30 days";
+                        
+                        return (
+                          <div key={appointment.id} className="rounded-lg bg-white p-2 text-xs">
+                            <div className="font-medium">{patientName || appointment.client_id}</div>
+                            <div className="text-amber-700">{reason}</div>
+                            <div className="mt-1 text-gray-600">{formatBlockTime(appointment.scheduled_start_at)}</div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
 
               <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -568,8 +707,8 @@ export default function SchedulingPage() {
                                   <button
                                     key={appointment.id}
                                     type="button"
-                                    onClick={() => setSelectedAppointmentId(appointment.id)}
-                                    className={`absolute left-1 right-1 rounded-lg border px-2 py-1 text-left shadow-sm ${colorClass} ${selectedAppointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
+                                    onClick={() => handleAppointmentSelect(appointment.id)}
+                                    className={`absolute left-1 right-1 rounded-lg border px-2 py-1 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
                                     style={{ top: `${top}px`, height: `${height}px` }}
                                   >
                                     <div className="text-[11px] font-medium opacity-80">
@@ -650,8 +789,8 @@ export default function SchedulingPage() {
                                     <button
                                       key={appointment.id}
                                       type="button"
-                                      onClick={() => setSelectedAppointmentId(appointment.id)}
-                                      className={`w-full rounded-md border px-2 py-1 text-left shadow-sm ${colorClass} ${selectedAppointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
+                                      onClick={() => handleAppointmentSelect(appointment.id)}
+                                      className={`w-full rounded-md border px-2 py-1 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
                                     >
                                       <div className="line-clamp-1 text-[11px] font-medium">
                                         {formatBlockTime(appointment.scheduled_start_at)} • {patientLabel(patient)}
@@ -675,89 +814,301 @@ export default function SchedulingPage() {
                 )}
               </section>
             </div>
+          </div>
+        </div>
 
-            <aside className="space-y-4">
-              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">Appointment Drawer</h2>
-                {!selectedAppointment ? (
-                  <div className="mt-4 text-sm text-gray-600">Select an appointment block to open details.</div>
-                ) : (
-                  <div className="mt-4 space-y-4 text-sm text-gray-700">
-                    <div>
-                      <div className="text-base font-semibold text-gray-900">
-                        {patientLabel(selectedAppointment.client_id ? patientById.get(selectedAppointment.client_id) : undefined)}
-                      </div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        {formatBlockTime(selectedAppointment.scheduled_start_at)} - {formatBlockTime(selectedAppointment.scheduled_end_at)}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2">
-                      <div><span className="font-medium">Provider:</span> {selectedAppointment.provider_id ? providerLabel(providerById.get(selectedAppointment.provider_id)) : "—"}</div>
-                      <div><span className="font-medium">Appointment type:</span> {selectedAppointment.appointment_type ?? "—"}</div>
-                      <div><span className="font-medium">Reason:</span> {selectedAppointment.reason ?? "—"}</div>
-                      <div><span className="font-medium">Status:</span> {selectedAppointment.appointment_status ?? "—"}</div>
-                      <div><span className="font-medium">Plan:</span> {selectedAppointment.insurance_policy_id ? policyById.get(selectedAppointment.insurance_policy_id)?.plan_name ?? "—" : "—"}</div>
-                    </div>
-
-                    {selectedAppointment.client_id ? (
-                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="font-medium text-gray-900">Eligibility</div>
-                          <span className={`rounded-full px-2 py-1 text-xs ${eligibilityTone(eligibilityByPatientId.get(selectedAppointment.client_id) ?? null)}`}>
-                            {eligibilityLabel(eligibilityByPatientId.get(selectedAppointment.client_id) ?? null)}
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-xs text-gray-700">
-                          <div>Payer: {eligibilityByPatientId.get(selectedAppointment.client_id)?.payer_name ?? "—"}</div>
-                          <div>Plan: {eligibilityByPatientId.get(selectedAppointment.client_id)?.plan_name ?? "—"}</div>
-                          <div>Copay: {eligibilityByPatientId.get(selectedAppointment.client_id)?.copay_amount ?? "—"}</div>
-                          <div>Deductible remaining: {eligibilityByPatientId.get(selectedAppointment.client_id)?.deductible_remaining ?? "—"}</div>
-                          <div>Last checked: {eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at ?? "Not checked"}</div>
-                        </div>
-                        {!wasCheckedWithin30Days(eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at) ? (
-                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                            Eligibility has not been checked within 30 days.
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    <div className="grid gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void runEligibilityForSelected()}
-                        className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
-                      >
-                        Run Eligibility
-                      </button>
-                      {selectedAppointment.client_id ? (
-                        <Link href={`/patients/${selectedAppointment.client_id}`} className="rounded-xl border border-gray-300 px-4 py-2.5 text-center text-sm hover:bg-gray-50">
-                          Open Patient Chart
-                        </Link>
-                      ) : null}
-                      <Link href="/encounters/new" className="rounded-xl border border-gray-300 px-4 py-2.5 text-center text-sm hover:bg-gray-50">
-                        Create / Open Encounter
-                      </Link>
-                      <Link href="/billing" className="rounded-xl border border-gray-300 px-4 py-2.5 text-center text-sm hover:bg-gray-50">
-                        Route to Biller
-                      </Link>
-                    </div>
+        {/* Encounter Control Panel (Right Drawer) */}
+        <RightWorkflowDrawer
+          isOpen={drawerOpen && !!selectedAppointment}
+          onClose={() => setDrawerOpen(false)}
+          title={selectedAppointment ? patientLabel(selectedAppointment.client_id ? patientById.get(selectedAppointment.client_id) : undefined) : ""}
+          subtitle={selectedAppointment ? `${formatBlockTime(selectedAppointment.scheduled_start_at)} - ${formatBlockTime(selectedAppointment.scheduled_end_at)}` : ""}
+          primaryAction={
+            selectedAppointment
+              ? {
+                  label: (() => {
+                    const eligibility = selectedAppointment.client_id ? eligibilityByPatientId.get(selectedAppointment.client_id) ?? null : null;
+                    const workflowStatus = deriveEncounterWorkflowStatus({
+                      appointment: selectedAppointment,
+                      encounter: selectedEncounter,
+                      claim: selectedClaim,
+                      eligibility: eligibility ? { status: eligibility.status, checked_at: eligibility.checked_at } : null,
+                    });
+                    return workflowStatus.primaryActionLabel;
+                  })(),
+                  onClick: () => {
+                    if (!selectedEncounter && selectedAppointment) {
+                      // Create encounter
+                      alert("Navigate to create encounter from appointment " + selectedAppointment.id);
+                    } else if (selectedEncounter) {
+                      // Navigate to encounter
+                      window.location.href = `/encounters/${selectedEncounter.id}`;
+                    }
+                  },
+                }
+              : undefined
+          }
+          secondaryActions={
+            selectedAppointment
+              ? [
+                  {
+                    label: "Run Eligibility",
+                    onClick: () => void runEligibilityForSelected(),
+                  },
+                  {
+                    label: "Open Patient",
+                    onClick: () => {
+                      if (selectedAppointment?.client_id) {
+                        window.location.href = `/patients/${selectedAppointment.client_id}`;
+                      }
+                    },
+                    disabled: !selectedAppointment.client_id,
+                  },
+                  {
+                    label: "Route to Biller",
+                    onClick: () => {
+                      window.location.href = "/billing";
+                    },
+                  },
+                  {
+                    label: "View Claim",
+                    onClick: () => {
+                      if (selectedClaim) {
+                        window.location.href = `/claims/${selectedClaim.id}`;
+                      }
+                    },
+                    disabled: !selectedClaim,
+                  },
+                ]
+              : []
+          }
+        >
+          {selectedAppointment && (
+            <div className="space-y-6">
+              {/* Appointment Details */}
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-gray-900">Appointment Details</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Provider:</span>
+                    <span className="font-medium">
+                      {selectedAppointment.provider_id ? providerLabel(providerById.get(selectedAppointment.provider_id)) : "—"}
+                    </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Type:</span>
+                    <span className="font-medium">{selectedAppointment.appointment_type ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <span className="font-medium capitalize">{selectedAppointment.appointment_status ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Reason:</span>
+                    <span className="font-medium text-right">{selectedAppointment.reason ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Plan:</span>
+                    <span className="font-medium text-right">
+                      {selectedAppointment.insurance_policy_id
+                        ? policyById.get(selectedAppointment.insurance_policy_id)?.plan_name ?? "—"
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* Workflow Tracker */}
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-gray-900">Workflow Progress</h3>
+                {workflowLoading ? (
+                  <div className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-600">
+                    Loading workflow data...
+                  </div>
+                ) : (
+                  <>
+                    <EncounterWorkflowTracker
+                      status={deriveEncounterWorkflowStatus({
+                        appointment: selectedAppointment,
+                        encounter: selectedEncounter,
+                        claim: selectedClaim,
+                        eligibility: selectedAppointment.client_id
+                          ? (() => {
+                              const e = eligibilityByPatientId.get(selectedAppointment.client_id);
+                              return e ? { status: e.status, checked_at: e.checked_at } : null;
+                            })()
+                          : null,
+                      })}
+                      orientation="vertical"
+                      showLabels={true}
+                      compact={false}
+                    />
+                    {selectedAppointment && (
+                      <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                        <div className="font-medium">Next Step:</div>
+                        <div className="mt-1">
+                          {
+                            deriveEncounterWorkflowStatus({
+                              appointment: selectedAppointment,
+                              encounter: selectedEncounter,
+                              claim: selectedClaim,
+                            }).nextRecommendedAction
+                          }
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </section>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">Operational Notes</h2>
-                <div className="mt-3 space-y-2 text-sm text-gray-700">
-                  <div>Day view is provider time-grid based.</div>
-                  <div>Week view groups appointments by day.</div>
-                  <div>Month view shows day cells with stacked appointment chips.</div>
-                </div>
-              </section>
-            </aside>
-          </div>
-        </div>
+              {/* Eligibility Status */}
+              {selectedAppointment.client_id && (
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">Eligibility Status</h3>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="font-medium text-gray-900">Current Status</div>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${eligibilityTone(eligibilityByPatientId.get(selectedAppointment.client_id) ?? null)}`}
+                      >
+                        {eligibilityLabel(eligibilityByPatientId.get(selectedAppointment.client_id) ?? null)}
+                      </span>
+                    </div>
+                    {eligibilityByPatientId.get(selectedAppointment.client_id) && (
+                      <div className="space-y-1 text-xs text-gray-700">
+                        <div className="flex justify-between">
+                          <span>Payer:</span>
+                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.payer_name ?? "—"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Plan:</span>
+                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.plan_name ?? "—"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Copay:</span>
+                          <span>
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.copay_amount
+                              ? `$${eligibilityByPatientId.get(selectedAppointment.client_id)!.copay_amount}`
+                              : "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Deductible:</span>
+                          <span>
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.deductible_remaining
+                              ? `$${eligibilityByPatientId.get(selectedAppointment.client_id)!.deductible_remaining}`
+                              : "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Last Checked:</span>
+                          <span className="text-right">
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at
+                              ? new Date(
+                                  eligibilityByPatientId.get(selectedAppointment.client_id)!.checked_at!
+                                ).toLocaleDateString()
+                              : "Not checked"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {!wasCheckedWithin30Days(eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at) && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        ⚠️ Eligibility has not been checked within 30 days
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Encounter Summary */}
+              {selectedEncounter && (
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">Encounter Summary</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className="font-medium capitalize">{selectedEncounter.encounter_status ?? "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Service Date:</span>
+                      <span className="font-medium">{selectedEncounter.service_date ?? "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Billing Ready:</span>
+                      <span className="font-medium">{selectedEncounter.required_billing_fields_complete ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Claim Summary */}
+              {selectedClaim && (
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">Claim Summary</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Claim #:</span>
+                      <span className="font-medium font-mono text-xs">{selectedClaim.claim_number ?? selectedClaim.id.slice(0, 8)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className="font-medium capitalize">{selectedClaim.claim_status ?? "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount:</span>
+                      <span className="font-medium">
+                        {selectedClaim.total_charge_amount ? `$${selectedClaim.total_charge_amount}` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Submitted:</span>
+                      <span className="font-medium">
+                        {selectedClaim.submitted_at
+                          ? new Date(selectedClaim.submitted_at).toLocaleDateString()
+                          : "Not submitted"}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Warnings & Alerts */}
+              {(() => {
+                const workflowStatus = deriveEncounterWorkflowStatus({
+                  appointment: selectedAppointment,
+                  encounter: selectedEncounter,
+                  claim: selectedClaim,
+                  eligibility: selectedAppointment.client_id
+                    ? (() => {
+                        const e = eligibilityByPatientId.get(selectedAppointment.client_id!);
+                        return e ? { status: e.status, checked_at: e.checked_at } : null;
+                      })()
+                    : null,
+                });
+                const hasWarnings = workflowStatus.warnings.length > 0 || workflowStatus.blockedReasons.length > 0;
+
+                return hasWarnings ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-semibold text-gray-900">Alerts & Warnings</h3>
+                    <div className="space-y-2">
+                      {workflowStatus.blockedReasons.map((reason, index) => (
+                        <div key={`blocked-${index}`} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                          🛑 {reason}
+                        </div>
+                      ))}
+                      {workflowStatus.warnings.map((warning, index) => (
+                        <div key={`warning-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          ⚠️ {warning}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null;
+              })()}
+            </div>
+          )}
+        </RightWorkflowDrawer>
       </main>
     </AppShell>
   );

@@ -6,13 +6,14 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const topNavigation = [
+  { href: "/", label: "Dashboard" },
   { href: "/scheduling", label: "Scheduling" },
   { href: "/patients", label: "Patients" },
+  { href: "/encounters", label: "Encounters" },
   { href: "/billing", label: "Billing" },
-  { href: "/work-schedule", label: "Work Schedule" },
-  { href: "/profile", label: "Profile" },
+  { href: "/payments", label: "Payments" },
+  { href: "/credentialing", label: "Credentialing" },
   { href: "/settings", label: "Settings" },
-  { href: "/patient-portal", label: "Patient Portal" },
 ];
 
 interface AppShellProps {

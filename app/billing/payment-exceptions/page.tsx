@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
-import type { PaymentPostingRecord } from "@/lib/types";
+import type { ClaimRecord, ClaimServiceLineRecord } from "@/lib/types";
 
-interface PaymentExceptionRow extends PaymentPostingRecord {
+interface PaymentExceptionRow extends ClaimServiceLineRecord {
+  claimPatientResponsibilityAmount?: string | number | null;
   exceptionReasons: string[];
 }
 
@@ -43,34 +44,54 @@ export default function PaymentExceptionsPage() {
       setLoading(true);
       setError(null);
 
-      const { data, error: queryError } = await supabase
-        .from("payment_postings")
-        .select("*")
-        .is("archived_at", null)
-        .order("created_at", { ascending: false })
-        .limit(200);
+      const [serviceLineResp, claimResp] = await Promise.all([
+        supabase
+          .from("claim_service_lines")
+          .select("*")
+          .is("archived_at", null)
+          .order("created_at", { ascending: false })
+          .limit(400),
+        supabase
+          .from("claims")
+          .select("id, patient_responsibility_amount, paid_at")
+          .is("archived_at", null)
+          .limit(2000),
+      ]);
 
       if (!active) return;
-      if (queryError) {
-        setError(queryError.message);
+      if (serviceLineResp.error || claimResp.error) {
+        setError(serviceLineResp.error?.message || claimResp.error?.message || "Could not load payment exceptions.");
         setLoading(false);
         return;
       }
 
-      const built = ((data ?? []) as PaymentPostingRecord[]).map((row) => {
+      const claimsById = new Map<string, Pick<ClaimRecord, "id" | "patient_responsibility_amount" | "paid_at">>(
+        ((claimResp.data ?? []) as Pick<ClaimRecord, "id" | "patient_responsibility_amount" | "paid_at">[]).map((claim) => [claim.id, claim]),
+      );
+
+      const built = ((serviceLineResp.data ?? []) as ClaimServiceLineRecord[]).map((row) => {
         const reasons: string[] = [];
+        const linkedClaim = claimsById.get(row.claim_id ?? "") ?? null;
         const paid = Number.parseFloat(String(row.paid_amount ?? "0"));
         const allowed = Number.parseFloat(String(row.allowed_amount ?? "0"));
-        const patientResp = Number.parseFloat(String(row.patient_responsibility_amount ?? "0"));
+        const patientResp = Number.parseFloat(String(linkedClaim?.patient_responsibility_amount ?? "0"));
 
         if (!row.claim_id) reasons.push("Missing claim link");
-        if (!row.claim_service_line_id) reasons.push("Missing claim service line link");
-        if ((row.posting_status ?? "").toLowerCase() === "pending") reasons.push("Posting still pending");
+        if (!row.id) reasons.push("Missing claim service line link");
         if (Number.isFinite(allowed) && Number.isFinite(paid) && paid > allowed) reasons.push("Paid exceeds allowed");
         if (Number.isFinite(patientResp) && patientResp > 0) reasons.push("Patient responsibility review");
 
-        return { ...row, exceptionReasons: reasons };
-      }).filter((row) => row.exceptionReasons.length > 0);
+        return {
+          ...row,
+          claimPatientResponsibilityAmount: linkedClaim?.patient_responsibility_amount ?? null,
+          exceptionReasons: reasons,
+        };
+      }).filter((row) => {
+        const paid = Number.parseFloat(String(row.paid_amount ?? "0"));
+        const linkedClaim = row.claim_id ? claimsById.get(row.claim_id) ?? null : null;
+        const hasPostedPaymentActivity = Boolean(linkedClaim?.paid_at) || (Number.isFinite(paid) && paid > 0);
+        return hasPostedPaymentActivity && row.exceptionReasons.length > 0;
+      });
 
       setRows(built);
       setLoading(false);
@@ -101,7 +122,7 @@ export default function PaymentExceptionsPage() {
                   <thead className="bg-gray-50">
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <th className="px-4 py-3">Created</th>
-                      <th className="px-4 py-3">Posting ID</th>
+                      <th className="px-4 py-3">Service Line ID</th>
                       <th className="px-4 py-3">Claim</th>
                       <th className="px-4 py-3">Paid</th>
                       <th className="px-4 py-3">Allowed</th>
@@ -116,7 +137,7 @@ export default function PaymentExceptionsPage() {
                       rows.map((row) => (
                         <tr key={row.id} className="text-sm text-gray-700">
                           <td className="px-4 py-3">{formatDateTime(row.created_at)}</td>
-                          <td className="px-4 py-3 font-mono text-xs">{row.id}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{row.id ?? "—"}</td>
                           <td className="px-4 py-3 font-mono text-xs">{row.claim_id ?? "—"}</td>
                           <td className="px-4 py-3">{formatMoney(row.paid_amount)}</td>
                           <td className="px-4 py-3">{formatMoney(row.allowed_amount)}</td>

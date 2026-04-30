@@ -2,8 +2,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
+import { useActiveContext } from "@/lib/store/activeContext";
 import type {
   ClaimRecord,
   EncounterDiagnosisRecord,
@@ -42,6 +44,9 @@ export default function ClaimCreationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+
+  // Global Active Context
+  const { encounterId, patientId } = useActiveContext();
 
   useEffect(() => {
     let active = true;
@@ -94,7 +99,7 @@ export default function ClaimCreationPage() {
           .from("insurance_policies")
           .select("*")
           .in("client_id", clientIds.length ? clientIds : ["00000000-0000-0000-0000-000000000000"])
-          .eq("is_primary", True)
+          .eq("is_primary", true)
           .is("archived_at", null),
       ]);
 
@@ -163,6 +168,16 @@ export default function ClaimCreationPage() {
     };
   }, []);
 
+  // Auto-populate from global active context
+  useEffect(() => {
+    if (encounterId && !selectedEncounterId && encounters.length > 0) {
+      const matchingEncounter = encounters.find(e => e.id === encounterId);
+      if (matchingEncounter) {
+        setSelectedEncounterId(encounterId);
+      }
+    }
+  }, [encounterId, selectedEncounterId, encounters]);
+
   const selectedEncounter = useMemo(
     () => encounters.find((item) => item.id === selectedEncounterId) ?? null,
     [encounters, selectedEncounterId]
@@ -219,9 +234,8 @@ export default function ClaimCreationPage() {
       charge_amount: String(line.charge_amount ?? "0.00"),
       allowed_amount: null,
       paid_amount: null,
-      diagnosis_pointers: line.diagnosis_pointers ?? null,
       place_of_service_code: line.place_of_service_code ?? null,
-      rendering_provider_npi: line.rendering_provider_npi ?? null,
+      rendering_provider_id: line.rendering_provider_id ?? null,
       claim_line_status: "draft",
     }));
 
@@ -269,8 +283,33 @@ export default function ClaimCreationPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {!encounterId && !selectedEncounterId && (
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center shadow-sm">
+                  <div className="text-lg font-semibold text-gray-900">No encounter selected</div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    Select an encounter from Scheduling or Encounters to create a claim, or choose one manually below.
+                  </div>
+                  <div className="mt-5 flex justify-center gap-3">
+                    <Link
+                      href="/scheduling"
+                      className="inline-block rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+                    >
+                      Go to Scheduling
+                    </Link>
+                    <Link
+                      href="/encounters"
+                      className="inline-block rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                    >
+                      Browse Encounters
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <label className="mb-2 block text-sm font-medium text-gray-700">Select encounter</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  {encounterId ? 'Encounter (from active context)' : 'Select encounter'}
+                </label>
                 <select
                   value={selectedEncounterId}
                   onChange={(event) => setSelectedEncounterId(event.target.value)}
@@ -286,6 +325,11 @@ export default function ClaimCreationPage() {
                     ))
                   )}
                 </select>
+                {encounterId && selectedEncounterId === encounterId && (
+                  <div className="mt-2 text-xs text-blue-600">
+                    ✓ Auto-populated from active context
+                  </div>
+                )}
               </div>
 
               {selectedEncounter && (
@@ -307,7 +351,7 @@ export default function ClaimCreationPage() {
                   <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="text-sm text-gray-500">Primary policy</div>
                     <div className="mt-1 text-lg font-semibold text-gray-900">
-                      {selectedEncounter.policy?.payer_name ?? "Missing"}
+                      {selectedEncounter.policy?.payer_id ?? "Missing"}
                     </div>
                   </div>
                 </div>

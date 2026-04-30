@@ -230,7 +230,7 @@ export default function ClaimDetailPage() {
                             <td className="px-4 py-3">{formatMoney(line.charge_amount)}</td>
                             <td className="px-4 py-3">{formatMoney(line.allowed_amount)}</td>
                             <td className="px-4 py-3">{formatMoney(line.paid_amount)}</td>
-                            <td className="px-4 py-3">{line.claim_line_status ?? "—"}</td>
+                            <td className="px-4 py-3">{line.service_line_status ?? "—"}</td>
                             <td className="px-4 py-3">{line.place_of_service_code ?? "—"}</td>
                           </tr>
                         ))

@@ -2,10 +2,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
-import type { ClaimRecord, PaymentPostingRecord } from "@/lib/types";
+import type { ClaimRecord, ClaimServiceLineRecord } from "@/lib/types";
 
 interface AgingRow extends ClaimRecord {
   paidAmount: number;
@@ -55,7 +55,7 @@ export default function ARQueuePage() {
 
       const [claimResp, paymentResp] = await Promise.all([
         supabase.from("claims").select("*").is("archived_at", null).order("created_at", { ascending: false }).limit(200),
-        supabase.from("payment_postings").select("*").is("archived_at", null).limit(500),
+        supabase.from("claim_service_lines").select("claim_id, paid_amount").is("archived_at", null).limit(2000),
       ]);
 
       if (!active) return;
@@ -65,7 +65,7 @@ export default function ARQueuePage() {
         return;
       }
 
-      const payments = (paymentResp.data ?? []) as PaymentPostingRecord[];
+      const payments = (paymentResp.data ?? []) as ClaimServiceLineRecord[];
       const paidByClaim = new Map<string, number>();
       for (const payment of payments) {
         const claimId = payment.claim_id;

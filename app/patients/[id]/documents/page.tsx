@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -141,7 +141,19 @@ export default async function PatientDocumentsPage({ params, searchParams }: Pag
   const selectedType = resolvedSearchParams.type?.trim() ?? "";
   const selectedStatus = resolvedSearchParams.status?.trim() ?? "";
 
-  const supabase = await getSupabaseServerClient();
+  const supabase = createServerSupabaseAdminClient();
+
+  if (!supabase) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        <h1 className="text-lg font-semibold">Supabase Server Client Is Not Configured</h1>
+        <p className="text-sm">
+          This route requires server-side Supabase environment variables. Set <strong>NEXT_PUBLIC_SUPABASE_URL</strong>{" "}
+          and <strong>SUPABASE_SERVICE_ROLE_KEY</strong> in your environment, then restart the dev server.
+        </p>
+      </div>
+    );
+  }
 
   const [{ data: patient, error: patientError }, { data: encounters, error: encountersError }] = await Promise.all([
     supabase
@@ -167,10 +179,20 @@ export default async function PatientDocumentsPage({ params, searchParams }: Pag
       )
       .eq("client_id", id)
       .order("updated_at", { ascending: false })
-      .limit(200),
+      .limit(200)
+      .returns<EncounterRow[]>(),
   ]);
 
-  if (patientError || !patient) {
+  if (patientError) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+        <h1 className="text-lg font-semibold">Could Not Load Patient Documents</h1>
+        <p className="text-sm">{patientError.message}</p>
+      </div>
+    );
+  }
+
+  if (!patient) {
     notFound();
   }
 
@@ -182,7 +204,9 @@ export default async function PatientDocumentsPage({ params, searchParams }: Pag
     firstNonEmpty(patient.preferred_name, [patient.first_name, patient.last_name].filter(Boolean).join(" ")) ??
     "this patient";
 
-  const rows = (encounters ?? []).map((encounter) => {
+  const encounterRows: EncounterRow[] = encounters ?? [];
+
+  const rows = encounterRows.map((encounter) => {
     const name = deriveDisplayName(encounter);
     const type = deriveFileType(encounter);
     const status = deriveStatus(encounter);

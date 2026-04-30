@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { EncounterRecord } from "@/lib/types";
+import { useActiveContext } from "@/lib/store/activeContext";
 
 type EncounterStatusFilter = "all" | "scheduled" | "in_progress" | "ready_for_billing" | "completed" | "signed";
 
@@ -33,6 +34,9 @@ export default function EncountersPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EncounterStatusFilter>("all");
+
+  // Global Active Context
+  const { setContext } = useActiveContext();
 
   useEffect(() => {
     let active = true;
@@ -83,6 +87,16 @@ export default function EncountersPage() {
       return matchesQuery && matchesStatus(encounter, statusFilter);
     });
   }, [encounters, search, statusFilter]);
+
+  function handleEncounterClick(encounter: EncounterRecord) {
+    setContext({
+      patientId: encounter.client_id ?? null,
+      appointmentId: encounter.appointment_id ?? null,
+      encounterId: encounter.id,
+      encounterStatus: encounter.encounter_status ?? null,
+      patientName: encounter.client_id ? `Patient ${encounter.client_id.slice(0, 8)}` : null,
+    });
+  }
 
   return (
     <AppShell>
@@ -175,7 +189,11 @@ export default function EncountersPage() {
                       </tr>
                     ) : (
                       filteredEncounters.map((encounter) => (
-                        <tr key={encounter.id} className="text-sm text-gray-700">
+                        <tr 
+                          key={encounter.id} 
+                          onClick={() => handleEncounterClick(encounter)}
+                          className="cursor-pointer text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                        >
                           <td className="px-4 py-3">{encounter.service_date ?? "—"}</td>
                           <td className="px-4 py-3">{formatDateTime(encounter.started_at)}</td>
                           <td className="px-4 py-3">{formatDateTime(encounter.ended_at)}</td>
@@ -192,13 +210,34 @@ export default function EncountersPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-2">
-                              <Link href="/encounters/diagnoses" className="text-blue-700 hover:underline">
+                              <Link 
+                                href="/encounters/diagnoses" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEncounterClick(encounter);
+                                }}
+                                className="text-blue-700 hover:underline"
+                              >
                                 Diagnoses
                               </Link>
-                              <Link href="/encounters/service-lines" className="text-blue-700 hover:underline">
+                              <Link 
+                                href="/encounters/service-lines" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEncounterClick(encounter);
+                                }}
+                                className="text-blue-700 hover:underline"
+                              >
                                 Service Lines
                               </Link>
-                              <Link href="/claims/create" className="text-blue-700 hover:underline">
+                              <Link 
+                                href="/claims/create" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEncounterClick(encounter);
+                                }}
+                                className="text-blue-700 hover:underline"
+                              >
                                 Create Claim
                               </Link>
                             </div>

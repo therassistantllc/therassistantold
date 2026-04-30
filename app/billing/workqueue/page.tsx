@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import type { SupportTicketRecord, WorkqueueItemRecord } from "@/lib/types";
+import { useActiveContext } from "@/lib/store/activeContext";
 
 type QueueStatusFilter = "all" | "open" | "in_progress" | "blocked" | "resolved" | "closed";
 
@@ -36,6 +37,9 @@ export default function BillingWorkqueuePage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("all");
+
+  // Global Active Context
+  const { setContext } = useActiveContext();
 
   useEffect(() => {
     let active = true;
@@ -125,6 +129,23 @@ export default function BillingWorkqueuePage() {
       return matchesQuery && matchesStatus(item, statusFilter);
     });
   }, [items, search, statusFilter]);
+
+  function handleRowClick(item: WorkqueueRow) {
+    // Set global active context from billing workqueue item
+    const patientName = item.client_id 
+      ? `Patient ${item.client_id.slice(0, 8)}` 
+      : null;
+    
+    setContext({
+      patientId: item.client_id ?? null,
+      patientName,
+      encounterId: item.encounter_id ?? null,
+      encounterStatus: null,
+      // Clear appointment context since we're coming from billing
+      appointmentId: null,
+      appointmentDate: null,
+    });
+  }
 
   return (
     <AppShell>
@@ -218,7 +239,11 @@ export default function BillingWorkqueuePage() {
                       </tr>
                     ) : (
                       filteredItems.map((item) => (
-                        <tr key={item.id} className="text-sm text-gray-700">
+                        <tr 
+                          key={item.id} 
+                          onClick={() => handleRowClick(item)}
+                          className="cursor-pointer text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                        >
                           <td className="px-4 py-3">{formatDateTime(item.created_at)}</td>
                           <td className="px-4 py-3">
                             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">

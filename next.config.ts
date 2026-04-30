@@ -2,9 +2,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: "C:/Users/Thera/therassistant-clean",
-  },
+  // Turbopack configuration removed - defaults to project root
 };
 
 export default nextConfig;

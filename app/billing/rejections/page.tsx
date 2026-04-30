@@ -9,6 +9,7 @@ import type { ClaimRecord, ClaimSubmissionRecord } from "@/lib/types";
 
 interface RejectionRow extends ClaimSubmissionRecord {
   claim?: ClaimRecord | null;
+  rejection_reason?: string | null;
 }
 
 function formatDateTime(value: string | null | undefined) {
