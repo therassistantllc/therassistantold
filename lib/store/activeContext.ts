@@ -14,6 +14,7 @@ import { persist } from 'zustand/middleware';
  */
 interface ActiveContextState {
   // Core identifiers
+  organizationId: string | null;
   patientId: string | null;
   appointmentId: string | null;
   encounterId: string | null;
@@ -58,6 +59,7 @@ export const useActiveContext = create<ActiveContextState>()(
   persist(
     (set) => ({
       // Initial state
+      organizationId: null,
       patientId: null,
       appointmentId: null,
       encounterId: null,
@@ -97,6 +99,7 @@ export const useActiveContext = create<ActiveContextState>()(
       clearContext: () => {
         console.log('[ActiveContext] Cleared all context');
         set({
+          organizationId: null,
           patientId: null,
           appointmentId: null,
           encounterId: null,

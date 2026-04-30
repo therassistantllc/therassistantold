@@ -8,6 +8,15 @@ import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 import { useActiveContext } from "@/lib/store/activeContext";
 import { deriveEncounterWorkflowStatus } from "@/lib/workflow/deriveEncounterWorkflowStatus";
+import {
+  createEncounter,
+  createNote,
+  createServiceLine,
+  createClaim,
+  submitClaim,
+  postPayment,
+  type WorkflowContext,
+} from "@/lib/workflow/workflowFunctions";
 import type {
   ClientRecord,
   AppointmentRecord,
@@ -65,6 +74,8 @@ export default function PatientWorkspacePage() {
   const [insurancePolicies, setInsurancePolicies] = useState<InsurancePolicyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workflowMessage, setWorkflowMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
 
   useEffect(() => {
     if (patientId && patient) {
@@ -225,6 +236,241 @@ export default function PatientWorkspacePage() {
     return alertList;
   }, [balances, primaryInsurance, claims, notes]);
 
+  // Get workflow context for active appointment
+  const { organizationId, appointmentId } = useActiveContext();
+  const activeAppointment = useMemo(() => {
+    if (!appointmentId) return null;
+    return appointments.find((a) => a.id === appointmentId) || null;
+  }, [appointmentId, appointments]);
+
+  const activeEncounter = useMemo(() => {
+    if (!appointmentId) return null;
+    return encounters.find((e) => e.appointment_id === appointmentId) || null;
+  }, [appointmentId, encounters]);
+
+  const activeClaim = useMemo(() => {
+    if (!activeEncounter) return null;
+    return claims.find((c) => c.encounter_id === activeEncounter.id) || null;
+  }, [activeEncounter, claims]);
+
+  const activeNote = useMemo(() => {
+    if (!activeEncounter) return null;
+    return notes.find((n) => n.encounter_id === activeEncounter.id) || null;
+  }, [activeEncounter, notes]);
+
+  // Workflow handlers
+  async function handleCreateEncounter() {
+    if (!organizationId || !patientId || !appointmentId || !activeAppointment) {
+      setWorkflowMessage({ type: "error", text: "Missing required context. Please select an appointment first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId,
+      providerId: activeAppointment.provider_id!,
+      insurancePolicyId: activeAppointment.insurance_policy_id || null,
+    };
+
+    const result = await createEncounter(supabase, ctx, appointmentId);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Encounter created successfully!" });
+      // Reload encounters
+      const { data } = await supabase
+        .from("encounters")
+        .select("*")
+        .eq("client_id", patientId)
+        .is("archived_at", null)
+        .order("service_date", { ascending: false })
+        .limit(50);
+      setEncounters((data ?? []) as EncounterRecord[]);
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to create encounter" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  async function handleSignNote() {
+    if (!organizationId || !activeEncounter) {
+      setWorkflowMessage({ type: "error", text: "No encounter found. Create an encounter first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId!,
+      providerId: activeEncounter.provider_id!,
+      insurancePolicyId: activeAppointment?.insurance_policy_id || null,
+    };
+
+    const result = await createNote(supabase, ctx, activeEncounter.id);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Note signed successfully!" });
+      // Reload notes
+      const { data } = await supabase
+        .from("encounter_notes")
+        .select("id, encounter_id, status, signed_at, created_at, provider_id, client_id")
+        .eq("client_id", patientId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setNotes((data ?? []) as Note[]);
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to sign note" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  async function handleCreateServiceLine() {
+    if (!organizationId || !activeEncounter) {
+      setWorkflowMessage({ type: "error", text: "No encounter found. Create an encounter first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId!,
+      providerId: activeEncounter.provider_id!,
+      insurancePolicyId: activeAppointment?.insurance_policy_id || null,
+    };
+
+    const result = await createServiceLine(supabase, ctx, activeEncounter.id);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Service line created successfully!" });
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to create service line" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  async function handleCreateClaim() {
+    if (!organizationId || !activeEncounter) {
+      setWorkflowMessage({ type: "error", text: "No encounter found. Create an encounter first." });
+      return;
+    }
+
+    if (!activeNote) {
+      setWorkflowMessage({ type: "error", text: "No signed note found. Sign a note first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId!,
+      providerId: activeEncounter.provider_id!,
+      insurancePolicyId: activeAppointment?.insurance_policy_id || null,
+    };
+
+    const result = await createClaim(supabase, ctx, activeEncounter.id);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Claim created successfully!" });
+      // Reload claims
+      const { data } = await supabase
+        .from("claims")
+        .select("*")
+        .eq("client_id", patientId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setClaims((data ?? []) as ClaimRecord[]);
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to create claim" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  async function handleSubmitClaim() {
+    if (!organizationId || !activeClaim) {
+      setWorkflowMessage({ type: "error", text: "No claim found. Create a claim first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId!,
+      providerId: activeEncounter?.provider_id!,
+      insurancePolicyId: activeAppointment?.insurance_policy_id || null,
+    };
+
+    const result = await submitClaim(supabase, ctx, activeClaim.id);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Claim submitted successfully!" });
+      // Reload claims
+      const { data } = await supabase
+        .from("claims")
+        .select("*")
+        .eq("client_id", patientId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setClaims((data ?? []) as ClaimRecord[]);
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to submit claim" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
+  async function handlePostPayment() {
+    if (!organizationId || !activeClaim) {
+      setWorkflowMessage({ type: "error", text: "No claim found. Create a claim first." });
+      return;
+    }
+
+    setWorkflowLoading(true);
+    setWorkflowMessage(null);
+
+    const ctx: WorkflowContext = {
+      organizationId,
+      clientId: patientId!,
+      providerId: activeEncounter?.provider_id!,
+      insurancePolicyId: activeAppointment?.insurance_policy_id || null,
+    };
+
+    const result = await postPayment(supabase, ctx, activeClaim.id);
+
+    if (result.success) {
+      setWorkflowMessage({ type: "success", text: "Payment posted successfully!" });
+      // Reload claims to see updated status
+      const { data } = await supabase
+        .from("claims")
+        .select("*")
+        .eq("client_id", patientId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setClaims((data ?? []) as ClaimRecord[]);
+    } else {
+      setWorkflowMessage({ type: "error", text: result.error || "Failed to post payment" });
+    }
+
+    setWorkflowLoading(false);
+  }
+
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "overview", label: "Overview" },
     { key: "demographics", label: "Demographics" },
@@ -377,26 +623,175 @@ export default function PatientWorkspacePage() {
         </div>
 
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Patient Workspace Tab: {activeTab}</h2>
-            <p className="mt-4 text-sm text-gray-600">
-              Comprehensive tab content for {activeTab} is being implemented.
-            </p>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-lg bg-blue-50 p-4">
-                <div className="text-xl font-bold text-blue-900">{appointments.length}</div>
-                <div className="text-sm text-blue-700">Appointments</div>
-              </div>
-              <div className="rounded-lg bg-green-50 p-4">
-                <div className="text-xl font-bold text-green-900">{encounters.length}</div>
-                <div className="text-sm text-green-700">Encounters</div>
-              </div>
-              <div className="rounded-lg bg-purple-50 p-4">
-                <div className="text-xl font-bold text-purple-900">{claims.length}</div>
-                <div className="text-sm text-purple-700">Claims</div>
+          {activeTab === "overview" ? (
+            <div className="space-y-6">
+              {/* Workflow Message Banner */}
+              {workflowMessage && (
+                <div
+                  className={`rounded-lg p-4 ${
+                    workflowMessage.type === "success"
+                      ? "bg-green-50 border border-green-200 text-green-800"
+                      : "bg-red-50 border border-red-200 text-red-800"
+                  }`}
+                >
+                  {workflowMessage.text}
+                </div>
+              )}
+
+              {/* Active Context Info */}
+              {appointmentId && activeAppointment ? (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-blue-900">Active Appointment</h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <div>Appointment ID: {appointmentId.substring(0, 8)}...</div>
+                    <div>Provider ID: {activeAppointment.provider_id?.substring(0, 8)}...</div>
+                    <div>Scheduled: {activeAppointment.scheduled_start_at ? new Date(activeAppointment.scheduled_start_at).toLocaleString() : "—"}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
+                  <p className="text-sm text-gray-600">
+                    No active appointment selected. Click an appointment from the Scheduling page to start the workflow.
+                  </p>
+                </div>
+              )}
+
+              {/* Workflow Status */}
+              {activeAppointment && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Status</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activeEncounter ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}>
+                        {activeEncounter ? "✓" : "1"}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">Encounter</div>
+                        <div className="text-sm text-gray-600">
+                          {activeEncounter ? `Created: ${activeEncounter.id.substring(0, 8)}...` : "Not created"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activeNote ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}>
+                        {activeNote ? "✓" : "2"}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">Clinical Note</div>
+                        <div className="text-sm text-gray-600">
+                          {activeNote ? `Signed: ${activeNote.id.substring(0, 8)}...` : "Not signed"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activeClaim ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}>
+                        {activeClaim ? "✓" : "3"}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">Claim</div>
+                        <div className="text-sm text-gray-600">
+                          {activeClaim ? `Status: ${activeClaim.claim_status}` : "Not created"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Workflow Action Buttons */}
+              {activeAppointment && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Actions</h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      onClick={handleCreateEncounter}
+                      disabled={workflowLoading || !!activeEncounter}
+                      className="rounded-lg border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {activeEncounter ? "✓ Encounter Created" : "1. Create Encounter"}
+                    </button>
+                    
+                    <button
+                      onClick={handleSignNote}
+                      disabled={workflowLoading || !activeEncounter || !!activeNote}
+                      className="rounded-lg border border-green-600 bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {activeNote ? "✓ Note Signed" : "2. Sign Note"}
+                    </button>
+
+                    <button
+                      onClick={handleCreateServiceLine}
+                      disabled={workflowLoading || !activeNote}
+                      className="rounded-lg border border-purple-600 bg-purple-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      3. Create Service Line
+                    </button>
+                    
+                    <button
+                      onClick={handleCreateClaim}
+                      disabled={workflowLoading || !activeNote || !!activeClaim}
+                      className="rounded-lg border border-orange-600 bg-orange-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {activeClaim ? "✓ Claim Created" : "4. Create Claim"}
+                    </button>
+                    
+                    <button
+                      onClick={handleSubmitClaim}
+                      disabled={workflowLoading || !activeClaim || activeClaim?.claim_status === "submitted" || activeClaim?.claim_status === "paid"}
+                      className="rounded-lg border border-pink-600 bg-pink-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {activeClaim?.claim_status === "submitted" || activeClaim?.claim_status === "paid" ? "✓ Claim Submitted" : "5. Submit Claim"}
+                    </button>
+                    
+                    <button
+                      onClick={handlePostPayment}
+                      disabled={workflowLoading || !activeClaim || activeClaim?.claim_status !== "submitted"}
+                      className="rounded-lg border border-teal-600 bg-teal-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {activeClaim?.claim_status === "paid" ? "✓ Payment Posted" : "6. Post Payment"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Summary Stats */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-blue-50 p-4">
+                  <div className="text-xl font-bold text-blue-900">{appointments.length}</div>
+                  <div className="text-sm text-blue-700">Appointments</div>
+                </div>
+                <div className="rounded-lg bg-green-50 p-4">
+                  <div className="text-xl font-bold text-green-900">{encounters.length}</div>
+                  <div className="text-sm text-green-700">Encounters</div>
+                </div>
+                <div className="rounded-lg bg-purple-50 p-4">
+                  <div className="text-xl font-bold text-purple-900">{claims.length}</div>
+                  <div className="text-sm text-purple-700">Claims</div>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">Patient Workspace Tab: {activeTab}</h2>
+              <p className="mt-4 text-sm text-gray-600">
+                Comprehensive tab content for {activeTab} is being implemented.
+              </p>
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-blue-50 p-4">
+                  <div className="text-xl font-bold text-blue-900">{appointments.length}</div>
+                  <div className="text-sm text-blue-700">Appointments</div>
+                </div>
+                <div className="rounded-lg bg-green-50 p-4">
+                  <div className="text-xl font-bold text-green-900">{encounters.length}</div>
+                  <div className="text-sm text-green-700">Encounters</div>
+                </div>
+                <div className="rounded-lg bg-purple-50 p-4">
+                  <div className="text-xl font-bold text-purple-900">{claims.length}</div>
+                  <div className="text-sm text-purple-700">Claims</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

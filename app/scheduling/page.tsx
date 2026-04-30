@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
@@ -223,6 +224,7 @@ function formatMonthCellLabel(date: Date) {
 }
 
 export default function SchedulingPage() {
+  const router = useRouter();
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [patients, setPatients] = useState<ClientRecord[]>([]);
   const [providers, setProviders] = useState<ProviderRecord[]>([]);
@@ -441,14 +443,17 @@ export default function SchedulingPage() {
 
     // Set global active context
     setContext({
+      organizationId: appointment.organization_id ?? null,
       appointmentId: selectedAppointmentId,
       patientId: appointment.client_id ?? null,
       patientName: patient ? patientLabel(patient) : null,
       appointmentDate: appointment.scheduled_start_at ?? null,
     });
 
-    setDrawerOpen(true);
-    void loadWorkflowDataForAppointment(selectedAppointmentId);
+    // Navigate to patient workspace
+    if (appointment.client_id) {
+      router.push(`/patients/${appointment.client_id}`);
+    }
   }
 
   function renderAppointmentChips(dayAppointments: AppointmentRecord[]) {
