@@ -40,6 +40,7 @@ Complete patient journey implementation from appointment through payment.
 Located in: `/lib/workflow/workflowActions.ts`
 
 ### 1. Create Appointment
+
 ```typescript
 await createAppointment(supabase, {
   patientId: string,
@@ -52,6 +53,7 @@ await createAppointment(supabase, {
 ```
 
 ### 2. Create Encounter
+
 ```typescript
 await createEncounter(supabase, {
   appointmentId: string,
@@ -62,6 +64,7 @@ await createEncounter(supabase, {
 ```
 
 ### 3. Create Clinical Note
+
 ```typescript
 await createNote(supabase, {
   encounterId: string,
@@ -76,6 +79,7 @@ await createNote(supabase, {
 ```
 
 ### 4. Create Claim
+
 ```typescript
 await createClaim(supabase, {
   encounterId: string,
@@ -84,11 +88,13 @@ await createClaim(supabase, {
 ```
 
 ### 5. Submit Claim
+
 ```typescript
 await submitClaim(supabase, claimId: string)
 ```
 
 ### 6. Post Payment
+
 ```typescript
 await postPayment(supabase, {
   claimId: string,
@@ -113,6 +119,7 @@ npx tsx scripts/test-complete-workflow.ts
 ```
 
 This will:
+
 1. ✅ Create a test appointment
 2. ✅ Generate encounter from appointment
 3. ✅ Create and sign clinical note
