@@ -439,7 +439,7 @@ async function createWorkqueueItem(
 }
 
 /**
- * Step 9: Post Payment (Optional - simulates ERA/payment)
+ * Step 9: Post Payment (simulates ERA/payment)
  */
 async function postPayment(
   ctx: WorkflowContext,
@@ -447,28 +447,32 @@ async function postPayment(
 ): Promise<WorkflowResult> {
   console.log("\n💵 Step 9: Posting payment...");
 
-  const paymentData = {
-    claim_id: claimId,
-    amount: "100.00",
-    payment_date: new Date().toISOString().split("T")[0],
-    payment_type: "insurance_payment",
+  // Create payment_postings record
+  const paymentPostingData = {
+    organization_id: ctx.organizationId,
+    posting_status: "posted",
+    posting_reference: `PAY-${Date.now()}`,
+    total_posted_amount: "100.00",
+    note: "Insurance payment for completed service",
     posted_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from("payments")
-    .insert(paymentData)
+  const { data: paymentPosting, error: postingError } = await supabase
+    .from("payment_postings")
+    .insert(paymentPostingData)
     .select()
     .single();
 
-  if (error) {
-    // If payments table doesn't exist or has different schema, skip gracefully
-    console.warn("⚠️  Payment posting skipped:", error.message);
-    return { success: true, data: null };
+  if (postingError) {
+    console.error("❌ Failed to create payment posting:", postingError.message);
+    return { success: false, error: postingError.message };
   }
 
+  console.log("✅ Payment posting created:", paymentPosting.id);
+  console.log(`   Amount: $100.00`);
+
   // Update claim to paid
-  await supabase
+  const { error: claimUpdateError } = await supabase
     .from("claims")
     .update({ 
       claim_status: "paid",
@@ -476,9 +480,13 @@ async function postPayment(
     })
     .eq("id", claimId);
 
-  console.log("✅ Payment posted:", data?.id || "N/A");
-  console.log(`   Amount: $100.00`);
-  return { success: true, data };
+  if (claimUpdateError) {
+    console.warn("⚠️  Could not update claim status to paid:", claimUpdateError.message);
+  } else {
+    console.log("✅ Claim marked as paid");
+  }
+
+  return { success: true, data: paymentPosting };
 }
 
 /**
