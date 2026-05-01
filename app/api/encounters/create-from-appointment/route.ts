@@ -110,10 +110,72 @@ export async function POST(request: Request) {
       .from("workqueue_items")
       .insert(workqueuePayload);
 
+    // Check for patient check-in and create code suggestions
+    const { data: checkin } = await supabase
+      .from("patient_checkins")
+      .select("*")
+      .eq("appointment_id", appointmentId)
+      .eq("status", "submitted")
+      .is("archived_at", null)
+      .maybeSingle();
+
+    if (checkin) {
+      const codeSuggestions = [];
+
+      // h0031_signal → 90837 (Psychotherapy 60 min)
+      if (checkin.h0031_signal) {
+        codeSuggestions.push({
+          id: generateUuid(),
+          organization_id: appointment.organization_id,
+          encounter_id: encounter.id,
+          cpt_code: "90837",
+          suggestion_reason: `Check-in signal h0031: ${checkin.h0031_signal}`,
+          confidence_score: 0.9,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+
+      // h0001_signal → 90791 (Psychiatric Diagnostic Evaluation)
+      if (checkin.h0001_signal) {
+        codeSuggestions.push({
+          id: generateUuid(),
+          organization_id: appointment.organization_id,
+          encounter_id: encounter.id,
+          cpt_code: "90791",
+          suggestion_reason: `Check-in signal h0001: ${checkin.h0001_signal}`,
+          confidence_score: 0.9,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+
+      // h0032_signal → 90832 (Psychotherapy 30 min)
+      if (checkin.h0032_signal) {
+        codeSuggestions.push({
+          id: generateUuid(),
+          organization_id: appointment.organization_id,
+          encounter_id: encounter.id,
+          cpt_code: "90832",
+          suggestion_reason: `Check-in signal h0032: ${checkin.h0032_signal}`,
+          confidence_score: 0.9,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+
+      if (codeSuggestions.length > 0) {
+        await supabase
+          .from("encounter_code_suggestions")
+          .insert(codeSuggestions);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: "Encounter created successfully",
       encounter,
+      code_suggestions_created: checkin ? true : false,
     });
   } catch (error) {
     console.error("Create encounter error:", error);

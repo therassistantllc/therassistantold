@@ -231,6 +231,8 @@ export default function SchedulingPage() {
   const [providers, setProviders] = useState<ProviderRecord[]>([]);
   const [policies, setPolicies] = useState<InsurancePolicyRecord[]>([]);
   const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>([]);
+  const [checkins, setCheckins] = useState<any[]>([]);
+  const [selectedCheckin, setSelectedCheckin] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -290,6 +292,17 @@ export default function SchedulingPage() {
     );
     setEligibilityChecks(eligibilityResponses.filter(Boolean) as EligibilityCheck[]);
 
+    // Load patient check-ins for appointments
+    const appointmentIds = appointmentRows.map(row => row.id);
+    if (appointmentIds.length > 0) {
+      const { data: checkinsData } = await supabase
+        .from("patient_checkins")
+        .select("*")
+        .in("appointment_id", appointmentIds)
+        .is("archived_at", null);
+      setCheckins(checkinsData ?? []);
+    }
+
     if (appointmentRows[0] && !appointmentId) {
       // Auto-select first appointment if no appointment is selected
       const firstAppointment = appointmentRows[0];
@@ -317,6 +330,10 @@ export default function SchedulingPage() {
   const eligibilityByPatientId = useMemo(
     () => new Map(eligibilityChecks.map((item) => [item.patient_id, item])),
     [eligibilityChecks]
+  );
+  const checkinByAppointmentId = useMemo(
+    () => new Map(checkins.map((item) => [item.appointment_id, item])),
+    [checkins]
   );
 
   const visibleRange = useMemo(() => {
@@ -515,6 +532,7 @@ export default function SchedulingPage() {
           .map((appointment) => {
             const patient = appointment.client_id ? patientById.get(appointment.client_id) : undefined;
             const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+            const checkin = checkinByAppointmentId.get(appointment.id);
             const colorClass = colorMode === "status" ? statusColor(appointment.appointment_status) : typeColor(appointment.appointment_type);
 
             return (
@@ -544,6 +562,11 @@ export default function SchedulingPage() {
                   {eligibility && eligibility.copay_amount !== null && (
                     <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
                       ${eligibility.copay_amount} copay
+                    </span>
+                  )}
+                  {checkin && (
+                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">
+                      ✓ Check-in
                     </span>
                   )}
                 </div>
@@ -578,6 +601,18 @@ export default function SchedulingPage() {
                   >
                     $ Copay
                   </button>
+                  {checkin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCheckin(checkin);
+                      }}
+                      className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-blue-100"
+                    >
+                      View Check-in
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -1203,6 +1238,87 @@ export default function SchedulingPage() {
           )}
         </RightWorkflowDrawer>
       </main>
+
+      {/* Check-in Preview Modal */}
+      {selectedCheckin && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setSelectedCheckin(null)}
+        >
+          <div 
+            className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Patient Check-in</h2>
+              <button
+                onClick={() => setSelectedCheckin(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="text-xs font-medium text-gray-500">Status</div>
+                <div className="mt-1 text-sm text-gray-900">{selectedCheckin.status}</div>
+              </div>
+              
+              {selectedCheckin.submitted_at && (
+                <div>
+                  <div className="text-xs font-medium text-gray-500">Submitted</div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {new Date(selectedCheckin.submitted_at).toLocaleString()}
+                  </div>
+                </div>
+              )}
+
+              {(selectedCheckin.h0031_signal || selectedCheckin.h0001_signal || selectedCheckin.h0032_signal) && (
+                <div>
+                  <div className="text-xs font-medium text-gray-500">Code Suggestions</div>
+                  <div className="mt-2 space-y-2">
+                    {selectedCheckin.h0031_signal && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-2">
+                        <div className="text-xs font-semibold text-blue-900">90837 - Psychotherapy 60 min</div>
+                        <div className="mt-0.5 text-xs text-blue-700">Signal: {selectedCheckin.h0031_signal}</div>
+                      </div>
+                    )}
+                    {selectedCheckin.h0001_signal && (
+                      <div className="rounded-lg border border-green-200 bg-green-50 p-2">
+                        <div className="text-xs font-semibold text-green-900">90791 - Psychiatric Diagnostic Evaluation</div>
+                        <div className="mt-0.5 text-xs text-green-700">Signal: {selectedCheckin.h0001_signal}</div>
+                      </div>
+                    )}
+                    {selectedCheckin.h0032_signal && (
+                      <div className="rounded-lg border border-purple-200 bg-purple-50 p-2">
+                        <div className="text-xs font-semibold text-purple-900">90832 - Psychotherapy 30 min</div>
+                        <div className="mt-0.5 text-xs text-purple-700">Signal: {selectedCheckin.h0032_signal}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedCheckin.patient_notes && (
+                <div>
+                  <div className="text-xs font-medium text-gray-500">Patient Notes</div>
+                  <div className="mt-1 text-sm text-gray-900">{selectedCheckin.patient_notes}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setSelectedCheckin(null)}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
