@@ -21,6 +21,18 @@ export default async function AppointmentDetailPage({
   const resolvedParams = await Promise.resolve(params);
   const supabase = createServerSupabaseAdminClient();
 
+  if (!supabase) {
+    return (
+      <AppShell>
+        <main className="min-h-screen bg-slate-50 px-6 py-8">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800">
+            Database connection unavailable
+          </div>
+        </main>
+      </AppShell>
+    );
+  }
+
   const { data: appointment, error } = await supabase
     .from("appointments")
     .select("*")
