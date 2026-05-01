@@ -15,11 +15,11 @@ export default function PatientBalanceQueueCard({ rows }: { rows: PatientBalance
   return (
     <DashboardCard
       title="Patient Balance Queue"
-      description="High balances, failed cards, unpaid copays, and older patient balances."
-      action={<Link href="/billing" className="text-sm text-blue-700 hover:underline">Open patient billing work</Link>}
+      description="High balances, unpaid copays, and older patient balances requiring collection."
+      action={<Link href="/billing" className="text-sm text-blue-700 hover:underline">Open billing →</Link>}
     >
       {rows.length === 0 ? (
-        <EmptyState title="No patient balance alerts" description="Patient balance queue is clear." />
+        <EmptyState title="No patient balance alerts" description="Patient collections are up to date." />
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -27,10 +27,8 @@ export default function PatientBalanceQueueCard({ rows }: { rows: PatientBalance
               <div className="text-sm font-semibold text-gray-900">{row.patient}</div>
               <div className="mt-1 text-sm text-gray-600">{row.balance} • {row.reason}</div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/payments" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Collect</Link>
-                <Link href="/billing/ar" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Send statement</Link>
-                {row.patientId ? <Link href={`/patients/${row.patientId}/patient-billing`} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open patient billing</Link> : null}
-                <Link href="/payments" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Create payment plan</Link>
+                {row.patientId ? <Link href={`/patients/${row.patientId}/patient-billing`} className="rounded-xl bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700">Open billing</Link> : null}
+                <Link href="/billing" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Send statement</Link>
               </div>
             </div>
           ))}
