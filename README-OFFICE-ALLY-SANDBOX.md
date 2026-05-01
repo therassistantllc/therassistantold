@@ -118,6 +118,7 @@ The implementation expects these Supabase tables to exist:
 ```
 
 **Behavior**:
+
 - Finds or creates an `eligibility_checks` record
 - Creates `external_transactions` record with `transaction_type: "eligibility"` and `payload_type: "270"`
 - Creates `external_transaction_attempts` record with mock X12 270/271 data
@@ -156,6 +157,7 @@ The implementation expects these Supabase tables to exist:
 **Purpose**: Fetch transaction history
 
 **Query Parameters**:
+
 - `transaction_type` - Filter by type (optional)
 - `processing_status` - Filter by status (optional)
 - `processing_mode` - Filter by sandbox/live (optional)
@@ -173,6 +175,7 @@ The implementation expects these Supabase tables to exist:
 ### 4. Type Definitions
 
 Created `/types/integrations.ts` with complete TypeScript interfaces:
+
 - `IntegrationConnection`
 - `ExternalTransaction`
 - `ExternalTransactionAttempt`
@@ -242,6 +245,7 @@ const data = await response.json();
 ## Integration with appointment_eligibility_status View
 
 The `eligibility_checks` table updates will automatically be reflected in the `appointment_eligibility_status` view since we populate:
+
 - `appointment_id` (links to appointment)
 - `eligibility_status` (active/inactive enum)
 - `checked_at` (timestamp)
