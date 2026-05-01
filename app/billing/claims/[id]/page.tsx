@@ -8,7 +8,11 @@ import AppShell from "@/components/layout/AppShell";
 import ClaimStatusPanel from "@/components/clearinghouse/ClaimStatusPanel";
 import EdiTransactionLog from "@/components/clearinghouse/EdiTransactionLog";
 import ClearinghouseEventsPanel from "@/components/clearinghouse/ClearinghouseEventsPanel";
-import type { ClaimStatusCheck, ClearinghouseResponseEvent, EdiTransaction } from "@/types/clearinghouse";
+import type {
+  ClaimStatusCheck,
+  ClearinghouseResponseEvent,
+  EdiTransaction,
+} from "@/types/clearinghouse";
 import { supabase } from "@/lib/supabase/client";
 
 interface ClaimRecord {
@@ -32,7 +36,14 @@ function formatMoney(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return "—";
   const numeric = typeof value === "number" ? value : Number.parseFloat(String(value));
   if (!Number.isFinite(numeric)) return String(value);
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(numeric);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(numeric);
+}
+
+function isMockClaimId(value: string) {
+  return value.toLowerCase().startsWith("clm-");
 }
 
 export default function ClaimDetailPage() {
@@ -58,7 +69,32 @@ export default function ClaimDetailPage() {
     setLoading(true);
     setError(null);
 
-    const claimResp = await supabase.from("claims").select("*").eq("id", claimId).maybeSingle();
+    if (isMockClaimId(claimId)) {
+      setClaim({
+        id: claimId,
+        claim_number: claimId,
+        claim_status: "ready",
+        encounter_id: "ENC-20260428-1042",
+        total_charge_amount: 165,
+        created_at: "2026-04-28",
+      });
+
+      setHistory({
+        checks: [],
+        transactions: [],
+        events: [],
+      });
+
+      setLoading(false);
+      return;
+    }
+
+    const claimResp = await supabase
+      .from("claims")
+      .select("*")
+      .eq("id", claimId)
+      .maybeSingle();
+
     if (claimResp.error || !claimResp.data) {
       setError(claimResp.error?.message ?? "Claim not found.");
       setLoading(false);
@@ -69,6 +105,7 @@ export default function ClaimDetailPage() {
 
     const historyResp = await fetch(`/api/claims/${claimId}/status-history`);
     const historyPayload = await historyResp.json();
+
     if (!historyResp.ok) {
       setError(historyPayload.error ?? "Could not load claim history.");
       setLoading(false);
@@ -80,6 +117,7 @@ export default function ClaimDetailPage() {
       transactions: (historyPayload.transactions ?? []) as EdiTransaction[],
       events: (historyPayload.events ?? []) as ClearinghouseResponseEvent[],
     });
+
     setLoading(false);
   }
 
@@ -100,7 +138,11 @@ export default function ClaimDetailPage() {
                 Claim detail now exposes real-time 276/277 status and clearinghouse timeline data.
               </p>
             </div>
-            <Link href="/billing" className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm hover:bg-gray-50">
+
+            <Link
+              href="/billing"
+              className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm hover:bg-gray-50"
+            >
               Back to Billing
             </Link>
           </div>
@@ -122,57 +164,112 @@ export default function ClaimDetailPage() {
               <div className="space-y-6">
                 <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-gray-900">Claim Summary</h2>
-                  <div className="mt-4 grid gap-4 md:grid-cols-4 text-sm text-gray-700">
-                    <div><span className="font-medium">Claim:</span> {claim.claim_number ?? claim.id}</div>
-                    <div><span className="font-medium">Encounter:</span> {claim.encounter_id ?? "—"}</div>
-                    <div><span className="font-medium">Status:</span> {claim.claim_status ?? "—"}</div>
-                    <div><span className="font-medium">Charge:</span> {formatMoney(claim.total_charge_amount)}</div>
+
+                  <div className="mt-4 grid gap-4 text-sm text-gray-700 md:grid-cols-4">
+                    <div>
+                      <span className="font-medium">Claim:</span>{" "}
+                      {claim.claim_number ?? claim.id}
+                    </div>
+                    <div>
+                      <span className="font-medium">Encounter:</span>{" "}
+                      {claim.encounter_id ?? "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Status:</span>{" "}
+                      {claim.claim_status ?? "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Charge:</span>{" "}
+                      {formatMoney(claim.total_charge_amount)}
+                    </div>
                   </div>
                 </section>
 
                 <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-gray-900">Clearinghouse Timeline</h2>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    {history.transactions.map((transaction) => (
-                      <div key={transaction.id} className="rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
-                        <div className="font-medium text-gray-900">
-                          {transaction.transaction_type} • {transaction.direction}
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Clearinghouse Timeline
+                  </h2>
+
+                  {history.transactions.length === 0 ? (
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                      No clearinghouse transactions yet.
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {history.transactions.map((transaction) => (
+                        <div
+                          key={transaction.id}
+                          className="rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700"
+                        >
+                          <div className="font-medium text-gray-900">
+                            {transaction.transaction_type} • {transaction.direction}
+                          </div>
+                          <div className="mt-1">{transaction.status}</div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {transaction.sent_at ?? transaction.created_at ?? "—"}
+                          </div>
                         </div>
-                        <div className="mt-1">{transaction.status}</div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {transaction.sent_at ?? transaction.created_at ?? "—"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-lg font-semibold text-gray-900">API-Level Transaction Log</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    API-Level Transaction Log
+                  </h2>
                   <EdiTransactionLog rows={history.transactions} />
                 </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Clearinghouse Events</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Clearinghouse Events
+                  </h2>
                   <ClearinghouseEventsPanel rows={history.events} />
                 </section>
               </div>
 
               <div className="space-y-6">
-                <ClaimStatusPanel claimId={claim.id} latest={latestStatus} onComplete={load} />
+                {!isMockClaimId(claim.id) ? (
+                  <ClaimStatusPanel claimId={claim.id} latest={latestStatus} onComplete={load} />
+                ) : (
+                  <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Mock Claim Mode</h2>
+                    <p className="mt-3 text-sm text-gray-600">
+                      This claim is using local mock data. Supabase and clearinghouse status checks are bypassed.
+                    </p>
+                  </section>
+                )}
 
                 <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-semibold text-gray-900">Latest Payer Status</h2>
+
                   {latestStatus ? (
                     <div className="mt-4 space-y-3 text-sm text-gray-700">
-                      <div><span className="font-medium">Status:</span> {latestStatus.status}</div>
-                      <div><span className="font-medium">Category Code:</span> {latestStatus.status_category_code ?? "—"}</div>
-                      <div><span className="font-medium">Status Code:</span> {latestStatus.status_code ?? "—"}</div>
-                      <div><span className="font-medium">Entity Code:</span> {latestStatus.entity_code ?? "—"}</div>
-                      <div><span className="font-medium">Paid Amount:</span> {formatMoney(latestStatus.paid_amount)}</div>
+                      <div>
+                        <span className="font-medium">Status:</span> {latestStatus.status}
+                      </div>
+                      <div>
+                        <span className="font-medium">Category Code:</span>{" "}
+                        {latestStatus.status_category_code ?? "—"}
+                      </div>
+                      <div>
+                        <span className="font-medium">Status Code:</span>{" "}
+                        {latestStatus.status_code ?? "—"}
+                      </div>
+                      <div>
+                        <span className="font-medium">Entity Code:</span>{" "}
+                        {latestStatus.entity_code ?? "—"}
+                      </div>
+                      <div>
+                        <span className="font-medium">Paid Amount:</span>{" "}
+                        {formatMoney(latestStatus.paid_amount)}
+                      </div>
                     </div>
                   ) : (
-                    <div className="mt-4 text-sm text-gray-600">No 277 claim status check yet.</div>
+                    <div className="mt-4 text-sm text-gray-600">
+                      No 277 claim status check yet.
+                    </div>
                   )}
                 </section>
               </div>
