@@ -54,6 +54,7 @@ The implementation expects these Supabase tables to exist:
 **Purpose**: Test the Office Ally connection in sandbox mode
 
 **Request Body**:
+
 ```json
 {
   "integrationName": "office_ally"
@@ -61,6 +62,7 @@ The implementation expects these Supabase tables to exist:
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -83,6 +85,7 @@ The implementation expects these Supabase tables to exist:
 **Purpose**: Run eligibility verification for an appointment or existing check
 
 **Request Body**:
+
 ```json
 {
   "appointmentId": "uuid",
@@ -92,6 +95,7 @@ The implementation expects these Supabase tables to exist:
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -129,6 +133,7 @@ The implementation expects these Supabase tables to exist:
 **Purpose**: Fetch all integration connections
 
 **Response**:
+
 ```json
 {
   "connections": [
@@ -156,6 +161,7 @@ The implementation expects these Supabase tables to exist:
 - `limit` - Max records (default: 100)
 
 **Response**:
+
 ```json
 {
   "transactions": [ ... ],
