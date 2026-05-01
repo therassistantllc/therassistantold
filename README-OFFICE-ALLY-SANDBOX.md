@@ -74,6 +74,7 @@ The implementation expects these Supabase tables to exist:
 ```
 
 **Behavior**:
+
 - Creates an `external_transactions` record with `transaction_type: "test_connection"`
 - Creates an `external_transaction_attempts` record
 - Updates `integration_connections.last_checked_at`
