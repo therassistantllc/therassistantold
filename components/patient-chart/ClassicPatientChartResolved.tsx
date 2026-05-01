@@ -1017,8 +1017,15 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               </div>
 
               {encounterDocs.length === 0 ? (
-                <div className="card">
-                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No documents found for this patient.</p>
+                <div className="card text-center py-8">
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No documents found for this patient.</p>
+                  <button
+                    type="button"
+                    onClick={() => alert("Document upload feature - integrate with file storage")}
+                    className="btn-primary"
+                  >
+                    Upload Document
+                  </button>
                 </div>
               ) : (
                 <div className="card overflow-x-auto p-0">
@@ -1067,8 +1074,15 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               </div>
 
               {messages.length === 0 ? (
-                <div className="card">
-                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No messages found for this patient.</p>
+                <div className="card text-center py-8">
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No messages found for this patient.</p>
+                  <button
+                    type="button"
+                    onClick={() => alert("Send message feature - integrate with patient portal")}
+                    className="btn-primary"
+                  >
+                    Send Message
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1183,8 +1197,15 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               </div>
 
               {insurancePolicies.length === 0 ? (
-                <div className="card">
-                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No insurance policies found for this patient.</p>
+                <div className="card text-center py-8">
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No insurance policies found for this patient.</p>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/${routeSource}/${patientId}/billing-settings/add-insurance`)}
+                    className="btn-primary"
+                  >
+                    Add Insurance Policy
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1231,7 +1252,33 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                 <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>
                   Check insurance eligibility and benefits for this patient.
                 </p>
-                <button className="btn-primary">
+                <button 
+                  className="btn-primary"
+                  onClick={async () => {
+                    if (!patientId) return;
+                    try {
+                      const primaryPolicy = insurancePolicies.find(p => p.active_flag);
+                      const response = await fetch("/api/eligibility/check", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          appointmentId: appointmentId ?? undefined,
+                          organizationId: organizationId,
+                        }),
+                      });
+                      
+                      if (response.ok) {
+                        alert("Eligibility check completed. Refresh to see updated results.");
+                      } else {
+                        const error = await response.json();
+                        alert(`Eligibility check failed: ${error.error || "Unknown error"}`);
+                      }
+                    } catch (error) {
+                      console.error("Eligibility check error:", error);
+                      alert("Failed to run eligibility check");
+                    }
+                  }}
+                >
                   Run Eligibility Check
                 </button>
               </div>

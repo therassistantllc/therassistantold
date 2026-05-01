@@ -398,6 +398,52 @@ export default function SchedulingPage() {
     await load();
   }
 
+  async function runEligibilityForAppointment(appointmentId: string) {
+    const appointment = appointments.find((a) => a.id === appointmentId);
+    if (!appointment?.client_id) return;
+
+    try {
+      const response = await fetch("/api/eligibility/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          organizationId: appointment.organization_id,
+        }),
+      });
+
+      if (response.ok) {
+        await load(); // Reload to show updated eligibility
+      }
+    } catch (error) {
+      console.error("Failed to run eligibility:", error);
+    }
+  }
+
+  async function createEncounterForAppointment(appointmentId: string) {
+    const appointment = appointments.find((a) => a.id === appointmentId);
+    if (!appointment?.client_id) return;
+
+    try {
+      const response = await fetch("/api/encounters/create-from-appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.encounter?.id) {
+          router.push(`/encounters/${data.encounter.id}`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to create encounter:", error);
+    }
+  }
+
   async function loadWorkflowDataForAppointment(appointmentId: string) {
     setWorkflowLoading(true);
     setSelectedEncounter(null);
@@ -472,27 +518,68 @@ export default function SchedulingPage() {
             const colorClass = colorMode === "status" ? statusColor(appointment.appointment_status) : typeColor(appointment.appointment_type);
 
             return (
-              <button
+              <div
                 key={appointment.id}
-                type="button"
-                onClick={() => handleAppointmentSelect(appointment.id)}
-                className={`w-full rounded-lg border px-2 py-2 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
+                className={`w-full rounded-lg border px-2 py-2 shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
               >
-                <div className="text-[11px] font-medium opacity-80">
-                  {formatBlockTime(appointment.scheduled_start_at)}
-                </div>
-                <div className="mt-0.5 line-clamp-1 text-xs font-semibold">
-                  {patientLabel(patient)}
-                </div>
-                <div className="line-clamp-1 text-[11px] opacity-80">
-                  {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAppointmentSelect(appointment.id)}
+                  className="w-full text-left"
+                >
+                  <div className="text-[11px] font-medium opacity-80">
+                    {formatBlockTime(appointment.scheduled_start_at)}
+                  </div>
+                  <div className="mt-0.5 line-clamp-1 text-xs font-semibold">
+                    {patientLabel(patient)}
+                  </div>
+                  <div className="line-clamp-1 text-[11px] opacity-80">
+                    {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
+                  </div>
+                </button>
                 <div className="mt-1 flex flex-wrap gap-1">
                   <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
                     {eligibilityLabel(eligibility)}
                   </span>
+                  {eligibility && eligibility.copay_amount !== null && (
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
+                      ${eligibility.copay_amount} copay
+                    </span>
+                  )}
                 </div>
-              </button>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runEligibilityForAppointment(appointment.id);
+                    }}
+                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
+                  >
+                    ✓ Eligibility
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void createEncounterForAppointment(appointment.id);
+                    }}
+                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
+                  >
+                    + Encounter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert("Stripe payment collection placeholder");
+                    }}
+                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
+                  >
+                    $ Copay
+                  </button>
+                </div>
+              </div>
             );
           })}
       </div>

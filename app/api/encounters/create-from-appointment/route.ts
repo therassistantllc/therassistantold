@@ -1,4 +1,3 @@
-// File: app/api/encounters/create/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { appointmentId, organizationId } = body;
+    const { appointmentId } = body;
 
     if (!appointmentId) {
       return NextResponse.json(
@@ -54,23 +53,24 @@ export async function POST(request: Request) {
     if (existingEncounter) {
       return NextResponse.json({
         success: true,
-        encounter: existingEncounter,
         message: "Encounter already exists for this appointment",
+        encounter: existingEncounter,
       });
     }
 
-    // Create encounter
+    // Create new encounter
     const now = new Date().toISOString();
     const encounterPayload = {
       id: generateUuid(),
       organization_id: appointment.organization_id,
-      client_id: appointment.client_id,
+      patient_id: appointment.client_id,
       provider_id: appointment.provider_id,
       appointment_id: appointmentId,
       encounter_status: "draft",
-      service_date: appointment.scheduled_start_at?.split("T")[0] || now.split("T")[0],
-      started_at: appointment.scheduled_start_at,
-      chief_complaint: appointment.reason || null,
+      service_date: appointment.scheduled_start_at
+        ? new Date(appointment.scheduled_start_at).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      place_of_service: appointment.appointment_type === "Telehealth" ? "02" : "11",
       created_at: now,
       updated_at: now,
     };
@@ -89,10 +89,31 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create workqueue item for billing readiness
+    const workqueuePayload = {
+      id: generateUuid(),
+      organization_id: appointment.organization_id,
+      title: "Encounter created - needs documentation",
+      work_type: "ready_to_bill",
+      work_status: "queued",
+      priority: "medium",
+      source_object_type: "encounter",
+      source_object_id: encounter.id,
+      patient_id: appointment.client_id,
+      encounter_id: encounter.id,
+      appointment_id: appointmentId,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await supabase
+      .from("workqueue_items")
+      .insert(workqueuePayload);
+
     return NextResponse.json({
       success: true,
-      encounter,
       message: "Encounter created successfully",
+      encounter,
     });
   } catch (error) {
     console.error("Create encounter error:", error);

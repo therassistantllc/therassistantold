@@ -19,10 +19,10 @@ export default function ClaimsAttentionCard({ rows }: { rows: ClaimsAttentionRow
     <DashboardCard
       title="Claims Needing Attention"
       description="Highest priority claims across no response, rejected, denied, and stale pending work."
-      action={<Link href="/workqueue?queue=no_response" className="text-sm text-blue-700 hover:underline">Open claims queue →</Link>}
+      action={<Link href="/billing" className="text-sm text-blue-700 hover:underline">Open workqueue</Link>}
     >
       {rows.length === 0 ? (
-        <EmptyState title="No urgent claims" description="All claims are processing normally." />
+        <EmptyState title="No urgent claims" description="Claim queues are clear right now." />
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -36,8 +36,8 @@ export default function ClaimsAttentionCard({ rows }: { rows: ClaimsAttentionRow
                 <SeverityBadge severity="high" label={row.queue} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href={`/claims/${row.id}`} className="rounded-xl bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700">Open claim</Link>
-                <Link href="/workqueue" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">View queue</Link>
+                <Link href={`/billing/claims/${row.id}`} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open claim</Link>
+                <Link href={`/billing/claims/${row.id}`} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Action</Link>
               </div>
             </div>
           ))}

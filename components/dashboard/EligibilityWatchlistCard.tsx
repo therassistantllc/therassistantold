@@ -16,10 +16,10 @@ export default function EligibilityWatchlistCard({ rows }: { rows: EligibilityWa
     <DashboardCard
       title="Eligibility Watchlist"
       description="Coverage gaps, not checked appointments, and insurance data issues."
-      action={<Link href="/workqueue?queue=eligibility_needed" className="text-sm text-blue-700 hover:underline">Open eligibility queue →</Link>}
+      action={<Link href="/scheduling?filter=eligibility_not_checked" className="text-sm text-blue-700 hover:underline">Open watchlist</Link>}
     >
       {rows.length === 0 ? (
-        <EmptyState title="No eligibility alerts" description="All appointments have current eligibility checks." />
+        <EmptyState title="No eligibility alerts" description="Eligibility watchlist is clear." />
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -32,8 +32,9 @@ export default function EligibilityWatchlistCard({ rows }: { rows: EligibilityWa
                 <SeverityBadge severity="high" />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/scheduling" className="rounded-xl bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700">Run eligibility</Link>
-                {row.patientId ? <Link href={`/patients/${row.patientId}/billing-settings`} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open insurance</Link> : null}
+                <Link href="/scheduling?run=eligibility" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Run eligibility</Link>
+                {row.patientId ? <Link href={`/patients/${row.patientId}/billing-settings`} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open patient insurance</Link> : null}
+                <Link href="/tickets" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Route to biller</Link>
               </div>
             </div>
           ))}
