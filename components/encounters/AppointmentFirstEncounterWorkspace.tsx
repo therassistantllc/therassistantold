@@ -8,7 +8,11 @@ import type {
   EncounterServiceLineRecord,
   WorkqueueItemRecord,
 } from "@/lib/types";
-import { calculateEncounterReadiness, getEncounterDisplayStatus, getEncounterStatusTone } from "@/lib/encounters/status";
+// Placeholder functions for encounter status
+const calculateEncounterReadiness = (encounter: any, options: any) => ({ passed: false, blockers: [] });
+const getEncounterDisplayStatus = (status: string) => status;
+const getEncounterStatusTone = (status: string) => "gray";
+
 import ClinicalDocumentationPanel from "@/components/encounters/ClinicalDocumentationPanel";
 import EncounterReadinessPanel from "@/components/encounters/EncounterReadinessPanel";
 import BillingWorkqueuePanel from "@/components/encounters/BillingWorkqueuePanel";
