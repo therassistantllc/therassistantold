@@ -83,7 +83,7 @@ function AppointmentContent({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 ring-1 ring-blue-200">
-              {appointment.status ?? "scheduled"}
+              {appointment.appointment_status ?? "scheduled"}
             </div>
             <h2 className="mt-4 text-2xl font-bold text-slate-950">
               {appointment.appointment_type ?? "Clinical appointment"}
