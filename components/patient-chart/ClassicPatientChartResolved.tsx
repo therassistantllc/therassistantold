@@ -674,8 +674,8 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
   if (loading) {
     return (
       <AppShell>
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="text-gray-600">Loading patient workspace...</div>
+        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--neutral-50)" }}>
+          <div style={{ color: "var(--neutral-600)" }}>Loading patient workspace...</div>
         </div>
       </AppShell>
     );
@@ -684,8 +684,8 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
   if (error || !patient) {
     return (
       <AppShell>
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">{error || "Patient not found"}</div>
+        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--neutral-50)" }}>
+          <div className="card" style={{ background: "var(--error-bg)", borderColor: "var(--error-border)", color: "var(--error-text)" }}>{error || "Patient not found"}</div>
         </div>
       </AppShell>
     );
@@ -710,13 +710,13 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-gray-50">
-        <div className="border-b border-gray-200 bg-white shadow-sm">
+      <div className="min-h-screen" style={{ background: "var(--neutral-50)" }}>
+        <div style={{ borderBottom: "1px solid var(--neutral-200)", background: "white", boxShadow: "var(--shadow-sm)" }}>
           <div className="mx-auto max-w-7xl px-6 py-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900">{patientName}</h1>
-                <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
+                <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>{patientName}</h1>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm" style={{ color: "var(--neutral-600)" }}>
                   <div>
                     <span className="font-medium">DOB:</span> {patient.date_of_birth || "—"}
                   </div>
@@ -732,40 +732,40 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <div className="rounded-lg bg-blue-50 px-3 py-1 text-sm">
-                    <span className="font-medium text-blue-900">Insurance:</span>{" "}
-                    <span className="text-blue-700">{primaryInsurance?.plan_name || "No insurance"}</span>
+                  <div className="rounded-lg px-3 py-1 text-sm" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)" }}>
+                    <span className="font-medium" style={{ color: "var(--brand-navy)" }}>Insurance:</span>{" "}
+                    <span style={{ color: "var(--neutral-700)" }}>{primaryInsurance?.plan_name || "No insurance"}</span>
                   </div>
                   {primaryInsurance?.active_flag ? (
-                    <div className="rounded-lg bg-green-50 px-3 py-1 text-sm font-medium text-green-700">Active</div>
+                    <div className="badge-success">Active</div>
                   ) : (
-                    <div className="rounded-lg bg-red-50 px-3 py-1 text-sm font-medium text-red-700">Inactive</div>
+                    <div className="badge-error">Inactive</div>
                   )}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">Patient Balance:</span>{" "}
-                    <span className={balances.patientBalance > 0 ? "font-semibold text-red-700" : "text-gray-900"}>
+                    <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Patient Balance:</span>{" "}
+                    <span className={balances.patientBalance > 0 ? "font-semibold" : ""} style={{ color: balances.patientBalance > 0 ? "var(--error-text)" : "var(--neutral-900)" }}>
                       ${balances.patientBalance.toFixed(2)}
                     </span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Insurance Balance:</span>{" "}
-                    <span className="text-gray-900">${balances.insuranceBalance.toFixed(2)}</span>
+                    <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Insurance Balance:</span>{" "}
+                    <span style={{ color: "var(--neutral-900)" }}>${balances.insuranceBalance.toFixed(2)}</span>
                   </div>
                   {nextAppointment && (
                     <div>
-                      <span className="font-medium text-gray-700">Next Appt:</span>{" "}
-                      <span className="text-gray-900">
+                      <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Next Appt:</span>{" "}
+                      <span style={{ color: "var(--neutral-900)" }}>
                         {new Date(nextAppointment.scheduled_start_at ?? "").toLocaleDateString()}
                       </span>
                     </div>
                   )}
                   {lastAppointment && !nextAppointment && (
                     <div>
-                      <span className="font-medium text-gray-700">Last Appt:</span>{" "}
-                      <span className="text-gray-900">
+                      <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Last Appt:</span>{" "}
+                      <span style={{ color: "var(--neutral-900)" }}>
                         {new Date(lastAppointment.scheduled_start_at ?? "").toLocaleDateString()}
                       </span>
                     </div>
@@ -775,7 +775,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                 {alerts.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {alerts.map((alert, idx) => (
-                      <div key={idx} className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
+                      <div key={idx} className="badge-warning">
                         ⚠ {alert}
                       </div>
                     ))}
@@ -786,13 +786,13 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/scheduling"
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                  className="btn-secondary"
                 >
                   New Appointment
                 </Link>
                 <Link
                   href="/encounters/new"
-                  className="rounded-lg border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+                  className="btn-primary"
                 >
                   Create Encounter
                 </Link>
@@ -801,22 +801,22 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
           </div>
 
           <div className="mx-auto max-w-7xl px-6">
-            <div className="flex gap-1 overflow-x-auto border-t border-gray-200 pt-2">
+            <div className="flex gap-1 overflow-x-auto pt-2" style={{ borderTop: "1px solid var(--neutral-200)" }}>
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
                   <Link
                     key={tab.key}
                     href={tab.href}
-                    className={`whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "border-blue-600 text-blue-600"
-                        : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900"
-                    }`}
+                    className="whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      borderColor: isActive ? "var(--brand-navy)" : "transparent",
+                      color: isActive ? "var(--brand-navy)" : "var(--neutral-600)"
+                    }}
                   >
                     {tab.label}
                     {tab.key === "messages" && unreadCount > 0 && (
-                      <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{unreadCount}</span>
+                      <span className="ml-2 rounded-full px-2 py-0.5 text-xs text-white" style={{ background: "var(--error-600)" }}>{unreadCount}</span>
                     )}
                   </Link>
                 );
@@ -830,20 +830,25 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
             <div className="space-y-6">
               {workflowMessage && (
                 <div
-                  className={`rounded-lg p-4 ${
+                  className={`card ${
                     workflowMessage.type === "success"
-                      ? "bg-green-50 border border-green-200 text-green-800"
-                      : "bg-red-50 border border-red-200 text-red-800"
+                      ? "bg-green-50 border-green-200 text-green-800"
+                      : "bg-red-50 border-red-200 text-red-800"
                   }`}
+                  style={{ 
+                    background: workflowMessage.type === "success" ? "var(--success-bg)" : "var(--error-bg)", 
+                    borderColor: workflowMessage.type === "success" ? "var(--success-border)" : "var(--error-border)", 
+                    color: workflowMessage.type === "success" ? "var(--success-text)" : "var(--error-text)" 
+                  }}
                 >
                   {workflowMessage.text}
                 </div>
               )}
 
               {appointmentId && activeAppointment ? (
-                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-blue-900">Active Appointment</h3>
-                  <div className="mt-2 text-sm text-blue-700">
+                <div className="card" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)" }}>
+                  <h3 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Active Appointment</h3>
+                  <div className="mt-2 text-sm" style={{ color: "var(--neutral-700)" }}>
                     <div>Appointment ID: {appointmentId.substring(0, 8)}...</div>
                     <div>Provider ID: {activeAppointment.provider_id?.substring(0, 8)}...</div>
                     <div>
@@ -855,8 +860,8 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
-                  <p className="text-sm text-gray-600">
+                <div className="card" style={{ background: "var(--neutral-50)", borderColor: "var(--neutral-200)" }}>
+                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>
                     No active appointment selected. Click an appointment from the Scheduling page to start the workflow.
                   </p>
                 </div>
@@ -864,50 +869,56 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
               {activeAppointment && (
                 <>
-                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Status</h3>
+                  <div className="card">
+                    <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--brand-navy)" }}>Workflow Status</h3>
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            activeEncounter ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
-                          }`}
+                          className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ 
+                            background: activeEncounter ? "var(--success-bg)" : "var(--neutral-100)", 
+                            color: activeEncounter ? "var(--success-600)" : "var(--neutral-400)" 
+                          }}
                         >
                           {activeEncounter ? "✓" : "1"}
                         </div>
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">Encounter</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="font-medium" style={{ color: "var(--neutral-900)" }}>Encounter</div>
+                          <div className="text-sm" style={{ color: "var(--neutral-600)" }}>
                             {activeEncounter ? `Created: ${activeEncounter.id.substring(0, 8)}...` : "Not created"}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            activeNote ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
-                          }`}
+                          className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ 
+                            background: activeNote ? "var(--success-bg)" : "var(--neutral-100)", 
+                            color: activeNote ? "var(--success-600)" : "var(--neutral-400)" 
+                          }}
                         >
                           {activeNote ? "✓" : "2"}
                         </div>
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">Clinical Note</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="font-medium" style={{ color: "var(--neutral-900)" }}>Clinical Note</div>
+                          <div className="text-sm" style={{ color: "var(--neutral-600)" }}>
                             {activeNote ? `Signed: ${activeNote.id.substring(0, 8)}...` : "Not signed"}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            activeClaim ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
-                          }`}
+                          className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ 
+                            background: activeClaim ? "var(--success-bg)" : "var(--neutral-100)", 
+                            color: activeClaim ? "var(--success-600)" : "var(--neutral-400)" 
+                          }}
                         >
                           {activeClaim ? "✓" : "3"}
                         </div>
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">Claim</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="font-medium" style={{ color: "var(--neutral-900)" }}>Claim</div>
+                          <div className="text-sm" style={{ color: "var(--neutral-600)" }}>
                             {activeClaim ? `Status: ${activeClaim.claim_status}` : "Not created"}
                           </div>
                         </div>
@@ -915,13 +926,13 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Actions</h3>
+                  <div className="card">
+                    <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--brand-navy)" }}>Workflow Actions</h3>
                     <div className="grid gap-3 md:grid-cols-2">
                       <button
                         onClick={handleCreateEncounter}
                         disabled={workflowLoading || !!activeEncounter}
-                        className="rounded-lg border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-primary"
                       >
                         {activeEncounter ? "✓ Encounter Created" : "1. Create Encounter"}
                       </button>
@@ -929,7 +940,8 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                       <button
                         onClick={handleSignNote}
                         disabled={workflowLoading || !activeEncounter || !!activeNote}
-                        className="rounded-lg border border-green-600 bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-lg px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: "var(--brand-green)", borderColor: "var(--brand-green)" }}
                       >
                         {activeNote ? "✓ Note Signed" : "2. Sign Note"}
                       </button>
@@ -937,7 +949,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                       <button
                         onClick={handleCreateServiceLine}
                         disabled={workflowLoading || !activeNote}
-                        className="rounded-lg border border-purple-600 bg-purple-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-secondary"
                       >
                         3. Create Service Line
                       </button>
@@ -945,7 +957,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                       <button
                         onClick={handleCreateClaim}
                         disabled={workflowLoading || !activeNote || !!activeClaim}
-                        className="rounded-lg border border-orange-600 bg-orange-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-primary"
                       >
                         {activeClaim ? "✓ Claim Created" : "4. Create Claim"}
                       </button>
@@ -958,7 +970,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                           activeClaim?.claim_status === "submitted" ||
                           activeClaim?.claim_status === "paid"
                         }
-                        className="rounded-lg border border-pink-600 bg-pink-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-primary"
                       >
                         {activeClaim?.claim_status === "submitted" || activeClaim?.claim_status === "paid"
                           ? "✓ Claim Submitted"
@@ -968,7 +980,8 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                       <button
                         onClick={handlePostPayment}
                         disabled={workflowLoading || !activeClaim || activeClaim?.claim_status !== "submitted"}
-                        className="rounded-lg border border-teal-600 bg-teal-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-lg px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: "var(--brand-green)", borderColor: "var(--brand-green)" }}
                       >
                         {activeClaim?.claim_status === "paid" ? "✓ Payment Posted" : "6. Post Payment"}
                       </button>
@@ -978,17 +991,17 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               )}
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <div className="text-xl font-bold text-blue-900">{appointments.length}</div>
-                  <div className="text-sm text-blue-700">Appointments</div>
+                <div className="card metric-card" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)" }}>
+                  <div className="text-xl font-bold" style={{ color: "var(--brand-navy)" }}>{appointments.length}</div>
+                  <div className="text-sm" style={{ color: "var(--neutral-700)" }}>Appointments</div>
                 </div>
-                <div className="rounded-lg bg-green-50 p-4">
-                  <div className="text-xl font-bold text-green-900">{encounters.length}</div>
-                  <div className="text-sm text-green-700">Encounters</div>
+                <div className="card metric-card" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)" }}>
+                  <div className="text-xl font-bold" style={{ color: "var(--brand-green)" }}>{encounters.length}</div>
+                  <div className="text-sm" style={{ color: "var(--neutral-700)" }}>Encounters</div>
                 </div>
-                <div className="rounded-lg bg-purple-50 p-4">
-                  <div className="text-xl font-bold text-purple-900">{claims.length}</div>
-                  <div className="text-sm text-purple-700">Claims</div>
+                <div className="card metric-card" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)" }}>
+                  <div className="text-xl font-bold" style={{ color: "var(--brand-navy)" }}>{claims.length}</div>
+                  <div className="text-sm" style={{ color: "var(--neutral-700)" }}>Claims</div>
                 </div>
               </div>
             </div>
@@ -996,43 +1009,44 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
             <div className="space-y-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Files</h1>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--brand-navy)" }}>Files</h1>
+                  <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>
                     Uploaded documents, chart notes, and encounter-backed records for {patientName}.
                   </p>
                 </div>
               </div>
 
               {encounterDocs.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
-                  No documents found for this patient.
+                <div className="card">
+                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No documents found for this patient.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="card overflow-x-auto p-0">
                   <table className="w-full text-left text-sm">
-                    <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-700">
+                    <thead style={{ background: "var(--table-header)", borderBottom: "1px solid var(--neutral-200)" }}>
                       <tr>
-                        <th className="px-4 py-3 font-semibold">File Name</th>
-                        <th className="px-4 py-3 font-semibold">Type</th>
-                        <th className="px-4 py-3 font-semibold">Date</th>
-                        <th className="px-4 py-3 font-semibold">Owner</th>
+                        <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide" style={{ color: "var(--neutral-700)" }}>File Name</th>
+                        <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide" style={{ color: "var(--neutral-700)" }}>Type</th>
+                        <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide" style={{ color: "var(--neutral-700)" }}>Date</th>
+                        <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide" style={{ color: "var(--neutral-700)" }}>Owner</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y" style={{ borderColor: "var(--neutral-100)" }}>
                       {encounterDocs.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-gray-50">
+                        <tr key={doc.id} className="hover:bg-gray-50" style={{ cursor: "pointer" }}>
                           <td className="px-4 py-3">
                             <Link
                               href={`/encounters/${doc.id}`}
-                              className="font-medium text-blue-700 hover:underline"
+                              className="font-medium hover:underline"
+                              style={{ color: "var(--brand-navy)" }}
                             >
                               {deriveDisplayName(doc)}
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-gray-600">{deriveFileType(doc)}</td>
-                          <td className="px-4 py-3 text-gray-600">{formatDate(doc.created_at)}</td>
+                          <td className="px-4 py-3" style={{ color: "var(--neutral-600)" }}>{deriveFileType(doc)}</td>
+                          <td className="px-4 py-3" style={{ color: "var(--neutral-600)" }}>{formatDate(doc.created_at)}</td>
                           <td className="px-4 py-3">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium" style={{ background: "var(--info-bg)", color: "var(--brand-navy)" }}>
                               {deriveOwnerInitials(patientName)}
                             </div>
                           </td>
@@ -1047,34 +1061,36 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-                  <p className="mt-1 text-sm text-gray-600">Patient portal messages and secure communications.</p>
+                  <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Messages</h1>
+                  <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>Patient portal messages and secure communications.</p>
                 </div>
               </div>
 
               {messages.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
-                  No messages found for this patient.
+                <div className="card">
+                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No messages found for this patient.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`rounded-2xl border p-4 shadow-sm ${
-                        msg.is_read ? "border-gray-200 bg-white" : "border-blue-200 bg-blue-50"
-                      }`}
+                      className="card"
+                      style={{ 
+                        background: msg.is_read ? "white" : "var(--info-bg)", 
+                        borderColor: msg.is_read ? "var(--neutral-200)" : "var(--info-border)" 
+                      }}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="font-semibold text-gray-900">{msg.subject || "No subject"}</div>
-                          <div className="mt-1 text-sm text-gray-600">{msg.body || "—"}</div>
-                          <div className="mt-2 text-xs text-gray-500">
+                          <div className="font-semibold" style={{ color: "var(--neutral-900)" }}>{msg.subject || "No subject"}</div>
+                          <div className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>{msg.body || "—"}</div>
+                          <div className="mt-2 text-xs" style={{ color: "var(--neutral-500)" }}>
                             From: {msg.sender_type || "Unknown"} • {formatDateTime(msg.created_at)}
                           </div>
                         </div>
                         {!msg.is_read && (
-                          <div className="ml-4 rounded-full bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+                          <div className="badge-info ml-4">
                             New
                           </div>
                         )}
@@ -1086,24 +1102,24 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
             </div>
           ) : activeTab === "payments" ? (
             <div className="space-y-6">
-              <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <section className="card">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Patient Billing</h1>
-                    <p className="mt-2 text-sm text-gray-600">
+                    <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Patient Billing</h1>
+                    <p className="mt-2 text-sm" style={{ color: "var(--neutral-600)" }}>
                       Patient balance, statements, payments, open charges, and accounting activity.
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <Link
                       href="/payments"
-                      className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm hover:bg-gray-50"
+                      className="btn-secondary"
                     >
                       Enter Payment
                     </Link>
                     <Link
                       href="/billing"
-                      className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm hover:bg-gray-50"
+                      className="btn-secondary"
                     >
                       Billing Center
                     </Link>
@@ -1112,33 +1128,33 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               </section>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-gray-500">Total balance</div>
-                  <div className="mt-2 text-2xl font-semibold text-gray-900">{formatMoney(estimatedBalance)}</div>
+                <div className="card metric-card">
+                  <div className="text-sm" style={{ color: "var(--neutral-500)" }}>Total balance</div>
+                  <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--neutral-900)" }}>{formatMoney(estimatedBalance)}</div>
                 </div>
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-gray-500">Charges</div>
-                  <div className="mt-2 text-2xl font-semibold text-gray-900">{formatMoney(totalCharges)}</div>
+                <div className="card metric-card">
+                  <div className="text-sm" style={{ color: "var(--neutral-500)" }}>Charges</div>
+                  <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--neutral-900)" }}>{formatMoney(totalCharges)}</div>
                 </div>
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-gray-500">Payments</div>
-                  <div className="mt-2 text-2xl font-semibold text-gray-900">
+                <div className="card metric-card">
+                  <div className="text-sm" style={{ color: "var(--neutral-500)" }}>Payments</div>
+                  <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--neutral-900)" }}>
                     {formatMoney(totalPaymentsPosted)}
                   </div>
                 </div>
               </div>
 
               <div className="grid gap-6 xl:grid-cols-2">
-                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-gray-900">Transactions</h2>
+                <section className="card">
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Transactions</h2>
                   {claims.length === 0 ? (
-                    <div className="mt-4 text-sm text-gray-600">No charges yet.</div>
+                    <div className="mt-4 text-sm" style={{ color: "var(--neutral-600)" }}>No charges yet.</div>
                   ) : (
                     <div className="mt-4 space-y-2">
                       {claims.map((claim) => (
-                        <div key={claim.id} className="rounded-xl border border-gray-200 px-4 py-3 text-sm">
-                          <div className="font-medium text-gray-900">{claim.claim_number ?? "Charge / Claim Record"}</div>
-                          <div className="mt-1 text-gray-600">
+                        <div key={claim.id} className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: "var(--neutral-200)" }}>
+                          <div className="font-medium" style={{ color: "var(--neutral-900)" }}>{claim.claim_number ?? "Charge / Claim Record"}</div>
+                          <div className="mt-1" style={{ color: "var(--neutral-600)" }}>
                             {claim.claim_status ?? "—"} • {formatMoney(claim.total_charge_amount)}
                           </div>
                         </div>
@@ -1147,9 +1163,9 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-gray-900">Statements</h2>
-                  <div className="mt-4 space-y-3 text-sm text-gray-700">
+                <section className="card">
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Statements</h2>
+                  <div className="mt-4 space-y-3 text-sm" style={{ color: "var(--neutral-700)" }}>
                     <div>Generate statement: available from patient billing workflow.</div>
                     <div>Statement history: not wired yet.</div>
                     <div>Credit cards / payment methods: optional future tab.</div>
@@ -1159,27 +1175,27 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
             </div>
           ) : activeTab === "insurance" ? (
             <div className="space-y-6">
-              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h1 className="text-2xl font-bold text-gray-900">Billing Settings</h1>
-                <p className="mt-2 text-sm text-gray-600">
+              <div className="card">
+                <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Billing Settings</h1>
+                <p className="mt-2 text-sm" style={{ color: "var(--neutral-600)" }}>
                   Insurance policies, eligibility checks, and payer configuration for {patientName}.
                 </p>
               </div>
 
               {insurancePolicies.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
-                  No insurance policies found for this patient.
+                <div className="card">
+                  <p className="text-sm" style={{ color: "var(--neutral-600)" }}>No insurance policies found for this patient.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {insurancePolicies.map((policy) => (
-                    <div key={policy.id} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div key={policy.id} className="card">
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-900">
+                          <h3 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>
                             {policy.plan_name || "Unnamed Insurance"}
                           </h3>
-                          <div className="mt-2 space-y-1 text-sm text-gray-600">
+                          <div className="mt-2 space-y-1 text-sm" style={{ color: "var(--neutral-600)" }}>
                             <div>
                               <span className="font-medium">Policy Number:</span> {policy.policy_number || "—"}
                             </div>
@@ -1199,13 +1215,9 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                         </div>
                         <div>
                           {policy.active_flag ? (
-                            <div className="rounded-lg bg-green-50 px-3 py-1 text-sm font-medium text-green-700">
-                              Active
-                            </div>
+                            <div className="badge-success">Active</div>
                           ) : (
-                            <div className="rounded-lg bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-                              Inactive
-                            </div>
+                            <div className="badge-error">Inactive</div>
                           )}
                         </div>
                       </div>
@@ -1214,20 +1226,20 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                 </div>
               )}
 
-              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Eligibility Verification</h2>
-                <p className="text-sm text-gray-600 mb-4">
+              <div className="card">
+                <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--brand-navy)" }}>Eligibility Verification</h2>
+                <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>
                   Check insurance eligibility and benefits for this patient.
                 </p>
-                <button className="rounded-lg border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700">
+                <button className="btn-primary">
                   Run Eligibility Check
                 </button>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
-              <p className="mt-4 text-sm text-gray-600">
+            <div className="card">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+              <p className="mt-4 text-sm" style={{ color: "var(--neutral-600)" }}>
                 This tab is currently in development. Content will be available soon.
               </p>
             </div>

@@ -193,44 +193,40 @@ export default function BillingPage() {
 
   return (
     <AppShell>
-      <main className="min-h-screen bg-gray-50">
+      <main className="min-h-screen" style={{ background: "var(--neutral-50)" }}>
         <div className="mx-auto max-w-7xl px-6 py-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Billing Workqueue</h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Billing Workqueue</h1>
+            <p className="mt-2 text-sm" style={{ color: "var(--neutral-600)" }}>
               Unified billing workspace with clearinghouse-driven routing.
             </p>
           </div>
 
-          <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <section className="card mb-6">
             <div className="grid gap-4 md:grid-cols-5">
               {kpis.map((item) => (
                 <button
                   key={item.label}
                   type="button"
                   onClick={() => setActiveQueue(item.queue)}
-                  className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-left hover:bg-white"
+                  className="metric-card text-left"
+                  style={{ background: "var(--neutral-50)", borderColor: "var(--neutral-200)" }}
                 >
-                  <div className="text-sm text-gray-500">{item.label}</div>
-                  <div className="mt-2 text-xl font-semibold text-gray-900">{item.value}</div>
+                  <div className="text-sm" style={{ color: "var(--neutral-500)" }}>{item.label}</div>
+                  <div className="mt-2 text-xl font-semibold" style={{ color: "var(--brand-navy)" }}>{item.value}</div>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <section className="card mb-6">
             <div className="flex flex-wrap gap-2">
               {(Object.keys(queueLabels) as QueueKey[]).map((key) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveQueue(key)}
-                  className={[
-                    "rounded-xl px-3 py-2 text-sm transition",
-                    activeQueue === key
-                      ? "bg-gray-900 text-white"
-                      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                  ].join(" ")}
+                  className={activeQueue === key ? "btn-primary" : "btn-secondary"}
                 >
                   {queueLabels[key]}
                 </button>
@@ -239,19 +235,19 @@ export default function BillingPage() {
           </section>
 
           {loading ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
-              Loading billing workqueue...
+            <div className="card">
+              <p className="text-sm" style={{ color: "var(--neutral-600)" }}>Loading billing workqueue...</p>
             </div>
           ) : error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
+            <div className="card" style={{ background: "var(--error-bg)", borderColor: "var(--error-border)", color: "var(--error-text)" }}>
               {error}
             </div>
           ) : (
-            <section className="rounded-2xl border border-gray-200 bg-white p-0 shadow-sm overflow-hidden">
+            <section className="card p-0 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <table className="min-w-full divide-y" style={{ borderColor: "var(--neutral-200)" }}>
+                  <thead style={{ background: "var(--table-header)" }}>
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--neutral-700)" }}>
                       <th className="px-4 py-3">Patient</th>
                       <th className="px-4 py-3">DOS</th>
                       <th className="px-4 py-3">Provider</th>

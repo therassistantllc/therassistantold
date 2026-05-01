@@ -51,12 +51,12 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <main className="min-h-screen bg-gray-50">
+      <main className="min-h-screen" style={{ background: "var(--neutral-50)" }}>
         <div className="mx-auto max-w-7xl px-6 py-8">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">THERASSISTANT Home Command Center</h1>
-              <p className="mt-2 text-sm text-gray-600">
+              <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>THERASSISTANT Home Command Center</h1>
+              <p className="mt-2 text-sm" style={{ color: "var(--neutral-600)" }}>
                 Therapy-first, role-aware, and workflow-driven.
               </p>
             </div>
@@ -65,30 +65,32 @@ export default function HomePage() {
               <input
                 type="text"
                 placeholder="Search patient, claim, ticket, or provider"
-                className="w-72 rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                className="input-field w-72"
               />
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
-                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                className="input-field"
               >
                 <option value="admin_biller">Admin / biller</option>
                 <option value="clinician">Clinician</option>
                 <option value="credentialing">Credentialing user</option>
                 <option value="owner_executive">Owner / executive</option>
               </select>
-              <div className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm">
+              <div className="rounded-xl border px-4 py-2.5 text-sm" style={{ borderColor: "var(--neutral-300)", background: "white" }}>
                 Demo User
               </div>
             </div>
           </div>
 
           {loading ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
-              Loading home command center...
+            <div className="card">
+              <p className="text-sm" style={{ color: "var(--neutral-600)" }}>
+                Loading home command center...
+              </p>
             </div>
           ) : error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
+            <div className="card" style={{ background: "var(--error-bg)", borderColor: "var(--error-border)", color: "var(--error-text)" }}>
               {error}
             </div>
           ) : data ? (

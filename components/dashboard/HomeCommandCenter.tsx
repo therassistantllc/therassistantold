@@ -59,18 +59,18 @@ export default function HomeCommandCenter({ data }: { data: DashboardData }) {
         </div>
 
         <div className="space-y-6">
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
-            <p className="mt-1 text-sm text-gray-600">Start common workflows fast.</p>
+          <section className="card">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Quick Actions</h2>
+            <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>Start common workflows fast.</p>
             <div className="mt-4">
               <QuickActionsMenu />
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Active Role</h2>
-            <div className="mt-2 text-sm text-gray-700">{role}</div>
-            <div className="mt-1 text-sm text-gray-500">{data.organization?.name ?? "Organization"}</div>
+          <section className="card">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Active Role</h2>
+            <div className="mt-2 text-sm" style={{ color: "var(--neutral-700)" }}>{role}</div>
+            <div className="mt-1 text-sm" style={{ color: "var(--neutral-500)" }}>{data.organization?.name ?? "Organization"}</div>
           </section>
         </div>
       </div>
