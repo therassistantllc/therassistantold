@@ -74,6 +74,9 @@ export default function EncounterDetailPage() {
   const [serviceLines, setServiceLines] = useState<ServiceLineRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingClaim, setCreatingClaim] = useState(false);
+  const [claimMessage, setClaimMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [existingClaimId, setExistingClaimId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!encounterId) return;
@@ -84,11 +87,12 @@ export default function EncounterDetailPage() {
       setLoading(true);
       setError(null);
 
-      const [{ data: encounterData, error: encounterError }, { data: diagnosesData }, { data: serviceLinesData }] =
+      const [{ data: encounterData, error: encounterError }, { data: diagnosesData }, { data: serviceLinesData }, { data: existingClaim }] =
         await Promise.all([
           supabase.from("encounters").select("*").eq("id", encounterId).is("archived_at", null).single(),
           supabase.from("encounter_diagnoses").select("*").eq("encounter_id", encounterId).is("archived_at", null),
           supabase.from("encounter_service_lines").select("*").eq("encounter_id", encounterId).is("archived_at", null),
+          supabase.from("claims").select("id").eq("encounter_id", encounterId).is("archived_at", null).maybeSingle(),
         ]);
 
       if (!active) return;
@@ -98,6 +102,7 @@ export default function EncounterDetailPage() {
         setEncounter(null);
         setDiagnoses([]);
         setServiceLines([]);
+        setExistingClaimId(null);
         setLoading(false);
         return;
       }
@@ -105,6 +110,7 @@ export default function EncounterDetailPage() {
       setEncounter(encounterData as EncounterRecord);
       setDiagnoses((diagnosesData ?? []) as DiagnosisRecord[]);
       setServiceLines((serviceLinesData ?? []) as ServiceLineRecord[]);
+      setExistingClaimId(existingClaim?.id || null);
       setLoading(false);
     }
 
@@ -114,6 +120,38 @@ export default function EncounterDetailPage() {
       active = false;
     };
   }, [encounterId]);
+
+  async function handleCreateClaim() {
+    if (!encounterId) return;
+
+    setCreatingClaim(true);
+    setClaimMessage(null);
+
+    try {
+      const response = await fetch("/api/claims/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          encounterId,
+          organizationId: encounter?.organization_id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setClaimMessage({ type: "success", text: result.message });
+        setExistingClaimId(result.claim.id);
+      } else {
+        setClaimMessage({ type: "error", text: result.error || "Failed to create claim" });
+      }
+    } catch (error) {
+      setClaimMessage({ type: "error", text: "Network error" });
+    } finally {
+      setCreatingClaim(false);
+      setTimeout(() => setClaimMessage(null), 5000);
+    }
+  }
 
   return (
     <AppShell>
@@ -277,6 +315,47 @@ export default function EncounterDetailPage() {
                     </table>
                   </div>
                 )}
+              </section>
+
+              <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-semibold text-blue-900">Billing Actions</h2>
+                
+                {existingClaimId ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-green-800">
+                      ✓ Claim created for this encounter
+                    </p>
+                    <Link
+                      href={`/claims/${existingClaimId}`}
+                      className="inline-block rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      View Claim
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-blue-800">
+                      This encounter is ready for billing. Create a claim to submit to the clearinghouse.
+                    </p>
+                    <button
+                      onClick={() => void handleCreateClaim()}
+                      disabled={creatingClaim}
+                      className="rounded-xl bg-green-600 px-6 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {creatingClaim ? "Creating..." : "Create Claim"}
+                    </button>
+                  </div>
+                )}
+
+                {claimMessage && (
+                  <div className={`mt-3 rounded-lg px-4 py-2 text-sm ${claimMessage.type === "success" ? "bg-green-100 text-green-800 border border-green-200" : "bg-red-100 text-red-800 border border-red-200"}`}>
+                    {claimMessage.text}
+                  </div>
+                )}
+
+                <div className="mt-4 text-xs text-blue-700">
+                  <strong>Note:</strong> Creating a claim will generate an 837 transaction record and add it to the workqueue for submission.
+                </div>
               </section>
 
               <div className="flex gap-3">
