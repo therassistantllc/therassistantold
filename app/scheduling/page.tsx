@@ -14,6 +14,7 @@ import { useActiveContext } from "@/lib/store/activeContext";
 
 interface AppointmentRecord {
   id: string;
+  organization_id?: string | null;
   client_id?: string | null;
   provider_id?: string | null;
   insurance_policy_id?: string | null;
