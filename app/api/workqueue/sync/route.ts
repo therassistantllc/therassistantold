@@ -10,11 +10,8 @@ function generateUuid() {
 
 /**
  * Auto-generate workqueue items based on system state
- * - eligibility_needed: appointments with no eligibility or stale eligibility
- * - ready_to_bill: encounters without claims
- * - no_response: submitted claims without responses
- * - rejected: rejected claims
- * - era_missing: claims missing ERA responses
+ * Covers: eligibility, billing readiness, claim lifecycle, payments, mailroom, VCC, check-ins
+ * Implements idempotent duplicate prevention
  */
 export async function POST(request: Request) {
   try {
@@ -30,49 +27,51 @@ export async function POST(request: Request) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const itemsCreated = [];
 
-    // 1. Find appointments needing eligibility checks
-    const { data: appointmentsNeedingEligibility } = await supabase
-      .from("appointment_eligibility_status")
-      .select("appointment_id, patient_id, eligibility_status, last_checked_at")
-      .in("eligibility_status", ["no_policy", "not_checked", "stale"])
+    // Helper function to check for existing workqueue item
+    async function hasExistingItem(sourceId: string, workType: string) {
+      const { data } = await supabase
+        .from("workqueue_items")
+        .select("id")
+        .eq("source_object_id", sourceId)
+        .eq("work_type", workType)
+        .in("work_status", ["queued", "in_progress"])
+        .maybeSingle();
+      return !!data;
+    }
+
+    // 1. ELIGIBILITY: Find checks that are not_checked or stale
+    const { data: eligibilityChecks } = await supabase
+      .from("eligibility_checks")
+      .select("id, appointment_id, patient_id, organization_id, eligibility_status, checked_at")
+      .or(`eligibility_status.eq.not_checked,checked_at.lt.${thirtyDaysAgo}`)
       .is("archived_at", null);
 
-    if (appointmentsNeedingEligibility) {
-      for (const apt of appointmentsNeedingEligibility) {
-        // Check if workqueue item already exists
-        const { data: existing } = await supabase
+    if (eligibilityChecks) {
+      for (const check of eligibilityChecks) {
+        if (await hasExistingItem(check.id, "eligibility_needed")) continue;
+
+        const payload = {
+          id: generateUuid(),
+          organization_id: check.organization_id,
+          title: `Eligibility check needed - ${check.eligibility_status || "stale"}`,
+          work_type: "eligibility_needed",
+          work_status: "queued",
+          priority: "medium",
+          source_object_type: "eligibility_check",
+          source_object_id: check.id,
+          patient_id: check.patient_id,
+          appointment_id: check.appointment_id,
+          created_at: now,
+          updated_at: now,
+        };
+
+        const { data: created } = await supabase
           .from("workqueue_items")
-          .select("id")
-          .eq("appointment_id", apt.appointment_id)
-          .eq("work_type", "eligibility_needed")
-          .eq("work_status", "queued")
-          .maybeSingle();
+          .insert(payload)
+          .select()
+          .single();
 
-        if (!existing) {
-          const payload = {
-            id: generateUuid(),
-            title: `Eligibility check needed - ${apt.eligibility_status}`,
-            work_type: "eligibility_needed",
-            work_status: "queued",
-            priority: "medium",
-            source_object_type: "appointment",
-            source_object_id: apt.appointment_id,
-            patient_id: apt.patient_id,
-            appointment_id: apt.appointment_id,
-            created_at: now,
-            updated_at: now,
-          };
-
-          const { data: created } = await supabase
-            .from("workqueue_items")
-            .insert(payload)
-            .select()
-            .single();
-
-          if (created) {
-            itemsCreated.push(created);
-          }
-        }
+        if (created) itemsCreated.push(created);
       }
     }
 
