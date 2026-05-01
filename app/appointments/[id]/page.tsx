@@ -1,7 +1,7 @@
 import AppShell from "@/components/layout/AppShell";
 import StartEncounterButton from "@/components/appointments/StartEncounterButton";
-import { createClient } from "@/lib/supabase/server";
-import type { AppointmentRecord } from "@/lib/types/appointmentFirstWorkflow";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import type { AppointmentRecord } from "@/lib/types";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -19,7 +19,7 @@ export default async function AppointmentDetailPage({
   params: Promise<{ id: string }> | { id: string };
 }) {
   const resolvedParams = await Promise.resolve(params);
-  const supabase = createClient();
+  const supabase = createServerSupabaseAdminClient();
 
   const { data: appointment, error } = await supabase
     .from("appointments")
