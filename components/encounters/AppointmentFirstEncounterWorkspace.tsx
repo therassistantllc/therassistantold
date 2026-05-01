@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import type {
   AppointmentRecord,
-  ClinicalNoteRecord,
-  EncounterDiagnosisRecord,
   EncounterRecord,
+  EncounterDiagnosisRecord,
   EncounterServiceLineRecord,
   WorkqueueItemRecord,
-} from "@/lib/types/appointmentFirstWorkflow";
+} from "@/lib/types";
 import { calculateEncounterReadiness, getEncounterDisplayStatus, getEncounterStatusTone } from "@/lib/encounters/status";
 import ClinicalDocumentationPanel from "@/components/encounters/ClinicalDocumentationPanel";
 import EncounterReadinessPanel from "@/components/encounters/EncounterReadinessPanel";
