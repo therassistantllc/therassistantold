@@ -40,6 +40,8 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const organizationId = connection.organization_id;
 
+    const duplicateDetectionKey = `test-connection-${integrationName}-${now.slice(0, 13)}`;
+
     // Create external_transactions record for test connection
     const transactionPayload = {
       id: generateUuid(),
@@ -50,9 +52,11 @@ export async function POST(request: Request) {
       message_format: "json",
       envelope_format: "none",
       processing_mode: "sandbox",
-      processing_status: "completed",
+      environment_flag: "test",
+      processing_status: "succeeded",
       sender_id: "therassistant",
       receiver_id: "office_ally",
+      duplicate_detection_key: duplicateDetectionKey,
       request_payload: {
         integration_name: integrationName,
         test_type: "connectivity",
@@ -95,7 +99,7 @@ export async function POST(request: Request) {
       id: generateUuid(),
       external_transaction_id: transaction.id,
       attempt_number: 1,
-      attempt_status: "parsed",
+      attempt_status: "succeeded",
       http_status_code: 200,
       request_headers: {
         "Content-Type": "application/json",

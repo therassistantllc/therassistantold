@@ -152,20 +152,25 @@ export async function POST(request: Request) {
     // Create external_transactions record for sandbox 270/271
     const mockResponse = generateMockEligibilityResponse();
 
+    const duplicateDetectionKey = `eligibility-${eligibilityCheck.patient_id}-${eligibilityCheck.insurance_policy_id}-${now.slice(0, 10)}`;
+
     const transactionPayload = {
       id: generateUuid(),
       organization_id: orgId,
       integration_connection_id: connection?.id || null,
-      transaction_type: "eligibility",
-      payload_type: "270",
+      transaction_type: "270",
+      payload_type: "eligibility_request",
+      payload_version: "005010X279A1",
       message_format: "x12",
-      envelope_format: "none",
+      envelope_format: "x12",
       processing_mode: "sandbox",
-      processing_status: "completed",
+      environment_flag: "test",
+      processing_status: "succeeded",
       sender_id: "therassistant",
       receiver_id: "office_ally",
       source_object_type: "eligibility_check",
       source_object_id: eligibilityCheck.id,
+      duplicate_detection_key: duplicateDetectionKey,
       request_payload: {
         patient_id: eligibilityCheck.patient_id,
         appointment_id: eligibilityCheck.appointment_id,
@@ -204,7 +209,7 @@ export async function POST(request: Request) {
       id: generateUuid(),
       external_transaction_id: transaction.id,
       attempt_number: 1,
-      attempt_status: "parsed",
+      attempt_status: "succeeded",
       http_status_code: 200,
       request_headers: {
         "Content-Type": "application/edi-x12",
