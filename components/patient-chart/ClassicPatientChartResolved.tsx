@@ -25,7 +25,6 @@ import type {
   AppointmentRecord,
   EncounterRecord,
   ClaimRecord,
-  InsurancePolicyRecord,
   PaymentPostingRecord,
 } from "@/lib/types";
 
