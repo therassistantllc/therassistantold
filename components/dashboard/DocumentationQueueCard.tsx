@@ -15,10 +15,10 @@ export default function DocumentationQueueCard({ rows }: { rows: DocumentationRo
     <DashboardCard
       title="Documentation Queue"
       description="Completed appointments missing notes, drafts, unsigned notes, and coding gaps."
-      action={<Link href="/encounters?status=missing_note" className="text-sm text-blue-700 hover:underline">Open documentation queue</Link>}
+      action={<Link href="/workqueue?queue=ready_to_bill" className="text-sm text-blue-700 hover:underline">Open doc queue →</Link>}
     >
       {rows.length === 0 ? (
-        <EmptyState title="Documentation clear" description="No urgent note or coding tasks." />
+        <EmptyState title="Documentation clear" description="All encounters are documented and ready for billing." />
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -26,10 +26,8 @@ export default function DocumentationQueueCard({ rows }: { rows: DocumentationRo
               <div className="text-sm font-semibold text-gray-900">{row.title}</div>
               <div className="mt-1 text-sm text-gray-600">{row.status}</div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href={row.patientId ? `/patients/${row.patientId}/documents` : "/patients"} className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open note</Link>
+                <Link href={row.patientId ? `/patients/${row.patientId}` : "/patients"} className="rounded-xl bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700">Open patient</Link>
                 <Link href="/encounters/new" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Create note</Link>
-                <Link href="/encounters" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Finalize note</Link>
-                <Link href="/billing" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Route to coding review</Link>
               </div>
             </div>
           ))}
