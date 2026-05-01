@@ -1,11 +1,8 @@
 // File: app/patients/[id]/patient-billing/page.tsx
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
-import type { ClaimRecord, PaymentPostingRecord } from "@/lib/types";
+import ClassicPatientChartResolved from "@/components/patient-chart/ClassicPatientChartResolved";
 
 function formatMoney(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "—";

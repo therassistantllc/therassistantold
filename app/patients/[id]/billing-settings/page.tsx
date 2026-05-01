@@ -1,14 +1,8 @@
 // File: app/patients/[id]/billing-settings/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
-import EligibilityPanel from "@/components/clearinghouse/EligibilityPanel";
-import EligibilityHistoryTable from "@/components/clearinghouse/EligibilityHistoryTable";
-import EdiTransactionLog from "@/components/clearinghouse/EdiTransactionLog";
-import type { EdiTransaction, EligibilityCheck } from "@/types/clearinghouse";
+import ClassicPatientChartResolved from "@/components/patient-chart/ClassicPatientChartResolved";
 
 interface InsurancePolicyRecord {
   id: string;

@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import AppShell from "@/components/layout/AppShell";
-import { supabase } from "@/lib/supabase/client";
+import ClassicPatientChartResolved from "@/components/patient-chart/ClassicPatientChartResolved";
 
 interface Message {
   id: string;

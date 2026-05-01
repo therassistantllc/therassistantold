@@ -1,8 +1,8 @@
 // app/patients/[id]/documents/page.tsx
-import Link from "next/link";
-import { notFound } from "next/navigation";
+"use client";
 
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { useParams } from "next/navigation";
+import ClassicPatientChartResolved from "@/components/patient-chart/ClassicPatientChartResolved";
 
 type PageProps = {
   params: Promise<{ id: string }>;

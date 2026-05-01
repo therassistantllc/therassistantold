@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import AppShell from "@/components/layout/AppShell";
-import { supabase } from "@/lib/supabase/client";
+import { useParams } from "next/navigation";
+import ClassicPatientChartResolved from "@/components/patient-chart/ClassicPatientChartResolved";
 
 interface PatientFormState {
   first_name: string;
