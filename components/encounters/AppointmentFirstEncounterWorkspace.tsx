@@ -14,6 +14,13 @@ import EncounterReadinessPanel from "@/components/encounters/EncounterReadinessP
 import BillingWorkqueuePanel from "@/components/encounters/BillingWorkqueuePanel";
 import RouteToBillerPanel from "@/components/encounters/RouteToBillerPanel";
 
+interface ClinicalNoteRecord {
+  id: string;
+  locked?: boolean | null;
+  note_type?: string | null;
+  created_at?: string | null;
+}
+
 interface AppointmentFirstEncounterWorkspaceProps {
   encounter: EncounterRecord;
   appointment: AppointmentRecord | null;

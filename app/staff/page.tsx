@@ -1,0 +1,1 @@
+export default function Staff(){return <main className="p-6"><h1 className="text-3xl">Staff</h1><p>Clinician database: Krystin Butler, Lena Ortiz LPC.</p></main>}
