@@ -28,18 +28,21 @@ The implementation expects these Supabase tables to exist:
 ### 2. Pages Created
 
 #### `/settings/clearinghouse` - Main clearinghouse settings page
+
 - Displays Office Ally connection status from `integration_connections`
 - Shows mode (sandbox/live), connection status, supported transactions
 - Provides "Test Connection", "View Transaction Log", and "Configure" buttons
 - Real-time display of last check timestamp
 
 #### `/settings/clearinghouse/transactions` - Transaction log viewer
+
 - Lists all `external_transactions` records
 - Filterable by transaction type and processing status
 - Shows sender/receiver, timestamps, source objects, and processing details
 - Real-time refresh capability
 
 #### `/settings/clearinghouse/configure` - Configuration page
+
 - Currently a placeholder showing sandbox status
 - Emphasizes server-side credential storage
 - Warns that live transactions are disabled
@@ -47,6 +50,7 @@ The implementation expects these Supabase tables to exist:
 ### 3. API Routes Created
 
 #### `POST /api/integrations/office-ally/test`
+
 **Purpose**: Test the Office Ally connection in sandbox mode
 
 **Request Body**:
@@ -75,6 +79,7 @@ The implementation expects these Supabase tables to exist:
 - All server-side only - no credentials exposed
 
 #### `POST /api/eligibility/check`
+
 **Purpose**: Run eligibility verification for an appointment or existing check
 
 **Request Body**:
@@ -120,6 +125,7 @@ The implementation expects these Supabase tables to exist:
 - No live Office Ally API calls
 
 #### `GET /api/integrations/connections`
+
 **Purpose**: Fetch all integration connections
 
 **Response**:
@@ -140,6 +146,7 @@ The implementation expects these Supabase tables to exist:
 ```
 
 #### `GET /api/integrations/transactions`
+
 **Purpose**: Fetch transaction history
 
 **Query Parameters**:
@@ -178,6 +185,7 @@ Created `/types/integrations.ts` with complete TypeScript interfaces:
 ## Usage Flow
 
 ### Testing Connection
+
 1. Navigate to Settings > Clearinghouse
 2. Click "Test Connection" button
 3. System creates transaction records
@@ -185,6 +193,7 @@ Created `/types/integrations.ts` with complete TypeScript interfaces:
 5. Displays success message
 
 ### Running Eligibility Check
+
 ```javascript
 // From your code
 const response = await fetch('/api/eligibility/check', {
@@ -201,6 +210,7 @@ const data = await response.json();
 ```
 
 ### Viewing Transaction Log
+
 1. Navigate to Settings > Clearinghouse > View Transaction Log
 2. Filter by transaction type or status
 3. See all external_transactions with timestamps and details
@@ -208,6 +218,7 @@ const data = await response.json();
 ## Mock Data Generated
 
 ### Eligibility Check (270/271)
+
 - Status: "active"
 - Coverage: Jan 1 - Dec 31 (current year)
 - Copay: $25.00
@@ -216,6 +227,7 @@ const data = await response.json();
 - Includes mock X12 270 and 271 EDI segments
 
 ### Test Connection
+
 - Status: "completed"
 - Message: "Sandbox connection test successful"
 - Connection healthy: true
