@@ -265,7 +265,7 @@ When ready to enable live Office Ally transactions:
 
 ## Files Created
 
-```
+```plaintext
 types/integrations.ts
 app/settings/clearinghouse/page.tsx
 app/settings/clearinghouse/transactions/page.tsx

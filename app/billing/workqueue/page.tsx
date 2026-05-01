@@ -48,75 +48,89 @@ export default function BillingWorkqueuePage() {
   const [filingTargetId, setFilingTargetId] = useState<string>("");
   const [filingComments, setFilingComments] = useState<string>("");
   const [filingLoading, setFilingLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   // Global Active Context
   const { setContext } = useActiveContext();
 
-  useEffect(() => {
-    let active = true;
+  async function loadQueue() {
+    setLoading(true);
+    setError(null);
 
-    async function loadQueue() {
-      setLoading(true);
-      setError(null);
+    const { data: workqueueData, error: workqueueError } = await supabase
+      .from("workqueue_items")
+      .select("*")
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-      const { data: workqueueData, error: workqueueError } = await supabase
-        .from("workqueue_items")
+    if (workqueueError) {
+      setError(workqueueError.message);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    const rows = (workqueueData ?? []) as WorkqueueItemRecord[];
+    const workqueueIds = rows.map((row) => row.id);
+
+    let ticketsByWorkqueueId = new Map<string, SupportTicketRecord>();
+
+    if (workqueueIds.length > 0) {
+      const { data: ticketData, error: ticketError } = await supabase
+        .from("support_tickets")
         .select("*")
-        .is("archived_at", null)
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .in("workqueue_item_id", workqueueIds)
+        .is("archived_at", null);
 
-      if (!active) return;
-
-      if (workqueueError) {
-        setError(workqueueError.message);
+      if (ticketError) {
+        setError(ticketError.message);
         setItems([]);
         setLoading(false);
         return;
       }
 
-      const rows = (workqueueData ?? []) as WorkqueueItemRecord[];
-      const workqueueIds = rows.map((row) => row.id);
-
-      let ticketsByWorkqueueId = new Map<string, SupportTicketRecord>();
-
-      if (workqueueIds.length > 0) {
-        const { data: ticketData, error: ticketError } = await supabase
-          .from("support_tickets")
-          .select("*")
-          .in("workqueue_item_id", workqueueIds)
-          .is("archived_at", null);
-
-        if (!active) return;
-
-        if (ticketError) {
-          setError(ticketError.message);
-          setItems([]);
-          setLoading(false);
-          return;
-        }
-
-        ticketsByWorkqueueId = new Map(
-          ((ticketData ?? []) as SupportTicketRecord[])
-            .filter((ticket) => ticket.workqueue_item_id)
-            .map((ticket) => [ticket.workqueue_item_id as string, ticket])
-        );
-      }
-
-      const merged = rows.map((row) => ({
-        ...row,
-        support_ticket: ticketsByWorkqueueId.get(row.id) ?? null,
-      }));
-
-      setItems(merged);
-      setLoading(false);
+      ticketsByWorkqueueId = new Map(
+        ((ticketData ?? []) as SupportTicketRecord[])
+          .filter((ticket) => ticket.workqueue_item_id)
+          .map((ticket) => [ticket.workqueue_item_id as string, ticket])
+      );
     }
 
-    void loadQueue();
+    const merged = rows.map((row) => ({
+      ...row,
+      support_ticket: ticketsByWorkqueueId.get(row.id) ?? null,
+    }));
 
-    return () => {
-      active = false;
-    };
+    setItems(merged);
+    setLoading(false);
+  }
+
+  async function syncWorkqueue() {
+    setSyncing(true);
+    try {
+      const response = await fetch("/api/workqueue/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to sync workqueue");
+      }
+
+      alert(`Sync complete: ${data.itemsCreated || 0} new items created`);
+      await loadQueue();
+    } catch (error: any) {
+      alert(`Sync error: ${error.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadQueue();
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -338,25 +352,35 @@ export default function BillingWorkqueuePage() {
     <AppShell>
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Billing Work Queue</h1>
-            <p className="mt-2 text-sm text-gray-600">
-              Live queue data from workqueue_items and linked support_tickets.
-            </p>
-            {workTypeFilter && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                <span className="text-sm text-blue-900">
-                  Filtered by: <strong>{getWorkTypeLabel(workTypeFilter)}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => router.push("/billing/workqueue")}
-                  className="ml-auto text-xs text-blue-600 hover:text-blue-800"
-                >
-                  Clear filter
-                </button>
-              </div>
-            )}
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Billing Work Queue</h1>
+              <p className="mt-2 text-sm text-gray-600">
+                Live queue data from workqueue_items and linked support_tickets.
+              </p>
+              {workTypeFilter && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                  <span className="text-sm text-blue-900">
+                    Filtered by: <strong>{getWorkTypeLabel(workTypeFilter)}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/billing/workqueue")}
+                    className="ml-auto text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={syncWorkqueue}
+              disabled={syncing}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync Workqueue"}
+            </button>
           </div>
 
           <div className="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-4">
