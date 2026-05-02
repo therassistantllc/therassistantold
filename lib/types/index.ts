@@ -216,7 +216,7 @@ export interface ClaimStatusInquiryRecord {
   payer_status_text?: string | null;
   response_summary?: string | null;
   requested_at?: string | null;
-  responded_at?: string | null;
+  received_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   created_by_user_id?: string | null;

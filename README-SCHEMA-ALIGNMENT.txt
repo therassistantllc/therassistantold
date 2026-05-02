@@ -19,6 +19,6 @@ What this aligns:
 - insurance_policies uses policy_number and priority
 - encounter_service_lines uses rendering_provider_id and sequence_number
 - claim_submissions uses clearinghouse_reference and external_transaction_id
-- claim_status_inquiries uses responded_at and payer status fields
+- claim_status_inquiries uses received_at and payer status fields
 - payment_postings uses total_posted_amount, posting_reference, and payment_import_item_id
 - eligibility_checks uses checked_at, external_transaction_id, and response_summary

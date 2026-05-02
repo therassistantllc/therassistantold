@@ -251,7 +251,7 @@ const schemaTargets: Array<{ tableName: string; expectedColumns: string[] }> = [
       "payer_status_text",
       "response_summary",
       "requested_at",
-      "responded_at",
+      "received_at",
       "created_at",
       "updated_at",
       "created_by_user_id",

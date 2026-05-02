@@ -118,7 +118,7 @@ export default function ClaimStatusPage() {
                           <td className="px-4 py-3">{row.external_transaction_id ?? "—"}</td>
                           <td className="px-4 py-3">{row.payer_status_code ?? "—"}</td>
                           <td className="px-4 py-3">{row.payer_status_text ?? "—"}</td>
-                          <td className="px-4 py-3">{formatDateTime(row.responded_at)}</td>
+                          <td className="px-4 py-3">{formatDateTime(row.received_at)}</td>
                           <td className="px-4 py-3">{row.response_summary ?? "—"}</td>
                         </tr>
                       ))
