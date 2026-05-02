@@ -577,13 +577,11 @@ export function ActivePatientChart({ patientId }: ActivePatientChartProps) {
           Therassistant
         </div>
         <nav className="ta-mainnav">
-          <Link href="/workqueue">To-Do</Link>
+          <Link href="/billing/workqueue">To-Do</Link>
           <Link href="/scheduling">Scheduling</Link>
           <Link href="/patients" className="active">Patients</Link>
-          <Link href="/staff">Staff</Link>
           <Link href="/billing">Billing</Link>
-          <Link href="/payers">Payers</Link>
-          <Link href="/library">Library</Link>
+          <Link href="/tickets">Tickets</Link>
         </nav>
         <div className="ta-icons">👤 🔍</div>
       </header>
@@ -711,7 +709,7 @@ export function ActivePatientChart({ patientId }: ActivePatientChartProps) {
             <table className="classic-table">
               <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Clinician</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                <tr><td>4/28/2026</td><td>10:00 AM</td><td>Follow-up</td><td><Link href="/staff">Krystin Butler</Link></td><td>Scheduled</td><td><button className="link" onClick={() => notify("Encounter started from appointment.")}>Start Encounter</button></td></tr>
+                <tr><td>4/28/2026</td><td>10:00 AM</td><td>Follow-up</td><td>Krystin Butler</td><td>Scheduled</td><td><button className="link" onClick={() => notify("Encounter started from appointment.")}>Start Encounter</button></td></tr>
                 {appointmentLog.map((item, index) => <tr key={index}><td>Saved</td><td>—</td><td colSpan={4}>{item}</td></tr>)}
               </tbody>
             </table>
@@ -738,7 +736,7 @@ export function ActivePatientChart({ patientId }: ActivePatientChartProps) {
                     <td>{doc[0]} <button className="link" onClick={() => setModal("note")}>{doc[1]}</button> <span style={{ color: "#aaa", fontSize: 10 }}>{doc[2]}</span></td>
                     <td>{doc[3]}</td>
                     <td>{doc[4]}</td>
-                    <td><Link href="/staff">{doc[5]}</Link></td>
+                    <td>{doc[5]}</td>
                     <td>{doc[6]}</td>
                     <td>↗ ✎ ☁</td>
                   </tr>
@@ -822,7 +820,7 @@ export function ActivePatientChart({ patientId }: ActivePatientChartProps) {
             <h2 className="section-title">Clinicians</h2>
             <table className="classic-table">
               <thead><tr><th>Clinician</th><th>Role</th><th>Assigned</th></tr></thead>
-              <tbody><tr><td><Link href="/staff">Krystin Butler</Link></td><td>Primary clinician</td><td>Yes</td></tr></tbody>
+              <tbody><tr><td>Krystin Butler</td><td>Primary clinician</td><td>Yes</td></tr></tbody>
             </table>
           </section>
         )}

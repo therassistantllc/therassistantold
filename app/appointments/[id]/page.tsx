@@ -88,7 +88,7 @@ function AppointmentContent({
             <h2 className="mt-4 text-2xl font-bold text-slate-950">
               {appointment.appointment_type ?? "Clinical appointment"}
             </h2>
-            <p className="mt-2 text-slate-600">{appointment.reason_for_visit ?? "No reason recorded."}</p>
+            <p className="mt-2 text-slate-600">{appointment.reason ?? "No reason recorded."}</p>
           </div>
 
           {encounter?.id ? (

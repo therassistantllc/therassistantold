@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
     // Helper function to check for existing workqueue item
     async function hasExistingItem(sourceId: string, workType: string) {
+      if (!supabase) return false;
       const { data } = await supabase
         .from("workqueue_items")
         .select("id")

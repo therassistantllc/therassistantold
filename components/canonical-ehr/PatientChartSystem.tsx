@@ -191,7 +191,7 @@ export default function PatientChartSystem({ patientId, initialTab = "profile" }
               <button className={styles.button} onClick={() => setShowSchedulePanel((value) => !value)}>Schedule Appointment</button>
               <button className={styles.button} onClick={() => setShowDocumentUpload((value) => !value)}>Upload Document</button>
               <button className={classNames(styles.button, styles.successButton)} onClick={() => setShowPaymentPanel((value) => !value)}>Post Payment</button>
-              <Link className={classNames(styles.button, styles.warningButton)} href="/workqueue">Billing Actions</Link>
+              <Link className={classNames(styles.button, styles.warningButton)} href="/billing/workqueue">Billing Actions</Link>
             </div>
           </div>
 

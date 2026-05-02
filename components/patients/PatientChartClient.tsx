@@ -165,7 +165,7 @@ export default function PatientChartClient({ patient }: { patient: PatientChartP
             <Link href="/patients" className="hover:underline">
               Patient
             </Link>
-            <Link href="/workqueue" className="hover:underline">
+            <Link href="/billing/workqueue" className="hover:underline">
               To-Do
             </Link>
             <Link href="/scheduling" className="hover:underline">
@@ -282,7 +282,7 @@ export default function PatientChartClient({ patient }: { patient: PatientChartP
                   <ActionButton onClick={() => setNotice("New reminder created.")}>New Reminder</ActionButton>
                 </div>
                 <div className="p-4">
-                  <Link href="/workqueue" className="font-semibold text-[#1d74b7] underline">
+                  <Link href="/billing/workqueue" className="font-semibold text-[#1d74b7] underline">
                     Open full To-Do Items list
                   </Link>
                   <table className="mt-4 w-full border-collapse text-sm">

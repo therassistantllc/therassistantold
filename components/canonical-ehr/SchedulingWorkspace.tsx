@@ -138,7 +138,6 @@ export default function SchedulingWorkspace() {
         </div>
         <div className="sch-actions">
           <Button tone="primary" onClick={() => setShowForm(true)}>Schedule Appointment</Button>
-          <a className="sch-link" href="/work-schedule">Manage Work Schedule</a>
         </div>
       </section>
 

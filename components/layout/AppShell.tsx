@@ -13,9 +13,9 @@ const navigation = [
   { href: "/claims", label: "Claims", icon: "📋" },
   { href: "/billing", label: "Billing", icon: "💰" },
   { href: "/payments", label: "Payments", icon: "💳" },
-  { href: "/workqueue", label: "Workqueues", icon: "📮" },
+  { href: "/billing/workqueue", label: "Workqueues", icon: "📮" },
   { href: "/credentialing", label: "Credentialing", icon: "🎓" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+  { href: "/settings/clearinghouse", label: "Clearinghouse", icon: "⚙️" },
 ];
 
 interface AppShellProps {

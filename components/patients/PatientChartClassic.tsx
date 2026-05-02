@@ -229,13 +229,11 @@ export default function PatientChartClassic({ patientId, initialTab = "info" }: 
       <header className="ta-appbar">
         <Link className="ta-logo" href="/">TherAssistant</Link>
         <nav>
-          <Link href="/workqueue">To-Do</Link>
+          <Link href="/billing/workqueue">To-Do</Link>
           <Link href="/scheduling">Scheduling</Link>
           <Link className="active" href="/patients">Patients</Link>
-          <Link href="/staff">Staff</Link>
           <Link href="/billing">Billing</Link>
-          <Link href="/payers">Payers</Link>
-          <Link href="/library">Library</Link>
+          <Link href="/tickets">Tickets</Link>
         </nav>
         <div className="ta-icons">💬 👤⌄ 🔍</div>
       </header>
@@ -248,7 +246,7 @@ export default function PatientChartClassic({ patientId, initialTab = "info" }: 
           <span className="ta-dob">{dob}</span>
         </div>
         <div className="ta-head-right">
-          <Link href="/workqueue" className="ta-blue-link"><span className="ta-count">2</span> To-Do</Link>
+          <Link href="/billing/workqueue" className="ta-blue-link"><span className="ta-count">2</span> To-Do</Link>
           <span>▣ No Future Appt</span>
           <span>☎ Mobile: <a href={`tel:${mobilePhone.replace(/[^0-9]/g, "")}`}>{mobilePhone}</a> (No Messages)</span>
         </div>
@@ -339,12 +337,12 @@ export default function PatientChartClassic({ patientId, initialTab = "info" }: 
             <h2>Patient To-Do List <button className="ta-blue small right" onClick={createReminder}>+ New Reminder</button></h2>
             <h3>Notes <span className="ta-count">{todos.length}</span></h3>
             <table className="ta-table">
-              <thead><tr><th>Date</th><th><Link href="/workqueue">To-Do Items</Link></th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th><Link href="/billing/workqueue">To-Do Items</Link></th><th></th></tr></thead>
               <tbody>
                 {todos.map((todo, index) => (
                   <tr key={todo}>
                     <td>{index === 0 ? "4/28/26" : "4/6/25"}</td>
-                    <td><button className="ta-link-button" onClick={() => deadLinkFixed("To-do item", "/workqueue")}>{todo}</button></td>
+                    <td><button className="ta-link-button" onClick={() => deadLinkFixed("To-do item", "/billing/workqueue")}>{todo}</button></td>
                     <td><button className="ta-link-button muted" onClick={() => setTodos((items) => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></td>
                   </tr>
                 ))}
@@ -385,7 +383,7 @@ export default function PatientChartClassic({ patientId, initialTab = "info" }: 
                     <td><button className="ta-link-button" onClick={() => deadLinkFixed(doc.type, `/patients/${patientId}/notes`)}>▧ {doc.type}</button></td>
                     <td>{doc.service}</td>
                     <td>{doc.date}</td>
-                    <td><button className="ta-link-button" onClick={() => deadLinkFixed(doc.author, "/staff")}>{doc.author}</button></td>
+                    <td>{doc.author}</td>
                     <td>{doc.status}</td>
                     <td className="ta-actions-cell"><button onClick={() => notify("Document share/export opened.")}>↗</button><button onClick={() => deadLinkFixed("Document edit", `/patients/${patientId}/notes`)}>✎</button><button onClick={() => notify("Document downloaded.")}>☁</button></td>
                   </tr>
@@ -479,7 +477,7 @@ export default function PatientChartClassic({ patientId, initialTab = "info" }: 
           </>
         )}
 
-        {activeTab === "clinicians" && <section className="ta-panel"><h2>Clinicians</h2><table className="ta-table"><thead><tr><th>Name</th><th>Role</th><th>Status</th></tr></thead><tbody>{clinicians.slice(0,3).map((name) => <tr key={name}><td><Link href="/staff">{name}</Link></td><td>Assigned clinician</td><td>Active</td></tr>)}</tbody></table></section>}
+        {activeTab === "clinicians" && <section className="ta-panel"><h2>Clinicians</h2><table className="ta-table"><thead><tr><th>Name</th><th>Role</th><th>Status</th></tr></thead><tbody>{clinicians.slice(0,3).map((name) => <tr key={name}><td>{name}</td><td>Assigned clinician</td><td>Active</td></tr>)}</tbody></table></section>}
 
         {activeTab === "portal" && (
           <>

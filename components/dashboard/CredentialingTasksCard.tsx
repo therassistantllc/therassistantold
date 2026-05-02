@@ -32,7 +32,6 @@ export default function CredentialingTasksCard({ rows }: { rows: CredentialingRo
                 <SeverityBadge severity={row.severity} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/settings" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open provider</Link>
                 <Link href="/credentialing/tasks?status=due" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Open task</Link>
                 <Link href="/credentialing/tasks?status=due" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Mark complete</Link>
                 <Link href="/credentialing/tasks?status=due" className="rounded-xl border border-gray-300 px-3 py-2 text-xs hover:bg-white">Add follow-up</Link>

@@ -803,9 +803,9 @@ export default function PatientWorkflowSpineClient({ patientId }: { patientId: s
             <label>Patient:</label>
             <Link href={`/patients/${patientId}`} className="classic-input text-[#006eb6]">{patientName}</Link>
             <label>Clinician:</label>
-            <Link href="/staff" className="classic-input text-[#006eb6]">{appointmentForm.provider_name}</Link>
+            <span className="classic-input text-[#1d74b7]">{appointmentForm.provider_name}</span>
             <label>Location:</label>
-            <Link href="/settings" className="classic-input text-[#006eb6]">{appointmentForm.location_name}</Link>
+            <span className="classic-input text-[#1d74b7]">{appointmentForm.location_name}</span>
             <label>Telehealth:</label>
             <input type="checkbox" checked={appointmentForm.telehealth} onChange={(e) => setAppointmentForm((f) => ({ ...f, telehealth: e.target.checked }))} />
             <label>Service Code:</label>

@@ -1,1 +1,0 @@
-export default function Library(){return <main className="p-6"><h1 className="text-3xl">Library</h1><p>Shared document library and portal forms.</p></main>}

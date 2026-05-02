@@ -1,1 +1,0 @@
-export default function Payers(){return <main className="p-6"><h1 className="text-3xl">Payers</h1><p>Payer database: Colorado Access, Direct, Anthem Blue Cross.</p></main>}
