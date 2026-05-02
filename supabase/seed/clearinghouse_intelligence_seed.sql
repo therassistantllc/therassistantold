@@ -93,7 +93,7 @@ claim_rows as (
   order by cl.created_at asc
   limit 3
 )
-insert into public.claim_status_checks (
+insert into public.claim_status_inquiries (
   organization_id,
   claim_id,
   patient_id,
@@ -123,5 +123,5 @@ select
 from claim_rows cr
 cross join first_connection fc
 where not exists (
-  select 1 from public.claim_status_checks csc where csc.claim_id = cr.id
+  select 1 from public.claim_status_inquiries csc where csc.claim_id = cr.id
 );

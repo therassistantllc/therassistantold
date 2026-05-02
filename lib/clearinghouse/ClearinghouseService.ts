@@ -410,7 +410,7 @@ export class ClearinghouseService {
     };
 
     const checkResp = await supabase
-      .from("claim_status_checks")
+      .from("claim_status_inquiries")
       .insert(checkPayload)
       .select("*")
       .single();
@@ -479,7 +479,7 @@ export class ClearinghouseService {
 
     const [checksResp, transactionsResp, eventsResp] = await Promise.all([
       supabase
-        .from("claim_status_checks")
+        .from("claim_status_inquiries")
         .select("*")
         .eq("claim_id", claimId)
         .order("received_at", { ascending: false }),

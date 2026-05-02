@@ -69,7 +69,7 @@ create table if not exists public.eligibility_checks (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.claim_status_checks (
+create table if not exists public.claim_status_inquiries (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
   claim_id uuid not null,
@@ -115,8 +115,8 @@ create index if not exists idx_edi_transactions_org_claim_patient_type_corr_crea
 create index if not exists idx_eligibility_checks_org_patient_appt_checked
   on public.eligibility_checks (organization_id, patient_id, appointment_id, checked_at desc);
 
-create index if not exists idx_claim_status_checks_org_claim_received
-  on public.claim_status_checks (organization_id, claim_id, received_at desc);
+create index if not exists idx_claim_status_inquiries_org_claim_received
+  on public.claim_status_inquiries (organization_id, claim_id, received_at desc);
 
 create index if not exists idx_response_events_org_claim_type_resolved
   on public.clearinghouse_response_events (organization_id, claim_id, event_type, is_resolved);
@@ -124,7 +124,7 @@ create index if not exists idx_response_events_org_claim_type_resolved
 alter table public.clearinghouse_connections enable row level security;
 alter table public.edi_transactions enable row level security;
 alter table public.eligibility_checks enable row level security;
-alter table public.claim_status_checks enable row level security;
+alter table public.claim_status_inquiries enable row level security;
 alter table public.clearinghouse_response_events enable row level security;
 
 drop policy if exists clearinghouse_connections_org_policy on public.clearinghouse_connections;
@@ -163,9 +163,9 @@ create policy eligibility_checks_org_policy
     organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', '')
   );
 
-drop policy if exists claim_status_checks_org_policy on public.claim_status_checks;
-create policy claim_status_checks_org_policy
-  on public.claim_status_checks
+drop policy if exists claim_status_inquiries_org_policy on public.claim_status_inquiries;
+create policy claim_status_inquiries_org_policy
+  on public.claim_status_inquiries
   for all
   to authenticated
   using (

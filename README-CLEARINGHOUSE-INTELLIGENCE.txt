@@ -44,7 +44,7 @@ Add or confirm these values in your app:
 The server routes use SUPABASE_SERVICE_ROLE_KEY for database writes to:
 - edi_transactions
 - eligibility_checks
-- claim_status_checks
+- claim_status_inquiries
 - clearinghouse_response_events
 
 INSTALL
