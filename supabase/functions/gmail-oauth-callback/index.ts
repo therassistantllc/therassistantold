@@ -1,4 +1,6 @@
+// @ts-ignore - Deno edge runtime URL import is valid at runtime but not resolvable by this TS config.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+// @ts-ignore - Deno npm: specifier is valid at runtime but not resolvable by this TS config.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
