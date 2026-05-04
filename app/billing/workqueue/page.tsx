@@ -13,6 +13,7 @@ type QueueStatusFilter = "all" | "open" | "in_progress" | "blocked" | "resolved"
 interface WorkqueueRow extends WorkqueueItemRecord {
   support_ticket?: SupportTicketRecord | null;
   work_status?: string | null;
+  patient_id?: string | null;
   appointment_id?: string | null;
   client_id?: string | null;
   claim_id?: string | null;
