@@ -12,6 +12,13 @@ type QueueStatusFilter = "all" | "open" | "in_progress" | "blocked" | "resolved"
 
 interface WorkqueueRow extends WorkqueueItemRecord {
   support_ticket?: SupportTicketRecord | null;
+  appointment_id?: string | null;
+  client_id?: string | null;
+  claim_id?: string | null;
+  encounter_id?: string | null;
+  source_object_id?: string | null;
+  source_object_type?: string | null;
+  context_payload?: string | Record<string, unknown> | null;
 }
 
 function matchesStatus(item: WorkqueueRow, filter: QueueStatusFilter) {
