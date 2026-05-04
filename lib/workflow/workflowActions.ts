@@ -57,7 +57,7 @@ export interface PostPaymentParams {
  * Create a new appointment
  */
 export async function createAppointment(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: CreateAppointmentParams
 ) {
   const { data, error } = await supabase
@@ -82,7 +82,7 @@ export async function createAppointment(
  * Create encounter from appointment
  */
 export async function createEncounter(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: CreateEncounterParams
 ) {
   const { data, error } = await supabase
@@ -105,7 +105,7 @@ export async function createEncounter(
  * Create clinical note
  */
 export async function createNote(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: CreateNoteParams
 ) {
   const { data, error } = await supabase
@@ -132,7 +132,7 @@ export async function createNote(
  * Create claim with service lines
  */
 export async function createClaim(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: CreateClaimParams
 ) {
   // Get encounter details
@@ -181,7 +181,7 @@ export async function createClaim(
  * Submit claim to clearinghouse
  */
 export async function submitClaim(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   claimId: string
 ) {
   // Update claim status
@@ -212,7 +212,7 @@ export async function submitClaim(
  * Post payment to claim
  */
 export async function postPayment(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: PostPaymentParams
 ) {
   // Get claim details
