@@ -1,19 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { EncounterRecord, WorkqueueItemRecord } from "@/lib/types/appointmentFirstWorkflow";
+import type { EncounterRecord, WorkqueueItemRecord } from "@/lib/types";
 import type { EncounterReadinessResult } from "@/lib/workqueue/model";
 import EncounterReadinessPanel from "@/components/encounters/EncounterReadinessPanel";
 
 interface BillingWorkqueuePanelProps {
-  encounter: EncounterRecord;
+  encounter: EncounterLike;
   readiness: EncounterReadinessResult;
   workqueueItems: WorkqueueItemRecord[];
 }
 
 type WorkqueuePayload = Record<string, unknown>;
 
+type EncounterLike = EncounterRecord & {
+  billing_status?: string | null;
+};
+
 type WorkqueueLike = WorkqueueItemRecord & {
+  queue_type?: string | null;
+  ticket_category?: string | null;
+  clinician_message?: string | null;
   work_type?: string | null;
   source_object_type?: string | null;
   source_object_id?: string | null;
