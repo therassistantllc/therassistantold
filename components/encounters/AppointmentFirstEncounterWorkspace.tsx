@@ -8,10 +8,89 @@ import type {
   EncounterServiceLineRecord,
   WorkqueueItemRecord,
 } from "@/lib/types";
-// Placeholder functions for encounter status
-const calculateEncounterReadiness = (encounter: any, options: any) => ({ passed: false, blockers: [] });
-const getEncounterDisplayStatus = (status: string) => status;
-const getEncounterStatusTone = (status: string) => "gray";
+import type { EncounterReadinessResult } from "@/lib/workqueue/model";
+
+type EncounterLike = EncounterRecord & {
+  encounter_status?: string | null;
+  documentation_status?: string | null;
+  billing_status?: string | null;
+  date_of_service?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  duration_minutes?: number | null;
+  place_of_service_code?: string | null;
+  service_location?: string | null;
+};
+
+type ReadinessInput = {
+  encounter: EncounterLike;
+  notes: ClinicalNoteRecord[];
+  diagnoses: EncounterDiagnosisRecord[];
+  serviceLines: EncounterServiceLineRecord[];
+  hasActiveEligibility: boolean;
+  hasInsurancePolicy: boolean;
+};
+
+function calculateEncounterReadiness({
+  notes,
+  diagnoses,
+  serviceLines,
+  hasActiveEligibility,
+  hasInsurancePolicy,
+}: ReadinessInput): EncounterReadinessResult {
+  const checks = [
+    {
+      key: "note",
+      label: "Clinical note signed",
+      passed: notes.some((note) => Boolean(note.locked)),
+      detail: "Signed notes are required before billing workflow can proceed.",
+    },
+    {
+      key: "diagnosis",
+      label: "Diagnosis attached",
+      passed: diagnoses.length > 0,
+      detail: "At least one diagnosis must be linked to the encounter.",
+    },
+    {
+      key: "service_line",
+      label: "Service line present",
+      passed: serviceLines.length > 0,
+      detail: "At least one service line is required for claim generation.",
+    },
+    {
+      key: "policy",
+      label: "Insurance policy linked",
+      passed: hasInsurancePolicy,
+      detail: "Primary coverage should be attached for claim workflow.",
+    },
+    {
+      key: "eligibility",
+      label: "Eligibility active",
+      passed: hasActiveEligibility,
+      detail: "Eligibility should be active prior to billing submission.",
+    },
+  ];
+
+  const missingBlockingItems = checks.filter((check) => !check.passed).map((check) => check.label);
+
+  return {
+    passed: missingBlockingItems.length === 0,
+    checks,
+    missingBlockingItems,
+  };
+}
+
+function getEncounterDisplayStatus(encounter: EncounterLike) {
+  return encounter.encounter_status ?? "draft";
+}
+
+function getEncounterStatusTone(encounter: EncounterLike) {
+  const status = encounter.encounter_status ?? "draft";
+  if (["ready_to_bill", "billed", "paid", "submitted"].includes(status)) return "green";
+  if (["in_review", "signed"].includes(status)) return "blue";
+  if (["corrected"].includes(status)) return "amber";
+  return "gray";
+}
 
 import ClinicalDocumentationPanel from "@/components/encounters/ClinicalDocumentationPanel";
 import EncounterReadinessPanel from "@/components/encounters/EncounterReadinessPanel";
@@ -26,7 +105,7 @@ interface ClinicalNoteRecord {
 }
 
 interface AppointmentFirstEncounterWorkspaceProps {
-  encounter: EncounterRecord;
+  encounter: EncounterLike;
   appointment: AppointmentRecord | null;
   notes: ClinicalNoteRecord[];
   diagnoses: EncounterDiagnosisRecord[];
@@ -182,7 +261,7 @@ function Overview({
   appointment,
   readiness,
 }: {
-  encounter: EncounterRecord;
+  encounter: EncounterLike;
   appointment: AppointmentRecord | null;
   readiness: ReturnType<typeof calculateEncounterReadiness>;
 }) {
