@@ -1,7 +1,8 @@
+// File: components/layout/AppShell.tsx
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 type NavItem = {
@@ -28,7 +29,7 @@ const navItems: NavItem[] = [
     href: "/patients",
     label: "Patients",
     icon: "👥",
-    match: ["/patients", "/clients"],
+    match: ["/patients"],
   },
   {
     href: "/encounters",
@@ -37,10 +38,10 @@ const navItems: NavItem[] = [
     match: ["/encounters"],
   },
   {
-    href: "/claims",
-    label: "Claims",
+    href: "/billing",
+    label: "Billing",
     icon: "📋",
-    match: ["/claims"],
+    match: ["/billing", "/claims", "/payments"],
   },
   {
     href: "/billing/workqueue",
@@ -49,28 +50,45 @@ const navItems: NavItem[] = [
     match: ["/billing/workqueue"],
   },
   {
-    href: "/billing/workqueue?work_type=mailroom_review",
-    label: "Gmail Mailroom",
-    icon: "📬",
-    match: ["/billing/workqueue?work_type=mailroom_review"],
-  },
-  {
-    href: "/billing/payment-imports",
-    label: "835 Imports",
-    icon: "💵",
-    match: ["/billing/payment-imports"],
-  },
-  {
     href: "/insurance/eligibility",
     label: "Eligibility",
     icon: "✅",
-    match: ["/insurance/eligibility"],
+    match: ["/insurance/eligibility", "/billing/eligibility"],
   },
   {
     href: "/clearinghouse/transactions",
     label: "Clearinghouse",
     icon: "🔁",
-    match: ["/clearinghouse"],
+    match: ["/clearinghouse", "/settings/clearinghouse"],
+  },
+  {
+    href: "/staff",
+    label: "Staff",
+    icon: "🧑‍⚕️",
+    match: ["/staff"],
+  },
+];
+
+const launchTools: NavItem[] = [
+  {
+    href: "/billing/workqueue?work_type=mailroom_review",
+    label: "Gmail AI queue",
+    icon: "📬",
+  },
+  {
+    href: "/billing/payment-imports",
+    label: "835 imports",
+    icon: "💵",
+  },
+  {
+    href: "/billing/denials",
+    label: "Denials",
+    icon: "⛔",
+  },
+  {
+    href: "/billing/rejections",
+    label: "Rejections",
+    icon: "⚠️",
   },
 ];
 
@@ -80,13 +98,21 @@ function isActive(pathname: string, item: NavItem) {
   }
 
   return item.match?.some((path) => {
-    const cleanPath = path.split("?")[0];
-    return pathname === cleanPath || pathname.startsWith(`${cleanPath}/`);
+    return pathname === path || pathname.startsWith(`${path}/`);
   });
+}
+
+function getMobileValue(pathname: string) {
+  const exact = navItems.find((item) => item.href === pathname);
+  if (exact) return exact.href;
+
+  const matched = navItems.find((item) => isActive(pathname, item));
+  return matched?.href ?? "/";
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -129,19 +155,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <p className="text-xs font-black uppercase tracking-wide text-slate-500">
                 Launch tools
               </p>
+
               <div className="mt-3 grid gap-2">
-                <Link
-                  href="/billing/workqueue?work_type=mailroom_review"
-                  className="text-sm font-bold text-indigo-700 hover:text-indigo-900"
-                >
-                  View Gmail AI queue
-                </Link>
-                <Link
-                  href="/billing/payment-imports"
-                  className="text-sm font-bold text-emerald-700 hover:text-emerald-900"
-                >
-                  View 835 imports
-                </Link>
+                {launchTools.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    className="text-sm font-bold text-indigo-700 hover:text-indigo-900"
+                  >
+                    <span className="mr-2">{tool.icon}</span>
+                    {tool.label}
+                  </Link>
+                ))}
               </div>
             </div>
           </div>
@@ -155,9 +180,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </Link>
 
               <select
-                value={pathname}
+                value={getMobileValue(pathname)}
                 onChange={(event) => {
-                  window.location.href = event.target.value;
+                  router.push(event.target.value);
                 }}
                 className="max-w-[220px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700"
               >

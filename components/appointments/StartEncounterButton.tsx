@@ -1,3 +1,4 @@
+// File: components/appointments/StartEncounterButton.tsx
 "use client";
 
 import { useState } from "react";
@@ -9,7 +10,11 @@ interface StartEncounterButtonProps {
   className?: string;
 }
 
-export default function StartEncounterButton({ appointmentId, organizationId, className }: StartEncounterButtonProps) {
+export default function StartEncounterButton({
+  appointmentId,
+  organizationId,
+  className,
+}: StartEncounterButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,10 +24,10 @@ export default function StartEncounterButton({ appointmentId, organizationId, cl
     setError(null);
 
     try {
-      const response = await fetch(`/api/appointments/${appointmentId}/start-encounter`, {
+      const response = await fetch("/api/encounters/create-from-appointment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ appointmentId, organizationId }),
       });
 
       const payload = await response.json();
@@ -31,7 +36,14 @@ export default function StartEncounterButton({ appointmentId, organizationId, cl
         throw new Error(payload.error ?? "Unable to start encounter");
       }
 
-      router.push(`/encounters/${payload.encounterId}`);
+      const encounterId = payload.encounterId ?? payload.encounter?.id ?? payload.id;
+
+      if (!encounterId) {
+        throw new Error("Encounter was created, but no encounter id was returned.");
+      }
+
+      router.push(`/encounters/${encounterId}`);
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to start encounter");
       setLoading(false);
@@ -51,6 +63,7 @@ export default function StartEncounterButton({ appointmentId, organizationId, cl
       >
         {loading ? "Starting encounter..." : "Start Encounter"}
       </button>
+
       {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
     </div>
   );

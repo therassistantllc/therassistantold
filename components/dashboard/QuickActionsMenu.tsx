@@ -5,12 +5,12 @@ import Link from "next/link";
 
 const actions = [
   { href: "/scheduling/new", label: "Add appointment" },
-  { href: "/clients/new", label: "Add patient" },
-  { href: "/scheduling?run=eligibility", label: "Run eligibility" },
+  { href: "/patients/new", label: "Add patient" },
+  { href: "/insurance/eligibility", label: "Run eligibility" },
   { href: "/claims/create", label: "Create claim" },
   { href: "/tickets", label: "Add ticket" },
-  { href: "/payments", label: "Upload ERA" },
-  { href: "/settings", label: "Add provider" },
+  { href: "/billing/payment-imports", label: "Upload ERA" },
+  { href: "/staff", label: "Add provider" },
 ];
 
 export default function QuickActionsMenu() {
