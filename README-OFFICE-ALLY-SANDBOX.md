@@ -265,16 +265,15 @@ When ready to enable live Office Ally transactions:
 
 ## Files Created
 
-npm install -g supabase
-types/integrations.ts
-app/settings/clearinghouse/page.tsx
-app/settings/clearinghouse/transactions/page.tsx
-app/settings/clearinghouse/configure/page.tsx
-app/api/integrations/connections/route.ts
-app/api/integrations/office-ally/test/route.ts
-app/api/integrations/transactions/route.ts
-app/api/eligibility/check/route.ts
-```
+- npm install -g supabase
+- types/integrations.ts
+- app/settings/clearinghouse/page.tsx
+- app/settings/clearinghouse/transactions/page.tsx
+- app/settings/clearinghouse/configure/page.tsx
+- app/api/integrations/connections/route.ts
+- app/api/integrations/office-ally/test/route.ts
+- app/api/integrations/transactions/route.ts
+- app/api/eligibility/check/route.ts
 
 ## Testing Checklist
 
