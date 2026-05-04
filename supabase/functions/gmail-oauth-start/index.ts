@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL")!;
 
-serve(async (req) => {
+serve(async (req: Request) => {
   const url = new URL(req.url);
   const organizationId = url.searchParams.get("organization_id");
 

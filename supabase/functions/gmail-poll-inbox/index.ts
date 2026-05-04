@@ -180,7 +180,7 @@ serve(async () => {
         })
         .eq("id", connection.id);
     } catch (err) {
-      const message = String(err?.message ?? err);
+      const message = String((err as Error)?.message ?? err);
       result.errors.push(`${connection.external_account_email}: ${message}`);
 
       await supabase

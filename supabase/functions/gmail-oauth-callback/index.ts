@@ -24,7 +24,7 @@ async function googleGet(path: string, accessToken: string) {
   return await res.json();
 }
 
-serve(async (req) => {
+serve(async (req: { url: string | URL; }) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
@@ -119,6 +119,7 @@ const redirectUri =
     return Response.redirect(`${APP_BASE_URL}/settings/integrations/gmail?connected=1`, 302);
   } catch (err) {
     console.error(err);
-    return new Response(String(err?.message ?? err), { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(message, { status: 500 });
   }
 });
