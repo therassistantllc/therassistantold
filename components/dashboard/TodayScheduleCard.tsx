@@ -40,7 +40,10 @@ export default function TodayScheduleCard({ rows }: { rows: TodayScheduleRow[] }
                 <div className="flex flex-wrap gap-2">
                   <SeverityBadge severity={row.eligibilitySeverity} label={row.eligibilityLabel} />
                   <SeverityBadge severity="low" label={row.balanceLabel} />
-                  <SeverityBadge severity={row.noteStatus.toLowerCase().includes("missing") ? "high" : "low"} label={row.noteStatus} />
+                  <SeverityBadge
+                    severity={String(row.noteStatus ?? "").toLowerCase().includes("missing") ? "high" : "low"}
+                    label={row.noteStatus ?? "Note status unknown"}
+                  />
                 </div>
               </div>
 
