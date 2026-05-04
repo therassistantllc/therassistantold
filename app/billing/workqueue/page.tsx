@@ -1,7 +1,7 @@
 // File: app/billing/workqueue/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
@@ -41,7 +41,7 @@ function formatDateTime(value: string | null | undefined) {
   }).format(date);
 }
 
-export default function BillingWorkqueuePage() {
+function BillingWorkqueuePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const workTypeFilter = searchParams.get("work_type");
@@ -678,5 +678,13 @@ export default function BillingWorkqueuePage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+export default function BillingWorkqueuePage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-gray-50" />}>
+      <BillingWorkqueuePageContent />
+    </Suspense>
   );
 }
