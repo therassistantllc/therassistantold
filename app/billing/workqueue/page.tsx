@@ -309,17 +309,20 @@ export default function BillingWorkqueuePage() {
   }
 
   function getContextSummary(item: WorkqueueRow): string {
-    if (item.context_payload) {
-      try {
-        const payload = JSON.parse(item.context_payload);
-        const keys = Object.keys(payload);
-        if (keys.length > 0) {
-          return keys.map((key) => `${key}: ${payload[key]}`).join(", ");
-        }
-      } catch {
-        // ignore parse errors
-      }
+    if (!item.context_payload) {
+      return "—";
     }
+
+    const payload =
+      typeof item.context_payload === "string"
+        ? JSON.parse(item.context_payload)
+        : item.context_payload;
+
+    const keys = Object.keys(payload);
+    if (keys.length > 0) {
+      return keys.map((key) => `${key}: ${String(payload[key])}`).join(", ");
+    }
+
     return "—";
   }
 
