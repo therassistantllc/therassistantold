@@ -1,0 +1,23 @@
+
+> therassistant-clean@0.1.0 build
+> next build
+
+▲ Next.js 16.2.4 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 15.0s
+  Running TypeScript ...
+Failed to type check.
+
+./app/appointments/[id]/page.tsx:112:62
+Type error: Property 'eligibility_check_id' does not exist on type 'AppointmentRecord'.
+
+  [90m110 |[0m           <[33mInfo[0m label=[32m"Clinician ID"[0m value={appointment.provider_id ?? [32m"—"[0m} />
+  [90m111 |[0m           <[33mInfo[0m label=[32m"Insurance policy"[0m value={appointment.insurance_policy_id ?? [32m"—"[0m} />
+[31m[1m>[0m [90m112 |[0m           <[33mInfo[0m label=[32m"Eligibility check"[0m value={appointment.eligibility_check_id ?? [32m"—"[0m} />
+  [90m    |[0m                                                              [31m[1m^[0m
+  [90m113 |[0m         </div>
+  [90m114 |[0m       </section>
+  [90m115 |[0m
+Next.js build worker exited with code: 1 and signal: null

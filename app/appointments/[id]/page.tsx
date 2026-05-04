@@ -104,12 +104,11 @@ function AppointmentContent({
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <Info label="Start" value={formatDateTime(appointment.scheduled_start)} />
-          <Info label="End" value={formatDateTime(appointment.scheduled_end)} />
-          <Info label="Patient / client ID" value={appointment.patient_id ?? appointment.client_id ?? "—"} />
-          <Info label="Clinician ID" value={appointment.clinician_id ?? appointment.provider_id ?? "—"} />
+          <Info label="Start" value={formatDateTime(appointment.scheduled_start_at)} />
+          <Info label="End" value={formatDateTime(appointment.scheduled_end_at)} />
+          <Info label="Patient / client ID" value={appointment.client_id ?? "—"} />
+          <Info label="Clinician ID" value={appointment.provider_id ?? "—"} />
           <Info label="Insurance policy" value={appointment.insurance_policy_id ?? "—"} />
-          <Info label="Eligibility check" value={appointment.eligibility_check_id ?? "—"} />
         </div>
       </section>
 
