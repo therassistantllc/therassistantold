@@ -1,10 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import type { EncounterRecord, RouteToBillerCategory, WorkqueuePriority } from "@/lib/types/appointmentFirstWorkflow";
-import { ROUTE_TO_BILLER_CATEGORIES } from "@/lib/workqueue/model";
+import type { EncounterRecord } from "@/lib/types";
 
-export default function RouteToBillerPanel({ encounter }: { encounter: EncounterRecord }) {
+type EncounterLike = EncounterRecord & {
+  id: string;
+};
+
+type RouteToBillerCategory =
+  | "general_billing_review"
+  | "claims_denial"
+  | "authorization"
+  | "eligibility"
+  | "payment_posting"
+  | "coding_question"
+  | "urgent_response";
+
+type WorkqueuePriority = "low" | "normal" | "high" | "urgent";
+
+const ROUTE_TO_BILLER_CATEGORIES: Array<{ value: RouteToBillerCategory; label: string }> = [
+  { value: "general_billing_review", label: "General billing review" },
+  { value: "claims_denial", label: "Claims denial" },
+  { value: "authorization", label: "Authorization" },
+  { value: "eligibility", label: "Eligibility" },
+  { value: "payment_posting", label: "Payment posting" },
+  { value: "coding_question", label: "Coding question" },
+  { value: "urgent_response", label: "Urgent response" },
+];
+
+export default function RouteToBillerPanel({ encounter }: { encounter: EncounterLike }) {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<RouteToBillerCategory>("general_billing_review");
   const [priority, setPriority] = useState<WorkqueuePriority>("normal");

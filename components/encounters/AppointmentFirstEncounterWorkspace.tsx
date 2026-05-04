@@ -22,11 +22,24 @@ type EncounterLike = EncounterRecord & {
   service_location?: string | null;
 };
 
+type EncounterServiceLineLike = EncounterServiceLineRecord & {
+  procedure_code?: string | null;
+  billing_status?: string | null;
+  units?: number | null;
+  minutes?: number | null;
+  charge_amount?: number | null;
+  diagnosis_pointer?: string | null;
+};
+
+type WorkqueueItemLike = WorkqueueItemRecord & {
+  queue_type?: string | null;
+};
+
 type ReadinessInput = {
   encounter: EncounterLike;
   notes: ClinicalNoteRecord[];
   diagnoses: EncounterDiagnosisRecord[];
-  serviceLines: EncounterServiceLineRecord[];
+  serviceLines: EncounterServiceLineLike[];
   hasActiveEligibility: boolean;
   hasInsurancePolicy: boolean;
 };
@@ -109,8 +122,8 @@ interface AppointmentFirstEncounterWorkspaceProps {
   appointment: AppointmentRecord | null;
   notes: ClinicalNoteRecord[];
   diagnoses: EncounterDiagnosisRecord[];
-  serviceLines: EncounterServiceLineRecord[];
-  workqueueItems: WorkqueueItemRecord[];
+  serviceLines: EncounterServiceLineLike[];
+  workqueueItems: WorkqueueItemLike[];
   hasActiveEligibility?: boolean;
 }
 
@@ -320,7 +333,7 @@ function DiagnosesPanel({ diagnoses }: { diagnoses: EncounterDiagnosisRecord[] }
   );
 }
 
-function ServiceLinesPanel({ serviceLines }: { serviceLines: EncounterServiceLineRecord[] }) {
+function ServiceLinesPanel({ serviceLines }: { serviceLines: EncounterServiceLineLike[] }) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-bold text-slate-950">Encounter Service Lines</h2>
@@ -359,7 +372,7 @@ function TreatmentPlanPanel() {
   );
 }
 
-function AuditPanel({ workqueueItems, notes }: { workqueueItems: WorkqueueItemRecord[]; notes: ClinicalNoteRecord[] }) {
+function AuditPanel({ workqueueItems, notes }: { workqueueItems: WorkqueueItemLike[]; notes: ClinicalNoteRecord[] }) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-bold text-slate-950">Activity</h2>

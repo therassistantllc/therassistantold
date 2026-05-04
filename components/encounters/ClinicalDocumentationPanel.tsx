@@ -1,11 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import type { ClinicalNoteRecord, EncounterRecord } from "@/lib/types/appointmentFirstWorkflow";
+import type { EncounterRecord } from "@/lib/types";
 import type { EncounterReadinessResult } from "@/lib/workqueue/model";
 
+type EncounterLike = EncounterRecord & {
+  id: string;
+};
+
+type ClinicalNoteRecord = {
+  id: string;
+  locked?: boolean | null;
+  signed_at?: string | null;
+  note_type?: string | null;
+  note_format?: string | null;
+  subjective?: string | null;
+  assessment?: string | null;
+  plan?: string | null;
+  risk_assessment?: string | null;
+  progress_toward_goals?: string | null;
+};
+
 interface ClinicalDocumentationPanelProps {
-  encounter: EncounterRecord;
+  encounter: EncounterLike;
   notes: ClinicalNoteRecord[];
   readiness: EncounterReadinessResult;
 }
