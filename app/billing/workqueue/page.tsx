@@ -18,7 +18,7 @@ interface WorkqueueRow extends WorkqueueItemRecord {
   encounter_id?: string | null;
   source_object_id?: string | null;
   source_object_type?: string | null;
-  context_payload?: string | Record<string, unknown> | null;
+  context_payload?: Record<string, unknown> | null;
 }
 
 function matchesStatus(item: WorkqueueRow, filter: QueueStatusFilter) {
