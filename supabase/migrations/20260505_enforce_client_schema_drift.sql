@@ -7,6 +7,11 @@
 
 create extension if not exists pgcrypto;
 
+-- Remove incorrect/noncanonical claim-status object if it was created during schema drift.
+-- Supabase may have this as a view instead of a table, so both forms are handled.
+drop view if exists public.claim_status_checks cascade;
+drop table if exists public.claim_status_checks cascade;
+
 -- Keep canonical claim status inquiry table available for 276/277 workflows.
 create table if not exists public.claim_status_inquiries (
   id uuid primary key default gen_random_uuid(),
@@ -25,20 +30,15 @@ create table if not exists public.claim_status_inquiries (
   updated_at timestamptz not null default now(),
   created_by_user_id uuid null,
   updated_by_user_id uuid null,
-  archived_at timestamptz null,
-  constraint claim_status_inquiries_status_chk
-    check (inquiry_status in ('created', 'sent', 'received', 'parsed', 'failed', 'not_found', 'pending', 'paid', 'denied', 'rejected', 'needs_info', 'unknown'))
+  archived_at timestamptz null
 );
-
--- Remove incorrect/noncanonical claim-status table if it was created during schema drift.
-drop table if exists public.claim_status_checks cascade;
 
 -- Rename patient_id to client_id where a table exists with patient_id but without client_id.
 do $$
 declare
-  table_name text;
+  target_table text;
 begin
-  foreach table_name in array array[
+  foreach target_table in array array[
     'eligibility_checks',
     'claims',
     'claim_status_inquiries',
@@ -52,13 +52,13 @@ begin
   ]
   loop
     if exists (
-      select 1 from information_schema.columns
-      where table_schema = 'public' and table_name = table_name and column_name = 'patient_id'
+      select 1 from information_schema.columns c
+      where c.table_schema = 'public' and c.table_name = target_table and c.column_name = 'patient_id'
     ) and not exists (
-      select 1 from information_schema.columns
-      where table_schema = 'public' and table_name = table_name and column_name = 'client_id'
+      select 1 from information_schema.columns c
+      where c.table_schema = 'public' and c.table_name = target_table and c.column_name = 'client_id'
     ) then
-      execute format('alter table public.%I rename column patient_id to client_id', table_name);
+      execute format('alter table public.%I rename column patient_id to client_id', target_table);
     end if;
   end loop;
 end $$;
@@ -75,10 +75,8 @@ alter table if exists public.patient_checkins drop column if exists patient_id;
 alter table if exists public.edi_transactions drop column if exists patient_id;
 alter table if exists public.clearinghouse_response_events drop column if exists patient_id;
 
--- Remove noncanonical workqueue lifecycle column.
 alter table if exists public.workqueue_items drop column if exists work_status;
 
--- Add canonical client_id where required by app workflows.
 alter table if exists public.eligibility_checks add column if not exists client_id uuid;
 alter table if exists public.encounters add column if not exists client_id uuid;
 alter table if exists public.claims add column if not exists client_id uuid;
@@ -91,24 +89,21 @@ alter table if exists public.patient_checkins add column if not exists client_id
 alter table if exists public.edi_transactions add column if not exists client_id uuid;
 alter table if exists public.clearinghouse_response_events add column if not exists client_id uuid;
 
--- Normalize eligibility status naming to match app types.
 alter table if exists public.eligibility_checks add column if not exists eligibility_status text;
 do $$
 begin
   if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'eligibility_checks' and column_name = 'status'
+    select 1 from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'eligibility_checks' and c.column_name = 'status'
   ) then
     execute 'update public.eligibility_checks set eligibility_status = coalesce(eligibility_status, status)';
     execute 'alter table public.eligibility_checks drop column status';
   end if;
 end $$;
 
--- Ensure workqueue lifecycle is represented only by status.
 alter table if exists public.workqueue_items add column if not exists status text not null default 'open';
 alter table if exists public.workqueue_items add column if not exists context_payload jsonb not null default '{}'::jsonb;
 
--- Add/replace validation constraints idempotently.
 alter table if exists public.workqueue_items drop constraint if exists workqueue_items_status_chk;
 alter table if exists public.workqueue_items
   add constraint workqueue_items_status_chk
@@ -129,16 +124,11 @@ alter table if exists public.claim_status_inquiries
   add constraint claim_status_inquiries_status_chk
   check (inquiry_status in ('created', 'sent', 'received', 'parsed', 'failed', 'not_found', 'pending', 'paid', 'denied', 'rejected', 'needs_info', 'unknown'));
 
--- Enforce required client_id on core operational tables.
 alter table if exists public.encounters alter column client_id set not null;
 alter table if exists public.claims alter column client_id set not null;
 alter table if exists public.eligibility_checks alter column client_id set not null;
 alter table if exists public.claim_status_inquiries alter column client_id set not null;
 
--- Workqueue items can be practice-level in some cases, but client-specific queues should use client_id.
--- This preserves flexibility for practice-level mail or admin tasks while removing patient_id drift.
-
--- Canonical indexes.
 create index if not exists idx_eligibility_checks_org_client_appt_checked
   on public.eligibility_checks (organization_id, client_id, appointment_id, checked_at desc);
 
@@ -160,7 +150,6 @@ create index if not exists idx_claims_org_client_status
   on public.claims (organization_id, client_id, claim_status, updated_at desc)
   where archived_at is null;
 
--- RLS remains enabled on canonical claim-status table.
 alter table public.claim_status_inquiries enable row level security;
 
 drop policy if exists claim_status_inquiries_org_policy on public.claim_status_inquiries;
