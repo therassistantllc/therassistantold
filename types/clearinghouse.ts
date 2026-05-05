@@ -1,9 +1,5 @@
 // File: types/clearinghouse.ts
-export type ClearinghouseVendor =
-  | "office_ally"
-  | "availity"
-  | "change_healthcare"
-  | "mock";
+export type ClearinghouseVendor = "office_ally" | "availity" | "change_healthcare" | "mock";
 
 export interface ClearinghouseConnection {
   id: string;
@@ -24,7 +20,7 @@ export interface ClearinghouseConnection {
 export interface EdiTransaction {
   id: string;
   organization_id: string;
-  patient_id?: string | null;
+  client_id?: string | null;
   appointment_id?: string | null;
   encounter_id?: string | null;
   claim_id?: string | null;
@@ -48,7 +44,7 @@ export interface EdiTransaction {
 export interface EligibilityCheck {
   id: string;
   organization_id: string;
-  patient_id: string;
+  client_id: string;
   appointment_id?: string | null;
   insurance_policy_id?: string | null;
   clearinghouse_connection_id?: string | null;
@@ -57,7 +53,7 @@ export interface EligibilityCheck {
   payer_name?: string | null;
   payer_id?: string | null;
   service_type_code?: string | null;
-  status: "active" | "inactive" | "not_found" | "error" | "unknown";
+  eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   plan_name?: string | null;
   member_id?: string | null;
   subscriber_name?: string | null;
@@ -73,34 +69,31 @@ export interface EligibilityCheck {
   created_at?: string | null;
 }
 
-export interface ClaimStatusCheck {
+export interface ClaimStatusInquiry {
   id: string;
   organization_id: string;
   claim_id: string;
-  patient_id?: string | null;
-  clearinghouse_connection_id?: string | null;
-  edi_276_transaction_id?: string | null;
-  edi_277_transaction_id?: string | null;
-  payer_name?: string | null;
-  payer_id?: string | null;
-  status: "accepted" | "pending" | "paid" | "denied" | "rejected" | "not_found" | "needs_info" | "error" | "unknown";
-  status_category_code?: string | null;
-  status_code?: string | null;
-  entity_code?: string | null;
-  billed_amount?: number | null;
-  paid_amount?: number | null;
-  check_eft_number?: string | null;
-  finalized_date?: string | null;
+  client_id: string;
+  inquiry_status: "created" | "sent" | "received" | "parsed" | "failed" | "not_found" | "pending" | "paid" | "denied" | "rejected" | "needs_info" | "unknown";
+  external_transaction_id?: string | null;
+  duplicate_detection_key?: string | null;
+  payer_status_code?: string | null;
+  payer_status_text?: string | null;
+  response_summary?: string | null;
+  requested_at?: string | null;
   received_at?: string | null;
-  raw_status?: Record<string, unknown>;
   created_at?: string | null;
+  updated_at?: string | null;
+  archived_at?: string | null;
 }
+
+export type ClaimStatusCheck = ClaimStatusInquiry;
 
 export interface ClearinghouseResponseEvent {
   id: string;
   organization_id: string;
   claim_id?: string | null;
-  patient_id?: string | null;
+  client_id?: string | null;
   edi_transaction_id?: string | null;
   event_type: "acknowledgment" | "rejection" | "status_update" | "denial" | "payment" | "eligibility_result" | "error";
   severity?: "info" | "warning" | "error" | "critical";
@@ -115,7 +108,7 @@ export interface ClearinghouseResponseEvent {
 
 export interface EligibilityRequestInput {
   organizationId: string;
-  patientId: string;
+  clientId: string;
   appointmentId?: string | null;
   insurancePolicyId?: string | null;
   clearinghouseConnectionId?: string | null;
@@ -123,7 +116,7 @@ export interface EligibilityRequestInput {
   payerId?: string | null;
   memberId?: string | null;
   subscriberName?: string | null;
-  patientName?: string | null;
+  clientName?: string | null;
   serviceTypeCode?: string;
   providerNpi?: string | null;
 }
@@ -150,7 +143,7 @@ export interface EligibilityResponseNormalized {
 export interface ClaimStatusRequestInput {
   organizationId: string;
   claimId: string;
-  patientId?: string | null;
+  clientId?: string | null;
   clearinghouseConnectionId?: string | null;
   payerName?: string | null;
   payerId?: string | null;
