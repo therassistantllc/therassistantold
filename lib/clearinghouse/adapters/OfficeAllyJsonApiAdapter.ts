@@ -20,7 +20,7 @@ type ApiRequestOptions = {
   path: string;
   body?: unknown;
   accept?: "application/json" | "application/EDI-X12";
-  contentType?: "application/json" | "text/plain" | "multipart/form-data";
+  contentType?: "application/json" | "text/plain";
   clientId?: string | null;
   claimId?: string | null;
   ediTransactionId?: string | null;
@@ -55,12 +55,17 @@ function uuid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function jsonHeaders(accept: string) {
+function buildHeaders(accept: string, contentType: "application/json" | "text/plain") {
   return {
     [getApiKeyHeaderName()]: getApiKey(),
     Accept: accept,
-    "Content-Type": "application/json",
+    "Content-Type": contentType,
   };
+}
+
+function serializeBody(body: unknown, contentType: "application/json" | "text/plain") {
+  if (body == null) return null;
+  return contentType === "text/plain" ? String(body) : JSON.stringify(body);
 }
 
 async function insertApiAudit(input: {
@@ -125,15 +130,21 @@ function normalizeEligibilityStatus(response: OfficeAllyEligibilityResponse) {
   return "unknown";
 }
 
-function normalizeClaimStatus(response: OfficeAllyClaimStatusResponse) {
+function normalizeInquiryStatus(response: OfficeAllyClaimStatusResponse) {
   if (response.transactionErrors?.length) return "failed";
   const text = JSON.stringify(response).toLowerCase();
   if (text.includes("paid")) return "paid";
   if (text.includes("denied")) return "denied";
   if (text.includes("reject")) return "rejected";
   if (text.includes("pending") || text.includes("process")) return "pending";
-  if (text.includes("accept")) return "accepted";
+  if (text.includes("accept")) return "received";
   return "unknown";
+}
+
+function normalizeClaimRecordStatus(inquiryStatus: string) {
+  if (["paid", "denied", "rejected", "pending"].includes(inquiryStatus)) return inquiryStatus;
+  if (inquiryStatus === "received" || inquiryStatus === "unknown") return "submitted";
+  return "submitted";
 }
 
 function toNumber(value: unknown) {
@@ -162,7 +173,7 @@ function benefitBuckets(response: OfficeAllyEligibilityResponse) {
   ] as const;
 
   return buckets.flatMap((bucket) =>
-    ((details as any)[bucket] ?? []).map((item: any) => ({ bucket, item })),
+    ((details as Record<string, unknown>)[bucket] as unknown[] | undefined ?? []).map((item) => ({ bucket, item: item as Record<string, any> })),
   );
 }
 
@@ -210,7 +221,7 @@ async function persistEligibilityResponse(params: {
 
   if (error) throw error;
 
-  const benefitRows = benefitBuckets(params.response).map(({ bucket, item }: any) => ({
+  const benefitRows = benefitBuckets(params.response).map(({ bucket, item }) => ({
     id: uuid(),
     organization_id: params.organizationId,
     eligibility_check_id: eligibility.id,
@@ -289,7 +300,7 @@ async function persistClaimStatusResponse(params: {
   if (!supabase) throw new Error("Database connection not available");
 
   const now = new Date().toISOString();
-  const status = normalizeClaimStatus(params.response);
+  const inquiryStatus = normalizeInquiryStatus(params.response);
 
   const { data: inquiry, error } = await supabase
     .from("claim_status_inquiries")
@@ -298,11 +309,11 @@ async function persistClaimStatusResponse(params: {
       organization_id: params.organizationId,
       claim_id: params.claimId,
       client_id: params.clientId,
-      inquiry_status: status,
+      inquiry_status: inquiryStatus,
       external_transaction_id: params.response.transactionId ?? null,
       payer_status_code: params.response.responseStatus?.codeValue ?? null,
       payer_status_text: params.response.responseStatus?.description ?? null,
-      response_summary: params.response.responseStatus?.description ?? status,
+      response_summary: params.response.responseStatus?.description ?? inquiryStatus,
       requested_at: now,
       received_at: now,
       raw_response_json: params.response as Record<string, unknown>,
@@ -366,7 +377,10 @@ async function persistClaimStatusResponse(params: {
     if (eventError) throw eventError;
   }
 
-  await supabase.from("claims").update({ claim_status: status, updated_at: now }).eq("id", params.claimId);
+  await supabase
+    .from("claims")
+    .update({ claim_status: normalizeClaimRecordStatus(inquiryStatus), updated_at: now })
+    .eq("id", params.claimId);
 
   return inquiry;
 }
@@ -380,16 +394,17 @@ export class OfficeAllyJsonApiAdapter {
     const endpointUrl = `${this.baseUrl}${options.path}`;
     const method = options.method ?? "POST";
     const accept = options.accept ?? "application/json";
-    const bodyText = options.body == null ? null : JSON.stringify(options.body);
+    const contentType = options.contentType ?? "application/json";
+    const bodyText = serializeBody(options.body, contentType);
 
     try {
       const response = await fetch(endpointUrl, {
         method,
-        headers: jsonHeaders(accept),
+        headers: buildHeaders(accept, contentType),
         body: method === "GET" ? undefined : bodyText,
       });
       const rawText = await response.text();
-      let parsed: any = rawText;
+      let parsed: unknown = rawText;
       if (rawText && response.headers.get("content-type")?.includes("application/json")) {
         parsed = JSON.parse(rawText);
       }
@@ -400,11 +415,11 @@ export class OfficeAllyJsonApiAdapter {
         endpointUrl,
         httpMethod: method,
         httpStatus: response.status,
-        requestPayload: options.body,
-        responsePayload: typeof parsed === "object" ? parsed : {},
+        requestPayload: contentType === "text/plain" ? {} : options.body,
+        responsePayload: typeof parsed === "object" && parsed !== null ? parsed : {},
         requestBody: bodyText,
         responseBody: rawText,
-        rawResponseJson: typeof parsed === "object" ? parsed : {},
+        rawResponseJson: typeof parsed === "object" && parsed !== null ? parsed : {},
         rawResponseX12: accept === "application/EDI-X12" ? rawText : null,
         status: response.ok ? "parsed" : "failed",
         errorMessage: response.ok ? null : rawText.slice(0, 1000),
@@ -424,7 +439,7 @@ export class OfficeAllyJsonApiAdapter {
         operation: options.operation,
         endpointUrl,
         httpMethod: method,
-        requestPayload: options.body,
+        requestPayload: contentType === "text/plain" ? {} : options.body,
         requestBody: bodyText,
         status: "failed",
         errorMessage: error instanceof Error ? error.message : "Office Ally request failed",
@@ -507,7 +522,7 @@ export class OfficeAllyJsonApiAdapter {
       body: params.request,
     });
 
-    const payload = response.data.data ?? (response.data as any);
+    const payload = response.data.data ?? (response.data as OfficeAllyEligibilityResponse);
     const eligibility = await persistEligibilityResponse({
       organizationId: params.organizationId,
       clientId: params.clientId,
@@ -536,7 +551,7 @@ export class OfficeAllyJsonApiAdapter {
       clientId: params.clientId,
     });
 
-    const payload = response.data.data ?? (response.data as any);
+    const payload = response.data.data ?? (response.data as OfficeAllyClaimStatusResponse);
     const inquiry = await persistClaimStatusResponse({
       organizationId: params.organizationId,
       clientId: params.clientId,
@@ -560,21 +575,27 @@ export class OfficeAllyJsonApiAdapter {
     const supabase = createServerSupabaseAdminClient();
     if (supabase) {
       const now = new Date().toISOString();
-      const rows = (response.data ?? []).map((item) => ({
-        id: uuid(),
-        organization_id: params.organizationId ?? null,
-        vendor: "office_ally",
-        payer_id: item.payerId ?? "unknown",
-        payer_name: item.payerName ?? null,
-        search_options: item.searchOptions ?? [],
-        raw_response_json: item as Record<string, unknown>,
-        fetched_at: now,
-        created_at: now,
-        updated_at: now,
-      }));
+      for (const item of response.data ?? []) {
+        const payerId = item.payerId ?? "unknown";
+        await supabase
+          .from("payer_search_option_configs")
+          .update({ archived_at: now, updated_at: now })
+          .eq("vendor", "office_ally")
+          .eq("payer_id", payerId)
+          .is("archived_at", null);
 
-      if (rows.length) {
-        await supabase.from("payer_search_option_configs").upsert(rows, { onConflict: "vendor,payer_id" });
+        await supabase.from("payer_search_option_configs").insert({
+          id: uuid(),
+          organization_id: params.organizationId ?? null,
+          vendor: "office_ally",
+          payer_id: payerId,
+          payer_name: item.payerName ?? null,
+          search_options: item.searchOptions ?? [],
+          raw_response_json: item as Record<string, unknown>,
+          fetched_at: now,
+          created_at: now,
+          updated_at: now,
+        });
       }
     }
 
