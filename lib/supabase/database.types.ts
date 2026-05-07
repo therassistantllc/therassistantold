@@ -135,10 +135,19 @@ export type Database = {
           organization_id: string;
           client_id: string | null;
           provider_id: string | null;
+          provider_location_id: string | null;
           insurance_policy_id: string | null;
           scheduled_start_at: string | null;
           scheduled_end_at: string | null;
-          status: string | null;
+          appointment_status: string | null;
+          appointment_type: string | null;
+          reason: string | null;
+          check_in_at: string | null;
+          cancelled_at: string | null;
+          cancellation_reason: string | null;
+          telehealth_url: string | null;
+          updated_at: string | null;
+          created_at: string | null;
           archived_at: string | null;
         }>;
       clients: TableDef<{
