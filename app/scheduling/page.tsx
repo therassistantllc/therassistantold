@@ -61,6 +61,7 @@ interface EligibilityCheck {
 
 type ViewMode = "day" | "week" | "month";
 type ColorMode = "status" | "type";
+type StatusFilter = "all" | "scheduled" | "checked_in" | "completed" | "cancelled" | "no_show";
 
 const START_HOUR = 8;
 const END_HOUR = 18;
@@ -158,6 +159,34 @@ function formatBlockTime(value: string | null | undefined) {
   }).format(date);
 }
 
+function formatDuration(startValue: string | null | undefined, endValue: string | null | undefined) {
+  if (!startValue || !endValue) return "—";
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "—";
+  const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+  if (minutes === 0) return "—";
+  return `${minutes} min`;
+}
+
+function normalizeStatus(status: string | null | undefined): StatusFilter {
+  const value = String(status ?? "").toLowerCase();
+  if (value === "scheduled") return "scheduled";
+  if (value === "checked_in") return "checked_in";
+  if (value === "completed") return "completed";
+  if (value === "cancelled") return "cancelled";
+  if (value === "no_show") return "no_show";
+  return "all";
+}
+
+function statusLabel(status: string | null | undefined) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "checked_in") return "Checked In";
+  if (normalized === "no_show") return "No Show";
+  if (normalized === "all") return "Unknown";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function providerLabel(provider: ProviderRecord | undefined) {
   if (!provider) return "Unassigned";
   if (provider.display_name) return provider.display_name;
@@ -236,10 +265,11 @@ export default function SchedulingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
-  const [focusDate, setFocusDate] = useState<Date>(() => new Date("2026-04-24T09:00:00"));
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [focusDate, setFocusDate] = useState<Date>(() => new Date());
   const [providerFilter, setProviderFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [colorMode, setColorMode] = useState<ColorMode>("status");
   const [showWarnings, setShowWarnings] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -352,9 +382,12 @@ export default function SchedulingPage() {
         const derivedLocation = appointment.appointment_type === "Telehealth" ? "telehealth" : "office";
         if (derivedLocation !== locationFilter) return false;
       }
+      if (statusFilter !== "all" && normalizeStatus(appointment.appointment_status) !== statusFilter) {
+        return false;
+      }
       return true;
     });
-  }, [appointments, locationFilter, providerFilter, visibleRange.end, visibleRange.start]);
+  }, [appointments, locationFilter, providerFilter, statusFilter, visibleRange.end, visibleRange.start]);
 
   const providerColumns = useMemo(() => {
     if (providerFilter !== "all") {
@@ -461,6 +494,27 @@ export default function SchedulingPage() {
     }
   }
 
+  async function updateAppointmentStatus(appointmentId: string, status: Exclude<StatusFilter, "all">) {
+    const now = new Date().toISOString();
+    const patch: Record<string, string | null> = {
+      appointment_status: status,
+      updated_at: now,
+    };
+
+    const { error: updateError } = await supabase
+      .from("appointments")
+      .update(patch)
+      .eq("id", appointmentId)
+      .is("archived_at", null);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    await load();
+  }
+
   async function loadWorkflowDataForAppointment(appointmentId: string) {
     setWorkflowLoading(true);
     setSelectedEncounter(null);
@@ -514,10 +568,8 @@ export default function SchedulingPage() {
       appointmentDate: appointment.scheduled_start_at ?? null,
     });
 
-    // Navigate to patient workspace
-    if (appointment.client_id) {
-      router.push(`/patients/${appointment.client_id}`);
-    }
+    setDrawerOpen(true);
+    void loadWorkflowDataForAppointment(selectedAppointmentId);
   }
 
   function renderAppointmentChips(dayAppointments: AppointmentRecord[]) {
@@ -554,6 +606,9 @@ export default function SchedulingPage() {
                   <div className="line-clamp-1 text-[11px] opacity-80">
                     {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
                   </div>
+                  <div className="line-clamp-1 text-[11px] opacity-80">
+                    {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)} • {statusLabel(appointment.appointment_status)}
+                  </div>
                 </button>
                 <div className="mt-1 flex flex-wrap gap-1">
                   <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
@@ -569,8 +624,33 @@ export default function SchedulingPage() {
                       ✓ Check-in
                     </span>
                   )}
+                  {appointment.appointment_type === "Telehealth" && (
+                    <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">
+                      Telehealth
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void updateAppointmentStatus(appointment.id, "checked_in");
+                    }}
+                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
+                  >
+                    Check in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void updateAppointmentStatus(appointment.id, "completed");
+                    }}
+                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
+                  >
+                    Complete
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -679,8 +759,8 @@ export default function SchedulingPage() {
                         const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "";
                         const reason = !eligibility
                           ? "No eligibility check"
-                            ? eligibility.eligibility_status !== "active"
-                              ? `Status: ${eligibility.eligibility_status}`
+                          : eligibility.eligibility_status !== "active"
+                            ? `Status: ${eligibility.eligibility_status}`
                             : "Eligibility check older than 30 days";
                         
                         return (
@@ -698,7 +778,7 @@ export default function SchedulingPage() {
               <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <button type="button" onClick={() => setFocusDate(new Date("2026-04-24T09:00:00"))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                    <button type="button" onClick={() => setFocusDate(new Date())} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
                       Today
                     </button>
                     <button type="button" onClick={previousDate} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
@@ -737,6 +817,12 @@ export default function SchedulingPage() {
                     <Link href="/tickets" className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
                       Waitlist
                     </Link>
+                    <Link href="/work-schedule" className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                      Work schedule
+                    </Link>
+                    <Link href="/scheduling/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+                      Schedule appointment
+                    </Link>
                   </div>
                 </div>
 
@@ -762,6 +848,19 @@ export default function SchedulingPage() {
                     <option value="all">All locations</option>
                     <option value="office">Office</option>
                     <option value="telehealth">Telehealth</option>
+                  </select>
+
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="checked_in">Checked in</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="no_show">No show</option>
                   </select>
 
                   <Link href="/clients/new" className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100">
@@ -848,10 +947,18 @@ export default function SchedulingPage() {
                                     <div className="line-clamp-1 text-[11px] opacity-80">
                                       {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
                                     </div>
+                                    <div className="line-clamp-1 text-[11px] opacity-80">
+                                      {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)} • {statusLabel(appointment.appointment_status)}
+                                    </div>
                                     <div className="mt-1 flex flex-wrap gap-1">
                                       <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
                                         {eligibilityLabel(eligibility)}
                                       </span>
+                                      {appointment.appointment_type === "Telehealth" && (
+                                        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">
+                                          Telehealth
+                                        </span>
+                                      )}
                                     </div>
                                   </button>
                                 );
@@ -924,7 +1031,7 @@ export default function SchedulingPage() {
                                         {formatBlockTime(appointment.scheduled_start_at)} • {patientLabel(patient)}
                                       </div>
                                       <div className="line-clamp-1 text-[10px] opacity-80">
-                                        {eligibilityLabel(eligibility)}
+                                        {statusLabel(appointment.appointment_status)} • {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)}
                                       </div>
                                     </button>
                                   );

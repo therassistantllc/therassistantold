@@ -23,6 +23,14 @@ export async function POST(request: Request) {
     if (appointmentError || !appointment) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     if (!appointment.client_id) return NextResponse.json({ error: "Appointment is missing client_id" }, { status: 422 });
 
+    const appointmentStatus = String(appointment.appointment_status ?? appointment.status ?? "").toLowerCase();
+    if (appointmentStatus !== "completed") {
+      return NextResponse.json(
+        { error: "Only completed appointments can create encounters for billing workflow." },
+        { status: 409 },
+      );
+    }
+
     const { data: existingEncounter } = await supabase
       .from("encounters")
       .select("*")

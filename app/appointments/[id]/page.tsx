@@ -1,5 +1,6 @@
 import AppShell from "@/components/layout/AppShell";
 import StartEncounterButton from "@/components/appointments/StartEncounterButton";
+import SeriesControls from "@/components/appointments/SeriesControls";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import type { AppointmentRecord } from "@/lib/types";
 
@@ -109,6 +110,25 @@ function AppointmentContent({
           <Info label="Patient / client ID" value={appointment.client_id ?? "—"} />
           <Info label="Clinician ID" value={appointment.provider_id ?? "—"} />
           <Info label="Insurance policy" value={appointment.insurance_policy_id ?? "—"} />
+          <Info label="Service location" value={appointment.service_location ?? "—"} />
+          <Info label="Recurrence" value={appointment.recurrence_frequency ?? "One-time"} />
+          <Info label="Series ID" value={appointment.series_id ?? "—"} />
+          <Info
+            label="Reminders"
+            value={[
+              appointment.reminder_email_enabled ? "Email" : null,
+              appointment.reminder_sms_enabled ? "SMS" : null,
+              appointment.reminder_portal_enabled ? "Portal" : null,
+            ]
+              .filter(Boolean)
+              .join(", ") || "None"}
+          />
+          <Info label="Reminder lead" value={appointment.reminder_lead_hours ? `${appointment.reminder_lead_hours} hours` : "—"} />
+          <Info label="Telehealth" value={appointment.telehealth_url ?? "—"} />
+        </div>
+
+        <div className="mt-4">
+          <SeriesControls appointmentId={appointment.id} hasSeries={Boolean(appointment.series_id)} />
         </div>
       </section>
 

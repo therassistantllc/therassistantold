@@ -213,6 +213,29 @@ export async function POST(request: Request) {
 
       importedItems.push(itemRecord);
 
+      // Create workqueue item if payment is ready to post (matched)
+      if (itemRecord.posting_ready) {
+        const { error: queueError } = await supabase
+          .from("workqueue_items")
+          .insert({
+            id: generateUuid(),
+            organization_id: organizationId,
+            source_object_type: "payment_import_item",
+            source_object_id: itemId,
+            work_type: "payment_posting_needed",
+            status: "open",
+            priority: "normal",
+            title: `Post payment for ${patientControlNumber || "ERA claim"}`,
+            description: `${claim.payerName ?? "Payer"} - $${Number(claim.paidAmount ?? 0).toFixed(2)}`,
+            assigned_to_user_id: null,
+            resolved_at: null,
+            created_at: now,
+            updated_at: now,
+          });
+
+        if (queueError) throw queueError;
+      }
+
       if (!matchedClaim) {
         unmatchedClaims.push({
           imported_item_ref: patientControlNumber,

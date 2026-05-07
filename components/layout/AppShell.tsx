@@ -26,6 +26,12 @@ const navItems: NavItem[] = [
     match: ["/scheduling", "/appointments"],
   },
   {
+    href: "/work-schedule",
+    label: "Work schedule",
+    icon: "🗓️",
+    match: ["/work-schedule"],
+  },
+  {
     href: "/patients",
     label: "Patients",
     icon: "👥",

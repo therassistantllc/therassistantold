@@ -21,20 +21,38 @@ interface AppointmentFormState {
   client_id: string;
   provider_id: string;
   scheduled_start_at: string;
-  scheduled_end_at: string;
-  appointment_status: string;
+  duration_minutes: number;
   appointment_type: "Telehealth" | "In-person" | "";
+  service_location: "office" | "telehealth";
   reason: "Intake" | "Follow-up" | "";
+  recurrence_frequency: "none" | "weekly" | "biweekly" | "monthly";
+  recurrence_end_mode: "by_count" | "by_date";
+  recurrence_end_date: string;
+  recurrence_session_count: number;
+  reminder_email_enabled: boolean;
+  reminder_sms_enabled: boolean;
+  reminder_portal_enabled: boolean;
+  reminder_lead_hours: number;
+  internal_note: string;
 }
 
 const initialState: AppointmentFormState = {
   client_id: "",
   provider_id: "",
   scheduled_start_at: "",
-  scheduled_end_at: "",
-  appointment_status: "scheduled",
+  duration_minutes: 60,
   appointment_type: "",
+  service_location: "office",
   reason: "",
+  recurrence_frequency: "none",
+  recurrence_end_mode: "by_count",
+  recurrence_end_date: "",
+  recurrence_session_count: 12,
+  reminder_email_enabled: true,
+  reminder_sms_enabled: false,
+  reminder_portal_enabled: true,
+  reminder_lead_hours: 24,
+  internal_note: "",
 };
 
 function buildClientLabel(client: ClientRecord) {
@@ -71,6 +89,7 @@ export default function NewAppointmentPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [availabilityHint, setAvailabilityHint] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -134,6 +153,43 @@ export default function NewAppointmentPage() {
   const selectedPolicy = useMemo(() => clientPolicies[0] ?? null, [clientPolicies]);
   const defaultPos = useMemo(() => defaultPosForAppointmentType(form.appointment_type), [form.appointment_type]);
 
+  async function runAvailabilityCheck() {
+    if (!form.provider_id || !form.scheduled_start_at || !form.duration_minutes) return;
+
+    const start = new Date(form.scheduled_start_at);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + Number(form.duration_minutes || 0));
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+
+    const response = await fetch("/api/scheduling/availability/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        providerId: form.provider_id,
+        startAt: start.toISOString(),
+        endAt: end.toISOString(),
+        location: form.service_location,
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || payload.success === false) {
+      setAvailabilityHint(payload.error ?? "Availability could not be verified.");
+      return;
+    }
+
+    if (payload.available) {
+      setAvailabilityHint("Provider is available for this slot.");
+    } else {
+      const reason = Array.isArray(payload.reasons) && payload.reasons.length > 0
+        ? payload.reasons.join(" ")
+        : "Provider is not available for this slot.";
+      setAvailabilityHint(reason);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -141,10 +197,11 @@ export default function NewAppointmentPage() {
     setSuccess(null);
 
     const start = new Date(form.scheduled_start_at);
-    const end = new Date(form.scheduled_end_at);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + Number(form.duration_minutes || 0));
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      setError("Start and end time are required.");
+      setError("Start time and duration are required.");
       setSaving(false);
       return;
     }
@@ -155,31 +212,49 @@ export default function NewAppointmentPage() {
       return;
     }
 
-    const payload = {
-      organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? null,
-      client_id: form.client_id,
-      provider_id: form.provider_id,
-      insurance_policy_id: selectedPolicy?.id ?? null,
-      scheduled_start_at: form.scheduled_start_at,
-      scheduled_end_at: form.scheduled_end_at,
-      appointment_status: form.appointment_status,
-      appointment_type: form.appointment_type,
-      reason: form.reason,
-    };
-
-    const { data, error: insertError } = await supabase
-      .from("appointments")
-      .insert(payload)
-      .select("id")
-      .single();
-
-    if (insertError) {
-      setError(insertError.message);
+    if (start.getMinutes() % 15 !== 0) {
+      setError("Appointments must start on 15-minute boundaries.");
       setSaving(false);
       return;
     }
 
-    setSuccess(`Appointment created: ${data.id}`);
+    const response = await fetch("/api/scheduling/appointments/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId: process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? null,
+        clientId: form.client_id,
+        providerId: form.provider_id,
+        insurancePolicyId: selectedPolicy?.id ?? null,
+        scheduledStartAt: form.scheduled_start_at,
+        durationMinutes: form.duration_minutes,
+        appointmentType: form.appointment_type,
+        reason: form.reason,
+        serviceLocation: form.service_location,
+        internalNote: form.internal_note,
+        reminderEmailEnabled: form.reminder_email_enabled,
+        reminderSmsEnabled: form.reminder_sms_enabled,
+        reminderPortalEnabled: form.reminder_portal_enabled,
+        reminderLeadHours: form.reminder_lead_hours,
+        recurrence: {
+          frequency: form.recurrence_frequency,
+          endMode: form.recurrence_end_mode,
+          endDate: form.recurrence_end_mode === "by_date" ? form.recurrence_end_date : null,
+          sessionCount: form.recurrence_end_mode === "by_count" ? form.recurrence_session_count : null,
+        },
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || payload.success === false) {
+      setError(payload.error ?? "Could not create appointment.");
+      setSaving(false);
+      return;
+    }
+
+    const created = Number(payload.occurrencesCreated ?? 0);
+    setSuccess(created > 1 ? `Created ${created} recurring appointments.` : `Appointment created.`);
     setSaving(false);
     
     // Redirect to patient chart
@@ -195,7 +270,7 @@ export default function NewAppointmentPage() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Scheduling Form with Real Providers</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Provider selection is now wired to your real providers table, not demo IDs.
+              Schedule in one pass with availability checks, recurrence controls, and reminder setup.
             </p>
           </div>
 
@@ -260,20 +335,31 @@ export default function NewAppointmentPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">End</label>
-                  <input
-                    type="datetime-local"
-                    value={form.scheduled_end_at}
-                    onChange={(e) => setForm((c) => ({ ...c, scheduled_end_at: e.target.value }))}
-                    required
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Duration</label>
+                  <select
+                    value={String(form.duration_minutes)}
+                    onChange={(e) => setForm((c) => ({ ...c, duration_minutes: Number(e.target.value) || 60 }))}
                     className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
-                  />
+                  >
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">60 minutes</option>
+                    <option value="75">75 minutes</option>
+                    <option value="90">90 minutes</option>
+                  </select>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">Appointment type</label>
                   <select
                     value={form.appointment_type}
-                    onChange={(e) => setForm((c) => ({ ...c, appointment_type: e.target.value as AppointmentFormState["appointment_type"] }))}
+                    onChange={(e) => {
+                      const nextType = e.target.value as AppointmentFormState["appointment_type"];
+                      setForm((c) => ({
+                        ...c,
+                        appointment_type: nextType,
+                        service_location: nextType === "Telehealth" ? "telehealth" : "office",
+                      }));
+                    }}
                     required
                     className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
                   >
@@ -298,6 +384,122 @@ export default function NewAppointmentPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Service location</label>
+                  <select
+                    value={form.service_location}
+                    onChange={(e) => setForm((c) => ({ ...c, service_location: e.target.value as AppointmentFormState["service_location"] }))}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                  >
+                    <option value="office">Office</option>
+                    <option value="telehealth">Telehealth</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Recurrence</label>
+                  <select
+                    value={form.recurrence_frequency}
+                    onChange={(e) => setForm((c) => ({ ...c, recurrence_frequency: e.target.value as AppointmentFormState["recurrence_frequency"] }))}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                  >
+                    <option value="none">No recurrence</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Reminder lead</label>
+                  <select
+                    value={String(form.reminder_lead_hours)}
+                    onChange={(e) => setForm((c) => ({ ...c, reminder_lead_hours: Number(e.target.value) || 24 }))}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                  >
+                    <option value="24">24 hours</option>
+                    <option value="48">48 hours</option>
+                    <option value="72">72 hours</option>
+                  </select>
+                </div>
+              </div>
+
+              {form.recurrence_frequency !== "none" ? (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">Recurrence end mode</label>
+                    <select
+                      value={form.recurrence_end_mode}
+                      onChange={(e) => setForm((c) => ({ ...c, recurrence_end_mode: e.target.value as AppointmentFormState["recurrence_end_mode"] }))}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                    >
+                      <option value="by_count">By number of sessions</option>
+                      <option value="by_date">By end date</option>
+                    </select>
+                  </div>
+                  {form.recurrence_end_mode === "by_count" ? (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Sessions</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={260}
+                        value={form.recurrence_session_count}
+                        onChange={(e) => setForm((c) => ({ ...c, recurrence_session_count: Math.max(1, Number(e.target.value) || 1) }))}
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">End date</label>
+                      <input
+                        type="date"
+                        value={form.recurrence_end_date}
+                        onChange={(e) => setForm((c) => ({ ...c, recurrence_end_date: e.target.value }))}
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.reminder_email_enabled}
+                    onChange={(e) => setForm((c) => ({ ...c, reminder_email_enabled: e.target.checked }))}
+                  />
+                  Email reminder
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.reminder_sms_enabled}
+                    onChange={(e) => setForm((c) => ({ ...c, reminder_sms_enabled: e.target.checked }))}
+                  />
+                  SMS reminder
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.reminder_portal_enabled}
+                    onChange={(e) => setForm((c) => ({ ...c, reminder_portal_enabled: e.target.checked }))}
+                  />
+                  Patient portal reminder
+                </label>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Internal notes (optional)</label>
+                <textarea
+                  value={form.internal_note}
+                  onChange={(e) => setForm((c) => ({ ...c, internal_note: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+                  placeholder="Administrative details, prep notes, scheduling context"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="text-sm font-medium text-emerald-900">Claim POS default</div>
                   <div className="mt-2 text-2xl font-semibold text-emerald-900">{defaultPos}</div>
@@ -312,19 +514,21 @@ export default function NewAppointmentPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">Status</label>
-                <select
-                  value={form.appointment_status}
-                  onChange={(e) => setForm((c) => ({ ...c, appointment_status: e.target.value }))}
-                  className="w-full max-w-xs rounded-xl border border-gray-300 px-4 py-2.5 text-sm"
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                New appointments are created with status <span className="font-semibold">Scheduled</span>.
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runAvailabilityCheck()}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  <option value="scheduled">Scheduled</option>
-                  <option value="checked_in">Checked in</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="no_show">No show</option>
-                </select>
+                  Check provider availability
+                </button>
+                {availabilityHint ? (
+                  <span className="text-sm text-slate-600">{availabilityHint}</span>
+                ) : null}
               </div>
 
               {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
