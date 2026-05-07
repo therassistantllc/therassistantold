@@ -35,8 +35,9 @@ function mockClaimStatus(input: ClaimStatusRequestInput): ClaimStatusResponseNor
 
 export class MockClearinghouseAdapter implements ClearinghouseAdapter {
   async runEligibility270(input: EligibilityRequestInput) {
-    const controlNumber = buildControlNumber(input.patientId);
-    const correlationId = buildCorrelationId(`${input.patientId}-${input.insurancePolicyId ?? "policy"}`);
+    const patientSeed = input.patientId ?? input.clientId ?? input.memberId ?? "mock";
+    const controlNumber = buildControlNumber(patientSeed);
+    const correlationId = buildCorrelationId(`${patientSeed}-${input.insurancePolicyId ?? "policy"}`);
     const status = mockEligibilityStatus(input.memberId);
 
     const normalized: EligibilityResponseNormalized = {
