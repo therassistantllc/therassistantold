@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/lib/supabase/client";
 
@@ -129,6 +129,10 @@ function PaymentImportsPageContent() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function loadData() {
     setLoading(true);
@@ -167,6 +171,42 @@ function PaymentImportsPageContent() {
     setBatches((batchData ?? []) as PaymentImportBatch[]);
     setItems((itemData ?? []) as PaymentImportItem[]);
     setLoading(false);
+  }
+
+  async function upload835File(file: File | null | undefined) {
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+    setUploadResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("organizationId", "demo-org");
+
+      const response = await fetch("/api/payments/import-835", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error ?? "835 import failed");
+      }
+
+      setUploadResult(
+        `Imported ${payload.summary?.claimsFound ?? 0} claim payments · ${payload.summary?.matchedClaims ?? 0} matched · ${payload.summary?.unmatchedClaims ?? 0} unmatched`,
+      );
+
+      await loadData();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "835 import failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   useEffect(() => {
@@ -236,18 +276,47 @@ function PaymentImportsPageContent() {
                 835 Payment Imports
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                View parsed ERA/835 payments, unmatched transactions, adjustment codes, check numbers, and posting readiness.
+                Upload ERA/835 files, review unmatched payments, adjustment codes, check numbers, and posting readiness.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={loadData}
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
-            >
-              Refresh
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".835,.era,.txt,.edi"
+                className="hidden"
+                onChange={(event) => void upload835File(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading ? "Importing 835..." : "Upload 835"}
+              </button>
+              <button
+                type="button"
+                onClick={loadData}
+                className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {uploadResult ? (
+            <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 shadow-sm">
+              {uploadResult}
+            </div>
+          ) : null}
+
+          {uploadError ? (
+            <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 shadow-sm">
+              {uploadError}
+            </div>
+          ) : null}
 
           <div className="mb-6 grid gap-4 md:grid-cols-6">
             <Metric label="Items" value={String(totals.itemCount)} />
@@ -303,7 +372,7 @@ function PaymentImportsPageContent() {
               {error}
             </div>
           ) : filteredItems.length === 0 ? (
-            <EmptyState text="No payment import items found." />
+            <EmptyState text="No payment import items found. Upload an 835 ERA file to begin testing payment import parsing." />
           ) : (
             <div className="grid gap-4">
               {filteredItems.map((item) => (
@@ -464,14 +533,14 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value }: { label: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
         {label}
       </p>
       <p className="mt-1 break-words text-sm font-semibold text-slate-950">
-        {value}
+        {arguments[0].value}
       </p>
     </div>
   );
