@@ -85,7 +85,11 @@ export async function persist277Lines(params: {
   payerName?: string | null;
   rawX12: string;
 }) {
-  const supabase = createServerSupabaseAdminClient();
+  const supabaseAdminClient = createServerSupabaseAdminClient();
+  if (!supabaseAdminClient) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for parsing 277 responses.");
+  }
+  const supabase = supabaseAdminClient;
 
   const lines = extract277Lines(params.rawX12);
 
