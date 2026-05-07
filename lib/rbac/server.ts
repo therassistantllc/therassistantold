@@ -29,6 +29,10 @@ export async function getStaffContext(
 ): Promise<StaffContextData | null> {
   const supabase = createServerSupabaseAdminClientTyped();
 
+  if (!supabase) {
+    return null;
+  }
+
   // Get staff profile
   const { data: staffData, error: staffError } = await supabase
     .from("staff_profiles")
@@ -65,6 +69,7 @@ export async function getStaffContext(
   // Extract unique role codes
   const roleCodeSet = new Set<StaffRoleCode>();
   const assignmentList = assignmentsData as unknown as Array<{
+    staff_role_id: string;
     staff_roles: { role_code: StaffRoleCode };
   }>;
 
