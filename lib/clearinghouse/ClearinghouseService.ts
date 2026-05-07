@@ -1,6 +1,6 @@
 // File: lib/clearinghouse/ClearinghouseService.ts
 import { MockClearinghouseAdapter } from "@/lib/clearinghouse/MockClearinghouseAdapter";
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import type {
   ClaimStatusCheck,
   ClaimStatusRequestInput,
@@ -53,7 +53,7 @@ function patientName(patient: AppPatient) {
 }
 
 async function getActiveConnection(organizationId: string): Promise<ClearinghouseConnection | null> {
-  const supabase = createServerSupabaseAdminClient();
+  const supabase = createServerSupabaseAdminClientTyped();
   if (!supabase) return null;
 
   const { data } = await supabase
@@ -69,7 +69,7 @@ async function getActiveConnection(organizationId: string): Promise<Clearinghous
 }
 
 async function insertTransaction(transaction: Partial<EdiTransaction>) {
-  const supabase = createServerSupabaseAdminClient();
+  const supabase = createServerSupabaseAdminClientTyped();
   if (!supabase) return null;
   const payload = {
     id: uuid(),
@@ -84,7 +84,7 @@ async function insertTransaction(transaction: Partial<EdiTransaction>) {
 }
 
 async function insertEvent(event: Partial<ClearinghouseResponseEvent>) {
-  const supabase = createServerSupabaseAdminClient();
+  const supabase = createServerSupabaseAdminClientTyped();
   if (!supabase) return null;
   const payload = {
     id: uuid(),
@@ -107,7 +107,7 @@ export class ClearinghouseService {
     insurancePolicyId?: string | null;
     serviceTypeCode?: string;
   }) {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
@@ -229,7 +229,7 @@ export class ClearinghouseService {
       payer_name: result.normalized.payerName ?? null,
       payer_id: result.normalized.payerId ?? null,
       service_type_code: result.normalized.serviceTypeCode ?? "98",
-      status: result.normalized.status,
+      eligibility_status: result.normalized.status,
       plan_name: result.normalized.planName ?? null,
       member_id: result.normalized.memberId ?? null,
       subscriber_name: result.normalized.subscriberName ?? null,
@@ -276,7 +276,7 @@ export class ClearinghouseService {
   }
 
   async getPatientEligibility(patientId: string) {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
@@ -284,7 +284,7 @@ export class ClearinghouseService {
     const { data, error } = await supabase
       .from("eligibility_checks")
       .select("*")
-      .eq("patient_id", patientId)
+      .eq("client_id", patientId)
       .order("checked_at", { ascending: false });
 
     if (error) {
@@ -299,7 +299,7 @@ export class ClearinghouseService {
   }
 
   async runClaimStatus(input: { claimId: string }) {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
@@ -397,7 +397,7 @@ export class ClearinghouseService {
       edi_277_transaction_id: inbound?.id ?? null,
       payer_name: result.normalized.payerName ?? null,
       payer_id: result.normalized.payerId ?? null,
-      status: result.normalized.status,
+      inquiry_status: result.normalized.status,
       status_category_code: result.normalized.statusCategoryCode ?? null,
       status_code: result.normalized.statusCode ?? null,
       entity_code: result.normalized.entityCode ?? null,
@@ -472,7 +472,7 @@ export class ClearinghouseService {
   }
 
   async getClaimStatusHistory(claimId: string) {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
@@ -507,15 +507,16 @@ export class ClearinghouseService {
   }
 
   async getTransactions(filters: Record<string, string | null | undefined>) {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
 
     let query = supabase.from("edi_transactions").select("*").order("created_at", { ascending: false }).limit(200);
 
+    const clientFilter = filters.client_id ?? filters.patient_id;
     if (filters.transaction_type) query = query.eq("transaction_type", filters.transaction_type);
-    if (filters.patient_id) query = query.eq("patient_id", filters.patient_id);
+    if (clientFilter) query = query.eq("client_id", clientFilter);
     if (filters.claim_id) query = query.eq("claim_id", filters.claim_id);
     if (filters.status) query = query.eq("status", filters.status);
     if (filters.date_from) query = query.gte("created_at", filters.date_from);
@@ -527,7 +528,6 @@ export class ClearinghouseService {
   }
 
   async getEvents(filters: Record<string, string | null | undefined>) {
-    const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }
@@ -542,7 +542,7 @@ export class ClearinghouseService {
     if (filters.event_type) query = query.eq("event_type", filters.event_type);
     if (filters.severity) query = query.eq("severity", filters.severity);
     if (filters.claim_id) query = query.eq("claim_id", filters.claim_id);
-    if (filters.patient_id) query = query.eq("patient_id", filters.patient_id);
+    if (filters.client_id ?? filters.patient_id) query = query.eq("client_id", filters.client_id ?? filters.patient_id);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);

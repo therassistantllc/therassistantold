@@ -11,7 +11,7 @@ export async function GET(request: Request) {
       event_type: searchParams.get("event_type"),
       severity: searchParams.get("severity"),
       claim_id: searchParams.get("claim_id"),
-      patient_id: searchParams.get("patient_id"),
+      client_id: searchParams.get("client_id") ?? searchParams.get("patient_id"),
     });
     return NextResponse.json({ rows: result });
   } catch (error) {

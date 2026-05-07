@@ -50,8 +50,8 @@ interface InsurancePolicyRecord {
 
 interface EligibilityCheck {
   id: string;
-  patient_id: string;
-  status: "active" | "inactive" | "not_found" | "error" | "unknown";
+  client_id: string;
+  eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   copay_amount?: number | null;
   deductible_remaining?: number | null;
   checked_at?: string | null;
@@ -187,18 +187,18 @@ function typeColor(type: string | null | undefined) {
 
 function eligibilityTone(eligibility: EligibilityCheck | null) {
   if (!eligibility) return "bg-gray-100 text-gray-700";
-  if (eligibility.status === "active") return "bg-green-100 text-green-800";
-  if (eligibility.status === "inactive" || eligibility.status === "not_found") return "bg-red-100 text-red-800";
-  if (eligibility.status === "error") return "bg-amber-100 text-amber-800";
+  if (eligibility.eligibility_status === "active") return "bg-green-100 text-green-800";
+  if (eligibility.eligibility_status === "inactive" || eligibility.eligibility_status === "not_found") return "bg-red-100 text-red-800";
+  if (eligibility.eligibility_status === "error") return "bg-amber-100 text-amber-800";
   return "bg-gray-100 text-gray-700";
 }
 
 function eligibilityLabel(eligibility: EligibilityCheck | null) {
   if (!eligibility) return "Not Checked";
-  if (eligibility.status === "active") return "Eligible";
-  if (eligibility.status === "inactive") return "Inactive";
-  if (eligibility.status === "not_found") return "Not Found";
-  if (eligibility.status === "error") return "Error";
+  if (eligibility.eligibility_status === "active") return "Eligible";
+  if (eligibility.eligibility_status === "inactive") return "Inactive";
+  if (eligibility.eligibility_status === "not_found") return "Not Found";
+  if (eligibility.eligibility_status === "error") return "Error";
   return "Unknown";
 }
 
@@ -328,7 +328,7 @@ export default function SchedulingPage() {
   const providerById = useMemo(() => new Map(providers.map((item) => [item.id, item])), [providers]);
   const policyById = useMemo(() => new Map(policies.map((item) => [item.id, item])), [policies]);
   const eligibilityByPatientId = useMemo(
-    () => new Map(eligibilityChecks.map((item) => [item.patient_id, item])),
+    () => new Map(eligibilityChecks.map((item) => [item.client_id, item])),
     [eligibilityChecks]
   );
   const checkinByAppointmentId = useMemo(
@@ -375,7 +375,7 @@ export default function SchedulingPage() {
   const warningCount = useMemo(() => {
     return visibleAppointments.filter((appointment) => {
       const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-      return !eligibility || eligibility.status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
+      return !eligibility || eligibility.eligibility_status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
     }).length;
   }, [eligibilityByPatientId, visibleAppointments]);
 
@@ -671,7 +671,7 @@ export default function SchedulingPage() {
                     {visibleAppointments
                       .filter((appointment) => {
                         const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                        return !eligibility || eligibility.status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
+                        return !eligibility || eligibility.eligibility_status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
                       })
                       .map((appointment) => {
                         const patient = patients.find((p) => p.id === appointment.client_id);
@@ -679,8 +679,8 @@ export default function SchedulingPage() {
                         const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "";
                         const reason = !eligibility
                           ? "No eligibility check"
-                          : eligibility.status !== "active"
-                            ? `Status: ${eligibility.status}`
+                            ? eligibility.eligibility_status !== "active"
+                              ? `Status: ${eligibility.eligibility_status}`
                             : "Eligibility check older than 30 days";
                         
                         return (
@@ -960,7 +960,7 @@ export default function SchedulingPage() {
                       appointment: selectedAppointment,
                       encounter: selectedEncounter,
                       claim: selectedClaim,
-                      eligibility: eligibility ? { status: eligibility.status, checked_at: eligibility.checked_at } : null,
+                      eligibility: eligibility ? { status: eligibility.eligibility_status, checked_at: eligibility.checked_at } : null,
                     });
                     return workflowStatus.primaryActionLabel;
                   })(),

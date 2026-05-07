@@ -131,7 +131,7 @@ export async function persist277Lines(params: {
   const primary = lines[0];
 
   let summaryStatus = "unknown";
-  if (primary?.statusCategoryCode === "A1") summaryStatus = "accepted";
+  if (primary?.statusCategoryCode === "A1") summaryStatus = "received";
   else if (primary?.statusCategoryCode === "A2" || primary?.statusCategoryCode === "A3") summaryStatus = "pending";
   else if (primary?.statusCategoryCode === "F2") summaryStatus = "denied";
 

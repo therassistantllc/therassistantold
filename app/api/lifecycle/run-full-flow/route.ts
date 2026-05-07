@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DbRow = Record<string, any>;
 
@@ -21,7 +23,7 @@ function money(value: unknown, fallback = "0.00") {
 }
 
 async function createWorkqueueItem(
-  supabase: ReturnType<typeof createServerSupabaseAdminClient>,
+  supabase: SupabaseClient<Database>,
   input: {
     organization_id: string;
     title: string;
@@ -79,7 +81,7 @@ async function createWorkqueueItem(
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) return NextResponse.json({ error: "Database connection not available" }, { status: 500 });
 
     const body = await request.json();

@@ -1,6 +1,6 @@
 // File: app/api/eligibility/check/route.ts
 import { NextResponse } from "next/server";
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import type { EligibilityCheckResponse } from "@/types/integrations";
 
 function generateUuid() {
@@ -48,7 +48,7 @@ function generateMockEligibilityResponse() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       return NextResponse.json(
         { error: "Database connection not available" },
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         // Create a new eligibility check if one doesn't exist
         const { data: appointment, error: apptError } = await supabase
           .from("appointments")
-          .select("*, clients!inner(*)")
+          .select("*")
           .eq("id", appointmentId)
           .single();
 
@@ -111,13 +111,20 @@ export async function POST(request: Request) {
           );
         }
 
+        if (!appointment.client_id) {
+          return NextResponse.json(
+            { error: "Appointment is missing client_id" },
+            { status: 422 }
+          );
+        }
+
         const newCheckPayload = {
           id: generateUuid(),
           organization_id: appointment.organization_id,
-          patient_id: appointment.client_id,
+          client_id: appointment.client_id,
           appointment_id: appointmentId,
           insurance_policy_id: appointment.insurance_policy_id,
-          status: "queued",
+          eligibility_status: "not_checked",
           created_at: new Date().toISOString(),
         };
 
@@ -141,38 +148,33 @@ export async function POST(request: Request) {
     const orgId = eligibilityCheck.organization_id;
     const now = new Date().toISOString();
 
-    // Get Office Ally integration connection
+    // Get Office Ally clearinghouse connection
     const { data: connection } = await supabase
-      .from("integration_connections")
+      .from("clearinghouse_connections")
       .select("*")
       .eq("organization_id", orgId)
-      .eq("integration_name", "office_ally")
+      .eq("vendor", "office_ally")
+      .eq("is_active", true)
       .maybeSingle();
 
-    // Create external_transactions record for sandbox 270/271
+    // Create EDI transaction record for sandbox 270/271
     const mockResponse = generateMockEligibilityResponse();
 
-    const duplicateDetectionKey = `eligibility-${eligibilityCheck.patient_id}-${eligibilityCheck.insurance_policy_id}-${now.slice(0, 10)}`;
+    const duplicateDetectionKey = `eligibility-${eligibilityCheck.client_id}-${eligibilityCheck.insurance_policy_id}-${now.slice(0, 10)}`;
 
     const transactionPayload = {
       id: generateUuid(),
       organization_id: orgId,
-      integration_connection_id: connection?.id || null,
+      client_id: eligibilityCheck.client_id,
+      appointment_id: eligibilityCheck.appointment_id,
+      clearinghouse_connection_id: connection?.id || null,
       transaction_type: "270",
-      payload_type: "eligibility_request",
-      payload_version: "005010X279A1",
-      message_format: "x12",
-      envelope_format: "x12",
-      processing_mode: "sandbox",
-      environment_flag: "test",
-      processing_status: "succeeded",
-      sender_id: "therassistant",
-      receiver_id: "office_ally",
-      source_object_type: "eligibility_check",
-      source_object_id: eligibilityCheck.id,
-      duplicate_detection_key: duplicateDetectionKey,
+      direction: "outbound",
+      status: "parsed",
+      control_number: duplicateDetectionKey,
+      correlation_id: duplicateDetectionKey,
       request_payload: {
-        patient_id: eligibilityCheck.patient_id,
+        client_id: eligibilityCheck.client_id,
         appointment_id: eligibilityCheck.appointment_id,
         insurance_policy_id: eligibilityCheck.insurance_policy_id,
         transaction_type: "270",
@@ -183,42 +185,7 @@ export async function POST(request: Request) {
         status: "active",
         ...mockResponse,
       },
-      parsed_response_summary: mockResponse.response_summary,
-      request_timestamp: now,
-      response_timestamp: now,
-      created_at: now,
-      updated_at: now,
-    };
-
-    const { data: transaction, error: txnError } = await supabase
-      .from("external_transactions")
-      .insert(transactionPayload)
-      .select()
-      .single();
-
-    if (txnError) {
-      console.error("Failed to create transaction:", txnError);
-      return NextResponse.json(
-        { error: "Failed to create transaction record" },
-        { status: 500 }
-      );
-    }
-
-    // Create external_transaction_attempts record
-    const attemptPayload = {
-      id: generateUuid(),
-      external_transaction_id: transaction.id,
-      attempt_number: 1,
-      attempt_status: "succeeded",
-      http_status_code: 200,
-      request_headers: {
-        "Content-Type": "application/edi-x12",
-        "X-Test-Mode": "sandbox",
-      },
-      response_headers: {
-        "Content-Type": "application/edi-x12",
-        "X-Response-Status": "success",
-      },
+      parsed_summary: mockResponse.response_summary,
       raw_request: `ISA*00*          *00*          *ZZ*THERASSISTANT  *ZZ*OFFICEALLY    *${now.slice(0, 6)}*${now.slice(11, 15)}*U*00401*000000001*0*T*:~
 GS*HS*THERASSISTANT*OFFICEALLY*${now.slice(0, 8)}*${now.slice(11, 15)}*1*X*004010X092~
 ST*270*0001~
@@ -229,7 +196,7 @@ HL*2*1*21*1~
 NM1*1P*2*PROVIDER*****XX*1234567890~
 HL*3*2*22*0~
 TRN*1*${eligibilityCheck.id}~
-NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.patient_id}~
+NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.client_id}~
 DMG*D8*19800101~
 DTP*291*D8*${now.slice(0, 8)}~
 EQ*98~
@@ -246,7 +213,7 @@ HL*2*1*21*1~
 NM1*1P*2*PROVIDER*****XX*1234567890~
 HL*3*2*22*0~
 TRN*2*${eligibilityCheck.id}~
-NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.patient_id}~
+NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.client_id}~
 N3*123 MAIN ST~
 N4*ANYTOWN*CA*12345~
 DMG*D8*19800101~
@@ -256,18 +223,23 @@ EB*A*IND**98~
 SE*17*0001~
 GE*1*1~
 IEA*1*000000001~`,
-      attempt_started_at: now,
-      attempt_completed_at: now,
+      sent_at: now,
+      received_at: now,
       created_at: now,
     };
 
-    const { error: attemptError } = await supabase
-      .from("external_transaction_attempts")
-      .insert(attemptPayload);
+    const { data: transaction, error: txnError } = await supabase
+      .from("edi_transactions")
+      .insert(transactionPayload)
+      .select()
+      .single();
 
-    if (attemptError) {
-      console.error("Failed to create attempt:", attemptError);
-      // Continue even if attempt creation fails
+    if (txnError) {
+      console.error("Failed to create transaction:", txnError);
+      return NextResponse.json(
+        { error: "Failed to create transaction record" },
+        { status: 500 }
+      );
     }
 
     // Update eligibility_checks with sandbox response
@@ -304,14 +276,17 @@ IEA*1*000000001~`,
       message: "Eligibility check completed successfully (sandbox mode)",
       eligibilityCheck: {
         id: updatedCheck.id,
-        eligibility_status: updatedCheck.eligibility_status,
-        checked_at: updatedCheck.checked_at,
+        eligibility_status: updatedCheck.eligibility_status ?? "unknown",
+        checked_at: updatedCheck.checked_at ?? now,
         coverage_start_date: updatedCheck.coverage_start_date,
         coverage_end_date: updatedCheck.coverage_end_date,
         copay_amount: updatedCheck.copay_amount,
         deductible_remaining: updatedCheck.deductible_remaining,
         out_of_pocket_remaining: updatedCheck.out_of_pocket_remaining,
-        response_summary: updatedCheck.response_summary,
+        response_summary:
+          updatedCheck.response_summary && typeof updatedCheck.response_summary === "object"
+            ? (updatedCheck.response_summary as Record<string, unknown>)
+            : undefined,
         external_transaction_id: updatedCheck.external_transaction_id,
       },
       transactionId: transaction.id,

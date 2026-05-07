@@ -274,7 +274,7 @@ serve(async (req: Request) => {
               organization_id: organizationId,
               source_object_type: "payment_import_item",
               source_object_id: item.id,
-              priority: claim.net_amount === 0 ? "high" : "normal",
+              priority: claim.net_amount === 0 ? "high" : "medium",
               status: "open",
               work_type: "payment_import_review",
               title: `Review 835 payment: ${importedItemRef}`,

@@ -1,17 +1,22 @@
 // File: app/api/payments/import-835/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import { parse835 } from "@/lib/clearinghouse/parsers/parse835";
+import type { Json } from "@/lib/supabase/database.types";
 
 function generateUuid() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function POST(request: Request) {
   try {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseAdminClientTyped();
 
     if (!supabase) {
       return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
@@ -19,10 +24,17 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const organizationId = String(formData.get("organizationId") ?? "demo-org");
+    const organizationId = String(formData.get("organizationId") ?? "").trim();
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: "835 file is required" }, { status: 400 });
+    }
+
+    if (!organizationId || !isUuid(organizationId)) {
+      return NextResponse.json(
+        { success: false, error: "Valid organizationId UUID is required" },
+        { status: 400 },
+      );
     }
 
     const raw835 = await file.text();
@@ -62,16 +74,31 @@ export async function POST(request: Request) {
     for (const claim of parsed.claims) {
       const patientControlNumber = claim.patientControlNumber;
 
-      const { data: matchedClaim } = await supabase
-        .from("claims")
-        .select("id, client_id")
-        .or(
-          patientControlNumber
-            ? `claim_number.eq.${patientControlNumber},id.eq.${patientControlNumber}`
-            : "id.is.null",
-        )
-        .limit(1)
-        .maybeSingle();
+      let matchedClaim: { id: string; client_id: string | null } | null = null;
+
+      if (patientControlNumber) {
+        const { data: claimNumberMatch } = await supabase
+          .from("claims")
+          .select("id, client_id")
+          .eq("organization_id", organizationId)
+          .eq("claim_number", patientControlNumber)
+          .limit(1)
+          .maybeSingle();
+
+        matchedClaim = claimNumberMatch;
+      }
+
+      if (!matchedClaim && patientControlNumber && isUuid(patientControlNumber)) {
+        const { data: idMatch } = await supabase
+          .from("claims")
+          .select("id, client_id")
+          .eq("organization_id", organizationId)
+          .eq("id", patientControlNumber)
+          .limit(1)
+          .maybeSingle();
+
+        matchedClaim = idMatch;
+      }
 
       const itemId = generateUuid();
 
@@ -84,7 +111,7 @@ export async function POST(request: Request) {
         adjustments: claim.adjustments,
         service_lines: claim.serviceLines,
         raw_claim_payload: claim.raw,
-      };
+      } as unknown as Json;
 
       const itemRecord = {
         id: itemId,

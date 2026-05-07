@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
 export interface WorkflowContext {
   organizationId: string;
@@ -26,7 +27,7 @@ export interface WorkflowResult {
  * Step 2: Create encounter from appointment
  */
 export async function createEncounter(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   appointmentId: string
 ): Promise<WorkflowResult> {
@@ -58,7 +59,7 @@ export async function createEncounter(
  * Step 3: Create and sign clinical note
  */
 export async function createNote(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -84,7 +85,7 @@ export async function createNote(
  * Step 4: Create encounter service line
  */
 export async function createServiceLine(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -119,7 +120,7 @@ export async function createServiceLine(
  * Step 5: Create claim with service line
  */
 export async function createClaim(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -175,7 +176,7 @@ export async function createClaim(
  * Step 7: Submit claim
  */
 export async function submitClaim(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   claimId: string
 ): Promise<WorkflowResult> {
@@ -221,7 +222,7 @@ export async function submitClaim(
     work_type: "claim_follow_up",
     title: "Follow up on submitted claim",
     description: "Monitor claim status and payment",
-    priority: "normal",
+    priority: "medium",
   };
 
   await supabase.from("workqueue_items").insert(workqueueData);
@@ -233,7 +234,7 @@ export async function submitClaim(
  * Step 9: Post payment
  */
 export async function postPayment(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   ctx: WorkflowContext,
   claimId: string
 ): Promise<WorkflowResult> {

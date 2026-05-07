@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import { PipelineResult } from "./types";
 
 function nowIso(): string {
@@ -17,7 +18,7 @@ function minutesBetween(start?: string | null, end?: string | null): number {
 }
 
 export async function startEncounterFromAppointment(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   appointmentId: string
 ): Promise<PipelineResult> {
   const { data: appointment, error: appointmentError } = await supabase
@@ -53,7 +54,7 @@ export async function startEncounterFromAppointment(
     .from("encounters")
     .insert({
       organization_id: appointment.organization_id,
-      patient_id: appointment.patient_id,
+      client_id: appointment.client_id,
       appointment_id: appointment.id,
       clinician_id: appointment.clinician_id,
       date_of_service: start.slice(0, 10),
@@ -119,7 +120,7 @@ export async function startEncounterFromAppointment(
 
   await supabase.from("audit_logs").insert({
     organization_id: appointment.organization_id,
-    patient_id: appointment.patient_id,
+    patient_id: appointment.client_id,
     appointment_id: appointment.id,
     encounter_id: encounter.id,
     event_type: "encounter_created_from_appointment",
@@ -136,7 +137,7 @@ export async function startEncounterFromAppointment(
 }
 
 export async function signClinicalNote(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   signedBy: string,
   noteFields: Record<string, string>
@@ -210,14 +211,14 @@ export async function signClinicalNote(
   await supabase.from("encounters").update(encounterUpdate).eq("id", encounterId);
 
   const queueType = readiness.missing.length === 0 ? "ready_to_bill" : "documentation_hold";
-  const priority = readiness.missing.length === 0 ? "normal" : "high";
+  const priority = readiness.missing.length === 0 ? "medium" : "high";
 
   const { data: queueItem } = await supabase
     .from("workqueue_items")
     .upsert(
       {
         organization_id: encounter.organization_id,
-        patient_id: encounter.patient_id,
+        client_id: encounter.client_id,
         appointment_id: encounter.appointment_id,
         encounter_id: encounterId,
         queue_type: queueType,
@@ -239,7 +240,7 @@ export async function signClinicalNote(
 
   await supabase.from("audit_logs").insert({
     organization_id: encounter.organization_id,
-    patient_id: encounter.patient_id,
+    patient_id: encounter.client_id,
     appointment_id: encounter.appointment_id,
     encounter_id: encounterId,
     clinical_note_id: noteId,
@@ -264,7 +265,7 @@ export async function signClinicalNote(
 }
 
 export async function evaluateEncounterReadiness(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   encounterId: string
 ): Promise<{ missing: string[] }> {
   const missing: string[] = [];
@@ -278,8 +279,8 @@ export async function evaluateEncounterReadiness(
     .maybeSingle();
   const { data: diagnoses } = await supabase.from("encounter_diagnoses").select("*").eq("encounter_id", encounterId);
   const { data: serviceLines } = await supabase.from("encounter_service_lines").select("*").eq("encounter_id", encounterId);
-  const { data: policies } = encounter?.patient_id
-    ? await supabase.from("insurance_policies").select("*").eq("patient_id", encounter.patient_id).eq("priority", 1).limit(1)
+  const { data: policies } = encounter?.client_id
+    ? await supabase.from("insurance_policies").select("*").eq("client_id", encounter.client_id).eq("priority", 1).limit(1)
     : { data: [] as Record<string, unknown>[] };
 
   if (!encounter) missing.push("encounter");
@@ -293,7 +294,7 @@ export async function evaluateEncounterReadiness(
 }
 
 export async function routeEncounterToBiller(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   message: string,
   ticketType: string,
@@ -310,12 +311,12 @@ export async function routeEncounterToBiller(
     .from("workqueue_items")
     .insert({
       organization_id: encounter.organization_id,
-      patient_id: encounter.patient_id,
+      client_id: encounter.client_id,
       appointment_id: encounter.appointment_id,
       encounter_id: encounterId,
       queue_type: "billing_review",
       ticket_type: ticketType || "billing_question",
-      priority: priority || "normal",
+      priority: priority || "medium",
       status: "open",
       title: "Clinician routed encounter to billing",
       description: message || "Please review this encounter before billing.",
@@ -334,7 +335,7 @@ export async function routeEncounterToBiller(
 
   await supabase.from("audit_logs").insert({
     organization_id: encounter.organization_id,
-    patient_id: encounter.patient_id,
+    patient_id: encounter.client_id,
     appointment_id: encounter.appointment_id,
     encounter_id: encounterId,
     workqueue_item_id: item.id,
@@ -347,7 +348,7 @@ export async function routeEncounterToBiller(
 }
 
 export async function scrubEncounterForClaim(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   scrubbedBy: string
 ): Promise<PipelineResult> {
@@ -382,7 +383,7 @@ export async function scrubEncounterForClaim(
 
   await supabase.from("audit_logs").insert({
     organization_id: encounter.organization_id,
-    patient_id: encounter.patient_id,
+    patient_id: encounter.client_id,
     appointment_id: encounter.appointment_id,
     encounter_id: encounterId,
     event_type: "billing_scrub_passed",
@@ -394,7 +395,7 @@ export async function scrubEncounterForClaim(
 }
 
 export async function createClaimFromEncounter(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   encounterId: string
 ): Promise<PipelineResult> {
   const { data: encounter } = await supabase.from("encounters").select("*").eq("id", encounterId).single();
@@ -412,7 +413,7 @@ export async function createClaimFromEncounter(
   const { data: policy } = await supabase
     .from("insurance_policies")
     .select("*, payers(*)")
-    .eq("patient_id", encounter.patient_id)
+    .eq("client_id", encounter.client_id)
     .eq("priority", 1)
     .limit(1)
     .maybeSingle();
@@ -426,7 +427,7 @@ export async function createClaimFromEncounter(
     .from("claims")
     .insert({
       organization_id: encounter.organization_id,
-      patient_id: encounter.patient_id,
+      client_id: encounter.client_id,
       encounter_id: encounterId,
       payer_id: policy?.payer_id ?? null,
       insurance_policy_id: policy?.id ?? null,
@@ -465,7 +466,7 @@ export async function createClaimFromEncounter(
 
   await supabase.from("audit_logs").insert({
     organization_id: encounter.organization_id,
-    patient_id: encounter.patient_id,
+    patient_id: encounter.client_id,
     appointment_id: encounter.appointment_id,
     encounter_id: encounterId,
     claim_id: claim.id,
@@ -478,7 +479,7 @@ export async function createClaimFromEncounter(
 }
 
 export async function submitClaim(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   claimId: string,
   submittedBy: string
 ): Promise<PipelineResult> {

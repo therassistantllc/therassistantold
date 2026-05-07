@@ -10,7 +10,7 @@ export default function ClearinghouseTransactionsPage() {
   const [rows, setRows] = useState<EdiTransaction[]>([]);
   const [transactionType, setTransactionType] = useState("");
   const [status, setStatus] = useState("");
-  const [patientId, setPatientId] = useState("");
+  const [clientId, setClientId] = useState("");
   const [claimId, setClaimId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export default function ClearinghouseTransactionsPage() {
     const search = new URLSearchParams();
     if (transactionType) search.set("transaction_type", transactionType);
     if (status) search.set("status", status);
-    if (patientId) search.set("patient_id", patientId);
+    if (clientId) search.set("client_id", clientId);
     if (claimId) search.set("claim_id", claimId);
 
     const response = await fetch(`/api/clearinghouse/transactions?${search.toString()}`);
@@ -54,7 +54,7 @@ export default function ClearinghouseTransactionsPage() {
 
           <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="grid gap-4 md:grid-cols-4">
-              <input value={patientId} onChange={(e) => setPatientId(e.target.value)} placeholder="Patient ID" className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm" />
+              <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Client ID" className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm" />
               <input value={claimId} onChange={(e) => setClaimId(e.target.value)} placeholder="Claim ID" className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm" />
               <select value={transactionType} onChange={(e) => setTransactionType(e.target.value)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm">
                 <option value="">All transaction types</option>

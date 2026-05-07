@@ -7,9 +7,9 @@ import { supabase } from "@/lib/supabase/client";
 
 interface EligibilityCheck {
   id: string;
-  patient_id: string;
+  client_id: string;
   policy_id?: string | null;
-  status: "active" | "inactive" | "not_found" | "error" | "unknown";
+  eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   copay_amount?: number | null;
   deductible_remaining?: number | null;
   checked_at?: string | null;
@@ -85,7 +85,7 @@ export default function InsuranceEligibilityPage() {
       }
 
       const checks = (checksData ?? []) as EligibilityCheck[];
-      const patientIds = Array.from(new Set(checks.map((c) => c.patient_id)));
+      const patientIds = Array.from(new Set(checks.map((c) => c.client_id)));
 
       if (patientIds.length > 0) {
         const { data: patientsData } = await supabase
@@ -95,7 +95,7 @@ export default function InsuranceEligibilityPage() {
 
         const patientById = new Map((patientsData ?? []).map((p: PatientRow) => [p.id, p]));
 
-        setChecks(checks.map((check) => ({ ...check, patient: patientById.get(check.patient_id) })));
+        setChecks(checks.map((check) => ({ ...check, patient: patientById.get(check.client_id) })));
       } else {
         setChecks(checks);
       }
@@ -111,7 +111,7 @@ export default function InsuranceEligibilityPage() {
   }, []);
 
   const filteredChecks = checks.filter((check) => {
-    const matchesStatus = statusFilter === "all" || check.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || check.eligibility_status === statusFilter;
     const query = search.trim().toLowerCase();
     const patientName = [check.patient?.first_name, check.patient?.last_name].filter(Boolean).join(" ").toLowerCase();
     const matchesSearch =
@@ -126,10 +126,10 @@ export default function InsuranceEligibilityPage() {
 
   const statusCounts = {
     all: checks.length,
-    active: checks.filter((c) => c.status === "active").length,
-    inactive: checks.filter((c) => c.status === "inactive").length,
-    not_found: checks.filter((c) => c.status === "not_found").length,
-    error: checks.filter((c) => c.status === "error").length,
+    active: checks.filter((c) => c.eligibility_status === "active").length,
+    inactive: checks.filter((c) => c.eligibility_status === "inactive").length,
+    not_found: checks.filter((c) => c.eligibility_status === "not_found").length,
+    error: checks.filter((c) => c.eligibility_status === "error").length,
   };
 
   return (
@@ -232,10 +232,10 @@ export default function InsuranceEligibilityPage() {
                         filteredChecks.map((check) => (
                           <tr key={check.id} className="text-sm text-gray-700 hover:bg-gray-50">
                             <td className="px-4 py-3">
-                              <Link href={`/patients/${check.patient_id}`} className="text-blue-600 hover:underline">
+                              <Link href={`/patients/${check.client_id}`} className="text-blue-600 hover:underline">
                                 {check.patient
                                   ? [check.patient.first_name, check.patient.last_name].filter(Boolean).join(" ")
-                                  : check.patient_id.slice(0, 8)}
+                                  : check.client_id.slice(0, 8)}
                               </Link>
                               {check.patient?.mrn && <div className="text-xs text-gray-500">MRN: {check.patient.mrn}</div>}
                             </td>
@@ -245,10 +245,10 @@ export default function InsuranceEligibilityPage() {
                             <td className="px-4 py-3">
                               <span
                                 className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(
-                                  check.status
+                                  check.eligibility_status
                                 )}`}
                               >
-                                {check.status?.replace("_", " ") || "—"}
+                                {check.eligibility_status?.replace("_", " ") || "—"}
                               </span>
                             </td>
                             <td className="px-4 py-3">{check.copay_amount ? `$${check.copay_amount}` : "—"}</td>

@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const service = new ClearinghouseService();
     const result = await service.getTransactions({
       transaction_type: searchParams.get("transaction_type"),
-      patient_id: searchParams.get("patient_id"),
+      client_id: searchParams.get("client_id") ?? searchParams.get("patient_id"),
       claim_id: searchParams.get("claim_id"),
       status: searchParams.get("status"),
       date_from: searchParams.get("date_from"),
