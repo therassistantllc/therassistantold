@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 
 function generateUuid() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function extractErrorMessage(error: unknown) {
@@ -25,19 +21,17 @@ function extractErrorMessage(error: unknown) {
   }
 }
 
-function getBootstrapOrganizationId() {
-  const fromEnv = String(process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "").trim();
-  if (fromEnv && isUuid(fromEnv)) return fromEnv;
-  return generateUuid();
-}
-
 export async function POST() {
   try {
-    const supabase = createServerSupabaseAdminClient();
+    const supabase = createServerSupabaseServiceRoleClient();
     if (!supabase) {
       return NextResponse.json(
-        { success: false, error: "Database connection not available" },
-        { status: 500 },
+        {
+          success: false,
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is required for organization creation. Add it to .env.local and restart dev server.",
+        },
+        { status: 503 },
       );
     }
 
@@ -55,7 +49,7 @@ export async function POST() {
     }
 
     const now = new Date().toISOString();
-    const organizationId = getBootstrapOrganizationId();
+    const organizationId = generateUuid();
     const organizationName = `Organization ${new Date().toLocaleDateString("en-US")}`;
 
     // Try with common columns first, then gracefully fall back if schema differs.
@@ -83,14 +77,7 @@ export async function POST() {
       lastError = error;
     }
 
-    if (!createdId) {
-      return NextResponse.json({
-        success: true,
-        organizationId,
-        created: false,
-        warning: `Could not persist organization row; using bootstrap organization ID. ${extractErrorMessage(lastError)}`,
-      });
-    }
+    if (!createdId) throw lastError ?? new Error("Could not create organization");
 
     return NextResponse.json({ success: true, organizationId: createdId, created: true });
   } catch (error) {

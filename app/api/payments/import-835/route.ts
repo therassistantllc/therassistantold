@@ -1,7 +1,7 @@
 // File: app/api/payments/import-835/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
 import { parse835 } from "@/lib/clearinghouse/parsers/parse835";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -30,10 +30,17 @@ function extractErrorMessage(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerSupabaseAdminClientTyped();
+    const supabase = createServerSupabaseServiceRoleClientTyped();
 
     if (!supabase) {
-      return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is required for 835 import writes. Add it to .env.local and restart dev server.",
+        },
+        { status: 503 },
+      );
     }
 
     const formData = await request.formData();
