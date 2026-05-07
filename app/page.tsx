@@ -4,8 +4,10 @@
 import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import HomeCommandCenter from "@/components/dashboard/HomeCommandCenter";
+import { useUserRole } from "@/lib/store/userRole";
+import type { AppRole } from "@/lib/navigation/roles";
 
-type Role = "admin_biller" | "clinician" | "credentialing" | "owner_executive";
+type Role = AppRole;
 
 interface DashboardPayload {
   role: string;
@@ -23,7 +25,9 @@ interface DashboardPayload {
 }
 
 export default function HomePage() {
-  const [role, setRole] = useState<Role>("admin_biller");
+  const persistedRole = useUserRole((state) => state.role);
+  const setPersistedRole = useUserRole((state) => state.setRole);
+  const [role, setRole] = useState<Role>(persistedRole);
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +50,13 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    setRole(persistedRole);
+  }, [persistedRole]);
+
+  useEffect(() => {
+    setPersistedRole(role);
     void load(role);
-  }, [role]);
+  }, [role, setPersistedRole]);
 
   return (
     <AppShell>

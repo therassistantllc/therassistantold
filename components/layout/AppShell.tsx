@@ -4,12 +4,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import WorkflowRail from "@/components/layout/WorkflowRail";
+import { canAccessModule, roleLabel, type AppRole } from "@/lib/navigation/roles";
+import { useUserRole } from "@/lib/store/userRole";
 
 type NavItem = {
   href: string;
   label: string;
   icon: string;
   match?: string[];
+  module: "scheduling" | "patients" | "billing" | "work_schedule" | "profile" | "settings" | "help" | "contact" | "patient_portal";
 };
 
 const navItems: NavItem[] = [
@@ -17,61 +21,99 @@ const navItems: NavItem[] = [
     href: "/",
     label: "Home",
     icon: "🏠",
+    module: "scheduling",
     match: ["/"],
   },
   {
     href: "/scheduling",
     label: "Scheduling",
     icon: "📅",
+    module: "scheduling",
     match: ["/scheduling", "/appointments"],
   },
   {
     href: "/work-schedule",
     label: "Work schedule",
     icon: "🗓️",
+    module: "work_schedule",
     match: ["/work-schedule"],
   },
   {
     href: "/patients",
     label: "Patients",
     icon: "👥",
+    module: "patients",
     match: ["/patients"],
   },
   {
     href: "/encounters",
     label: "Encounters",
     icon: "📝",
+    module: "patients",
     match: ["/encounters"],
   },
   {
     href: "/billing",
     label: "Billing",
     icon: "📋",
+    module: "billing",
     match: ["/billing", "/claims", "/payments"],
   },
   {
     href: "/billing/workqueue",
     label: "Workqueue",
     icon: "📮",
+    module: "billing",
     match: ["/billing/workqueue"],
   },
   {
     href: "/insurance/eligibility",
     label: "Eligibility",
     icon: "✅",
+    module: "billing",
     match: ["/insurance/eligibility", "/billing/eligibility"],
   },
   {
     href: "/clearinghouse/transactions",
     label: "Clearinghouse",
     icon: "🔁",
+    module: "settings",
     match: ["/clearinghouse", "/settings/clearinghouse"],
   },
   {
-    href: "/staff",
-    label: "Staff",
-    icon: "🧑‍⚕️",
-    match: ["/staff"],
+    href: "/profile",
+    label: "Profile",
+    icon: "🙍",
+    module: "profile",
+    match: ["/profile"],
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    icon: "⚙️",
+    module: "settings",
+    match: ["/settings"],
+  },
+  {
+    href: "/patient-portal",
+    label: "Patient Portal",
+    icon: "🧾",
+    module: "patient_portal",
+    match: ["/patient-portal"],
+  },
+  {
+    href: "/help",
+    label: "Help",
+    icon: "❓",
+    module: "help",
+    match: ["/help"],
+  },
+  {
+    href: "/contact-us",
+    label: "Contact Us",
+    icon: "☎️",
+    module: "contact",
+    match: ["/contact-us"],
   },
 ];
 
@@ -124,6 +166,8 @@ function getMobileValue(pathname: string) {
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const role = useUserRole((state) => state.role) as AppRole;
+  const visibleNavItems = navItems.filter((item) => canAccessModule(role, item.module));
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -138,10 +182,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 EHR Command
               </h1>
             </Link>
+            <p className="mt-2 text-xs font-semibold text-slate-500">{roleLabel(role)}</p>
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = isActive(pathname, item);
 
               return (
@@ -197,7 +242,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 }}
                 className="max-w-[220px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700"
               >
-                {navItems.map((item) => (
+                {visibleNavItems.map((item) => (
                   <option key={item.href} value={item.href}>
                     {item.icon} {item.label}
                   </option>
@@ -206,6 +251,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
+          <WorkflowRail />
           <main className="min-w-0 flex-1">{children}</main>
         </div>
       </div>
