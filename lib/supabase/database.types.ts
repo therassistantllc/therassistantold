@@ -444,6 +444,63 @@ export type Database = {
           event_metadata: Json | null;
           created_at: string | null;
         }>;
+      staff_profiles: TableDef<{
+          id: string;
+          organization_id: string;
+          auth_user_id: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+          phone: string | null;
+          job_title: string | null;
+          provider_npi: string | null;
+          staff_status: string | null;
+          is_active: boolean | null;
+          last_login_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          archived_at: string | null;
+        }>;
+      staff_roles: TableDef<{
+          id: string;
+          organization_id: string;
+          role_code: string;
+          role_name: string;
+          description: string | null;
+          is_default: boolean | null;
+          display_order: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+          archived_at: string | null;
+        }>;
+      staff_permissions: TableDef<{
+          id: string;
+          permission_code: string;
+          permission_label: string;
+          category: string | null;
+          description: string | null;
+          created_at: string | null;
+        }>;
+      staff_role_permissions: TableDef<{
+          id: string;
+          organization_id: string;
+          staff_role_id: string;
+          permission_id: string;
+          created_at: string | null;
+        }>;
+      staff_role_assignments: TableDef<{
+          id: string;
+          organization_id: string;
+          staff_id: string;
+          staff_role_id: string;
+          assigned_by: string | null;
+          assigned_at: string | null;
+          effective_at: string | null;
+          expires_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          archived_at: string | null;
+        }>;
       [key: string]: GenericTable;
     };
     Views: Record<string, never>;
