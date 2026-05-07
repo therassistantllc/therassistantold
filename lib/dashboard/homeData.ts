@@ -1,5 +1,6 @@
 // File: lib/dashboard/homeData.ts
 import { canonicalSeed } from "@/lib/canonical-ehr/seed";
+import { demoOperationalData } from "@/lib/demo/operationalDemoData";
 
 type DashboardRole =
   | "admin_biller"
@@ -8,12 +9,28 @@ type DashboardRole =
   | "owner_executive";
 
 export function getHomeDashboardData() {
+  const hasSeedData = (canonicalSeed.appointments?.length ?? 0) > 0;
+
+  if (!hasSeedData) {
+    return {
+      appointments: demoOperationalData.appointments,
+      claims: demoOperationalData.claims,
+      workqueueItems: demoOperationalData.workqueueItems,
+      eligibilityChecks: demoOperationalData.eligibilityChecks,
+      supportTickets: demoOperationalData.supportTickets,
+      clearinghouseActivity: demoOperationalData.clearinghouseActivity,
+      patientBalanceQueue: demoOperationalData.patientBalanceQueue,
+    };
+  }
+
   return {
     appointments: canonicalSeed.appointments ?? [],
     claims: canonicalSeed.claims ?? [],
     workqueueItems: canonicalSeed.workqueue_items ?? [],
     eligibilityChecks: canonicalSeed.eligibility_checks ?? [],
     supportTickets: canonicalSeed.support_tickets ?? [],
+    clearinghouseActivity: [],
+    patientBalanceQueue: [],
   };
 }
 
@@ -25,7 +42,7 @@ export function buildHomeDashboardPayload(role: string) {
     role: safeRole,
     organization: {
       id: "demo-org",
-      name: "Demo Organization",
+      name: "THERASSISTANT Demo Organization",
     },
 
     commandBarMetrics: [
@@ -36,15 +53,15 @@ export function buildHomeDashboardPayload(role: string) {
         href: "/scheduling",
       },
       {
-        key: "patients",
-        label: "Patients",
-        value: canonicalSeed.patients?.length ?? 0,
+        key: "clients",
+        label: "Clients",
+        value: Math.max(data.appointments.length, 12),
         href: "/patients",
       },
       {
         key: "encounters",
         label: "Encounters",
-        value: canonicalSeed.encounters?.length ?? 0,
+        value: Math.max(data.appointments.length, 9),
         href: "/encounters",
       },
       {
@@ -76,12 +93,12 @@ export function buildHomeDashboardPayload(role: string) {
     todaySchedule: data.appointments,
     revenueCycleSnapshot: buildRevenueCycleSnapshot(data.claims),
     claimsNeedingAttention: data.claims,
-    documentationQueue: canonicalSeed.encounters ?? [],
+    documentationQueue: canonicalSeed.encounters ?? demoOperationalData.appointments,
     eligibilityWatchlist: data.eligibilityChecks,
-    patientBalanceQueue: [],
+    patientBalanceQueue: data.patientBalanceQueue,
     tickets: data.supportTickets,
     credentialingTasks: [],
-    clearinghouseActivity: [],
+    clearinghouseActivity: data.clearinghouseActivity,
   };
 }
 
@@ -125,7 +142,7 @@ function buildRevenueCycleSnapshot(claims: any[]) {
     {
       key: "payment_imports",
       label: "Payment imports",
-      value: 0,
+      value: 3,
       href: "/billing/payment-imports",
     },
   ];
