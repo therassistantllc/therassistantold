@@ -26,7 +26,7 @@ interface Provider {
 
 interface Payer {
   id: string;
-  name?: string | null;
+  payer_name?: string | null;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -117,8 +117,8 @@ export default function CredentialingTasksPage() {
 
       if (payerIds.length > 0) {
         const { data: payersData } = await supabase
-          .from("payers")
-          .select("id, name")
+          .from("insurance_payers")
+          .select("id, payer_name")
           .in("id", payerIds);
 
         const payerById = new Map((payersData ?? []).map((p: Payer) => [p.id, p]));
@@ -144,7 +144,7 @@ export default function CredentialingTasksPage() {
     const matchesStatus = statusFilter === "all" || task.status === statusFilter;
     const query = search.trim().toLowerCase();
     const providerName = [task.provider?.first_name, task.provider?.last_name].filter(Boolean).join(" ").toLowerCase();
-    const payerName = (task.payer?.name ?? "").toLowerCase();
+    const payerName = (task.payer?.payer_name ?? "").toLowerCase();
     const matchesSearch =
       query.length === 0 ||
       providerName.includes(query) ||
@@ -284,7 +284,7 @@ export default function CredentialingTasksPage() {
                                 "—"
                               )}
                             </td>
-                            <td className="px-4 py-3">{task.payer?.name || "—"}</td>
+                            <td className="px-4 py-3">{task.payer?.payer_name || "—"}</td>
                             <td className="px-4 py-3 capitalize">{task.task_type?.replace(/_/g, " ") || "—"}</td>
                             <td className="px-4 py-3">
                               <span

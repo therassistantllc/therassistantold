@@ -68,7 +68,7 @@ interface Payment {
 
 interface Message {
   id: string;
-  patient_id?: string | null;
+  client_id?: string | null;
   sender_type?: string | null;
   sender_id?: string | null;
   subject?: string | null;
@@ -308,7 +308,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
           supabase
             .from("messages")
             .select("*")
-            .eq("patient_id", patientId)
+            .eq("client_id", patientId)
             .is("archived_at", null)
             .order("created_at", { ascending: false })
             .limit(50),

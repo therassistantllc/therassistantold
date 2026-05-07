@@ -17,7 +17,7 @@ interface PolicyForm {
   termination_date: string;
   copay_amount: string;
   deductible_amount: string;
-  is_active: boolean;
+  active_flag: boolean;
   notes: string;
 }
 
@@ -29,7 +29,7 @@ interface Client {
 
 interface Payer {
   id: string;
-  name?: string | null;
+  payer_name?: string | null;
 }
 
 export default function EditInsurancePolicyPage() {
@@ -48,7 +48,7 @@ export default function EditInsurancePolicyPage() {
     termination_date: "",
     copay_amount: "",
     deductible_amount: "",
-    is_active: true,
+    active_flag: true,
     notes: "",
   });
 
@@ -93,7 +93,7 @@ export default function EditInsurancePolicyPage() {
           termination_date: policyData.termination_date || "",
           copay_amount: policyData.copay_amount?.toString() || "",
           deductible_amount: policyData.deductible_amount?.toString() || "",
-          is_active: policyData.is_active ?? true,
+          active_flag: policyData.active_flag ?? true,
           notes: policyData.notes || "",
         });
       }
@@ -101,7 +101,7 @@ export default function EditInsurancePolicyPage() {
       // Load clients and payers for dropdowns
       const [{ data: clientsData }, { data: payersData }] = await Promise.all([
         supabase.from("clients").select("id, first_name, last_name").is("archived_at", null).order("last_name"),
-        supabase.from("payers").select("id, name").is("archived_at", null).order("name"),
+        supabase.from("insurance_payers").select("id, payer_name").is("archived_at", null).order("payer_name"),
       ]);
 
       if (!active) return;
@@ -147,7 +147,7 @@ export default function EditInsurancePolicyPage() {
       termination_date: form.termination_date || null,
       copay_amount: form.copay_amount ? parseFloat(form.copay_amount) : null,
       deductible_amount: form.deductible_amount ? parseFloat(form.deductible_amount) : null,
-      is_active: form.is_active,
+      active_flag: form.active_flag,
       notes: form.notes || null,
     };
 
@@ -236,7 +236,7 @@ export default function EditInsurancePolicyPage() {
                         <option value="">Select payer...</option>
                         {payers.map((payer) => (
                           <option key={payer.id} value={payer.id}>
-                            {payer.name}
+                            {payer.payer_name}
                           </option>
                         ))}
                       </select>
@@ -385,13 +385,13 @@ export default function EditInsurancePolicyPage() {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="is_active"
-                        name="is_active"
-                        checked={form.is_active}
+                        id="active_flag"
+                        name="active_flag"
+                        checked={form.active_flag}
                         onChange={handleChange}
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
                       />
-                      <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
+                      <label htmlFor="active_flag" className="ml-2 text-sm text-gray-700">
                         Policy is active
                       </label>
                     </div>
