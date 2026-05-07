@@ -361,16 +361,19 @@ export async function POST(request: Request) {
         steps.push({ step: "payment_import", status: "created", id: createdPaymentImport.id, message: "Created mock 835 payment import item" });
       }
 
+      if (!paymentImportItem) throw new Error("Payment import item was not available after creation/reuse");
+      const readyPaymentImportItem = paymentImportItem;
+
       await createWorkqueueItem(supabase, {
         organization_id: claim.organization_id,
         title: "Payment ready to post",
         work_type: "payment_posting_needed",
         priority: "medium",
         source_object_type: "payment_import_item",
-        source_object_id: paymentImportItem.id,
+        source_object_id: readyPaymentImportItem.id,
         client_id: claim.client_id,
         claim_id: claim.id,
-        context_payload: { lifecycle_step: "payment_import", payment_import_item_id: paymentImportItem.id },
+        context_payload: { lifecycle_step: "payment_import", payment_import_item_id: readyPaymentImportItem.id },
       });
     } else {
       steps.push({ step: "payment_import", status: "skipped", message: "Skipped by request" });
