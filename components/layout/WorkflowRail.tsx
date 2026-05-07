@@ -4,13 +4,36 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useActiveContext } from "@/lib/store/activeContext";
 
+type WorkflowStep = {
+  key: string;
+  label: string;
+  href: string;
+};
+
+function normalizePath(href: string) {
+  return href.split("?")[0];
+}
+
+function getUniqueSteps(steps: WorkflowStep[]) {
+  const seen = new Set<string>();
+
+  return steps.filter((step) => {
+    const key = normalizePath(step.href);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function WorkflowRail() {
   const { patientId, appointmentId, encounterId } = useActiveContext();
 
-  const steps = useMemo(
-    () => [
+  const steps = useMemo(() => {
+    const baseSteps: WorkflowStep[] = [
       { key: "calendar", label: "Calendar", href: "/scheduling" },
-      { key: "appointment", label: "Appointment", href: appointmentId ? `/appointments/${appointmentId}` : "/scheduling" },
+      ...(appointmentId
+        ? [{ key: "appointment", label: "Appointment", href: `/appointments/${appointmentId}` }]
+        : []),
       { key: "note", label: "Note", href: encounterId ? `/encounters/${encounterId}` : "/encounters" },
       { key: "charge", label: "Charge", href: encounterId ? `/claims/create?encounterId=${encounterId}` : "/claims/create" },
       { key: "claim", label: "Claim", href: "/claims" },
@@ -20,9 +43,10 @@ export default function WorkflowRail() {
         label: "Balance / Statement",
         href: patientId ? `/patients/${patientId}/patient-billing` : "/billing/ar",
       },
-    ],
-    [appointmentId, encounterId, patientId],
-  );
+    ];
+
+    return getUniqueSteps(baseSteps);
+  }, [appointmentId, encounterId, patientId]);
 
   return (
     <div className="border-b border-slate-200 bg-slate-100/70">
