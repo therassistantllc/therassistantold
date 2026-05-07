@@ -2,9 +2,26 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
+function getServiceRoleKey() {
+  const candidates = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SERVICE_ROLE,
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 export function createServerSupabaseAdminClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRole = getServiceRoleKey();
   const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const apiKey = serviceRole ?? anonKey;
 
@@ -22,7 +39,7 @@ export function createServerSupabaseAdminClient(): SupabaseClient | null {
 
 export function createServerSupabaseAdminClientTyped(): SupabaseClient<Database> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRole = getServiceRoleKey();
   const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const apiKey = serviceRole ?? anonKey;
 
@@ -40,7 +57,7 @@ export function createServerSupabaseAdminClientTyped(): SupabaseClient<Database>
 
 export function createServerSupabaseServiceRoleClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRole = getServiceRoleKey();
 
   if (!url || !serviceRole) {
     return null;
@@ -56,7 +73,7 @@ export function createServerSupabaseServiceRoleClient(): SupabaseClient | null {
 
 export function createServerSupabaseServiceRoleClientTyped(): SupabaseClient<Database> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRole = getServiceRoleKey();
 
   if (!url || !serviceRole) {
     return null;
