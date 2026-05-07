@@ -142,7 +142,7 @@ export async function signClinicalNote(
   }
 
   const { data: note, error: noteError } = await supabase
-    .from("clinical_notes")
+    .from("encounter_notes")
     .select("*")
     .eq("encounter_id", encounterId)
     .order("created_at", { ascending: false })
@@ -154,36 +154,26 @@ export async function signClinicalNote(
   }
 
   const payload = {
-    note_type: noteFields.note_type || note?.note_type || "progress",
-    note_format: noteFields.note_format || note?.note_format || "dap",
-    subjective: noteFields.subjective || note?.subjective || "Client participated in session.",
-    objective: noteFields.objective || note?.objective || "Client was alert and oriented.",
-    assessment: noteFields.assessment || note?.assessment || "Symptoms remain clinically significant but stable.",
-    plan: noteFields.plan || note?.plan || "Continue treatment plan and review progress next session.",
-    interventions: noteFields.interventions || note?.interventions || "CBT, supportive therapy, grounding skills.",
-    client_response: noteFields.client_response || note?.client_response || "Client was engaged and receptive.",
-    risk_assessment:
-      noteFields.risk_assessment ||
-      note?.risk_assessment ||
-      "Denied suicidal ideation, homicidal ideation, intent, or plan.",
-    progress_toward_goals:
-      noteFields.progress_toward_goals || note?.progress_toward_goals || "Progress noted toward active goals.",
-    next_steps: noteFields.next_steps || note?.next_steps || "Continue weekly outpatient therapy.",
-    signed_by: signedBy,
+    status: "signed",
     signed_at: nowIso(),
-    locked: true,
-    updated_at: nowIso(),
+    provider_id: signedBy,
+    client_id: encounter.client_id,
   };
 
   let noteId = note?.id as string | undefined;
 
   if (noteId) {
-    const { error } = await supabase.from("clinical_notes").update(payload).eq("id", noteId);
+    const { error } = await supabase.from("encounter_notes").update(payload).eq("id", noteId);
     if (error) return { ok: false, encounterId, noteId, message: error.message };
   } else {
     const { data: inserted, error } = await supabase
-      .from("clinical_notes")
-      .insert({ encounter_id: encounterId, ...payload, created_at: nowIso() })
+      .from("encounter_notes")
+      .insert({
+        organization_id: encounter.organization_id,
+        encounter_id: encounterId,
+        ...payload,
+        created_at: nowIso(),
+      })
       .select("*")
       .single();
     if (error || !inserted) return { ok: false, encounterId, message: error?.message ?? "Could not create note." };
@@ -261,10 +251,10 @@ export async function evaluateEncounterReadiness(
 
   const { data: encounter } = await supabase.from("encounters").select("*").eq("id", encounterId).single();
   const { data: note } = await supabase
-    .from("clinical_notes")
+    .from("encounter_notes")
     .select("*")
     .eq("encounter_id", encounterId)
-    .eq("locked", true)
+    .eq("status", "signed")
     .maybeSingle();
   const { data: diagnoses } = await supabase.from("encounter_diagnoses").select("*").eq("encounter_id", encounterId);
   const { data: serviceLines } = await supabase.from("encounter_service_lines").select("*").eq("encounter_id", encounterId);
@@ -277,7 +267,8 @@ export async function evaluateEncounterReadiness(
   if (!diagnoses || diagnoses.length === 0) missing.push("diagnosis");
   if (!serviceLines || serviceLines.length === 0) missing.push("service line");
   if (!policies || policies.length === 0) missing.push("primary insurance policy");
-  if (!encounter?.duration_minutes || encounter.duration_minutes < 16) missing.push("billable duration");
+  const encounterDuration = minutesBetween(encounter?.started_at, encounter?.ended_at);
+  if (!encounterDuration || encounterDuration < 16) missing.push("billable duration");
 
   return { missing };
 }
@@ -401,7 +392,7 @@ export async function createClaimFromEncounter(
 
   const { data: policy } = await supabase
     .from("insurance_policies")
-    .select("*, payers(*)")
+    .select("*")
     .eq("client_id", encounter.client_id)
     .eq("priority", 1)
     .limit(1)
@@ -418,14 +409,13 @@ export async function createClaimFromEncounter(
       organization_id: encounter.organization_id,
       client_id: encounter.client_id,
       encounter_id: encounterId,
-      payer_id: policy?.payer_id ?? null,
       insurance_policy_id: policy?.id ?? null,
       claim_number: claimNumber,
-      claim_type: "837P",
       claim_status: "draft",
       total_charge_amount: total,
-      total_paid_amount: 0,
-      total_adjustment_amount: 0,
+      date_of_service_from: encounter.service_date,
+      date_of_service_to: encounter.service_date,
+      claim_frequency_code: "1",
       patient_responsibility_amount: 0,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -441,13 +431,12 @@ export async function createClaimFromEncounter(
       claim_id: claim.id,
       encounter_service_line_id: line.id,
       line_number: lineNumber++,
-      procedure_code: line.procedure_code,
-      modifiers: [line.modifier_1, line.modifier_2, line.modifier_3, line.modifier_4].filter(Boolean),
+      sequence_number: lineNumber,
+      cpt_hcpcs_code: line.cpt_hcpcs_code,
       units: line.units,
       charge_amount: line.charge_amount,
-      service_date: encounter.date_of_service ?? todayIso(),
-      place_of_service_code: encounter.place_of_service_code ?? "11",
-      line_status: "draft",
+      service_date: encounter.service_date ?? todayIso(),
+      place_of_service_code: line.place_of_service_code ?? "11",
     });
   }
 
