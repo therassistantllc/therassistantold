@@ -48,7 +48,7 @@ const sections: BillingSection[] = [
     actions: [
       {
         label: "Patient Balances",
-        href: "/billing/ar",
+        href: "/billing/patient-balances",
         description: "Review patient responsibility balances and account-level collection tasks.",
       },
       {
