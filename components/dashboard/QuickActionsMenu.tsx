@@ -6,10 +6,8 @@ import Link from "next/link";
 const actions = [
   { href: "/scheduling/new", label: "Add appointment" },
   { href: "/patients/new", label: "Add patient" },
-  { href: "/insurance/eligibility", label: "Run eligibility" },
   { href: "/claims/create", label: "Create claim" },
   { href: "/tickets", label: "Add ticket" },
-  { href: "/billing/payment-imports", label: "Upload ERA" },
   { href: "/staff", label: "Add provider" },
 ];
 
