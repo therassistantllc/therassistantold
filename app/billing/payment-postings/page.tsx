@@ -58,56 +58,88 @@ export default function BillingPaymentPostingsPage() {
   const [queueItems, setQueueItems] = useState<PostingQueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [postingItemId, setPostingItemId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+
+    const [itemsResp, postingsResp, queueResp] = await Promise.all([
+      supabase
+        .from("payment_import_items")
+        .select("id, organization_id, payment_import_status, imported_item_ref, payment_date, claim_id, client_id, net_amount, unapplied_amount, posting_ready, match_status, match_reason, original_file_name, created_at, updated_at, archived_at")
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase
+        .from("payment_postings")
+        .select("*")
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase
+        .from("workqueue_items")
+        .select("id, source_object_id, status, priority, title, description, created_at")
+        .eq("work_type", "payment_posting_needed")
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ]);
+
+    const firstError = itemsResp.error ?? postingsResp.error ?? queueResp.error;
+    if (firstError) {
+      setError(firstError.message);
+      setLoading(false);
+      return;
+    }
+
+    setImportItems((itemsResp.data ?? []) as PaymentImportItemRow[]);
+    setPostings((postingsResp.data ?? []) as PaymentPostingRecord[]);
+    setQueueItems((queueResp.data ?? []) as PostingQueueRow[]);
+    setLoading(false);
+  }
 
   useEffect(() => {
     let active = true;
 
-    async function loadData() {
+    async function loadActive() {
       setLoading(true);
-      setError(null);
-
-      const [itemsResp, postingsResp, queueResp] = await Promise.all([
-        supabase
-          .from("payment_import_items")
-          .select("id, organization_id, payment_import_status, imported_item_ref, payment_date, claim_id, client_id, net_amount, unapplied_amount, posting_ready, match_status, match_reason, original_file_name, created_at, updated_at, archived_at")
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(200),
-        supabase
-          .from("payment_postings")
-          .select("*")
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(200),
-        supabase
-          .from("workqueue_items")
-          .select("id, source_object_id, status, priority, title, description, created_at")
-          .eq("work_type", "payment_posting_needed")
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(200),
-      ]);
-
-      if (!active) return;
-
-      const firstError = itemsResp.error ?? postingsResp.error ?? queueResp.error;
-      if (firstError) {
-        setError(firstError.message);
-        setLoading(false);
-        return;
-      }
-
-      setImportItems((itemsResp.data ?? []) as PaymentImportItemRow[]);
-      setPostings((postingsResp.data ?? []) as PaymentPostingRecord[]);
-      setQueueItems((queueResp.data ?? []) as PostingQueueRow[]);
-      setLoading(false);
+      await loadData();
     }
 
-    void loadData();
+    void loadActive();
     return () => {
       active = false;
     };
   }, []);
+
+  async function handlePostPayment(itemId: string) {
+    setPostingItemId(itemId);
+    setActionMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/payments/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentImportItemId: itemId }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error ?? "Failed to post payment");
+      }
+
+      setActionMessage(payload.reused ? "Payment posting already existed." : "Payment posted successfully.");
+      await loadData();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to post payment");
+    } finally {
+      setPostingItemId(null);
+    }
+  }
 
   const postingByImportItemId = useMemo(() => {
     return new Map(
@@ -162,6 +194,12 @@ export default function BillingPaymentPostingsPage() {
             <Metric label="Posted amount" value={formatMoney(totals.postedAmount)} />
           </div>
 
+          {actionMessage ? (
+            <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 shadow-sm">
+              {actionMessage}
+            </div>
+          ) : null}
+
           {loading ? (
             <EmptyState text="Loading payment posting workspace..." />
           ) : error ? (
@@ -199,6 +237,18 @@ export default function BillingPaymentPostingsPage() {
                           <Info label="Client" value={item.client_id ?? "No client"} mono />
                           <Info label="Payment date" value={formatDateTime(item.payment_date)} />
                           <Info label="Match status" value={item.match_status ?? "—"} />
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs text-slate-500">{item.match_reason ?? "Matched and ready for posting."}</p>
+                          <button
+                            type="button"
+                            onClick={() => void handlePostPayment(item.id)}
+                            disabled={postingItemId === item.id}
+                            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {postingItemId === item.id ? "Posting..." : "Post payment now"}
+                          </button>
                         </div>
                       </div>
                     ))
