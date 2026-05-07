@@ -121,10 +121,6 @@ function getPayload(item: PaymentImportItem) {
   return item.raw_item_payload ?? {};
 }
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
 function PaymentImportsPageContent() {
   const [batches, setBatches] = useState<PaymentImportBatch[]>([]);
   const [items, setItems] = useState<PaymentImportItem[]>([]);
@@ -223,29 +219,6 @@ function PaymentImportsPageContent() {
     }
   }
 
-  async function getOrLoadOrganizationId() {
-    if (isUuid(organizationId)) return organizationId;
-
-    const { data: org, error: orgError } = await supabase
-      .from("organizations")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (orgError) {
-      throw new Error(orgError.message || "Failed to load organization");
-    }
-
-    if (!org?.id || !isUuid(String(org.id))) {
-      throw new Error("Create an organization before importing 835 files.");
-    }
-
-    const resolvedId = String(org.id);
-    setOrganizationId(resolvedId);
-    return resolvedId;
-  }
-
   async function upload835File(file: File | null | undefined) {
     if (!file) return;
 
@@ -254,11 +227,8 @@ function PaymentImportsPageContent() {
     setUploadResult(null);
 
     try {
-      const resolvedOrganizationId = await getOrLoadOrganizationId();
-
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("organizationId", resolvedOrganizationId);
 
       const response = await fetch("/api/payments/import-835", {
         method: "POST",

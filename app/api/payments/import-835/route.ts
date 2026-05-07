@@ -11,7 +11,7 @@ function generateUuid() {
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 function extractErrorMessage(error: unknown) {
@@ -28,6 +28,35 @@ function extractErrorMessage(error: unknown) {
   }
 }
 
+async function resolveOrganizationId(
+  supabase: NonNullable<ReturnType<typeof createServerSupabaseServiceRoleClientTyped>>,
+  submittedOrganizationId: string,
+) {
+  if (submittedOrganizationId && isUuid(submittedOrganizationId)) {
+    return submittedOrganizationId;
+  }
+
+  const envOrganizationId = String(process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "").trim();
+  if (envOrganizationId && isUuid(envOrganizationId)) {
+    return envOrganizationId;
+  }
+
+  const { data: firstOrganization, error: orgLookupError } = await supabase
+    .from("organizations")
+    .select("id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (orgLookupError) throw orgLookupError;
+
+  if (!firstOrganization?.id || typeof firstOrganization.id !== "string") {
+    return null;
+  }
+
+  return firstOrganization.id;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -36,13 +65,6 @@ export async function POST(request: Request) {
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: "835 file is required" }, { status: 400 });
-    }
-
-    if (submittedOrganizationId && !isUuid(submittedOrganizationId)) {
-      return NextResponse.json(
-        { success: false, error: "organizationId must be a valid UUID from organizations.id" },
-        { status: 400 },
-      );
     }
 
     const supabase = createServerSupabaseServiceRoleClientTyped();
@@ -58,26 +80,13 @@ export async function POST(request: Request) {
       );
     }
 
-    let organizationId = submittedOrganizationId;
+    const organizationId = await resolveOrganizationId(supabase, submittedOrganizationId);
 
-    if (!organizationId || !isUuid(organizationId)) {
-      const { data: firstOrganization, error: orgLookupError } = await supabase
-        .from("organizations")
-        .select("id")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (orgLookupError) throw orgLookupError;
-
-      if (!firstOrganization?.id || typeof firstOrganization.id !== "string") {
-        return NextResponse.json(
-          { success: false, error: "Create an organization before importing 835 files." },
-          { status: 400 },
-        );
-      }
-
-      organizationId = firstOrganization.id;
+    if (!organizationId) {
+      return NextResponse.json(
+        { success: false, error: "Create an organization before importing 835 files." },
+        { status: 400 },
+      );
     }
 
     const raw835 = await file.text();
@@ -160,7 +169,7 @@ export async function POST(request: Request) {
         id: itemId,
         organization_id: organizationId,
         batch_id: batchId,
-        payment_import_status: matchedClaim ? "matched" : "unmatched",
+        payment_import_status: "parsed",
         imported_item_ref: patientControlNumber,
         payment_date: claim.paymentDate,
         payer_id: null,
