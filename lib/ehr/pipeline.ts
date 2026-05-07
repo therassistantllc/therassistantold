@@ -427,17 +427,20 @@ export async function createClaimFromEncounter(
 
   let lineNumber = 1;
   for (const line of lines ?? []) {
+    const sequenceNumber = lineNumber;
+
     await supabase.from("claim_service_lines").insert({
       claim_id: claim.id,
       encounter_service_line_id: line.id,
-      line_number: lineNumber++,
-      sequence_number: lineNumber,
+      sequence_number: sequenceNumber,
       cpt_hcpcs_code: line.cpt_hcpcs_code,
       units: line.units,
       charge_amount: line.charge_amount,
       service_date: encounter.service_date ?? todayIso(),
       place_of_service_code: line.place_of_service_code ?? "11",
     });
+
+    lineNumber += 1;
   }
 
   await supabase.from("encounters").update({ billing_status: "claim_created", updated_at: nowIso() }).eq("id", encounterId);
@@ -468,21 +471,19 @@ export async function submitClaim(
     .from("claims")
     .update({
       claim_status: "submitted",
-      submission_date: nowIso(),
-      clearinghouse_trace_id: `TRACE-${Date.now()}`,
+      submitted_at: nowIso(),
       updated_at: nowIso(),
     })
     .eq("id", claimId);
 
   await supabase.from("claim_submissions").insert({
     claim_id: claimId,
-    transaction_type: "837P",
-    submission_method: "manual",
-    control_number: `837P-${Date.now()}`,
-    edi_payload: "MOCK 837P PAYLOAD - replace with clearinghouse integration",
-    response_status: "submitted",
+    submission_status: "submitted",
+    clearinghouse_reference: `TRACE-${Date.now()}`,
+    submission_sequence: 1,
+    response_summary: `Submitted by ${submittedBy}`,
     submitted_at: nowIso(),
-    submitted_by: submittedBy,
+    acknowledged_at: null,
   });
 
   await supabase.from("claim_status_events").insert({
