@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/src/types/supabase";
 
 type ClaimUpdate = Database["public"]["Tables"]["claims"]["Update"];
 

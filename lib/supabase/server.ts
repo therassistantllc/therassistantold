@@ -1,6 +1,6 @@
 // File: lib/supabase/server.ts
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/src/types/supabase";
 
 function getServiceRoleKey() {
   const candidates = [

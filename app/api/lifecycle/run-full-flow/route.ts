@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/src/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DbRow = Record<string, any>;

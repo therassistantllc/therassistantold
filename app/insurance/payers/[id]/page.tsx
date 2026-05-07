@@ -296,12 +296,12 @@ export default function PayerDetailPage() {
                             <td className="px-4 py-3">
                               <span
                                 className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${
-                                  policy.is_active
+                                  policy.active_flag
                                     ? "bg-green-100 text-green-800"
                                     : "bg-gray-100 text-gray-700"
                                 }`}
                               >
-                                {policy.is_active ? "Active" : "Inactive"}
+                                {policy.active_flag ? "Active" : "Inactive"}
                               </span>
                             </td>
                             <td className="px-4 py-3">{formatDate(policy.effective_date)}</td>
