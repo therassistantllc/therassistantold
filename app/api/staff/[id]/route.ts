@@ -29,8 +29,11 @@ interface StaffUpdatePayload {
  * GET /api/staff/[id]
  * Retrieve staff profile (requires MANAGE_STAFF permission)
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
 
   // Validate UUID format
   if (!isValidUuid(id)) {
@@ -70,8 +73,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
  * PUT /api/staff/[id]
  * Update staff profile (requires MANAGE_STAFF permission)
  */
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
 
   // Validate UUID format
   if (!isValidUuid(id)) {
@@ -139,8 +145,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
  * DELETE /api/staff/[id]
  * Soft-delete staff profile (archive, requires MANAGE_STAFF permission)
  */
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
 
   // Validate UUID format
   if (!isValidUuid(id)) {
