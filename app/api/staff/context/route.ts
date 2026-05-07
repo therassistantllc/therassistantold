@@ -5,11 +5,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffContext } from "@/lib/rbac/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient();
+    const supabase = createServerSupabaseAdminClientTyped();
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Server misconfiguration" },
+        { status: 500 },
+      );
+    }
 
     // Get auth session to extract org_id from JWT or request context
     const {
