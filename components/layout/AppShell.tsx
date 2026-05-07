@@ -119,9 +119,10 @@ const navItems: NavItem[] = [
 
 const launchTools: NavItem[] = [
   {
-    href: "/billing/workqueue?work_type=mailroom_review",
-    label: "Gmail AI queue",
-    icon: "📬",
+      href: "/billing/workqueue?work_type=mailroom_review",
+      label: "Gmail AI queue",
+      icon: "📬",
+      module: "scheduling"
   },
   {
     href: "/billing/payment-postings",
