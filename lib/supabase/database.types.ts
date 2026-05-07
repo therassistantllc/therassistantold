@@ -310,6 +310,17 @@ export type Database = {
           created_at: string | null;
           updated_at: string | null;
         }>;
+      payment_posting_allocations: TableDef<{
+          id: string;
+          organization_id: string;
+          payment_posting_id: string;
+          claim_service_line_id: string | null;
+          allocated_amount: number | string | null;
+          adjustment_amount: number | string | null;
+          patient_responsibility_amount: number | string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        }>;
       encounter_notes: TableDef<{
           id: string;
           organization_id: string;
