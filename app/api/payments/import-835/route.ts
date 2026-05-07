@@ -24,17 +24,32 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const organizationId = String(formData.get("organizationId") ?? "").trim();
+    const submittedOrganizationId = String(formData.get("organizationId") ?? "").trim();
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: "835 file is required" }, { status: 400 });
     }
 
+    let organizationId = submittedOrganizationId;
+
     if (!organizationId || !isUuid(organizationId)) {
-      return NextResponse.json(
-        { success: false, error: "Valid organizationId UUID is required" },
-        { status: 400 },
-      );
+      const { data: firstOrganization, error: orgLookupError } = await supabase
+        .from("organizations")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (orgLookupError) throw orgLookupError;
+
+      if (!firstOrganization?.id || typeof firstOrganization.id !== "string") {
+        return NextResponse.json(
+          { success: false, error: "Create an organization before importing 835 files." },
+          { status: 400 },
+        );
+      }
+
+      organizationId = firstOrganization.id;
     }
 
     const raw835 = await file.text();
