@@ -528,6 +528,7 @@ export class ClearinghouseService {
   }
 
   async getEvents(filters: Record<string, string | null | undefined>) {
+    const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for clearinghouse server routes.");
     }

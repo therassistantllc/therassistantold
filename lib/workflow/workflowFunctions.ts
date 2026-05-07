@@ -222,7 +222,7 @@ export async function submitClaim(
     work_type: "claim_follow_up",
     title: "Follow up on submitted claim",
     description: "Monitor claim status and payment",
-    priority: "medium",
+    priority: "medium" as const,
   };
 
   await supabase.from("workqueue_items").insert(workqueueData);
