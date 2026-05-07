@@ -132,7 +132,12 @@ function PaymentImportsPageContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [organizationId, setOrganizationId] = useState<string>("");
+  const [creatingOrganization, setCreatingOrganization] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const needsOrganizationCreation =
+    uploadError?.includes("Create an organization before importing 835 files") ?? false;
 
   async function loadData() {
     setLoading(true);
@@ -170,7 +175,44 @@ function PaymentImportsPageContent() {
 
     setBatches((batchData ?? []) as PaymentImportBatch[]);
     setItems((itemData ?? []) as PaymentImportItem[]);
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (org?.id) {
+      setOrganizationId(String(org.id));
+    }
+
     setLoading(false);
+  }
+
+  async function createOrganizationFor835() {
+    setCreatingOrganization(true);
+
+    try {
+      const response = await fetch("/api/organizations/create", {
+        method: "POST",
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success || !payload.organizationId) {
+        throw new Error(payload.error ?? "Failed to create organization");
+      }
+
+      setOrganizationId(String(payload.organizationId));
+      setUploadError(null);
+      setUploadResult("Organization created. You can now upload 835 files.");
+      await loadData();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to create organization");
+    } finally {
+      setCreatingOrganization(false);
+    }
   }
 
   async function upload835File(file: File | null | undefined) {
@@ -183,7 +225,9 @@ function PaymentImportsPageContent() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("organizationId", "demo-org");
+      if (organizationId) {
+        formData.append("organizationId", organizationId);
+      }
 
       const response = await fetch("/api/payments/import-835", {
         method: "POST",
@@ -314,7 +358,17 @@ function PaymentImportsPageContent() {
 
           {uploadError ? (
             <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 shadow-sm">
-              {uploadError}
+              <p>{uploadError}</p>
+              {needsOrganizationCreation ? (
+                <button
+                  type="button"
+                  onClick={() => void createOrganizationFor835()}
+                  disabled={creatingOrganization}
+                  className="mt-3 rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creatingOrganization ? "Creating organization..." : "Create organization"}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
