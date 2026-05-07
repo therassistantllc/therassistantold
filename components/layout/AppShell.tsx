@@ -128,21 +128,25 @@ const launchTools: NavItem[] = [
     href: "/billing/payment-postings",
     label: "Payment posting",
     icon: "🧾",
+    module: "scheduling"
   },
   {
     href: "/billing/payment-imports",
     label: "835 imports",
     icon: "💵",
+    module: "scheduling"
   },
   {
     href: "/billing/denials",
     label: "Denials",
     icon: "⛔",
+    module: "scheduling"
   },
   {
     href: "/billing/rejections",
     label: "Rejections",
     icon: "⚠️",
+    module: "scheduling"
   },
 ];
 
