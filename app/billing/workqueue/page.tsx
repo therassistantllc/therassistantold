@@ -200,6 +200,13 @@ function BillingWorkqueuePageContent() {
   const [filingComments, setFilingComments] = useState<string>("");
   const [filingLoading, setFilingLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [commentItemId, setCommentItemId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [deferItemId, setDeferItemId] = useState<string | null>(null);
+  const [deferDuration, setDeferDuration] = useState<string>("1_day");
+  const [assignItemId, setAssignItemId] = useState<string | null>(null);
+  const [assignee, setAssignee] = useState<string>("");
 
   const { setContext } = useActiveContext();
 
@@ -375,14 +382,23 @@ function BillingWorkqueuePageContent() {
   }
 
   async function handleAssign(itemId: string) {
-    alert(`Assign item ${itemId} - placeholder`);
+    setAssignee("");
+    setAssignItemId(itemId);
   }
 
   async function handleComment(itemId: string) {
-    alert(`Comment on item ${itemId} - placeholder`);
+    setCommentText("");
+    setCommentItemId(itemId);
   }
 
   async function handleDefer(itemId: string) {
+    setDeferDuration("1_day");
+    setDeferItemId(itemId);
+  }
+
+  async function handleDeferConfirm() {
+    if (!deferItemId) return;
+    const itemId = deferItemId;
     const { error: updateError } = await supabase
       .from("workqueue_items")
       .update({ status: "blocked", updated_at: new Date().toISOString() })
@@ -394,6 +410,33 @@ function BillingWorkqueuePageContent() {
     }
 
     setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, status: "blocked" } : item)));
+      setDeferItemId(null);
+    }
+
+    async function handleCommentSubmit() {
+      if (!commentItemId || !commentText.trim()) return;
+      setCommentSaving(true);
+      const { error: updateError } = await supabase
+        .from("workqueue_items")
+        .update({ description: commentText.trim(), updated_at: new Date().toISOString() })
+        .eq("id", commentItemId);
+      setCommentSaving(false);
+      if (updateError) {
+        alert(`Error saving comment: ${updateError.message}`);
+        return;
+      }
+      const savedId = commentItemId;
+      const savedText = commentText.trim();
+      setCommentItemId(null);
+      setCommentText("");
+      setItems((prev) => prev.map((item) => (item.id === savedId ? { ...item, description: savedText } : item)));
+    }
+
+    async function handleAssignConfirm() {
+      if (!assignItemId) return;
+      setAssignItemId(null);
+      setAssignee("");
+    }
   }
 
   async function handleResolve(itemId: string) {
@@ -582,6 +625,70 @@ function BillingWorkqueuePageContent() {
             </div>
           )}
         </div>
+
+        {commentItemId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
+              <h2 className="text-xl font-black text-slate-950">Add comment</h2>
+              <p className="mt-2 text-sm text-slate-600">This comment will be saved to the workqueue item description.</p>
+              <textarea
+                className="mt-4 w-full min-h-28 rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                placeholder="Enter your comment..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setCommentItemId(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">Cancel</button>
+                <button type="button" onClick={handleCommentSubmit} disabled={commentSaving || !commentText.trim()} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{commentSaving ? "Saving..." : "Save comment"}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {deferItemId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+              <h2 className="text-xl font-black text-slate-950">Defer item</h2>
+              <p className="mt-2 text-sm text-slate-600">Select how long to defer this workqueue item. Status will be updated to <strong>blocked</strong>.</p>
+              <select
+                value={deferDuration}
+                onChange={(e) => setDeferDuration(e.target.value)}
+                className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+              >
+                <option value="1_day">1 day</option>
+                <option value="3_days">3 days</option>
+                <option value="1_week">1 week</option>
+                <option value="2_weeks">2 weeks</option>
+                <option value="1_month">1 month</option>
+              </select>
+              <div className="mt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setDeferItemId(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">Cancel</button>
+                <button type="button" onClick={handleDeferConfirm} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">Defer</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {assignItemId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+              <h2 className="text-xl font-black text-slate-950">Assign item</h2>
+              <p className="mt-2 text-sm text-slate-600">Full assignee management requires staff records. Enter an assignee name or email for now.</p>
+              <input
+                type="text"
+                className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                placeholder="Assignee name or email"
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+              />
+              <p className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-700">Full staff-based assignment will be available once Users &amp; Staff configuration is complete.</p>
+              <div className="mt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setAssignItemId(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">Cancel</button>
+                <button type="button" onClick={handleAssignConfirm} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">Close</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {filingItem ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">

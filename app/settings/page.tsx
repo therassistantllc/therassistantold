@@ -2,15 +2,16 @@ import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 
 const settingCards = [
-  { title: "Practice setup", description: "Organization profile, operational defaults, and account-level controls.", href: "/settings/clearinghouse" },
+  { title: "Practice setup", description: "Organization profile, operational defaults, and account-level controls.", href: "/settings/practice" },
   { title: "Billing setup", description: "Payers, service codes, claim behavior, and payment posting defaults.", href: "/billing" },
   { title: "Payers", description: "Payer records, search, and policy relationships.", href: "/insurance/payers" },
-  { title: "Documentation templates", description: "Encounter notes, defaults, and signing workflow controls.", href: "/encounters/new" },
+  { title: "Documentation templates", description: "Encounter notes, defaults, and signing workflow controls.", href: "/library" },
   { title: "Users and staff", description: "Role and permission assignment by staff function.", href: "/staff" },
   { title: "Patient portal settings", description: "Portal permissions, reminders, and client-facing capabilities.", href: "/patient-portal" },
-  { title: "Appointment types", description: "Visit classifications, telehealth defaults, and recurrence behavior.", href: "/scheduling/new" },
-  { title: "Reminder settings", description: "Email, SMS, and portal reminder lead-time controls.", href: "/scheduling/new" },
+  { title: "Appointment types", description: "Visit classifications, telehealth defaults, and recurrence behavior.", href: "/settings/appointment-types" },
+  { title: "Reminder settings", description: "Email, SMS, and portal reminder lead-time controls.", href: "/settings/reminder-settings" },
   { title: "Work schedule rules", description: "Provider availability, blocks, and enforcement constraints.", href: "/work-schedule" },
+  { title: "Clearinghouse settings", description: "Clearinghouse integration, Office Ally configuration, and transaction logs.", href: "/settings/clearinghouse" },
 ];
 
 export default function SettingsRootPage() {
