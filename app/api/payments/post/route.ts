@@ -96,36 +96,31 @@ export async function POST(request: Request) {
     if (postingError) throw postingError;
     if (!createdPosting) throw new Error("Payment posting creation returned no row");
 
-    const updates = [
-      supabase
-        .from("payment_import_items")
-        .update({ payment_import_status: "posted", posting_ready: false, updated_at: now })
-        .eq("id", paymentImportItem.id),
-      supabase
-        .from("workqueue_items")
-        .update({ status: "resolved", resolved_at: now, updated_at: now })
-        .eq("source_object_id", paymentImportItem.id)
-        .eq("work_type", "payment_posting_needed")
-        .is("archived_at", null),
-    ];
+    const paymentImportUpdate = await supabase
+      .from("payment_import_items")
+      .update({ payment_import_status: "posted", posting_ready: false, updated_at: now })
+      .eq("id", paymentImportItem.id);
+    if (paymentImportUpdate.error) throw paymentImportUpdate.error;
+
+    const workqueueUpdate = await supabase
+      .from("workqueue_items")
+      .update({ status: "resolved", resolved_at: now, updated_at: now })
+      .eq("source_object_id", paymentImportItem.id)
+      .eq("work_type", "payment_posting_needed")
+      .is("archived_at", null);
+    if (workqueueUpdate.error) throw workqueueUpdate.error;
 
     if (paymentImportItem.claim_id) {
-      updates.push(
-        supabase
-          .from("claims")
-          .update({
-            claim_status: "paid",
-            paid_at: now,
-            payer_responsibility_amount: safeAmount,
-            updated_at: now,
-          })
-          .eq("id", paymentImportItem.claim_id),
-      );
-    }
-
-    const results = await Promise.all(updates);
-    for (const result of results) {
-      if (result.error) throw result.error;
+      const claimUpdate = await supabase
+        .from("claims")
+        .update({
+          claim_status: "paid",
+          paid_at: now,
+          payer_responsibility_amount: safeAmount,
+          updated_at: now,
+        })
+        .eq("id", paymentImportItem.claim_id);
+      if (claimUpdate.error) throw claimUpdate.error;
     }
 
     return NextResponse.json({ success: true, reused: false, posting: createdPosting });
