@@ -239,10 +239,10 @@ export default function ClearinghousePage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>
-                        {connection.integration_name.replace(/_/g, " ").toUpperCase()}
+                        {(connection.integration_name ?? "").replace(/_/g, " ").toUpperCase()}
                       </h3>
                       <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>
-                        Status: {connection.connection_status.replace(/_/g, " ")}
+                        Status: {(connection.connection_status ?? "").replace(/_/g, " ")}
                       </p>
                     </div>
                     <div className="badge-info">{connection.mode}</div>
