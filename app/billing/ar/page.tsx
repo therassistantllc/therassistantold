@@ -142,7 +142,7 @@ export default function ARQueuePage() {
                             <div className="flex flex-wrap gap-2">
                               <Link href={`/claims/${row.id}`} className="text-blue-700 hover:underline">Claim Detail</Link>
                               <Link href="/claims/status" className="text-blue-700 hover:underline">Status</Link>
-                              <Link href="/payments" className="text-blue-700 hover:underline">Payments</Link>
+                              <Link href="/billing/payment-postings" className="text-blue-700 hover:underline">Payments</Link>
                             </div>
                           </td>
                         </tr>
