@@ -145,7 +145,7 @@ export default function PaymentExceptionsPage() {
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-2">
                               {row.claim_id ? <Link href={`/claims/${row.claim_id}`} className="text-blue-700 hover:underline">Claim Detail</Link> : null}
-                              <Link href="/payments" className="text-blue-700 hover:underline">Payments</Link>
+                              <Link href="/billing/payment-postings" className="text-blue-700 hover:underline">Payment Posting</Link>
                             </div>
                           </td>
                         </tr>
