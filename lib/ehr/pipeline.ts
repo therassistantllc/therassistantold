@@ -45,8 +45,8 @@ export async function startEncounterFromAppointment(
     };
   }
 
-  const start = appointment.scheduled_start ?? nowIso();
-  const end = appointment.scheduled_end ?? null;
+  const start = appointment.scheduled_start_at ?? nowIso();
+  const end = appointment.scheduled_end_at ?? null;
   const duration = minutesBetween(start, end) || 53;
 
   const { data: encounter, error: encounterError } = await supabase
@@ -55,16 +55,12 @@ export async function startEncounterFromAppointment(
       organization_id: appointment.organization_id,
       client_id: appointment.client_id,
       appointment_id: appointment.id,
-      clinician_id: appointment.clinician_id,
-      date_of_service: start.slice(0, 10),
-      start_time: start,
-      end_time: end,
-      duration_minutes: duration,
-      place_of_service_code: appointment.location_type === "telehealth" ? "10" : "11",
-      service_location: appointment.location_type === "telehealth" ? "Telehealth - client in Colorado" : "Office",
+      provider_id: appointment.provider_id,
+      service_date: start.slice(0, 10),
+      started_at: start,
+      ended_at: end,
       encounter_status: "draft",
-      documentation_status: "not_started",
-      billing_status: "hold",
+      required_billing_fields_complete: duration >= 16,
       created_at: nowIso(),
       updated_at: nowIso(),
     })
@@ -75,24 +71,18 @@ export async function startEncounterFromAppointment(
     return { ok: false, appointmentId, message: encounterError?.message ?? "Could not create encounter." };
   }
 
-  await supabase.from("appointments").update({ status: "completed", updated_at: nowIso() }).eq("id", appointmentId);
+  await supabase
+    .from("appointments")
+    .update({ appointment_status: "completed", updated_at: nowIso() })
+    .eq("id", appointmentId);
 
-  await supabase.from("clinical_notes").insert({
+  await supabase.from("encounter_notes").insert({
+    organization_id: encounter.organization_id,
     encounter_id: encounter.id,
-    note_type: "progress",
-    note_format: "dap",
-    subjective: "",
-    objective: "",
-    assessment: "",
-    plan: "",
-    interventions: "",
-    client_response: "",
-    risk_assessment: "",
-    progress_toward_goals: "",
-    next_steps: "",
-    locked: false,
+    status: "draft",
+    provider_id: encounter.provider_id,
+    client_id: encounter.client_id,
     created_at: nowIso(),
-    updated_at: nowIso(),
   });
 
   await supabase.from("encounter_diagnoses").insert({
@@ -104,15 +94,15 @@ export async function startEncounterFromAppointment(
   });
 
   await supabase.from("encounter_service_lines").insert({
+    organization_id: encounter.organization_id,
     encounter_id: encounter.id,
-    code_type: "CPT",
-    procedure_code: appointment.default_procedure_code ?? "90837",
+    service_date: start.slice(0, 10),
+    sequence_number: 1,
+    cpt_hcpcs_code: appointment.default_procedure_code ?? "90837",
     units: 1,
-    minutes: duration,
     charge_amount: appointment.default_charge_amount ?? 165,
-    diagnosis_pointer: "A",
-    documentation_support_status: "needs_review",
-    billing_status: "hold",
+    place_of_service_code: "11",
+    rendering_provider_id: encounter.provider_id,
     created_at: nowIso(),
     updated_at: nowIso(),
   });
