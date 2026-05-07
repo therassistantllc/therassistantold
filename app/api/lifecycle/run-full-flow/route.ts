@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       ? new Date(appointment.scheduled_start_at).toISOString().split("T")[0]
       : now.split("T")[0];
 
-    let encounter: DbRow | null = null;
+    let encounter: DbRow;
     const { data: existingEncounter, error: existingEncounterError } = await supabase
       .from("encounters")
       .select("*")
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
 
     if (existingEncounter) {
       encounter = existingEncounter;
-      steps.push({ step: "encounter", status: "reused", id: encounter.id, message: "Encounter already exists" });
+      steps.push({ step: "encounter", status: "reused", id: existingEncounter.id, message: "Encounter already exists" });
     } else {
       const { data: createdEncounter, error: createEncounterError } = await supabase
         .from("encounters")
@@ -147,8 +147,9 @@ export async function POST(request: Request) {
         .single();
 
       if (createEncounterError) throw createEncounterError;
+      if (!createdEncounter) throw new Error("Encounter creation returned no row");
       encounter = createdEncounter;
-      steps.push({ step: "encounter", status: "created", id: encounter.id, message: "Created draft encounter from appointment" });
+      steps.push({ step: "encounter", status: "created", id: createdEncounter.id, message: "Created draft encounter from appointment" });
     }
 
     await createWorkqueueItem(supabase, {
@@ -178,8 +179,9 @@ export async function POST(request: Request) {
         .single();
 
       if (signError) throw signError;
+      if (!signedEncounter) throw new Error("Encounter signing returned no row");
       encounter = signedEncounter;
-      steps.push({ step: "signed_note", status: "updated", id: encounter.id, message: "Auto-signed encounter for lifecycle test" });
+      steps.push({ step: "signed_note", status: "updated", id: signedEncounter.id, message: "Auto-signed encounter for lifecycle test" });
     } else {
       steps.push({
         step: "signed_note",
@@ -197,7 +199,7 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    let claim: DbRow | null = null;
+    let claim: DbRow;
     const { data: existingClaim, error: existingClaimError } = await supabase
       .from("claims")
       .select("*")
@@ -209,7 +211,7 @@ export async function POST(request: Request) {
 
     if (existingClaim) {
       claim = existingClaim;
-      steps.push({ step: "claim", status: "reused", id: claim.id, message: "Claim already exists" });
+      steps.push({ step: "claim", status: "reused", id: existingClaim.id, message: "Claim already exists" });
     } else {
       const claimNumber = `CLM-${Date.now()}`;
       const { data: createdClaim, error: claimError } = await supabase
@@ -238,8 +240,9 @@ export async function POST(request: Request) {
         .single();
 
       if (claimError) throw claimError;
+      if (!createdClaim) throw new Error("Claim creation returned no row");
       claim = createdClaim;
-      steps.push({ step: "claim", status: "created", id: claim.id, message: "Created submitted claim from signed encounter" });
+      steps.push({ step: "claim", status: "created", id: createdClaim.id, message: "Created submitted claim from signed encounter" });
     }
 
     await createWorkqueueItem(supabase, {
@@ -270,7 +273,7 @@ export async function POST(request: Request) {
 
       if (existingInquiry) {
         statusInquiry = existingInquiry;
-        steps.push({ step: "status_check", status: "reused", id: statusInquiry.id, message: "Claim status inquiry already exists" });
+        steps.push({ step: "status_check", status: "reused", id: existingInquiry.id, message: "Claim status inquiry already exists" });
       } else {
         const { data: inquiry, error: inquiryError } = await supabase
           .from("claim_status_inquiries")
@@ -294,8 +297,9 @@ export async function POST(request: Request) {
           .single();
 
         if (inquiryError) throw inquiryError;
+        if (!inquiry) throw new Error("Claim status inquiry creation returned no row");
         statusInquiry = inquiry;
-        steps.push({ step: "status_check", status: "created", id: statusInquiry.id, message: "Created mock claim status inquiry" });
+        steps.push({ step: "status_check", status: "created", id: inquiry.id, message: "Created mock claim status inquiry" });
       }
     } else {
       steps.push({ step: "status_check", status: "skipped", message: "Skipped by request" });
@@ -327,7 +331,7 @@ export async function POST(request: Request) {
 
       if (existingPaymentImport) {
         paymentImportItem = existingPaymentImport;
-        steps.push({ step: "payment_import", status: "reused", id: paymentImportItem.id, message: "Payment import item already exists" });
+        steps.push({ step: "payment_import", status: "reused", id: existingPaymentImport.id, message: "Payment import item already exists" });
       } else {
         const { data: createdPaymentImport, error: paymentImportError } = await supabase
           .from("payment_import_items")
@@ -352,8 +356,9 @@ export async function POST(request: Request) {
           .single();
 
         if (paymentImportError) throw paymentImportError;
+        if (!createdPaymentImport) throw new Error("Payment import creation returned no row");
         paymentImportItem = createdPaymentImport;
-        steps.push({ step: "payment_import", status: "created", id: paymentImportItem.id, message: "Created mock 835 payment import item" });
+        steps.push({ step: "payment_import", status: "created", id: createdPaymentImport.id, message: "Created mock 835 payment import item" });
       }
 
       await createWorkqueueItem(supabase, {
@@ -384,7 +389,7 @@ export async function POST(request: Request) {
 
       if (existingPosting) {
         posting = existingPosting;
-        steps.push({ step: "posting", status: "reused", id: posting.id, message: "Payment posting already exists" });
+        steps.push({ step: "posting", status: "reused", id: existingPosting.id, message: "Payment posting already exists" });
       } else {
         const { data: createdPosting, error: postingError } = await supabase
           .from("payment_postings")
@@ -404,8 +409,9 @@ export async function POST(request: Request) {
           .single();
 
         if (postingError) throw postingError;
+        if (!createdPosting) throw new Error("Payment posting creation returned no row");
         posting = createdPosting;
-        steps.push({ step: "posting", status: "created", id: posting.id, message: "Created posted payment posting" });
+        steps.push({ step: "posting", status: "created", id: createdPosting.id, message: "Created posted payment posting" });
       }
 
       const { error: claimPaidError } = await supabase
