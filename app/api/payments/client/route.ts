@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
+
+type ClaimUpdate = Database["public"]["Tables"]["claims"]["Update"];
 
 function generateUuid() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -49,7 +52,9 @@ async function resolveOrganizationId(
     .maybeSingle();
 
   if (error) throw error;
-  return data?.id ?? null;
+  const resolvedId = data?.id;
+  if (typeof resolvedId === "string" && isUuid(resolvedId)) return resolvedId;
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -175,7 +180,7 @@ export async function POST(request: Request) {
 
         const nextPatientBalance = Math.max(0, patientRemaining - appliedAmount);
         const payerRemaining = Math.max(0, toAmount(claimRow.payer_responsibility_amount));
-        const claimPatch: Record<string, unknown> = {
+        const claimPatch: ClaimUpdate = {
           patient_responsibility_amount: nextPatientBalance,
           updated_at: now,
         };
