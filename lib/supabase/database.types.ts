@@ -444,6 +444,20 @@ export type Database = {
           event_metadata: Json | null;
           created_at: string | null;
         }>;
+      organization_members: TableDef<{
+          id: string;
+          organization_id: string;
+          staff_id: string;
+          member_status: string | null;
+          primary_role_id: string | null;
+          is_owner: boolean | null;
+          is_billing_admin: boolean | null;
+          joined_at: string | null;
+          last_active_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          archived_at: string | null;
+        }>;
       staff_profiles: TableDef<{
           id: string;
           organization_id: string;
@@ -457,6 +471,27 @@ export type Database = {
           staff_status: string | null;
           is_active: boolean | null;
           last_login_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          archived_at: string | null;
+        }>;
+      provider_profiles: TableDef<{
+          id: string;
+          organization_id: string;
+          staff_id: string | null;
+          provider_npi: string | null;
+          provider_type: string | null;
+          specialty: string | null;
+          credentials: string | null;
+          license_number: string | null;
+          license_state: string | null;
+          license_expiration_date: string | null;
+          board_certifications: Json | null;
+          malpractice_insurance_carrier: string | null;
+          malpractice_tail_coverage: boolean | null;
+          is_rendering_provider: boolean | null;
+          is_billing_provider: boolean | null;
+          is_referring_provider: boolean | null;
           created_at: string | null;
           updated_at: string | null;
           archived_at: string | null;
