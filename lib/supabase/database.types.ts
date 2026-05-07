@@ -156,6 +156,18 @@ export type Database = {
           first_name: string | null;
           last_name: string | null;
         }>;
+      insurance_payers: TableDef<{
+          id: string;
+          organization_id: string;
+          payer_name: string | null;
+          payer_id: string | null;
+          payer_type: string | null;
+          phone: string | null;
+          active_flag: boolean | null;
+          archived_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        }>;
       insurance_policies: TableDef<{
           id: string;
           organization_id: string;
