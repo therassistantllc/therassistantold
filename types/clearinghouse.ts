@@ -21,6 +21,7 @@ export interface EdiTransaction {
   id: string;
   organization_id: string;
   client_id?: string | null;
+  patient_id?: string | null;
   appointment_id?: string | null;
   encounter_id?: string | null;
   claim_id?: string | null;
@@ -121,7 +122,8 @@ export interface ClearinghouseResponseEvent {
 
 export interface EligibilityRequestInput {
   organizationId: string;
-  clientId: string;
+  clientId?: string | null;
+  patientId?: string | null;
   appointmentId?: string | null;
   insurancePolicyId?: string | null;
   clearinghouseConnectionId?: string | null;
@@ -130,6 +132,7 @@ export interface EligibilityRequestInput {
   memberId?: string | null;
   subscriberName?: string | null;
   clientName?: string | null;
+  patientName?: string | null;
   serviceTypeCode?: string;
   providerNpi?: string | null;
 }
@@ -157,6 +160,7 @@ export interface ClaimStatusRequestInput {
   organizationId: string;
   claimId: string;
   clientId?: string | null;
+  patientId?: string | null;
   clearinghouseConnectionId?: string | null;
   payerName?: string | null;
   payerId?: string | null;

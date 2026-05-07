@@ -173,7 +173,7 @@ export class ClearinghouseService {
 
     const outbound = await insertTransaction({
       organization_id: organizationId,
-      patient_id: patient.id,
+      client_id: patient.id,
       appointment_id: input.appointmentId ?? null,
       clearinghouse_connection_id: connection.id,
       transaction_type: "270",
@@ -187,7 +187,7 @@ export class ClearinghouseService {
 
     const inbound = await insertTransaction({
       organization_id: organizationId,
-      patient_id: patient.id,
+      client_id: patient.id,
       appointment_id: input.appointmentId ?? null,
       clearinghouse_connection_id: connection.id,
       transaction_type: "271",
@@ -220,7 +220,7 @@ export class ClearinghouseService {
     const eligibilityPayload = {
       id: uuid(),
       organization_id: organizationId,
-      patient_id: patient.id,
+      client_id: patient.id,
       appointment_id: input.appointmentId ?? null,
       insurance_policy_id: policy.id,
       clearinghouse_connection_id: connection.id,
@@ -256,7 +256,7 @@ export class ClearinghouseService {
 
     await insertEvent({
       organization_id: organizationId,
-      patient_id: patient.id,
+      client_id: patient.id,
       edi_transaction_id: inbound?.id ?? outbound?.id ?? null,
       event_type: "eligibility_result",
       severity: result.normalized.status === "active" ? "info" : result.normalized.status === "inactive" ? "warning" : "error",
@@ -341,7 +341,7 @@ export class ClearinghouseService {
 
     const outbound = await insertTransaction({
       organization_id: organizationId,
-      patient_id: claim.client_id ?? null,
+      client_id: claim.client_id ?? null,
       encounter_id: claim.encounter_id ?? null,
       claim_id: claim.id,
       clearinghouse_connection_id: connection.id,
@@ -356,7 +356,7 @@ export class ClearinghouseService {
 
     const inbound = await insertTransaction({
       organization_id: organizationId,
-      patient_id: claim.client_id ?? null,
+      client_id: claim.client_id ?? null,
       encounter_id: claim.encounter_id ?? null,
       claim_id: claim.id,
       clearinghouse_connection_id: connection.id,
@@ -391,7 +391,7 @@ export class ClearinghouseService {
       id: uuid(),
       organization_id: organizationId,
       claim_id: claim.id,
-      patient_id: claim.client_id ?? null,
+      client_id: claim.client_id ?? null,
       clearinghouse_connection_id: connection.id,
       edi_276_transaction_id: outbound?.id ?? null,
       edi_277_transaction_id: inbound?.id ?? null,
@@ -441,7 +441,7 @@ export class ClearinghouseService {
     await insertEvent({
       organization_id: organizationId,
       claim_id: claim.id,
-      patient_id: claim.client_id ?? null,
+      client_id: claim.client_id ?? null,
       edi_transaction_id: inbound?.id ?? outbound?.id ?? null,
       event_type:
         result.normalized.status === "denied"
