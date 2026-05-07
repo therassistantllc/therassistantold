@@ -50,7 +50,7 @@ export default function NewInsurancePolicyPage() {
           .order("last_name", { ascending: true })
           .limit(200),
         supabase
-          .from("payers")
+          .from("insurance_payers")
           .select("id, payer_name")
           .is("archived_at", null)
           .order("payer_name", { ascending: true })

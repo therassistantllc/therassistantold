@@ -8,13 +8,13 @@ import { supabase } from "@/lib/supabase/client";
 
 interface Payer {
   id: string;
-  name?: string | null;
+  payer_name?: string | null;
   payer_id?: string | null;
-  address_line1?: string | null;
-  address_line2?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
   city?: string | null;
   state?: string | null;
-  zip_code?: string | null;
+  postal_code?: string | null;
   phone?: string | null;
   fax?: string | null;
   email?: string | null;
@@ -29,7 +29,7 @@ interface Policy {
   member_id?: string | null;
   group_number?: string | null;
   plan_name?: string | null;
-  is_active?: boolean;
+  active_flag?: boolean;
   effective_date?: string | null;
   termination_date?: string | null;
 }
@@ -70,7 +70,7 @@ export default function PayerDetailPage() {
 
       // Load payer details
       const { data: payerData, error: payerError } = await supabase
-        .from("payers")
+        .from("insurance_payers")
         .select("*")
         .eq("id", payerId)
         .single();
@@ -129,8 +129,8 @@ export default function PayerDetailPage() {
     };
   }, [payerId]);
 
-  const activePolicies = policies.filter((p) => p.is_active);
-  const inactivePolicies = policies.filter((p) => !p.is_active);
+  const activePolicies = policies.filter((p) => p.active_flag);
+  const inactivePolicies = policies.filter((p) => !p.active_flag);
 
   return (
     <AppShell>
@@ -152,7 +152,7 @@ export default function PayerDetailPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{payer.name || "Unnamed Payer"}</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">{payer.payer_name || "Unnamed Payer"}</h1>
                   {payer.payer_id && (
                     <p className="mt-1 text-sm text-gray-600">Payer ID: {payer.payer_id}</p>
                   )}
@@ -173,12 +173,12 @@ export default function PayerDetailPage() {
                     <div>
                       <dt className="text-gray-500">Address</dt>
                       <dd className="text-gray-900">
-                        {payer.address_line1 || payer.address_line2 || payer.city || payer.state || payer.zip_code ? (
+                        {payer.address_line_1 || payer.address_line_2 || payer.city || payer.state || payer.postal_code ? (
                           <>
-                            {payer.address_line1 && <div>{payer.address_line1}</div>}
-                            {payer.address_line2 && <div>{payer.address_line2}</div>}
+                            {payer.address_line_1 && <div>{payer.address_line_1}</div>}
+                            {payer.address_line_2 && <div>{payer.address_line_2}</div>}
                             <div>
-                              {[payer.city, payer.state, payer.zip_code].filter(Boolean).join(", ")}
+                              {[payer.city, payer.state, payer.postal_code].filter(Boolean).join(", ")}
                             </div>
                           </>
                         ) : (

@@ -7,11 +7,11 @@ import { supabase } from "@/lib/supabase/client";
 
 interface PayerRow {
   id: string;
-  name: string | null;
+  payer_name: string | null;
   payer_id: string | null;
   payer_type: string | null;
   phone: string | null;
-  is_active?: boolean | null;
+  active_flag?: boolean | null;
 }
 
 export default function PayersIndexPage() {
@@ -24,9 +24,9 @@ export default function PayersIndexPage() {
     async function load() {
       setLoading(true);
       const { data, error: dbError } = await supabase
-        .from("payers")
-        .select("id, name, payer_id, payer_type, phone, is_active")
-        .order("name", { ascending: true });
+        .from("insurance_payers")
+        .select("id, payer_name, payer_id, payer_type, phone, active_flag")
+        .order("payer_name", { ascending: true });
 
       if (dbError) {
         setError(dbError.message);
@@ -42,7 +42,7 @@ export default function PayersIndexPage() {
     const q = search.toLowerCase();
     return (
       !q ||
-      (p.name ?? "").toLowerCase().includes(q) ||
+      (p.payer_name ?? "").toLowerCase().includes(q) ||
       (p.payer_id ?? "").toLowerCase().includes(q)
     );
   });
@@ -102,13 +102,13 @@ export default function PayersIndexPage() {
                   <tbody>
                     {filtered.map((payer) => (
                       <tr key={payer.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
-                        <td className="px-5 py-3 font-semibold text-slate-900">{payer.name ?? "—"}</td>
+                        <td className="px-5 py-3 font-semibold text-slate-900">{payer.payer_name ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600">{payer.payer_id ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600 capitalize">{payer.payer_type ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600">{payer.phone ?? "—"}</td>
                         <td className="px-5 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${payer.is_active !== false ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                            {payer.is_active !== false ? "Active" : "Inactive"}
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${payer.active_flag !== false ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                            {payer.active_flag !== false ? "Active" : "Inactive"}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-right">

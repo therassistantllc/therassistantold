@@ -410,33 +410,34 @@ function BillingWorkqueuePageContent() {
     }
 
     setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, status: "blocked" } : item)));
-      setDeferItemId(null);
+    setDeferItemId(null);
+  }
+
+  async function handleCommentSubmit() {
+    if (!commentItemId || !commentText.trim()) return;
+    setCommentSaving(true);
+    const { error: updateError } = await supabase
+      .from("workqueue_items")
+      .update({ description: commentText.trim(), updated_at: new Date().toISOString() })
+      .eq("id", commentItemId);
+    setCommentSaving(false);
+
+    if (updateError) {
+      alert(`Error saving comment: ${updateError.message}`);
+      return;
     }
 
-    async function handleCommentSubmit() {
-      if (!commentItemId || !commentText.trim()) return;
-      setCommentSaving(true);
-      const { error: updateError } = await supabase
-        .from("workqueue_items")
-        .update({ description: commentText.trim(), updated_at: new Date().toISOString() })
-        .eq("id", commentItemId);
-      setCommentSaving(false);
-      if (updateError) {
-        alert(`Error saving comment: ${updateError.message}`);
-        return;
-      }
-      const savedId = commentItemId;
-      const savedText = commentText.trim();
-      setCommentItemId(null);
-      setCommentText("");
-      setItems((prev) => prev.map((item) => (item.id === savedId ? { ...item, description: savedText } : item)));
-    }
+    const savedId = commentItemId;
+    const savedText = commentText.trim();
+    setCommentItemId(null);
+    setCommentText("");
+    setItems((prev) => prev.map((item) => (item.id === savedId ? { ...item, description: savedText } : item)));
+  }
 
-    async function handleAssignConfirm() {
-      if (!assignItemId) return;
-      setAssignItemId(null);
-      setAssignee("");
-    }
+  async function handleAssignConfirm() {
+    if (!assignItemId) return;
+    setAssignItemId(null);
+    setAssignee("");
   }
 
   async function handleResolve(itemId: string) {
