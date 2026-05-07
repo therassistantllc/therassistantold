@@ -14,6 +14,20 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function extractErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "835 import failed";
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = createServerSupabaseAdminClientTyped();
@@ -195,12 +209,12 @@ export async function POST(request: Request) {
       unmatchedClaims,
     });
   } catch (error) {
-    console.error("835 import failed", error);
+    console.error("835 import failed", extractErrorMessage(error));
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "835 import failed",
+        error: extractErrorMessage(error),
       },
       { status: 500 },
     );

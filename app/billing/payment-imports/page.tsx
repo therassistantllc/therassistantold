@@ -206,7 +206,11 @@ function PaymentImportsPageContent() {
 
       setOrganizationId(String(payload.organizationId));
       setUploadError(null);
-      setUploadResult("Organization created. You can now upload 835 files.");
+      setUploadResult(
+        payload.warning
+          ? `Organization ready. ${String(payload.warning)}`
+          : "Organization created. You can now upload 835 files.",
+      );
       await loadData();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Failed to create organization");

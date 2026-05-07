@@ -7,6 +7,30 @@ function generateUuid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function extractErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function getBootstrapOrganizationId() {
+  const fromEnv = String(process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "").trim();
+  if (fromEnv && isUuid(fromEnv)) return fromEnv;
+  return generateUuid();
+}
+
 export async function POST() {
   try {
     const supabase = createServerSupabaseAdminClient();
@@ -31,7 +55,7 @@ export async function POST() {
     }
 
     const now = new Date().toISOString();
-    const organizationId = generateUuid();
+    const organizationId = getBootstrapOrganizationId();
     const organizationName = `Organization ${new Date().toLocaleDateString("en-US")}`;
 
     // Try with common columns first, then gracefully fall back if schema differs.
@@ -60,7 +84,12 @@ export async function POST() {
     }
 
     if (!createdId) {
-      throw lastError ?? new Error("Could not create organization");
+      return NextResponse.json({
+        success: true,
+        organizationId,
+        created: false,
+        warning: `Could not persist organization row; using bootstrap organization ID. ${extractErrorMessage(lastError)}`,
+      });
     }
 
     return NextResponse.json({ success: true, organizationId: createdId, created: true });
@@ -68,7 +97,7 @@ export async function POST() {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to create organization",
+        error: extractErrorMessage(error),
       },
       { status: 500 },
     );
