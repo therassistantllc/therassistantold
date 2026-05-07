@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type DbRow = Record<string, any>;
+type SupabaseAdminClient = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
 
 function generateUuid() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -43,6 +44,26 @@ function buildWorkqueueItem(input: {
   };
 }
 
+async function hasExistingItem(supabase: SupabaseAdminClient, sourceId: string, workType: string) {
+  const { data, error } = await supabase
+    .from("workqueue_items")
+    .select("id")
+    .eq("source_object_id", sourceId)
+    .eq("work_type", workType)
+    .in("status", ["open", "in_progress", "blocked"])
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
+async function insertWorkqueueItem(supabase: SupabaseAdminClient, itemsCreated: DbRow[], payload: DbRow) {
+  const { data, error } = await supabase.from("workqueue_items").insert(payload).select().single();
+  if (error) throw new Error(`Could not create ${payload.work_type} workqueue item: ${error.message}`);
+  if (data) itemsCreated.push(data);
+}
+
 export async function POST() {
   try {
     const supabase = createServerSupabaseAdminClient();
@@ -54,26 +75,6 @@ export async function POST() {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const itemsCreated: DbRow[] = [];
 
-    async function hasExistingItem(sourceId: string, workType: string) {
-      const { data, error } = await supabase
-        .from("workqueue_items")
-        .select("id")
-        .eq("source_object_id", sourceId)
-        .eq("work_type", workType)
-        .in("status", ["open", "in_progress", "blocked"])
-        .is("archived_at", null)
-        .maybeSingle();
-
-      if (error) throw error;
-      return !!data;
-    }
-
-    async function insertWorkqueueItem(payload: DbRow) {
-      const { data, error } = await supabase.from("workqueue_items").insert(payload).select().single();
-      if (error) throw new Error(`Could not create ${payload.work_type} workqueue item: ${error.message}`);
-      if (data) itemsCreated.push(data);
-    }
-
     const { data: eligibilityChecks, error: eligibilityError } = await supabase
       .from("eligibility_checks")
       .select("id, appointment_id, client_id, organization_id, eligibility_status, checked_at")
@@ -83,10 +84,12 @@ export async function POST() {
     if (eligibilityError) throw eligibilityError;
 
     for (const check of eligibilityChecks ?? []) {
-      if (await hasExistingItem(check.id, "eligibility_needed")) continue;
+      if (await hasExistingItem(supabase, check.id, "eligibility_needed")) continue;
       const eligibilityStatus = check.eligibility_status ?? "stale";
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: check.organization_id,
           title: `Eligibility check needed - ${eligibilityStatus}`,
@@ -119,9 +122,11 @@ export async function POST() {
         .maybeSingle();
 
       if (claimLookupError) throw claimLookupError;
-      if (claim || (await hasExistingItem(encounter.id, "ready_to_bill"))) continue;
+      if (claim || (await hasExistingItem(supabase, encounter.id, "ready_to_bill"))) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: encounter.organization_id,
           title: "Encounter ready to bill - no claim created",
@@ -146,7 +151,7 @@ export async function POST() {
     if (noResponseError) throw noResponseError;
 
     for (const claim of claimsWithoutResponse ?? []) {
-      if (await hasExistingItem(claim.id, "no_response")) continue;
+      if (await hasExistingItem(supabase, claim.id, "no_response")) continue;
 
       const { data: recentInquiry, error: inquiryError } = await supabase
         .from("claim_status_inquiries")
@@ -159,6 +164,8 @@ export async function POST() {
       if (inquiryError) throw inquiryError;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: claim.organization_id,
           title: recentInquiry
@@ -186,9 +193,11 @@ export async function POST() {
     if (deniedError) throw deniedError;
 
     for (const claim of deniedClaims ?? []) {
-      if (await hasExistingItem(claim.id, "denial_followup")) continue;
+      if (await hasExistingItem(supabase, claim.id, "denial_followup")) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: claim.organization_id,
           title: `Claim ${claim.claim_status} - needs review`,
@@ -221,9 +230,11 @@ export async function POST() {
         .maybeSingle();
 
       if (postingError) throw postingError;
-      if (posting || (await hasExistingItem(paymentItem.id, "payment_posting_needed"))) continue;
+      if (posting || (await hasExistingItem(supabase, paymentItem.id, "payment_posting_needed"))) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: paymentItem.organization_id,
           title: "Payment ready to post",
@@ -247,9 +258,11 @@ export async function POST() {
     if (mailroomError) throw mailroomError;
 
     for (const item of mailroomItems ?? []) {
-      if (await hasExistingItem(item.id, "mailroom")) continue;
+      if (await hasExistingItem(supabase, item.id, "mailroom")) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: item.organization_id,
           title: "Document needs review and filing",
@@ -272,9 +285,11 @@ export async function POST() {
     if (vccError) throw vccError;
 
     for (const vcc of vccPayments ?? []) {
-      if (await hasExistingItem(vcc.id, "vcc_processing")) continue;
+      if (await hasExistingItem(supabase, vcc.id, "vcc_processing")) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: vcc.organization_id,
           title: "VCC payment pending processing",
@@ -298,9 +313,11 @@ export async function POST() {
     if (checkinError) throw checkinError;
 
     for (const checkin of checkins ?? []) {
-      if (await hasExistingItem(checkin.id, "checkin_review")) continue;
+      if (await hasExistingItem(supabase, checkin.id, "checkin_review")) continue;
 
       await insertWorkqueueItem(
+        supabase,
+        itemsCreated,
         buildWorkqueueItem({
           organization_id: checkin.organization_id,
           title: "Client check-in submitted - needs review",
