@@ -406,17 +406,18 @@ export type Database = {
           id: string;
           organization_id: string | null;
           claim_id: string;
-          submitted_at: string | null;
+          submission_status: string | null;
+          clearinghouse_reference: string | null;
+          external_transaction_id: string | null;
+          payer_claim_reference: string | null;
           submission_sequence: number | null;
           duplicate_detection_key: string | null;
-          transaction_type: string | null;
-          submission_method: string | null;
-          control_number: string | null;
-          edi_payload: string | null;
-          response_status: string | null;
-          submitted_by: string | null;
+          response_summary: string | null;
+          submitted_at: string | null;
+          acknowledged_at: string | null;
           created_at: string | null;
           updated_at: string | null;
+          archived_at: string | null;
         }>;
       claim_status_events: TableDef<{
           id: string;
