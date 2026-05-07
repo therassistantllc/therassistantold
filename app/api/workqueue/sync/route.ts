@@ -45,10 +45,11 @@ function buildWorkqueueItem(input: {
 
 export async function POST() {
   try {
-    const supabase = createServerSupabaseAdminClient();
-    if (!supabase) {
+    const supabaseAdminClient = createServerSupabaseAdminClient();
+    if (!supabaseAdminClient) {
       return NextResponse.json({ error: "Database connection not available" }, { status: 500 });
     }
+    const supabase = supabaseAdminClient;
 
     const now = new Date().toISOString();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
