@@ -53,6 +53,7 @@ export interface EligibilityCheck {
   payer_name?: string | null;
   payer_id?: string | null;
   service_type_code?: string | null;
+  status?: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   plan_name?: string | null;
   member_id?: string | null;
@@ -75,6 +76,8 @@ export interface ClaimStatusInquiry {
   claim_id: string;
   client_id?: string | null;
   patient_id?: string | null;
+  payer_name?: string | null;
+  payer_id?: string | null;
   inquiry_status?: "created" | "sent" | "received" | "parsed" | "failed" | "not_found" | "pending" | "paid" | "denied" | "rejected" | "needs_info" | "unknown";
   status?: "accepted" | "pending" | "paid" | "denied" | "rejected" | "not_found" | "needs_info" | "error" | "unknown";
   external_transaction_id?: string | null;
