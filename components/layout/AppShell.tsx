@@ -57,14 +57,7 @@ const navItems: NavItem[] = [
     label: "Billing",
     icon: "📋",
     module: "billing",
-    match: ["/billing", "/claims", "/payments"],
-  },
-  {
-    href: "/billing/workqueue",
-    label: "Workqueue",
-    icon: "📮",
-    module: "billing",
-    match: ["/billing/workqueue"],
+    match: ["/billing", "/claims"],
   },
   {
     href: "/insurance/eligibility",
@@ -119,36 +112,40 @@ const navItems: NavItem[] = [
 
 const launchTools: NavItem[] = [
   {
-      href: "/billing/workqueue?work_type=mailroom_review",
-      label: "Gmail AI queue",
-      icon: "📬",
-      module: "scheduling"
+    href: "/billing/workqueue?work_type=mailroom_review",
+    label: "Gmail AI queue",
+    icon: "📬",
+    module: "billing",
   },
   {
     href: "/billing/payment-postings",
     label: "Payment posting",
     icon: "🧾",
-    module: "scheduling"
+    module: "billing",
   },
   {
     href: "/billing/payment-imports",
     label: "835 imports",
     icon: "💵",
-    module: "scheduling"
+    module: "billing",
   },
   {
     href: "/billing/denials",
     label: "Denials",
     icon: "⛔",
-    module: "scheduling"
+    module: "billing",
   },
   {
     href: "/billing/rejections",
     label: "Rejections",
     icon: "⚠️",
-    module: "scheduling"
+    module: "billing",
   },
 ];
+
+function normalizePath(href: string) {
+  return href.split("?")[0];
+}
 
 function isActive(pathname: string, item: NavItem) {
   if (item.href === "/") {
@@ -168,11 +165,23 @@ function getMobileValue(pathname: string) {
   return matched?.href ?? "/";
 }
 
+function getUniqueNavItems(items: NavItem[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = normalizePath(item.href);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const role = useUserRole((state) => state.role) as AppRole;
-  const visibleNavItems = navItems.filter((item) => canAccessModule(role, item.module));
+  const visibleNavItems = getUniqueNavItems(navItems.filter((item) => canAccessModule(role, item.module)));
+  const visibleLaunchTools = getUniqueNavItems(launchTools.filter((item) => canAccessModule(role, item.module)));
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -211,26 +220,28 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="border-t border-slate-200 p-4">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-                Launch tools
-              </p>
+          {visibleLaunchTools.length > 0 ? (
+            <div className="border-t border-slate-200 p-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Launch tools
+                </p>
 
-              <div className="mt-3 grid gap-2">
-                {launchTools.map((tool) => (
-                  <Link
-                    key={tool.href}
-                    href={tool.href}
-                    className="text-sm font-bold text-indigo-700 hover:text-indigo-900"
-                  >
-                    <span className="mr-2">{tool.icon}</span>
-                    {tool.label}
-                  </Link>
-                ))}
+                <div className="mt-3 grid gap-2">
+                  {visibleLaunchTools.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      href={tool.href}
+                      className="text-sm font-bold text-indigo-700 hover:text-indigo-900"
+                    >
+                      <span className="mr-2">{tool.icon}</span>
+                      {tool.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
