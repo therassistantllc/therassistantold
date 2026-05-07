@@ -76,6 +76,11 @@ const launchTools: NavItem[] = [
     icon: "📬",
   },
   {
+    href: "/billing/payment-postings",
+    label: "Payment posting",
+    icon: "🧾",
+  },
+  {
     href: "/billing/payment-imports",
     label: "835 imports",
     icon: "💵",
