@@ -30,6 +30,21 @@ function extractErrorMessage(error: unknown) {
 
 export async function POST(request: Request) {
   try {
+    const formData = await request.formData();
+    const file = formData.get("file");
+    const submittedOrganizationId = String(formData.get("organizationId") ?? "").trim();
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ success: false, error: "835 file is required" }, { status: 400 });
+    }
+
+    if (submittedOrganizationId && !isUuid(submittedOrganizationId)) {
+      return NextResponse.json(
+        { success: false, error: "organizationId must be a valid UUID from organizations.id" },
+        { status: 400 },
+      );
+    }
+
     const supabase = createServerSupabaseServiceRoleClientTyped();
 
     if (!supabase) {
@@ -41,14 +56,6 @@ export async function POST(request: Request) {
         },
         { status: 503 },
       );
-    }
-
-    const formData = await request.formData();
-    const file = formData.get("file");
-    const submittedOrganizationId = String(formData.get("organizationId") ?? "").trim();
-
-    if (!(file instanceof File)) {
-      return NextResponse.json({ success: false, error: "835 file is required" }, { status: 400 });
     }
 
     let organizationId = submittedOrganizationId;
