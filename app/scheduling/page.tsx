@@ -1170,7 +1170,7 @@ export default function SchedulingPage() {
                         eligibility: selectedAppointment.client_id
                           ? (() => {
                               const e = eligibilityByPatientId.get(selectedAppointment.client_id);
-                              return e ? { status: e.status, checked_at: e.checked_at } : null;
+                              return e ? { status: e.eligibility_status, checked_at: e.checked_at } : null;
                             })()
                           : null,
                       })}
@@ -1317,7 +1317,7 @@ export default function SchedulingPage() {
                   eligibility: selectedAppointment.client_id
                     ? (() => {
                         const e = eligibilityByPatientId.get(selectedAppointment.client_id!);
-                        return e ? { status: e.status, checked_at: e.checked_at } : null;
+                        return e ? { status: e.eligibility_status, checked_at: e.checked_at } : null;
                       })()
                     : null,
                 });

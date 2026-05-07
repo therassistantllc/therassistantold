@@ -71,15 +71,18 @@ async function getActiveConnection(organizationId: string): Promise<Clearinghous
 async function insertTransaction(transaction: Partial<EdiTransaction>) {
   const supabase = createServerSupabaseAdminClientTyped();
   if (!supabase) return null;
+  const { patient_id: _unusedPatientId, ...safeTransaction } = transaction as Partial<EdiTransaction> & {
+    patient_id?: string | null;
+  };
   const payload = {
     id: uuid(),
     request_payload: {},
     response_payload: {},
     parsed_summary: {},
     created_at: new Date().toISOString(),
-    ...transaction,
+    ...safeTransaction,
   };
-  const { data } = await supabase.from("edi_transactions").insert(payload).select("*").maybeSingle();
+  const { data } = await supabase.from("edi_transactions").insert(payload as any).select("*").maybeSingle();
   return data as EdiTransaction | null;
 }
 
@@ -391,7 +394,7 @@ export class ClearinghouseService {
       id: uuid(),
       organization_id: organizationId,
       claim_id: claim.id,
-      client_id: claim.client_id ?? null,
+      client_id: claim.client_id ?? undefined,
       clearinghouse_connection_id: connection.id,
       edi_276_transaction_id: outbound?.id ?? null,
       edi_277_transaction_id: inbound?.id ?? null,
@@ -543,7 +546,8 @@ export class ClearinghouseService {
     if (filters.event_type) query = query.eq("event_type", filters.event_type);
     if (filters.severity) query = query.eq("severity", filters.severity);
     if (filters.claim_id) query = query.eq("claim_id", filters.claim_id);
-    if (filters.client_id ?? filters.patient_id) query = query.eq("client_id", filters.client_id ?? filters.patient_id);
+    const clientFilter = filters.client_id ?? filters.patient_id;
+    if (clientFilter) query = query.eq("client_id", clientFilter);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
