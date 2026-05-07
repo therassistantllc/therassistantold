@@ -79,6 +79,15 @@ function x12Date(value: string | null | undefined): string | null {
   return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
 }
 
+function findDate(elements: Array<string | null | undefined>) {
+  for (let index = elements.length - 1; index >= 0; index -= 1) {
+    const parsed = x12Date(elements[index]);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
 function parseComposite(value: string | null | undefined) {
   return String(value ?? "").split(":");
 }
@@ -115,7 +124,7 @@ export function parse835(raw835: string): Parsed835File {
   for (const seg of segments) {
     if (seg.id === "BPR") {
       totalPaymentAmount = money(seg.elements[1]);
-      paymentDate = x12Date(seg.elements[15]);
+      paymentDate = findDate(seg.elements) ?? paymentDate;
       continue;
     }
 

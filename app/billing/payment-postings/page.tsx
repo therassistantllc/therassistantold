@@ -19,6 +19,7 @@ type PaymentImportItemRow = {
   posting_ready: boolean | null;
   match_status: string | null;
   match_reason: string | null;
+  raw_item_payload: Record<string, unknown> | null;
   original_file_name: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -59,6 +60,7 @@ export default function BillingPaymentPostingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [postingItemId, setPostingItemId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<PaymentImportItemRow | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   async function loadData() {
@@ -68,7 +70,7 @@ export default function BillingPaymentPostingsPage() {
     const [itemsResp, postingsResp, queueResp] = await Promise.all([
       supabase
         .from("payment_import_items")
-        .select("id, organization_id, payment_import_status, imported_item_ref, payment_date, claim_id, client_id, net_amount, unapplied_amount, posting_ready, match_status, match_reason, original_file_name, created_at, updated_at, archived_at")
+        .select("id, organization_id, payment_import_status, imported_item_ref, payment_date, claim_id, client_id, net_amount, unapplied_amount, posting_ready, match_status, match_reason, raw_item_payload, original_file_name, created_at, updated_at, archived_at")
         .is("archived_at", null)
         .order("created_at", { ascending: false })
         .limit(200),
@@ -133,6 +135,7 @@ export default function BillingPaymentPostingsPage() {
       }
 
       setActionMessage(payload.reused ? "Payment posting already existed." : "Payment posted successfully.");
+      setSelectedItem(null);
       await loadData();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to post payment");
@@ -241,14 +244,23 @@ export default function BillingPaymentPostingsPage() {
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                           <p className="text-xs text-slate-500">{item.match_reason ?? "Matched and ready for posting."}</p>
-                          <button
-                            type="button"
-                            onClick={() => void handlePostPayment(item.id)}
-                            disabled={postingItemId === item.id}
-                            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {postingItemId === item.id ? "Posting..." : "Post payment now"}
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedItem(item)}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+                            >
+                              Review details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handlePostPayment(item.id)}
+                              disabled={postingItemId === item.id}
+                              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {postingItemId === item.id ? "Posting..." : "Post payment now"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -318,6 +330,73 @@ export default function BillingPaymentPostingsPage() {
             </div>
           )}
         </div>
+
+        {selectedItem ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+            <div className="w-full max-w-4xl rounded-3xl bg-white shadow-xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-indigo-600">Payment review</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">{selectedItem.imported_item_ref ?? selectedItem.id}</h2>
+                  <p className="mt-2 text-sm text-slate-600">Review matched ERA details before creating the payment posting.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid gap-6 px-6 py-6 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid gap-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Info label="Claim" value={selectedItem.claim_id ?? "No claim"} mono />
+                    <Info label="Client" value={selectedItem.client_id ?? "No client"} mono />
+                    <Info label="Net amount" value={formatMoney(selectedItem.net_amount)} />
+                    <Info label="Unapplied" value={formatMoney(selectedItem.unapplied_amount)} />
+                    <Info label="Payment date" value={formatDateTime(selectedItem.payment_date)} />
+                    <Info label="Import status" value={selectedItem.payment_import_status ?? "—"} />
+                    <Info label="Match status" value={selectedItem.match_status ?? "—"} />
+                    <Info label="Source file" value={selectedItem.original_file_name ?? "—"} />
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Match reason</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{selectedItem.match_reason ?? "Matched and ready for posting."}</p>
+                  </div>
+
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedItem(null)}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handlePostPayment(selectedItem.id)}
+                      disabled={postingItemId === selectedItem.id}
+                      className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {postingItemId === selectedItem.id ? "Posting..." : "Post payment now"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Raw ERA payload</p>
+                  <pre className="mt-3 max-h-[420px] overflow-auto text-xs text-slate-50">
+                    {JSON.stringify(selectedItem.raw_item_payload ?? {}, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </AppShell>
   );

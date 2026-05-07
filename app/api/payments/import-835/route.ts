@@ -157,7 +157,13 @@ export async function POST(request: Request) {
       const payload = {
         payer_name: claim.payerName,
         payee_name: claim.payeeName,
+        payment_date: claim.paymentDate,
         claim_status_code: claim.claimStatusCode,
+        total_charge_amount: claim.totalChargeAmount,
+        paid_amount: claim.paidAmount,
+        patient_responsibility_amount: claim.patientResponsibilityAmount,
+        payer_claim_control_number: claim.payerClaimControlNumber,
+        claim_filing_indicator_code: claim.claimFilingIndicatorCode,
         check_or_eft_number: claim.checkOrEftNumber,
         trace_number: claim.traceNumber,
         adjustments: claim.adjustments,

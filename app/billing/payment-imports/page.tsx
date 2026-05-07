@@ -460,7 +460,12 @@ function PaymentImportCard({ item }: { item: PaymentImportItem }) {
   const payerName = asText(payload.payer_name, "Unknown payer");
   const payeeName = asText(payload.payee_name, "Unknown payee");
   const checkNumber = asText(payload.check_or_eft_number);
+  const traceNumber = asText(payload.trace_number);
   const claimStatusCode = asText(payload.claim_status_code);
+  const payerClaimControlNumber = asText(payload.payer_claim_control_number);
+  const filingIndicator = asText(payload.claim_filing_indicator_code);
+  const paidAmount = money(payload.paid_amount ?? item.net_amount);
+  const patientResponsibility = money(payload.patient_responsibility_amount);
   const adjustments = Array.isArray(payload.adjustments)
     ? payload.adjustments
     : Array.isArray(payload.adjustment_codes)
@@ -513,9 +518,17 @@ function PaymentImportCard({ item }: { item: PaymentImportItem }) {
       <div className="mt-5 grid gap-3 md:grid-cols-6">
         <Info label="Payment date" value={formatDate(item.payment_date)} />
         <Info label="Gross" value={money(item.gross_amount)} />
+        <Info label="Paid" value={paidAmount} />
+        <Info label="Patient resp." value={patientResponsibility} />
         <Info label="Adjustment" value={money(item.adjustment_amount)} />
         <Info label="Unapplied" value={money(item.unapplied_amount)} />
         <Info label="Check/EFT" value={checkNumber} />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <Info label="Trace" value={traceNumber} />
+        <Info label="Payer claim #" value={payerClaimControlNumber} />
+        <Info label="Filing indicator" value={filingIndicator} />
         <Info label="Claim status" value={claimStatusCode} />
       </div>
 
