@@ -205,7 +205,7 @@ export default function EligibilityHistoryPage() {
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Created</th>
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Payer</th>
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Subscriber</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Patient</th>
+                    <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Client</th>
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Service Type</th>
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Eligibility</th>
                     <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">Copay</th>

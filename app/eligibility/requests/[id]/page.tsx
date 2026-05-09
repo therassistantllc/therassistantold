@@ -143,7 +143,7 @@ export default function EligibilityRequestReportPage() {
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-black text-slate-900">Payer / Subscriber / Patient</h2>
+                <h2 className="text-lg font-black text-slate-900">Payer / Subscriber / Client</h2>
                 <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
                   <div><span className="font-semibold">Payer:</span> {request.payer_name || "-"} ({request.payer_id || "-"})</div>
                   <div><span className="font-semibold">Subscriber ID:</span> {request.subscriber_id || "-"}</div>
@@ -152,9 +152,9 @@ export default function EligibilityRequestReportPage() {
                   </div>
                   <div><span className="font-semibold">Subscriber DOB:</span> {request.subscriber_dob || "-"}</div>
                   <div>
-                    <span className="font-semibold">Patient:</span> {`${request.patient_first_name || ""} ${request.patient_last_name || ""}`.trim() || "-"}
+                    <span className="font-semibold">Client:</span> {`${request.patient_first_name || ""} ${request.patient_last_name || ""}`.trim() || "-"}
                   </div>
-                  <div><span className="font-semibold">Patient DOB:</span> {request.patient_dob || "-"}</div>
+                  <div><span className="font-semibold">Client DOB:</span> {request.patient_dob || "-"}</div>
                 </div>
               </section>
 

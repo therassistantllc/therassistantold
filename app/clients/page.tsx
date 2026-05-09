@@ -69,7 +69,7 @@ export default function ClientsPage() {
   function handlePatientClick(patient: ClientRecord) {
     const patientName = [patient.first_name, patient.last_name].filter(Boolean).join(" ") || 
       patient.preferred_name || 
-      `Patient ${patient.id.slice(0, 8)}`;
+      `Client ${patient.id.slice(0, 8)}`;
     
     setContext({
       patientId: patient.id,

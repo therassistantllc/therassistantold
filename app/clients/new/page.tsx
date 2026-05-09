@@ -153,7 +153,7 @@ export default function NewClientPage() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Structured Client Intake</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Organized for mental health EHR intake and cleaner downstream billing. Patient demographics stay here.
+              Organized for mental health EHR intake and cleaner downstream billing. Client demographics stay here.
               Subscriber and coverage details belong in the insurance policy workflow.
             </p>
           </div>
@@ -165,19 +165,19 @@ export default function NewClientPage() {
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="text-sm text-gray-500">837P relevance</div>
-              <div className="mt-2 text-lg font-semibold text-gray-900">Patient demographics only</div>
+              <div className="mt-2 text-lg font-semibold text-gray-900">Client demographics only</div>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
               <div className="text-sm font-medium text-amber-800">Insurance reminder</div>
               <div className="mt-2 text-sm text-amber-900">
-                Subscriber and policy data should be entered on the separate insurance policy form, not mixed into the patient demographic record.
+                Subscriber and policy data should be entered on the separate insurance policy form, not mixed into the client demographic record.
               </div>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <Section
-              title="1. Patient Identity"
+              title="1. Client Identity"
               description="Legal identity and demographic elements that tend to matter most for eligibility and claims."
             >
               <div className="grid gap-4 md:grid-cols-4">
@@ -214,7 +214,7 @@ export default function NewClientPage() {
                 <Field label="Pronouns">
                   <input value={form.pronouns} onChange={(e) => update("pronouns", e.target.value)} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-gray-500" />
                 </Field>
-                <Field label="MRN" hint="Internal patient identifier.">
+                <Field label="MRN" hint="Internal client identifier.">
                   <input value={form.mrn} onChange={(e) => update("mrn", e.target.value)} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-gray-500" />
                 </Field>
               </div>
@@ -222,7 +222,7 @@ export default function NewClientPage() {
 
             <Section
               title="2. Contact"
-              description="How your office reaches the patient for reminders, intake, statements, and follow-up."
+              description="How your office reaches the client for reminders, intake, statements, and follow-up."
             >
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Phone">
@@ -239,7 +239,7 @@ export default function NewClientPage() {
 
             <Section
               title="3. Address"
-              description="Patient mailing address. This is part of the core billing identity set."
+              description="Client mailing address. This is part of the core billing identity set."
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Address line 1" required>
@@ -285,13 +285,13 @@ export default function NewClientPage() {
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                   <div className="font-medium">What belongs here</div>
                   <div className="mt-2">
-                    Legal patient name, DOB, sex at birth, address, contact info, MRN, and operational patient identifiers.
+                    Legal client name, DOB, sex at birth, address, contact info, MRN, and operational client identifiers.
                   </div>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   <div className="font-medium">What belongs in insurance</div>
                   <div className="mt-2">
-                    Policy number, subscriber ID, payer ID, priority, effective dates, and any subscriber-vs-patient relationship details.
+                    Policy number, subscriber ID, payer ID, priority, effective dates, and any subscriber-vs-client relationship details.
                   </div>
                 </div>
               </div>

@@ -219,7 +219,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
       const patientName =
         [patient.first_name, patient.last_name].filter(Boolean).join(" ") ||
         patient.preferred_name ||
-        `Patient ${patientId.slice(0, 8)}`;
+        `Client ${patientId.slice(0, 8)}`;
 
       setContext({
         patientId,
@@ -335,7 +335,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
         setLoading(false);
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load patient data");
+        setError(err instanceof Error ? err.message : "Failed to load client data");
         setLoading(false);
       }
     }
@@ -406,7 +406,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
     const alertList: string[] = [];
 
     if (balances.patientBalance > 100) {
-      alertList.push("Outstanding patient balance");
+      alertList.push("Outstanding client balance");
     }
 
     if (!primaryInsurance || !primaryInsurance.active_flag) {
@@ -658,7 +658,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
   const tabs: Array<{ key: TabKey; label: string; href: string }> = [
     { key: "overview", label: "Overview", href: `/${routeSource}/${patientId}` },
-    { key: "demographics", label: "Patient Info", href: `/${routeSource}/${patientId}/edit` },
+    { key: "demographics", label: "Client Info", href: `/${routeSource}/${patientId}/edit` },
     { key: "documents", label: "Documents", href: `/${routeSource}/${patientId}/documents` },
     { key: "payments", label: "Billing", href: `/${routeSource}/${patientId}/patient-billing` },
     { key: "insurance", label: "Billing Settings", href: `/${routeSource}/${patientId}/billing-settings` },
@@ -674,7 +674,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
     return (
       <AppShell>
         <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--neutral-50)" }}>
-          <div style={{ color: "var(--neutral-600)" }}>Loading patient workspace...</div>
+          <div style={{ color: "var(--neutral-600)" }}>Loading client workspace...</div>
         </div>
       </AppShell>
     );
@@ -684,7 +684,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
     return (
       <AppShell>
         <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--neutral-50)" }}>
-          <div className="card" style={{ background: "var(--error-bg)", borderColor: "var(--error-border)", color: "var(--error-text)" }}>{error || "Patient not found"}</div>
+          <div className="card" style={{ background: "var(--error-bg)", borderColor: "var(--error-border)", color: "var(--error-text)" }}>{error || "Client not found"}</div>
         </div>
       </AppShell>
     );
@@ -693,7 +693,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
   const patientName =
     [patient.first_name, patient.last_name].filter(Boolean).join(" ") ||
     patient.preferred_name ||
-    `Patient ${patientId.slice(0, 8)}`;
+    `Client ${patientId.slice(0, 8)}`;
 
   const totalCharges = claims.reduce(
     (sum, item) => sum + Number.parseFloat(String(item.total_charge_amount ?? "0") || "0"),
@@ -744,7 +744,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
                 <div className="mt-3 flex flex-wrap gap-4 text-sm">
                   <div>
-                    <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Patient Balance:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--neutral-700)" }}>Client Balance:</span>{" "}
                     <span className={balances.patientBalance > 0 ? "font-semibold" : ""} style={{ color: balances.patientBalance > 0 ? "var(--error-text)" : "var(--neutral-900)" }}>
                       ${balances.patientBalance.toFixed(2)}
                     </span>
@@ -1017,7 +1017,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
               {encounterDocs.length === 0 ? (
                 <div className="card text-center py-8">
-                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No documents found for this patient.</p>
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No documents found for this client.</p>
                   <button
                     type="button"
                     onClick={() => alert("Document upload feature - integrate with file storage")}
@@ -1068,16 +1068,16 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Messages</h1>
-                  <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>Patient portal messages and secure communications.</p>
+                  <p className="mt-1 text-sm" style={{ color: "var(--neutral-600)" }}>Client portal messages and secure communications.</p>
                 </div>
               </div>
 
               {messages.length === 0 ? (
                 <div className="card text-center py-8">
-                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No messages found for this patient.</p>
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No messages found for this client.</p>
                   <button
                     type="button"
-                    onClick={() => alert("Send message feature - integrate with patient portal")}
+                    onClick={() => alert("Send message feature - integrate with client portal")}
                     className="btn-primary"
                   >
                     Send Message
@@ -1118,9 +1118,9 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               <section className="card">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Patient Billing</h1>
+                    <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy)" }}>Client Billing</h1>
                     <p className="mt-2 text-sm" style={{ color: "var(--neutral-600)" }}>
-                      Patient balance, statements, payments, open charges, and accounting activity.
+                      Client balance, statements, payments, open charges, and accounting activity.
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -1179,7 +1179,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
                 <section className="card">
                   <h2 className="text-lg font-semibold" style={{ color: "var(--brand-navy)" }}>Statements</h2>
                   <div className="mt-4 space-y-3 text-sm" style={{ color: "var(--neutral-700)" }}>
-                    <div>Generate statement: available from patient billing workflow.</div>
+                    <div>Generate statement: available from client billing workflow.</div>
                     <div>Statement history: not wired yet.</div>
                     <div>Credit cards / payment methods: optional future tab.</div>
                   </div>
@@ -1197,7 +1197,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
 
               {insurancePolicies.length === 0 ? (
                 <div className="card text-center py-8">
-                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No insurance policies found for this patient.</p>
+                  <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>No insurance policies found for this client.</p>
                   <button
                     type="button"
                     onClick={() => router.push(`/${routeSource}/${patientId}/billing-settings/add-insurance`)}
@@ -1249,7 +1249,7 @@ export default function ClassicPatientChartResolved({ routeSource, patientId }: 
               <div className="card">
                 <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--brand-navy)" }}>Eligibility Verification</h2>
                 <p className="text-sm mb-4" style={{ color: "var(--neutral-600)" }}>
-                  Check insurance eligibility and benefits for this patient.
+                  Check insurance eligibility and benefits for this client.
                 </p>
                 <button 
                   className="btn-primary"
