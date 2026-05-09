@@ -204,9 +204,9 @@ function providerLabel(provider: ProviderRecord | undefined) {
 }
 
 function patientLabel(patient: ClientRecord | undefined) {
-  if (!patient) return "Unknown patient";
+  if (!patient) return "Unknown client";
   const name = [patient.first_name, patient.last_name].filter(Boolean).join(" ");
-  return patient.preferred_name ? `${name || "Patient"} (${patient.preferred_name})` : name || patient.id;
+  return patient.preferred_name ? `${name || "Client"} (${patient.preferred_name})` : name || patient.id;
 }
 
 function statusColor(status: string | null | undefined) {
@@ -305,7 +305,7 @@ export default function SchedulingPage() {
           patientResp.error?.message ||
           providerResp.error?.message ||
           policyResp.error?.message ||
-          "Could not load scheduling workspace."
+            "Could not load calendar workspace."
       );
       setLoading(false);
       return;
@@ -814,6 +814,47 @@ export default function SchedulingPage() {
     <AppShell>
       <main className="min-h-screen bg-[#f7f7f8]">
         <div className="mx-auto max-w-[1440px] px-4 py-4 lg:px-6">
+          <section className="mb-4 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Appointments, availability, eligibility checks, and schedule workflow.
+              </p>
+            </div>
+
+            <div className="w-full max-w-md rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <h2 className="text-sm font-semibold text-gray-900">Calendar Connections</h2>
+              <div className="mt-2 space-y-1 text-xs text-gray-700">
+                <div className="flex items-center justify-between">
+                  <span>Google Calendar</span>
+                  <span className="font-medium text-gray-500">Not connected</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Other calendar</span>
+                  <span className="font-medium text-gray-500">Not connected</span>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled
+                  title="Coming soon"
+                  className="cursor-not-allowed rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-500"
+                >
+                  Connect Google Calendar
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  title="Coming soon"
+                  className="cursor-not-allowed rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-500"
+                >
+                  Connect other calendar
+                </button>
+              </div>
+            </div>
+          </section>
+
           {/* Operational Summary Bar */}
           <section className="mb-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -925,9 +966,6 @@ export default function SchedulingPage() {
                     </select>
                     <Link href="/tickets" className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
                       Waitlist
-                    </Link>
-                    <Link href="/work-schedule" className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                      Work schedule
                     </Link>
                     <Link href="/scheduling/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
                       Schedule appointment
@@ -1200,7 +1238,7 @@ export default function SchedulingPage() {
                     onClick: () => void runEligibilityForSelected(),
                   },
                   {
-                    label: "Open Patient",
+                    label: "Open Client",
                     onClick: () => {
                       if (selectedAppointment?.client_id) {
                         window.location.href = `/patients/${selectedAppointment.client_id}`;

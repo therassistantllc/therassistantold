@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import WorkflowRail from "@/components/layout/WorkflowRail";
 import { canAccessModule, roleLabel, type AppRole } from "@/lib/navigation/roles";
 import { useUserRole } from "@/lib/store/userRole";
 
@@ -13,44 +12,23 @@ type NavItem = {
   label: string;
   icon: string;
   match?: string[];
-  module: "scheduling" | "patients" | "billing" | "work_schedule" | "profile" | "settings" | "help" | "contact" | "patient_portal";
+  module: "scheduling" | "patients" | "billing" | "settings";
 };
 
 const navItems: NavItem[] = [
   {
-    href: "/",
-    label: "Home",
-    icon: "🏠",
-    module: "scheduling",
-    match: ["/"],
-  },
-  {
     href: "/scheduling",
-    label: "Scheduling",
+    label: "Calendar",
     icon: "📅",
     module: "scheduling",
     match: ["/scheduling", "/appointments"],
   },
   {
-    href: "/work-schedule",
-    label: "Work schedule",
-    icon: "🗓️",
-    module: "work_schedule",
-    match: ["/work-schedule"],
-  },
-  {
     href: "/patients",
-    label: "Patients",
+    label: "Clients",
     icon: "👥",
     module: "patients",
-    match: ["/patients"],
-  },
-  {
-    href: "/encounters",
-    label: "Encounters",
-    icon: "📝",
-    module: "patients",
-    match: ["/encounters"],
+    match: ["/patients", "/clients"],
   },
   {
     href: "/billing",
@@ -74,13 +52,6 @@ const navItems: NavItem[] = [
     match: ["/clearinghouse", "/settings/clearinghouse"],
   },
   {
-    href: "/profile",
-    label: "Profile",
-    icon: "🙍",
-    module: "profile",
-    match: ["/profile"],
-  },
-  {
     href: "/settings",
     label: "Settings",
     icon: "⚙️",
@@ -88,58 +59,25 @@ const navItems: NavItem[] = [
     match: ["/settings"],
   },
   {
-    href: "/patient-portal",
-    label: "Patient Portal",
-    icon: "🧾",
-    module: "patient_portal",
-    match: ["/patient-portal"],
-  },
-  {
-    href: "/help",
-    label: "Help",
-    icon: "❓",
-    module: "help",
-    match: ["/help"],
-  },
-  {
-    href: "/contact-us",
-    label: "Contact Us",
-    icon: "☎️",
-    module: "contact",
-    match: ["/contact-us"],
-  },
-];
-
-const launchTools: NavItem[] = [
-  {
-    href: "/billing/workqueue?work_type=mailroom_review",
-    label: "Gmail AI queue",
-    icon: "📬",
-    module: "billing",
-  },
-  {
-    href: "/billing/payment-postings",
-    label: "Payment posting",
+    href: "/claims",
+    label: "Claims",
     icon: "🧾",
     module: "billing",
+    match: ["/claims"],
   },
   {
-    href: "/billing/payment-imports",
-    label: "835 imports",
-    icon: "💵",
+    href: "/payments",
+    label: "Payments",
+    icon: "💳",
     module: "billing",
+    match: ["/payments"],
   },
   {
-    href: "/billing/denials",
-    label: "Denials",
-    icon: "⛔",
-    module: "billing",
-  },
-  {
-    href: "/billing/rejections",
-    label: "Rejections",
-    icon: "⚠️",
-    module: "billing",
+    href: "/tickets",
+    label: "Tickets",
+    icon: "🎫",
+    module: "settings",
+    match: ["/tickets"],
   },
 ];
 
@@ -162,7 +100,7 @@ function getMobileValue(pathname: string) {
   if (exact) return exact.href;
 
   const matched = navItems.find((item) => isActive(pathname, item));
-  return matched?.href ?? "/";
+  return matched?.href ?? "/scheduling";
 }
 
 function getUniqueNavItems(items: NavItem[]) {
@@ -181,19 +119,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const role = useUserRole((state) => state.role) as AppRole;
   const visibleNavItems = getUniqueNavItems(navItems.filter((item) => canAccessModule(role, item.module)));
-  const visibleLaunchTools = getUniqueNavItems(launchTools.filter((item) => canAccessModule(role, item.module)));
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
           <div className="border-b border-slate-200 px-6 py-5">
-            <Link href="/" className="block">
+            <Link href="/scheduling" className="block">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-600">
                 TherAssistant
               </p>
               <h1 className="mt-1 text-xl font-black text-slate-950">
-                EHR Command
+                EHR
               </h1>
             </Link>
             <p className="mt-2 text-xs font-semibold text-slate-500">{roleLabel(role)}</p>
@@ -219,35 +156,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-
-          {visibleLaunchTools.length > 0 ? (
-            <div className="border-t border-slate-200 p-4">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-                  Launch tools
-                </p>
-
-                <div className="mt-3 grid gap-2">
-                  {visibleLaunchTools.map((tool) => (
-                    <Link
-                      key={tool.href}
-                      href={tool.href}
-                      className="text-sm font-bold text-indigo-700 hover:text-indigo-900"
-                    >
-                      <span className="mr-2">{tool.icon}</span>
-                      {tool.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur lg:hidden">
             <div className="flex items-center justify-between px-4 py-3">
-              <Link href="/" className="font-black text-slate-950">
+              <Link href="/scheduling" className="font-black text-slate-950">
                 TherAssistant
               </Link>
 
@@ -267,7 +181,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          <WorkflowRail />
           <main className="min-w-0 flex-1">{children}</main>
         </div>
       </div>
