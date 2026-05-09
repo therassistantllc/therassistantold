@@ -49,8 +49,17 @@ interface InsurancePolicyRecord {
 }
 
 interface EligibilityCheck {
-  id: string;
   client_id: string;
+  eligibilityRequestId: string | null;
+  displayStatus: "Active" | "Inactive" | "Not checked" | "Not checked in 30+ days" | "Unknown";
+  checkedAt: string | null;
+  daysSinceChecked: number | null;
+  requestStatus: string | null;
+  payerId: string | null;
+  payerName: string | null;
+  serviceTypeCode: string;
+  serviceTypeDescription: string;
+  id: string;
   eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   copay_amount?: number | null;
   deductible_remaining?: number | null;
@@ -216,19 +225,16 @@ function typeColor(type: string | null | undefined) {
 
 function eligibilityTone(eligibility: EligibilityCheck | null) {
   if (!eligibility) return "bg-gray-100 text-gray-700";
-  if (eligibility.eligibility_status === "active") return "bg-green-100 text-green-800";
-  if (eligibility.eligibility_status === "inactive" || eligibility.eligibility_status === "not_found") return "bg-red-100 text-red-800";
-  if (eligibility.eligibility_status === "error") return "bg-amber-100 text-amber-800";
+  if (eligibility.displayStatus === "Active") return "bg-green-100 text-green-800";
+  if (eligibility.displayStatus === "Inactive") return "bg-red-100 text-red-800";
+  if (eligibility.displayStatus === "Not checked in 30+ days") return "bg-amber-100 text-amber-800";
+  if (eligibility.displayStatus === "Unknown") return "bg-slate-200 text-slate-800";
   return "bg-gray-100 text-gray-700";
 }
 
 function eligibilityLabel(eligibility: EligibilityCheck | null) {
-  if (!eligibility) return "Not Checked";
-  if (eligibility.eligibility_status === "active") return "Eligible";
-  if (eligibility.eligibility_status === "inactive") return "Inactive";
-  if (eligibility.eligibility_status === "not_found") return "Not Found";
-  if (eligibility.eligibility_status === "error") return "Error";
-  return "Unknown";
+  if (!eligibility) return "Not checked";
+  return eligibility.displayStatus;
 }
 
 function wasCheckedWithin30Days(value: string | null | undefined) {
@@ -311,13 +317,85 @@ export default function SchedulingPage() {
     setProviders((providerResp.data ?? []) as ProviderRecord[]);
     setPolicies((policyResp.data ?? []) as InsurancePolicyRecord[]);
 
-    const patientIds = Array.from(new Set(appointmentRows.map((row) => row.client_id).filter(Boolean))) as string[];
+    const patientRows = Array.from(
+      new Map(
+        appointmentRows
+          .filter((row) => row.client_id)
+          .map((row) => [
+            row.client_id as string,
+            {
+              patientId: row.client_id as string,
+              organizationId: row.organization_id || "00000000-0000-0000-0000-000000000000",
+            },
+          ])
+      ).values()
+    );
+
     const eligibilityResponses = await Promise.all(
-      patientIds.map(async (patientId) => {
-        const response = await fetch(`/api/patients/${patientId}/eligibility`);
-        if (!response.ok) return null;
+      patientRows.map(async ({ patientId, organizationId }) => {
+        const params = new URLSearchParams({
+          organization_id: organizationId,
+          patient_id: patientId,
+        });
+        const response = await fetch(`/api/eligibility/latest?${params.toString()}`);
+        if (!response.ok) {
+          return {
+            id: `latest-${patientId}`,
+            client_id: patientId,
+            eligibilityRequestId: null,
+            eligibility_status: "unknown" as const,
+            requestStatus: null,
+            payerId: null,
+            payerName: null,
+            copay_amount: null,
+            deductible_remaining: null,
+            checked_at: null,
+            checkedAt: null,
+            daysSinceChecked: null,
+            serviceTypeCode: "98",
+            serviceTypeDescription: "Professional Services",
+            displayStatus: "Not checked" as const,
+          } as EligibilityCheck;
+        }
         const payload = await response.json();
-        return payload.latest as EligibilityCheck | null;
+        const latest = payload?.eligibility;
+        if (!latest) {
+          return {
+            id: `latest-${patientId}`,
+            client_id: patientId,
+            eligibilityRequestId: null,
+            eligibility_status: "unknown" as const,
+            requestStatus: null,
+            payerId: null,
+            payerName: null,
+            copay_amount: null,
+            deductible_remaining: null,
+            checked_at: null,
+            checkedAt: null,
+            daysSinceChecked: null,
+            serviceTypeCode: "98",
+            serviceTypeDescription: "Professional Services",
+            displayStatus: "Not checked" as const,
+          } as EligibilityCheck;
+        }
+
+        return {
+          id: latest.eligibilityRequestId || `latest-${patientId}`,
+          client_id: patientId,
+          eligibilityRequestId: latest.eligibilityRequestId,
+          eligibility_status: (latest.eligibilityStatus || "unknown") as EligibilityCheck["eligibility_status"],
+          requestStatus: latest.requestStatus || null,
+          payerId: latest.payerId || null,
+          payerName: latest.payerName || null,
+          copay_amount: latest.copayAmount ?? null,
+          deductible_remaining: latest.deductibleRemaining ?? null,
+          checked_at: latest.checkedAt || null,
+          checkedAt: latest.checkedAt || null,
+          daysSinceChecked: latest.daysSinceChecked ?? null,
+          serviceTypeCode: latest.serviceTypeCode || "98",
+          serviceTypeDescription: latest.serviceTypeDescription || "Professional Services",
+          displayStatus: latest.displayStatus || "Unknown",
+        } as EligibilityCheck;
       })
     );
     setEligibilityChecks(eligibilityResponses.filter(Boolean) as EligibilityCheck[]);
@@ -408,7 +486,7 @@ export default function SchedulingPage() {
   const warningCount = useMemo(() => {
     return visibleAppointments.filter((appointment) => {
       const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-      return !eligibility || eligibility.eligibility_status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
+      return !eligibility || eligibility.displayStatus !== "Active";
     }).length;
   }, [eligibilityByPatientId, visibleAppointments]);
 
@@ -614,9 +692,29 @@ export default function SchedulingPage() {
                   <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
                     {eligibilityLabel(eligibility)}
                   </span>
+                  {eligibility?.payerName && (
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">
+                      {eligibility.payerName}
+                    </span>
+                  )}
                   {eligibility && eligibility.copay_amount !== null && (
                     <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
                       ${eligibility.copay_amount} copay
+                    </span>
+                  )}
+                  {eligibility && eligibility.deductible_remaining !== null && (
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
+                      ${eligibility.deductible_remaining} deductible
+                    </span>
+                  )}
+                  {eligibility?.effective_date && (
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
+                      Eff: {eligibility.effective_date}
+                    </span>
+                  )}
+                  {eligibility?.termination_date && (
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
+                      Term: {eligibility.termination_date}
                     </span>
                   )}
                   {checkin && (
@@ -630,6 +728,17 @@ export default function SchedulingPage() {
                     </span>
                   )}
                 </div>
+                {eligibility?.eligibilityRequestId && (
+                  <div className="mt-2">
+                    <Link
+                      href={`/eligibility/requests/${eligibility.eligibilityRequestId}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-200"
+                    >
+                      View Eligibility Report
+                    </Link>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap gap-1">
                   <button
                     type="button"
@@ -751,7 +860,7 @@ export default function SchedulingPage() {
                     {visibleAppointments
                       .filter((appointment) => {
                         const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                        return !eligibility || eligibility.eligibility_status !== "active" || !wasCheckedWithin30Days(eligibility.checked_at);
+                        return !eligibility || eligibility.displayStatus !== "Active";
                       })
                       .map((appointment) => {
                         const patient = patients.find((p) => p.id === appointment.client_id);
@@ -759,8 +868,8 @@ export default function SchedulingPage() {
                         const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "";
                         const reason = !eligibility
                           ? "No eligibility check"
-                          : eligibility.eligibility_status !== "active"
-                            ? `Status: ${eligibility.eligibility_status}`
+                          : eligibility.displayStatus !== "Active"
+                            ? `Status: ${eligibility.displayStatus}`
                             : "Eligibility check older than 30 days";
                         
                         return (
@@ -1067,7 +1176,7 @@ export default function SchedulingPage() {
                       appointment: selectedAppointment,
                       encounter: selectedEncounter,
                       claim: selectedClaim,
-                      eligibility: eligibility ? { status: eligibility.eligibility_status, checked_at: eligibility.checked_at } : null,
+                      eligibility: eligibility ? { status: eligibility.eligibility_status, checked_at: eligibility.checkedAt } : null,
                     });
                     return workflowStatus.primaryActionLabel;
                   })(),
@@ -1170,7 +1279,7 @@ export default function SchedulingPage() {
                         eligibility: selectedAppointment.client_id
                           ? (() => {
                               const e = eligibilityByPatientId.get(selectedAppointment.client_id);
-                              return e ? { status: e.eligibility_status, checked_at: e.checked_at } : null;
+                              return e ? { status: e.eligibility_status, checked_at: e.checkedAt } : null;
                             })()
                           : null,
                       })}
@@ -1213,11 +1322,19 @@ export default function SchedulingPage() {
                       <div className="space-y-1 text-xs text-gray-700">
                         <div className="flex justify-between">
                           <span>Payer:</span>
-                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.payer_name ?? "—"}</span>
+                          <span>
+                            {(eligibilityByPatientId.get(selectedAppointment.client_id)?.payerName ?? "—")}
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.payerId
+                              ? ` (${eligibilityByPatientId.get(selectedAppointment.client_id)?.payerId})`
+                              : ""}
+                          </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Plan:</span>
-                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.plan_name ?? "—"}</span>
+                          <span>Service Type:</span>
+                          <span>
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.serviceTypeCode ?? "98"} {" "}
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.serviceTypeDescription ?? "Professional Services"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Copay:</span>
@@ -1228,7 +1345,7 @@ export default function SchedulingPage() {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Deductible:</span>
+                          <span>Deductible remaining:</span>
                           <span>
                             {eligibilityByPatientId.get(selectedAppointment.client_id)?.deductible_remaining
                               ? `$${eligibilityByPatientId.get(selectedAppointment.client_id)!.deductible_remaining}`
@@ -1236,18 +1353,36 @@ export default function SchedulingPage() {
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Effective:</span>
+                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.effective_date ?? "—"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Termination:</span>
+                          <span>{eligibilityByPatientId.get(selectedAppointment.client_id)?.termination_date ?? "—"}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Last Checked:</span>
                           <span className="text-right">
-                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at
+                            {eligibilityByPatientId.get(selectedAppointment.client_id)?.checkedAt
                               ? new Date(
-                                  eligibilityByPatientId.get(selectedAppointment.client_id)!.checked_at!
+                                  eligibilityByPatientId.get(selectedAppointment.client_id)!.checkedAt!
                                 ).toLocaleDateString()
                               : "Not checked"}
                           </span>
                         </div>
+                        {eligibilityByPatientId.get(selectedAppointment.client_id)?.eligibilityRequestId && (
+                          <div className="pt-2">
+                            <Link
+                              href={`/eligibility/requests/${eligibilityByPatientId.get(selectedAppointment.client_id)?.eligibilityRequestId}`}
+                              className="inline-flex rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200"
+                            >
+                              View Eligibility Report
+                            </Link>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {!wasCheckedWithin30Days(eligibilityByPatientId.get(selectedAppointment.client_id)?.checked_at) && (
+                    {eligibilityByPatientId.get(selectedAppointment.client_id)?.displayStatus === "Not checked in 30+ days" && (
                       <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                         ⚠️ Eligibility has not been checked within 30 days
                       </div>
@@ -1317,7 +1452,7 @@ export default function SchedulingPage() {
                   eligibility: selectedAppointment.client_id
                     ? (() => {
                         const e = eligibilityByPatientId.get(selectedAppointment.client_id!);
-                        return e ? { status: e.eligibility_status, checked_at: e.checked_at } : null;
+                        return e ? { status: e.eligibility_status, checked_at: e.checkedAt } : null;
                       })()
                     : null,
                 });
