@@ -411,6 +411,20 @@ export default function PayersIndexPage() {
                             Service type: {eligibilityResultsByPayer[payer.id].serviceTypeCode} {" "}
                             {eligibilityResultsByPayer[payer.id].serviceTypeDescription}
                           </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <Link
+                              href={`/eligibility/requests/${eligibilityResultsByPayer[payer.id].requestId}`}
+                              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800"
+                            >
+                              View Eligibility Report
+                            </Link>
+                            <Link
+                              href="/eligibility/history"
+                              className="text-xs font-bold text-emerald-800 underline hover:text-emerald-900"
+                            >
+                              View Eligibility History
+                            </Link>
+                          </div>
                         </div>
                       )}
                     </div>
