@@ -21,6 +21,20 @@ import {
   isLastActiveAdmin,
 } from "@/lib/rbac/validators";
 
+type StaffRoleAssignmentWithRole = {
+  id: string;
+  staff_role_id: string;
+  assigned_at: string | null;
+  effective_at: string | null;
+  expires_at: string | null;
+  staff_roles: {
+    id: string;
+    role_code: string;
+    role_name: string;
+    description: string | null;
+  } | null;
+};
+
 /**
  * GET /api/staff/[id]/roles
  * Get all active role assignments for a staff member
@@ -237,7 +251,9 @@ export async function POST(
       )
       .single();
 
-    if (insertError || !newAssignment) {
+    const assignment = newAssignment as unknown as StaffRoleAssignmentWithRole | null;
+
+    if (insertError || !assignment) {
       return NextResponse.json(
         { error: "Failed to assign role" },
         { status: 500 },
@@ -246,17 +262,17 @@ export async function POST(
 
     return NextResponse.json(
       {
-        assignment_id: newAssignment.id,
+        assignment_id: assignment.id,
         staff_id: id,
         role: {
-          id: newAssignment.staff_roles.id,
-          code: newAssignment.staff_roles.role_code,
-          name: newAssignment.staff_roles.role_name,
-          description: newAssignment.staff_roles.description,
+          id: assignment.staff_roles!.id,
+          code: assignment.staff_roles!.role_code,
+          name: assignment.staff_roles!.role_name,
+          description: assignment.staff_roles!.description,
         },
-        assigned_at: newAssignment.assigned_at,
-        effective_at: newAssignment.effective_at,
-        expires_at: newAssignment.expires_at,
+        assigned_at: assignment.assigned_at,
+        effective_at: assignment.effective_at,
+        expires_at: assignment.expires_at,
       },
       { status: 201 },
     );
