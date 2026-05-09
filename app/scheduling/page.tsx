@@ -30,6 +30,7 @@ interface ClientRecord {
   first_name?: string | null;
   last_name?: string | null;
   preferred_name?: string | null;
+  date_of_birth?: string | null;
 }
 
 interface ProviderRecord {
@@ -46,6 +47,21 @@ interface InsurancePolicyRecord {
   id: string;
   client_id: string;
   plan_name?: string | null;
+  payer_id?: string | null;
+  policy_number?: string | null;
+  subscriber_id?: string | null;
+}
+
+interface PayerConfigurationRecord {
+  id: string;
+  organization_id: string;
+  payer_id: string;
+  payer_name?: string | null;
+}
+
+interface BalanceSnapshot {
+  clientBalance: number;
+  insuranceBalance: number;
 }
 
 interface EligibilityCheck {
@@ -63,13 +79,14 @@ interface EligibilityCheck {
   eligibility_status: "active" | "inactive" | "not_checked" | "not_found" | "error" | "unknown";
   copay_amount?: number | null;
   deductible_remaining?: number | null;
+  effective_date?: string | null;
+  termination_date?: string | null;
   checked_at?: string | null;
   payer_name?: string | null;
   plan_name?: string | null;
 }
 
 type ViewMode = "day" | "week" | "month";
-type ColorMode = "status" | "type";
 type StatusFilter = "all" | "scheduled" | "checked_in" | "completed" | "cancelled" | "no_show";
 
 const START_HOUR = 8;
@@ -265,6 +282,9 @@ export default function SchedulingPage() {
   const [patients, setPatients] = useState<ClientRecord[]>([]);
   const [providers, setProviders] = useState<ProviderRecord[]>([]);
   const [policies, setPolicies] = useState<InsurancePolicyRecord[]>([]);
+  const [payerConfigurations, setPayerConfigurations] = useState<PayerConfigurationRecord[]>([]);
+  const [encounters, setEncounters] = useState<EncounterRecord[]>([]);
+  const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>([]);
   const [checkins, setCheckins] = useState<any[]>([]);
   const [selectedCheckin, setSelectedCheckin] = useState<any | null>(null);
@@ -274,10 +294,7 @@ export default function SchedulingPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [focusDate, setFocusDate] = useState<Date>(() => new Date());
   const [providerFilter, setProviderFilter] = useState("all");
-  const [locationFilter, setLocationFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [colorMode, setColorMode] = useState<ColorMode>("status");
-  const [showWarnings, setShowWarnings] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Global Active Context
@@ -292,11 +309,12 @@ export default function SchedulingPage() {
     setLoading(true);
     setError(null);
 
-    const [appointmentResp, patientResp, providerResp, policyResp] = await Promise.all([
+    const [appointmentResp, patientResp, providerResp, policyResp, payerConfigResp] = await Promise.all([
       supabase.from("appointments").select("*").is("archived_at", null).order("scheduled_start_at", { ascending: true }).limit(500),
-      supabase.from("clients").select("id, first_name, last_name, preferred_name").is("archived_at", null).limit(500),
+      supabase.from("clients").select("id, first_name, last_name, preferred_name, date_of_birth").is("archived_at", null).limit(500),
       supabase.from("providers").select("id, display_name, first_name, last_name, credential, is_active, archived_at").eq("is_active", true).is("archived_at", null).order("display_name", { ascending: true }),
-      supabase.from("insurance_policies").select("id, client_id, plan_name").is("archived_at", null).limit(500),
+      supabase.from("insurance_policies").select("id, client_id, plan_name, payer_id, policy_number, subscriber_id").is("archived_at", null).limit(500),
+      supabase.from("payer_configurations").select("id, organization_id, payer_id, payer_name").eq("is_active", true).limit(1000),
     ]);
 
     if (appointmentResp.error || patientResp.error || providerResp.error || policyResp.error) {
@@ -316,6 +334,38 @@ export default function SchedulingPage() {
     setPatients((patientResp.data ?? []) as ClientRecord[]);
     setProviders((providerResp.data ?? []) as ProviderRecord[]);
     setPolicies((policyResp.data ?? []) as InsurancePolicyRecord[]);
+    if (!payerConfigResp.error) {
+      setPayerConfigurations((payerConfigResp.data ?? []) as PayerConfigurationRecord[]);
+    } else {
+      // Keep scheduling functional even when payer configuration table is unavailable.
+      setPayerConfigurations([]);
+    }
+
+    const appointmentIds = appointmentRows.map((row) => row.id);
+    if (appointmentIds.length > 0) {
+      const { data: encounterData } = await supabase
+        .from("encounters")
+        .select("*")
+        .in("appointment_id", appointmentIds)
+        .is("archived_at", null);
+      const encounterRows = (encounterData ?? []) as EncounterRecord[];
+      setEncounters(encounterRows);
+
+      const encounterIds = encounterRows.map((row) => row.id);
+      if (encounterIds.length > 0) {
+        const { data: claimData } = await supabase
+          .from("claims")
+          .select("*")
+          .in("encounter_id", encounterIds)
+          .is("archived_at", null);
+        setClaims((claimData ?? []) as ClaimRecord[]);
+      } else {
+        setClaims([]);
+      }
+    } else {
+      setEncounters([]);
+      setClaims([]);
+    }
 
     const patientRows = Array.from(
       new Map(
@@ -389,6 +439,8 @@ export default function SchedulingPage() {
           payerName: latest.payerName || null,
           copay_amount: latest.copayAmount ?? null,
           deductible_remaining: latest.deductibleRemaining ?? null,
+          effective_date: latest.effectiveDate ?? null,
+          termination_date: latest.terminationDate ?? null,
           checked_at: latest.checkedAt || null,
           checkedAt: latest.checkedAt || null,
           daysSinceChecked: latest.daysSinceChecked ?? null,
@@ -400,8 +452,7 @@ export default function SchedulingPage() {
     );
     setEligibilityChecks(eligibilityResponses.filter(Boolean) as EligibilityCheck[]);
 
-    // Load patient check-ins for appointments
-    const appointmentIds = appointmentRows.map(row => row.id);
+    // Load client check-ins for appointments
     if (appointmentIds.length > 0) {
       const { data: checkinsData } = await supabase
         .from("patient_checkins")
@@ -435,6 +486,14 @@ export default function SchedulingPage() {
   const patientById = useMemo(() => new Map(patients.map((item) => [item.id, item])), [patients]);
   const providerById = useMemo(() => new Map(providers.map((item) => [item.id, item])), [providers]);
   const policyById = useMemo(() => new Map(policies.map((item) => [item.id, item])), [policies]);
+  const payerConfigByOrgAndPayerId = useMemo(() => {
+    const map = new Map<string, PayerConfigurationRecord>();
+    for (const config of payerConfigurations) {
+      if (!config.organization_id || !config.payer_id) continue;
+      map.set(`${config.organization_id}:${config.payer_id}`, config);
+    }
+    return map;
+  }, [payerConfigurations]);
   const eligibilityByPatientId = useMemo(
     () => new Map(eligibilityChecks.map((item) => [item.client_id, item])),
     [eligibilityChecks]
@@ -443,6 +502,34 @@ export default function SchedulingPage() {
     () => new Map(checkins.map((item) => [item.appointment_id, item])),
     [checkins]
   );
+  const encounterByAppointmentId = useMemo(
+    () => new Map(encounters.map((item) => [item.appointment_id, item])),
+    [encounters]
+  );
+  const claimByEncounterId = useMemo(
+    () => new Map(claims.map((item) => [item.encounter_id, item])),
+    [claims]
+  );
+  const balanceByClientId = useMemo(() => {
+    const map = new Map<string, BalanceSnapshot>();
+
+    for (const claim of claims) {
+      if (!claim.client_id) continue;
+
+      const claimStatus = String(claim.claim_status ?? "").toLowerCase();
+      if (claimStatus === "paid" || claimStatus === "completed") continue;
+
+      const totalCharge = Number(claim.total_charge_amount ?? 0) || 0;
+      const clientPortion = Number(claim.patient_responsibility_amount ?? 0) || 0;
+      const insurancePortion = Math.max(0, totalCharge - clientPortion);
+      const current = map.get(claim.client_id) ?? { clientBalance: 0, insuranceBalance: 0 };
+      current.clientBalance += clientPortion;
+      current.insuranceBalance += insurancePortion;
+      map.set(claim.client_id, current);
+    }
+
+    return map;
+  }, [claims]);
 
   const visibleRange = useMemo(() => {
     if (viewMode === "day") return { start: startOfDay(focusDate), end: endOfDay(focusDate) };
@@ -456,16 +543,12 @@ export default function SchedulingPage() {
       if (!start || Number.isNaN(start.getTime())) return false;
       if (start < visibleRange.start || start > visibleRange.end) return false;
       if (providerFilter !== "all" && appointment.provider_id !== providerFilter) return false;
-      if (locationFilter !== "all") {
-        const derivedLocation = appointment.appointment_type === "Telehealth" ? "telehealth" : "office";
-        if (derivedLocation !== locationFilter) return false;
-      }
       if (statusFilter !== "all" && normalizeStatus(appointment.appointment_status) !== statusFilter) {
         return false;
       }
       return true;
     });
-  }, [appointments, locationFilter, providerFilter, statusFilter, visibleRange.end, visibleRange.start]);
+  }, [appointments, providerFilter, statusFilter, visibleRange.end, visibleRange.start]);
 
   const providerColumns = useMemo(() => {
     if (providerFilter !== "all") {
@@ -483,12 +566,59 @@ export default function SchedulingPage() {
     [appointments, appointmentId]
   );
 
-  const warningCount = useMemo(() => {
-    return visibleAppointments.filter((appointment) => {
+  const todayAppointments = useMemo(() => {
+    const today = new Date();
+    return appointments.filter((appointment) => {
+      const start = appointment.scheduled_start_at ? new Date(appointment.scheduled_start_at) : null;
+      return start ? sameDay(start, today) : false;
+    });
+  }, [appointments]);
+
+  const summary = useMemo(() => {
+    const eligibilityMissing = todayAppointments.filter((appointment) => {
       const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-      return !eligibility || eligibility.displayStatus !== "Active";
+      return !eligibility || eligibility.displayStatus === "Not checked" || eligibility.displayStatus === "Unknown";
     }).length;
-  }, [eligibilityByPatientId, visibleAppointments]);
+
+    const eligibilityStale = todayAppointments.filter((appointment) => {
+      const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+      return eligibility?.displayStatus === "Not checked in 30+ days";
+    }).length;
+
+    const readyForNote = todayAppointments.filter((appointment) => {
+      const status = normalizeStatus(appointment.appointment_status);
+      const encounter = encounterByAppointmentId.get(appointment.id);
+      return (status === "checked_in" || status === "completed") && !encounter;
+    }).length;
+
+    const readyToBill = todayAppointments.filter((appointment) => {
+      const encounter = encounterByAppointmentId.get(appointment.id);
+      if (!encounter) return false;
+      const claim = claimByEncounterId.get(encounter.id);
+      return !claim;
+    }).length;
+
+    const billingAlerts = todayAppointments.filter((appointment) => {
+      const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+      const encounter = encounterByAppointmentId.get(appointment.id);
+      const claim = encounter ? claimByEncounterId.get(encounter.id) : null;
+      const claimStatus = String(claim?.claim_status ?? "").toLowerCase();
+      return (
+        eligibility?.displayStatus === "Inactive" ||
+        claimStatus === "denied" ||
+        claimStatus === "rejected"
+      );
+    }).length;
+
+    return {
+      todaysAppointments: todayAppointments.length,
+      eligibilityMissing,
+      eligibilityStale,
+      readyForNote,
+      readyToBill,
+      billingAlerts,
+    };
+  }, [todayAppointments, eligibilityByPatientId, encounterByAppointmentId, claimByEncounterId]);
 
   const weekColumns = useMemo(() => weekDays(focusDate), [focusDate]);
   const monthDays = useMemo(() => monthGridDays(focusDate), [focusDate]);
@@ -509,42 +639,142 @@ export default function SchedulingPage() {
     setFocusDate(next);
   }
 
-  async function runEligibilityForSelected() {
-    if (!selectedAppointment?.client_id) return;
-
-    await fetch("/api/clearinghouse/eligibility/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patientId: selectedAppointment.client_id,
-        appointmentId: selectedAppointment.id,
-        insurancePolicyId: selectedAppointment.insurance_policy_id ?? null,
-        serviceTypeCode: "98",
-      }),
+  async function fetchLatestEligibilityForClient(clientId: string, organizationId: string) {
+    const params = new URLSearchParams({
+      organization_id: organizationId,
+      patient_id: clientId,
     });
 
-    await load();
+    const response = await fetch(`/api/eligibility/latest?${params.toString()}`);
+    if (!response.ok) {
+      return {
+        id: `latest-${clientId}`,
+        client_id: clientId,
+        eligibilityRequestId: null,
+        eligibility_status: "unknown" as const,
+        requestStatus: null,
+        payerId: null,
+        payerName: null,
+        copay_amount: null,
+        deductible_remaining: null,
+        effective_date: null,
+        termination_date: null,
+        checked_at: null,
+        checkedAt: null,
+        daysSinceChecked: null,
+        serviceTypeCode: "98",
+        serviceTypeDescription: "Professional Services",
+        displayStatus: "Not checked" as const,
+      } as EligibilityCheck;
+    }
+
+    const payload = await response.json();
+    const latest = payload?.eligibility;
+
+    if (!latest) {
+      return {
+        id: `latest-${clientId}`,
+        client_id: clientId,
+        eligibilityRequestId: null,
+        eligibility_status: "unknown" as const,
+        requestStatus: null,
+        payerId: null,
+        payerName: null,
+        copay_amount: null,
+        deductible_remaining: null,
+        effective_date: null,
+        termination_date: null,
+        checked_at: null,
+        checkedAt: null,
+        daysSinceChecked: null,
+        serviceTypeCode: "98",
+        serviceTypeDescription: "Professional Services",
+        displayStatus: "Not checked" as const,
+      } as EligibilityCheck;
+    }
+
+    return {
+      id: latest.eligibilityRequestId || `latest-${clientId}`,
+      client_id: clientId,
+      eligibilityRequestId: latest.eligibilityRequestId,
+      eligibility_status: (latest.eligibilityStatus || "unknown") as EligibilityCheck["eligibility_status"],
+      requestStatus: latest.requestStatus || null,
+      payerId: latest.payerId || null,
+      payerName: latest.payerName || null,
+      copay_amount: latest.copayAmount ?? null,
+      deductible_remaining: latest.deductibleRemaining ?? null,
+      effective_date: latest.effectiveDate ?? null,
+      termination_date: latest.terminationDate ?? null,
+      checked_at: latest.checkedAt || null,
+      checkedAt: latest.checkedAt || null,
+      daysSinceChecked: latest.daysSinceChecked ?? null,
+      serviceTypeCode: latest.serviceTypeCode || "98",
+      serviceTypeDescription: latest.serviceTypeDescription || "Professional Services",
+      displayStatus: latest.displayStatus || "Unknown",
+    } as EligibilityCheck;
+  }
+
+  async function runEligibilityForSelected() {
+    if (!selectedAppointment) return;
+    await runEligibilityForAppointment(selectedAppointment.id);
   }
 
   async function runEligibilityForAppointment(appointmentId: string) {
     const appointment = appointments.find((a) => a.id === appointmentId);
-    if (!appointment?.client_id) return;
+    if (!appointment?.client_id || !appointment.organization_id) {
+      setError("Appointment organization and client are required to prepare eligibility.");
+      return;
+    }
+
+    const policy = appointment.insurance_policy_id ? policyById.get(appointment.insurance_policy_id) : undefined;
+    const client = patientById.get(appointment.client_id);
+    const payerConfig = policy?.payer_id
+      ? payerConfigByOrgAndPayerId.get(`${appointment.organization_id}:${policy.payer_id}`)
+      : undefined;
+
+    if (!payerConfig && !policy?.payer_id) {
+      setError("No configured payer found for this appointment.");
+      return;
+    }
+
+    const payload = {
+      organization_id: appointment.organization_id,
+      patient_id: appointment.client_id,
+      payer_configuration_id: payerConfig?.id ?? null,
+      payer_id: policy?.payer_id ?? null,
+      payer_name: payerConfig?.payer_name ?? policy?.plan_name ?? null,
+      subscriber_id: policy?.subscriber_id ?? null,
+      subscriber_first_name: client?.first_name ?? null,
+      subscriber_last_name: client?.last_name ?? null,
+      subscriber_dob: client?.date_of_birth ?? null,
+      patient_first_name: client?.first_name ?? null,
+      patient_last_name: client?.last_name ?? null,
+      patient_dob: client?.date_of_birth ?? null,
+      request_mode: "mock" as const,
+    };
 
     try {
-      const response = await fetch("/api/eligibility/check", {
+      const response = await fetch("/api/eligibility/prepare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          appointmentId: appointment.id,
-          organizationId: appointment.organization_id,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        await load(); // Reload to show updated eligibility
+      const result = await response.json();
+
+      if (!response.ok || !result?.ok) {
+        setError(result?.error || "Failed to prepare eligibility.");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to run eligibility:", error);
+
+      const latest = await fetchLatestEligibilityForClient(appointment.client_id, appointment.organization_id);
+      setEligibilityChecks((prev) => {
+        const remaining = prev.filter((row) => row.client_id !== appointment.client_id);
+        return [...remaining, latest];
+      });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to prepare eligibility.");
     }
   }
 
@@ -650,165 +880,132 @@ export default function SchedulingPage() {
     void loadWorkflowDataForAppointment(selectedAppointmentId);
   }
 
-  function renderAppointmentChips(dayAppointments: AppointmentRecord[]) {
-    if (dayAppointments.length === 0) {
-      return <div className="text-xs text-gray-400">No appointments</div>;
-    }
+  function formatCurrency(value: number | null | undefined) {
+    if (value === null || value === undefined) return "—";
+    return `$${value.toFixed(2)}`;
+  }
+
+  function renderAppointmentCard(appointment: AppointmentRecord) {
+    const patient = appointment.client_id ? patientById.get(appointment.client_id) : undefined;
+    const provider = appointment.provider_id ? providerById.get(appointment.provider_id) : undefined;
+    const policy = appointment.insurance_policy_id ? policyById.get(appointment.insurance_policy_id) : undefined;
+    const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
+    const encounter = encounterByAppointmentId.get(appointment.id) ?? null;
+    const claim = encounter ? claimByEncounterId.get(encounter.id) ?? null : null;
+    const balance = appointment.client_id ? balanceByClientId.get(appointment.client_id) : null;
+    const locationLabel = appointment.appointment_type === "Telehealth" ? "Telehealth" : "Office";
 
     return (
-      <div className="space-y-2">
-        {dayAppointments
-          .sort((a, b) => new Date(a.scheduled_start_at ?? "").getTime() - new Date(b.scheduled_start_at ?? "").getTime())
-          .map((appointment) => {
-            const patient = appointment.client_id ? patientById.get(appointment.client_id) : undefined;
-            const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-            const checkin = checkinByAppointmentId.get(appointment.id);
-            const colorClass = colorMode === "status" ? statusColor(appointment.appointment_status) : typeColor(appointment.appointment_type);
+      <article
+        key={appointment.id}
+        className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
+      >
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+          <span className="font-semibold text-slate-900">{formatBlockTime(appointment.scheduled_start_at)}</span>
+          <span>•</span>
+          <span className="font-semibold text-slate-900">{patientLabel(patient)}</span>
+          <span>•</span>
+          <span>{appointment.appointment_type ?? "Visit"}</span>
+          <span>•</span>
+          <span>{providerLabel(provider)}</span>
+          <span>•</span>
+          <span>{locationLabel}</span>
+          <span>•</span>
+          <span>{statusLabel(appointment.appointment_status)}</span>
+        </div>
 
-            return (
-              <div
-                key={appointment.id}
-                className={`w-full rounded-lg border px-2 py-2 shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => handleAppointmentSelect(appointment.id)}
-                  className="w-full text-left"
-                >
-                  <div className="text-[11px] font-medium opacity-80">
-                    {formatBlockTime(appointment.scheduled_start_at)}
-                  </div>
-                  <div className="mt-0.5 line-clamp-1 text-xs font-semibold">
-                    {patientLabel(patient)}
-                  </div>
-                  <div className="line-clamp-1 text-[11px] opacity-80">
-                    {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
-                  </div>
-                  <div className="line-clamp-1 text-[11px] opacity-80">
-                    {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)} • {statusLabel(appointment.appointment_status)}
-                  </div>
-                </button>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
-                    {eligibilityLabel(eligibility)}
-                  </span>
-                  {eligibility?.payerName && (
-                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">
-                      {eligibility.payerName}
-                    </span>
-                  )}
-                  {eligibility && eligibility.copay_amount !== null && (
-                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
-                      ${eligibility.copay_amount} copay
-                    </span>
-                  )}
-                  {eligibility && eligibility.deductible_remaining !== null && (
-                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
-                      ${eligibility.deductible_remaining} deductible
-                    </span>
-                  )}
-                  {eligibility?.effective_date && (
-                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
-                      Eff: {eligibility.effective_date}
-                    </span>
-                  )}
-                  {eligibility?.termination_date && (
-                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">
-                      Term: {eligibility.termination_date}
-                    </span>
-                  )}
-                  {checkin && (
-                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">
-                      ✓ Check-in
-                    </span>
-                  )}
-                  {appointment.appointment_type === "Telehealth" && (
-                    <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">
-                      Telehealth
-                    </span>
-                  )}
-                </div>
-                {eligibility?.eligibilityRequestId && (
-                  <div className="mt-2">
-                    <Link
-                      href={`/eligibility/requests/${eligibility.eligibilityRequestId}`}
-                      onClick={(event) => event.stopPropagation()}
-                      className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-200"
-                    >
-                      View Eligibility Report
-                    </Link>
-                  </div>
-                )}
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void updateAppointmentStatus(appointment.id, "checked_in");
-                    }}
-                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
-                  >
-                    Check in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void updateAppointmentStatus(appointment.id, "completed");
-                    }}
-                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
-                  >
-                    Complete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void runEligibilityForAppointment(appointment.id);
-                    }}
-                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
-                  >
-                    ✓ Eligibility
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void createEncounterForAppointment(appointment.id);
-                    }}
-                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
-                  >
-                    + Encounter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert("Stripe payment collection placeholder");
-                    }}
-                    className="rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white"
-                  >
-                    $ Copay
-                  </button>
-                  {checkin && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCheckin(checkin);
-                      }}
-                      className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium hover:bg-blue-100"
-                    >
-                      View Check-in
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-      </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium">
+            {eligibility?.payerName || policy?.plan_name || "Payer not set"}
+          </span>
+          <span className={`rounded-full px-2 py-1 font-medium ${eligibilityTone(eligibility)}`}>
+            {eligibilityLabel(eligibility)}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Copay: {formatCurrency(eligibility?.copay_amount ?? null)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Deductible: {formatCurrency(eligibility?.deductible_remaining ?? null)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Effective: {eligibility?.effective_date ?? "—"}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Termination: {eligibility?.termination_date ?? "—"}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Client balance: {formatCurrency(balance?.clientBalance)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">Insurance balance: {formatCurrency(balance?.insuranceBalance)}</span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => handleAppointmentSelect(appointment.id)}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Open appointment
+          </button>
+          <button
+            type="button"
+            onClick={() => void runEligibilityForAppointment(appointment.id)}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Run eligibility
+          </button>
+          {eligibility?.eligibilityRequestId ? (
+            <Link
+              href={`/eligibility/requests/${eligibility.eligibilityRequestId}`}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              View eligibility report
+            </Link>
+          ) : null}
+          <Link
+            href={appointment.client_id ? `/payments?client_id=${appointment.client_id}` : "/payments"}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Collect payment
+          </Link>
+          {encounter ? (
+            <Link
+              href={`/encounters/${encounter.id}`}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Create/Open note
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void createEncounterForAppointment(appointment.id)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Create/Open note
+            </button>
+          )}
+          <Link
+            href={claim ? `/claims/${claim.id}` : "/billing"}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Route to biller
+          </Link>
+        </div>
+      </article>
     );
   }
+
+  const groupedVisibleAppointments = useMemo(() => {
+    const grouped = new Map<string, AppointmentRecord[]>();
+
+    const sorted = [...visibleAppointments].sort(
+      (a, b) => new Date(a.scheduled_start_at ?? "").getTime() - new Date(b.scheduled_start_at ?? "").getTime()
+    );
+
+    for (const appointment of sorted) {
+      const start = appointment.scheduled_start_at ? new Date(appointment.scheduled_start_at) : null;
+      if (!start || Number.isNaN(start.getTime())) continue;
+      const key = start.toDateString();
+      const existing = grouped.get(key) ?? [];
+      existing.push(appointment);
+      grouped.set(key, existing);
+    }
+
+    return Array.from(grouped.entries()).map(([key, items]) => ({
+      date: new Date(key),
+      items,
+    }));
+  }, [visibleAppointments]);
 
   return (
     <AppShell>
@@ -855,348 +1052,130 @@ export default function SchedulingPage() {
             </div>
           </section>
 
-          {/* Operational Summary Bar */}
+          {/* Operational Summary */}
           <section className="mb-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="text-xs text-gray-500">Today's Appts</div>
-              <div className="mt-1 text-2xl font-bold text-gray-900">{visibleAppointments.length}</div>
+              <div className="text-xs text-gray-500">Today's appointments</div>
+              <div className="mt-1 text-2xl font-bold text-gray-900">{summary.todaysAppointments}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="text-xs text-gray-500">Encounters Missing</div>
-              <div className="mt-1 text-2xl font-bold text-amber-600">—</div>
+              <div className="text-xs text-gray-500">Eligibility missing</div>
+              <div className="mt-1 text-2xl font-bold text-amber-600">{summary.eligibilityMissing}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="text-xs text-gray-500">Notes Unsigned</div>
-              <div className="mt-1 text-2xl font-bold text-amber-600">—</div>
+              <div className="text-xs text-gray-500">Eligibility stale / 30+ days</div>
+              <div className="mt-1 text-2xl font-bold text-amber-600">{summary.eligibilityStale}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="text-xs text-gray-500">Eligibility Missing</div>
-              <div className="mt-1 text-2xl font-bold text-red-600">{warningCount}</div>
+              <div className="text-xs text-gray-500">Ready for note</div>
+              <div className="mt-1 text-2xl font-bold text-blue-700">{summary.readyForNote}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
               <div className="text-xs text-gray-500">Ready to Bill</div>
-              <div className="mt-1 text-2xl font-bold text-green-600">—</div>
+              <div className="mt-1 text-2xl font-bold text-green-600">{summary.readyToBill}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
               <div className="text-xs text-gray-500">Billing Alerts</div>
-              <div className="mt-1 text-2xl font-bold text-red-600">—</div>
+              <div className="mt-1 text-2xl font-bold text-red-600">{summary.billingAlerts}</div>
             </div>
           </section>
 
-          <div className="grid gap-4">
-            <div className="space-y-4">
-              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="font-medium">You have {warningCount} warning message{warningCount === 1 ? "" : "s"}</div>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowWarnings((prev) => !prev)} 
-                    className="rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
-                  >
-                    {showWarnings ? "Hide" : "View"}
-                  </button>
+          <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => setFocusDate(new Date())} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                  Today
+                </button>
+                <button type="button" onClick={previousDate} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                  ‹
+                </button>
+                <button type="button" onClick={nextDate} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                  ›
+                </button>
+                <div className="text-2xl font-semibold tracking-tight text-gray-900">
+                  {formatHeaderDate(focusDate, viewMode)}
                 </div>
-                {showWarnings && warningCount > 0 && (
-                  <div className="mt-3 max-h-64 space-y-2 overflow-y-auto border-t border-amber-200 pt-3">
-                    {visibleAppointments
-                      .filter((appointment) => {
-                        const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                        return !eligibility || eligibility.displayStatus !== "Active";
-                      })
-                      .map((appointment) => {
-                        const patient = patients.find((p) => p.id === appointment.client_id);
-                        const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                        const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "";
-                        const reason = !eligibility
-                          ? "No eligibility check"
-                          : eligibility.displayStatus !== "Active"
-                            ? `Status: ${eligibility.displayStatus}`
-                            : "Eligibility check older than 30 days";
-                        
-                        return (
-                          <div key={appointment.id} className="rounded-lg bg-white p-2 text-xs">
-                            <div className="font-medium">{patientName || appointment.client_id}</div>
-                            <div className="text-amber-700">{reason}</div>
-                            <div className="mt-1 text-gray-600">{formatBlockTime(appointment.scheduled_start_at)}</div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
               </div>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button type="button" onClick={() => setFocusDate(new Date())} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                      Today
-                    </button>
-                    <button type="button" onClick={previousDate} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                      ‹
-                    </button>
-                    <button type="button" onClick={nextDate} className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                      ›
-                    </button>
-                    <div className="text-3xl font-semibold tracking-tight text-gray-900">
-                      {formatHeaderDate(focusDate, viewMode)}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {(["day", "week", "month"] as ViewMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setViewMode(mode)}
-                        className={[
-                          "rounded-lg px-3 py-2 text-sm capitalize",
-                          viewMode === mode ? "bg-blue-50 text-blue-700" : "border border-gray-300 text-gray-700 hover:bg-gray-50",
-                        ].join(" ")}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                    <select
-                      value={colorMode}
-                      onChange={(event) => setColorMode(event.target.value as ColorMode)}
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    >
-                      <option value="status">Color: Status</option>
-                      <option value="type">Color: Type</option>
-                    </select>
-                    <Link href="/tickets" className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                      Waitlist
-                    </Link>
-                    <Link href="/scheduling/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
-                      Schedule appointment
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="mb-4 flex flex-wrap items-center gap-3">
-                  <select
-                    value={providerFilter}
-                    onChange={(event) => setProviderFilter(event.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              <div className="flex flex-wrap items-center gap-2">
+                {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setViewMode(mode)}
+                    className={[
+                      "rounded-lg px-3 py-2 text-sm capitalize",
+                      viewMode === mode ? "bg-blue-50 text-blue-700" : "border border-gray-300 text-gray-700 hover:bg-gray-50",
+                    ].join(" ")}
                   >
-                    <option value="all">All team members</option>
-                    {providers.map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {providerLabel(provider)}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={locationFilter}
-                    onChange={(event) => setLocationFilter(event.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  >
-                    <option value="all">All locations</option>
-                    <option value="office">Office</option>
-                    <option value="telehealth">Telehealth</option>
-                  </select>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  >
-                    <option value="all">All statuses</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="checked_in">Checked in</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="no_show">No show</option>
-                  </select>
-
-                  <Link href="/clients/new" className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100">
-                    New client
-                  </Link>
-                </div>
-
-                {loading ? (
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
-                    Loading calendar...
-                  </div>
-                ) : error ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-                    {error}
-                  </div>
-                ) : viewMode === "day" ? (
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[1080px]">
-                      <div
-                        className="grid border-b border-gray-200"
-                        style={{ gridTemplateColumns: `72px repeat(${Math.max(providerColumns.length, 1)}, minmax(0, 1fr))` }}
-                      >
-                        <div className="border-r border-gray-200 bg-white px-2 py-4 text-center text-xs text-gray-500">
-                          <div>All day</div>
-                          <div className="mt-1">MT</div>
-                        </div>
-                        {providerColumns.map((provider) => (
-                          <div key={provider.id} className="border-r border-gray-200 px-3 py-4 text-center text-sm font-medium text-gray-700 last:border-r-0">
-                            {providerLabel(provider)}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div
-                        className="grid"
-                        style={{ gridTemplateColumns: `72px repeat(${Math.max(providerColumns.length, 1)}, minmax(0, 1fr))` }}
-                      >
-                        <div className="relative border-r border-gray-200 bg-white">
-                          {Array.from({ length: END_HOUR - START_HOUR + 1 }).map((_, index) => {
-                            const hour = START_HOUR + index;
-                            return (
-                              <div key={hour} className="border-b border-gray-200 px-2 pt-1 text-right text-xs text-gray-500" style={{ height: `${HOUR_HEIGHT}px` }}>
-                                {hour < 12 ? `${hour} am` : hour === 12 ? "12 pm" : `${hour - 12} pm`}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {providerColumns.map((provider) => {
-                          const providerAppointments = visibleAppointments.filter((item) => item.provider_id === provider.id);
-                          return (
-                            <div key={provider.id} className="relative border-r border-gray-200 bg-white last:border-r-0" style={{ height: `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px` }}>
-                              {Array.from({ length: END_HOUR - START_HOUR + 1 }).map((_, index) => (
-                                <div key={index} className="border-b border-gray-200" style={{ height: `${HOUR_HEIGHT}px` }} />
-                              ))}
-
-                              {providerAppointments.map((appointment) => {
-                                const start = new Date(appointment.scheduled_start_at ?? "");
-                                const end = new Date(appointment.scheduled_end_at ?? "");
-                                if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-
-                                const startMinutes = (start.getHours() - START_HOUR) * 60 + start.getMinutes();
-                                const endMinutes = (end.getHours() - START_HOUR) * 60 + end.getMinutes();
-                                const top = Math.max(0, (startMinutes / 60) * HOUR_HEIGHT);
-                                const height = Math.max(44, ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT);
-                                const patient = appointment.client_id ? patientById.get(appointment.client_id) : undefined;
-                                const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                                const colorClass = colorMode === "status" ? statusColor(appointment.appointment_status) : typeColor(appointment.appointment_type);
-
-                                return (
-                                  <button
-                                    key={appointment.id}
-                                    type="button"
-                                    onClick={() => handleAppointmentSelect(appointment.id)}
-                                    className={`absolute left-1 right-1 rounded-lg border px-2 py-1 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
-                                    style={{ top: `${top}px`, height: `${height}px` }}
-                                  >
-                                    <div className="text-[11px] font-medium opacity-80">
-                                      {formatBlockTime(appointment.scheduled_start_at)}
-                                    </div>
-                                    <div className="mt-0.5 line-clamp-1 text-xs font-semibold">
-                                      {patientLabel(patient)}
-                                    </div>
-                                    <div className="line-clamp-1 text-[11px] opacity-80">
-                                      {appointment.reason ?? appointment.appointment_type ?? "Appointment"}
-                                    </div>
-                                    <div className="line-clamp-1 text-[11px] opacity-80">
-                                      {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)} • {statusLabel(appointment.appointment_status)}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${eligibilityTone(eligibility)}`}>
-                                        {eligibilityLabel(eligibility)}
-                                      </span>
-                                      {appointment.appointment_type === "Telehealth" && (
-                                        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">
-                                          Telehealth
-                                        </span>
-                                      )}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : viewMode === "week" ? (
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[1080px]">
-                      <div className="grid grid-cols-7 border-t border-l border-gray-200">
-                        {weekColumns.map((day) => {
-                          const dayAppointments = visibleAppointments.filter((item) => {
-                            const start = item.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
-                            return start ? sameDay(start, day) : false;
-                          });
-
-                          return (
-                            <div key={day.toISOString()} className="min-h-[540px] border-r border-b border-gray-200 bg-white p-3">
-                              <div className="mb-3 border-b border-gray-100 pb-2">
-                                <div className="text-sm font-semibold text-gray-900">{formatDayLabel(day)}</div>
-                                <div className="mt-1 text-xs text-gray-500">{dayAppointments.length} appointment{dayAppointments.length === 1 ? "" : "s"}</div>
-                              </div>
-                              {renderAppointmentChips(dayAppointments)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[1080px]">
-                      <div className="grid grid-cols-7 border-t border-l border-gray-200">
-                        {monthDays.map((day) => {
-                          const dayAppointments = appointments.filter((item) => {
-                            const start = item.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
-                            if (!start) return false;
-                            if (!sameDay(start, day)) return false;
-                            if (providerFilter !== "all" && item.provider_id !== providerFilter) return false;
-                            if (locationFilter !== "all") {
-                              const derivedLocation = item.appointment_type === "Telehealth" ? "telehealth" : "office";
-                              if (derivedLocation !== locationFilter) return false;
-                            }
-                            return true;
-                          });
-
-                          const inCurrentMonth = day.getMonth() === focusDate.getMonth();
-
-                          return (
-                            <div key={day.toISOString()} className={`min-h-[160px] border-r border-b border-gray-200 p-2 ${inCurrentMonth ? "bg-white" : "bg-gray-50"}`}>
-                              <div className="mb-2 text-sm font-medium text-gray-900">{formatMonthCellLabel(day)}</div>
-                              <div className="space-y-1">
-                                {dayAppointments.slice(0, 4).map((appointment) => {
-                                  const patient = appointment.client_id ? patientById.get(appointment.client_id) : undefined;
-                                  const eligibility = appointment.client_id ? eligibilityByPatientId.get(appointment.client_id) ?? null : null;
-                                  const colorClass = colorMode === "status" ? statusColor(appointment.appointment_status) : typeColor(appointment.appointment_type);
-
-                                  return (
-                                    <button
-                                      key={appointment.id}
-                                      type="button"
-                                      onClick={() => handleAppointmentSelect(appointment.id)}
-                                      className={`w-full rounded-md border px-2 py-1 text-left shadow-sm ${colorClass} ${appointmentId === appointment.id ? "ring-2 ring-blue-400" : ""}`}
-                                    >
-                                      <div className="line-clamp-1 text-[11px] font-medium">
-                                        {formatBlockTime(appointment.scheduled_start_at)} • {patientLabel(patient)}
-                                      </div>
-                                      <div className="line-clamp-1 text-[10px] opacity-80">
-                                        {statusLabel(appointment.appointment_status)} • {formatDuration(appointment.scheduled_start_at, appointment.scheduled_end_at)}
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                                {dayAppointments.length > 4 ? (
-                                  <div className="text-[11px] text-gray-500">+{dayAppointments.length - 4} more</div>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </section>
+                    {mode}
+                  </button>
+                ))}
+                <Link href="/scheduling/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+                  Schedule appointment
+                </Link>
+              </div>
             </div>
-          </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <select
+                value={providerFilter}
+                onChange={(event) => setProviderFilter(event.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All team members</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {providerLabel(provider)}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="checked_in">Checked in</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No show</option>
+              </select>
+            </div>
+
+            {loading ? (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+                Loading calendar...
+              </div>
+            ) : error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+                {error}
+              </div>
+            ) : groupedVisibleAppointments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                <h3 className="text-lg font-semibold text-slate-900">No appointments scheduled.</h3>
+                <p className="mt-2 text-sm text-slate-600">Use the Schedule appointment button to add a visit.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {groupedVisibleAppointments.map((group) => (
+                  <section key={group.date.toISOString()}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-900">{formatDayLabel(group.date)}</h3>
+                      <span className="text-xs text-slate-500">
+                        {group.items.length} appointment{group.items.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {group.items.map((appointment) => renderAppointmentCard(appointment))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Encounter Control Panel (Right Drawer) */}
