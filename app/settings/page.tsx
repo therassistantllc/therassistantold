@@ -7,6 +7,7 @@ const settingCards = [
   { title: "Payers", description: "Payer records, search, and policy relationships.", href: "/insurance/payers" },
   { title: "Users and staff", description: "Role and permission assignment by staff function.", href: "/staff" },
   { title: "Clearinghouse settings", description: "Clearinghouse integration, Office Ally configuration, and transaction logs.", href: "/settings/clearinghouse" },
+  { title: "Client Data Import", description: "Upload and import client data from external sources like SimplePractice, TherapyNotes, or Office Ally.", href: "/imports/clients" },
 ];
 
 export default function SettingsRootPage() {
