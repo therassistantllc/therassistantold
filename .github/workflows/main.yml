@@ -49,6 +49,9 @@ jobs:
       - name: Run eligibility workflow test
         run: npm run test:eligibility
 
+      - name: Run claim readiness workflow test
+        run: npm run test:claim-readiness
+
       - name: Build application
         run: npm run build
 
