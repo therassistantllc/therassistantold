@@ -6,6 +6,7 @@ const commands = [
   ["npm", ["run", "check:migrations"]],
   ["npm", ["run", "test:client-import"]],
   ["npm", ["run", "test:eligibility"]],
+  ["npm", ["run", "test:claim-readiness"]],
   ["npm", ["run", "build"]],
   ["npm", ["run", "lint"]],
 ] as const;
