@@ -8,10 +8,10 @@ interface QueryParams {
 
 export async function GET(
   req: NextRequest,
-  context: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { jobId } = context.params;
+    const { jobId } = await context.params;
     
     const { searchParams } = new URL(req.url);
     const pageSize = Math.min(parseInt(searchParams.get("pageSize") ?? "50"), 500);

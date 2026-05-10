@@ -9,10 +9,10 @@ interface MapRequest {
 
 export async function POST(
   req: NextRequest,
-  context: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { jobId } = context.params;
+    const { jobId } = await context.params;
     const body = (await req.json()) as MapRequest;
     const { mapping } = body;
 
