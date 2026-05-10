@@ -1,5 +1,3 @@
-import "server-only";
-
 export const CLIENT_IMPORT_CANONICAL_FIELDS = [
   "source_client_id",
   "first_name",

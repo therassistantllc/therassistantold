@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface ExistingClientLookup {
