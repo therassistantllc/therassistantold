@@ -51,7 +51,12 @@ async function main() {
 
   const organizationId = String(org.id);
   const sourceSystem = "script-ehr";
-  const duplicateSourceClientId = `dup-${Date.now()}`;
+  const ts = Date.now();
+  const duplicateSourceClientId = `dup-${ts}`;
+  const newSourceClientId = `new-${ts}`;
+  // Use timestamp-unique names to avoid name+DOB duplicate collisions from prior runs
+  const newFirstName = `Jordan${ts}`;
+  const newLastName = `Lyle${ts}`;
 
   const { data: existingClient, error: existingClientError } = await supabase
     .from("clients")
@@ -71,9 +76,9 @@ async function main() {
 
   const importRows: Array<Record<string, string>> = [
     {
-      "Source Client ID": `new-${Date.now()}`,
-      "First Name": "Jordan",
-      "Last Name": "Lyle",
+      "Source Client ID": newSourceClientId,
+      "First Name": newFirstName,
+      "Last Name": newLastName,
       DOB: "1989-01-15",
       Email: "jordan.lyle@example.com",
       Phone: "555-112-2300",
@@ -93,7 +98,7 @@ async function main() {
       "Primary Group ID": "GRP-44",
     },
     {
-      "Source Client ID": `invalid-${Date.now()}`,
+      "Source Client ID": `invalid-${ts}`,
       "First Name": "",
       "Last Name": "",
       DOB: "not-a-date",
@@ -220,6 +225,61 @@ async function main() {
     fail("Expected at least one invalid row.");
   }
 
+  // Insurance linking assertions
+  const promotedRow = (finalRows ?? []).find(
+    (row: AnyRow) => row.import_status === "imported"
+  ) as AnyRow | undefined;
+
+  if (!promotedRow) {
+    fail("Expected to find a row with import_status='imported'.");
+  }
+
+  const promotedClientId = String(promotedRow.imported_client_id ?? "");
+  if (!promotedClientId) {
+    fail("Promoted row is missing imported_client_id.");
+  }
+
+  const promotedPolicyId = promotedRow.promoted_policy_id
+    ? String(promotedRow.promoted_policy_id)
+    : null;
+
+  if (!promotedPolicyId) {
+    fail("Promoted row has null promoted_policy_id — insurance policy was not created.");
+  }
+
+  const { data: policyRow, error: policyError } = await supabase
+    .from("insurance_policies")
+    .select("id, payer_id, subscriber_id, plan_name, policy_number, priority, active_flag")
+    .eq("id", promotedPolicyId)
+    .single();
+
+  if (policyError || !policyRow) {
+    fail(`Failed to load insurance policy ${promotedPolicyId}: ${policyError?.message}`);
+  }
+
+  if (policyRow.payer_id == null) {
+    fail("Insurance policy is missing payer_id.");
+  }
+
+  if (policyRow.subscriber_id == null) {
+    fail("Insurance policy is missing subscriber_id.");
+  }
+
+  const { data: subscriberRow, error: subscriberError } = await supabase
+    .from("insurance_subscribers")
+    .select("id, member_id, first_name, last_name")
+    .eq("id", policyRow.subscriber_id)
+    .single();
+
+  if (subscriberError || !subscriberRow) {
+    fail(`Failed to load insurance subscriber: ${subscriberError?.message}`);
+  }
+
+  if (!subscriberRow.member_id) {
+    fail("Insurance subscriber is missing member_id.");
+  }
+
+  console.log("Insurance policy verification:", JSON.stringify({ policyRow, subscriberRow }, null, 2));
   console.log("Assertions passed.");
 }
 

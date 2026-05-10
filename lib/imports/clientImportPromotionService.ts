@@ -90,11 +90,7 @@ async function ensurePayerId(
   const payerPayload = {
     organization_id: organizationId,
     payer_name: normalizedPayerName,
-    payer_type: "commercial",
-    active_flag: true,
-    payer_id: sourceClientId ? `${sourceSystem}:${sourceClientId}` : null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    payer_id: sourceClientId ? `${sourceSystem}:${sourceClientId}` : `import:${normalizedPayerName}`,
   };
 
   const { data: insertedPayer, error: insertPayerError } = await supabase
@@ -110,18 +106,65 @@ async function ensurePayerId(
   return insertedPayer.id;
 }
 
+async function ensureSubscriberId(params: {
+  organizationId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string | null;
+  memberId: string;
+  groupNumber: string | null;
+}): Promise<string | null> {
+  const supabase = createServerSupabaseAdminClient();
+  if (!supabase) throw new Error("Database connection not available");
+
+  if (!params.firstName || !params.lastName || !params.memberId) return null;
+  // date_of_birth is NOT NULL on insurance_subscribers
+  if (!params.dateOfBirth) return null;
+
+  const { data: existing } = await supabase
+    .from("insurance_subscribers")
+    .select("id")
+    .eq("organization_id", params.organizationId)
+    .eq("member_id", params.memberId)
+    .is("archived_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) return existing.id;
+
+  const { data: inserted, error } = await supabase
+    .from("insurance_subscribers")
+    .insert({
+      organization_id: params.organizationId,
+      first_name: params.firstName,
+      last_name: params.lastName,
+      date_of_birth: params.dateOfBirth,
+      relationship_to_client: "self",
+      member_id: params.memberId,
+      group_number: params.groupNumber ?? undefined,
+    })
+    .select("id")
+    .single();
+
+  if (error || !inserted) return null;
+  return inserted.id;
+}
+
 async function ensurePrimaryInsurancePolicy(params: {
   organizationId: string | null;
   clientId: string;
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: string | null;
   payerName: string | null;
-  subscriberId: string | null;
+  memberId: string | null;
   groupId: string | null;
   policyNumber: string | null;
   sourceSystem: string;
   sourceClientId: string | null;
 }): Promise<string | null> {
   if (!params.organizationId) return null;
-  if (!params.payerName && !params.subscriberId && !params.policyNumber) return null;
+  if (!params.payerName && !params.memberId && !params.policyNumber) return null;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) throw new Error("Database connection not available");
@@ -135,12 +178,27 @@ async function ensurePrimaryInsurancePolicy(params: {
       )
     : null;
 
+  if (!payerId) return null;
+
+  const subscriberId = params.memberId
+    ? await ensureSubscriberId({
+        organizationId: params.organizationId,
+        firstName: params.firstName ?? "",
+        lastName: params.lastName ?? "",
+        dateOfBirth: params.dateOfBirth,
+        memberId: params.memberId,
+        groupNumber: params.groupId,
+      })
+    : null;
+
+  if (!subscriberId) return null;
+
   const { data: existingPolicy } = await supabase
     .from("insurance_policies")
     .select("id")
     .eq("organization_id", params.organizationId)
     .eq("client_id", params.clientId)
-    .eq("priority", 1)
+    .eq("priority", "primary")
     .is("archived_at", null)
     .limit(1)
     .maybeSingle();
@@ -149,15 +207,18 @@ async function ensurePrimaryInsurancePolicy(params: {
     return existingPolicy.id;
   }
 
+  const today = new Date().toISOString().split("T")[0];
+
   const policyPayload = {
     organization_id: params.organizationId,
     client_id: params.clientId,
     payer_id: payerId,
+    subscriber_id: subscriberId,
     plan_name: normalizeNullable(params.payerName),
-    subscriber_id: normalizeNullable(params.subscriberId),
-    policy_number: normalizeNullable(params.policyNumber) ?? normalizeNullable(params.groupId),
-    priority: 1,
+    policy_number: normalizeNullable(params.policyNumber) ?? normalizeNullable(params.groupId) ?? normalizeNullable(params.memberId),
+    priority: "primary" as const,
     active_flag: true,
+    effective_date: today,
   };
 
   const { data: insertedPolicy, error: insertPolicyError } = await supabase
@@ -372,8 +433,11 @@ export async function promoteClientImportRows(
       const promotedPolicyId = await ensurePrimaryInsurancePolicy({
         organizationId: typedJob.organization_id,
         clientId: promotedClientId,
+        firstName: normalizeNullable(mappedData.first_name),
+        lastName: normalizeNullable(mappedData.last_name),
+        dateOfBirth: normalizeIsoDate(mappedData.date_of_birth),
         payerName: normalizeNullable(mappedData.primary_insurance_name),
-        subscriberId: normalizeNullable(mappedData.primary_member_id),
+        memberId: normalizeNullable(mappedData.primary_member_id),
         groupId: normalizeNullable(mappedData.primary_group_id),
         policyNumber: normalizeNullable(mappedData.primary_policy_number),
         sourceSystem: typedJob.source_system,
