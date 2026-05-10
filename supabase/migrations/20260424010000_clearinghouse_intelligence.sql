@@ -41,10 +41,13 @@ create table if not exists public.edi_transactions (
   created_at timestamptz not null default now()
 );
 
+-- NOTE: The remote eligibility_checks table was created via a separate migration
+-- using client_id (not patient_id). This definition is kept for schema documentation;
+-- CREATE TABLE IF NOT EXISTS means this block is safely skipped if the table exists.
 create table if not exists public.eligibility_checks (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
-  patient_id uuid not null,
+  client_id uuid not null,
   appointment_id uuid null,
   insurance_policy_id uuid null,
   clearinghouse_connection_id uuid null references public.clearinghouse_connections(id) on delete set null,
@@ -87,7 +90,7 @@ create table if not exists public.claim_status_inquiries (
   paid_amount numeric null,
   check_eft_number text null,
   finalized_date date null,
-  received_at timestamptz not null default now(),
+  received_at timestamptz null,
   raw_status jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -113,10 +116,10 @@ create index if not exists idx_edi_transactions_org_claim_patient_type_corr_crea
   on public.edi_transactions (organization_id, claim_id, patient_id, transaction_type, correlation_id, created_at desc);
 
 create index if not exists idx_eligibility_checks_org_patient_appt_checked
-  on public.eligibility_checks (organization_id, patient_id, appointment_id, checked_at desc);
+  on public.eligibility_checks (organization_id, client_id, appointment_id, checked_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_claim_received
-  on public.claim_status_inquiries (organization_id, claim_id, received_at desc);
+  on public.claim_status_inquiries (organization_id, claim_id, requested_at desc);
 
 create index if not exists idx_response_events_org_claim_type_resolved
   on public.clearinghouse_response_events (organization_id, claim_id, event_type, is_resolved);
