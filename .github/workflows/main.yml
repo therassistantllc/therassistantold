@@ -17,6 +17,7 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_ORGANIZATION_ID: ${{ secrets.NEXT_PUBLIC_ORGANIZATION_ID }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
@@ -31,6 +32,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Create .env.local for backend workflow tests
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "NEXT_PUBLIC_ORGANIZATION_ID=${{ secrets.NEXT_PUBLIC_ORGANIZATION_ID }}" >> .env.local
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env.local
 
       - name: Validate migration filenames
         run: npm run check:migrations
