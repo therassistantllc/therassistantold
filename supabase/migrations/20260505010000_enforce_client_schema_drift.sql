@@ -110,9 +110,10 @@ alter table if exists public.workqueue_items
   check (status in ('open', 'in_progress', 'blocked', 'resolved', 'closed'));
 
 alter table if exists public.workqueue_items drop constraint if exists workqueue_items_priority_chk;
-alter table if exists public.workqueue_items
-  add constraint workqueue_items_priority_chk
-  check (priority is null or priority in ('low', 'medium', 'high', 'urgent'));
+-- NOTE: workqueue_items.priority is typed as workqueue_priority (a custom enum).
+-- Valid enum values are: low, normal, high, urgent.
+-- The enum type itself enforces valid values; no additional text check constraint is needed.
+-- Adding a check constraint with text literals would fail on an enum-typed column.
 
 alter table if exists public.eligibility_checks drop constraint if exists eligibility_checks_status_chk;
 alter table if exists public.eligibility_checks
@@ -133,7 +134,7 @@ create index if not exists idx_eligibility_checks_org_client_appt_checked
   on public.eligibility_checks (organization_id, client_id, appointment_id, checked_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_claim_received
-  on public.claim_status_inquiries (organization_id, claim_id, received_at desc);
+  on public.claim_status_inquiries (organization_id, claim_id, requested_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_client_created
   on public.claim_status_inquiries (organization_id, client_id, created_at desc);
