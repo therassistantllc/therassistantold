@@ -109,14 +109,13 @@ export async function getLatestEligibilityForPatient(
     .eq("patient_id", input.patient_id)
     .eq("status", "completed")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
   if (input.payer_id) {
     query = query.eq("payer_id", input.payer_id);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.maybeSingle();
   if (error || !data) {
     return baseNotChecked();
   }

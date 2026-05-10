@@ -47,11 +47,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create import job" }, { status: 500 });
     }
 
+    const jobId = String(job.id);
+
     if (parsed.rows.length > 0) {
       const chunkSize = 500;
       for (let index = 0; index < parsed.rows.length; index += chunkSize) {
         const chunk = parsed.rows.slice(index, index + chunkSize).map((row, chunkIndex) => ({
-          import_job_id: job.id,
+          import_job_id: jobId,
           row_number: index + chunkIndex + 1,
           raw_data: row,
           import_status: "pending",
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
           await supabase
             .from("client_import_jobs")
             .update({ status: "failed", updated_at: new Date().toISOString() })
-            .eq("id", job.id);
+            .eq("id", jobId);
           return NextResponse.json({ error: "Failed to stage import rows" }, { status: 500 });
         }
       }
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      jobId: job.id,
+      jobId,
       headers: parsed.headers,
       totalRows: parsed.totalRows,
       proposedMapping,

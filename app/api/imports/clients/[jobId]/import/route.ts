@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface ImportRequest {
   importDuplicates?: boolean;
@@ -14,7 +14,7 @@ export async function POST(
     const body = (await req.json()) as ImportRequest;
     const { importDuplicates = false } = body;
 
-    const supabase = createServerSupabaseAdminClientTyped();
+    const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
       return NextResponse.json(
         { error: "Database connection not available" },

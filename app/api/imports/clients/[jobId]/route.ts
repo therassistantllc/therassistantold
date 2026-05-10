@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 
-interface QueryParams {
-  pageSize?: string;
-  pageNumber?: string;
-}
-
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ jobId: string }> }
@@ -64,20 +59,26 @@ export async function GET(
     const totalPages = Math.ceil(totalRows / pageSize);
 
     // Map rows to response format, excluding raw PHI by default
-    const mappedRows = (rows ?? []).map((row) => ({
-      id: row.id,
-      rowNumber: row.row_number,
-      importStatus: row.import_status,
-      errors: row.validation_errors ?? [],
-      warnings: row.validation_warnings ?? [],
-      isDuplicate: !!row.duplicate_match_client_id,
-      mappedValues: row.mapped_data ? {
-        first_name: row.mapped_data.first_name ?? null,
-        last_name: row.mapped_data.last_name ?? null,
-        email: row.mapped_data.email ?? null,
-        phone: row.mapped_data.phone ?? null,
-      } : null,
-    }));
+    const mappedRows = (rows ?? []).map((row) => {
+      const mappedData = (row.mapped_data ?? null) as Record<string, unknown> | null;
+
+      return {
+        id: row.id,
+        rowNumber: row.row_number,
+        importStatus: row.import_status,
+        errors: row.validation_errors ?? [],
+        warnings: row.validation_warnings ?? [],
+        isDuplicate: !!row.duplicate_match_client_id,
+        mappedValues: mappedData
+          ? {
+              first_name: mappedData.first_name ?? null,
+              last_name: mappedData.last_name ?? null,
+              email: mappedData.email ?? null,
+              phone: mappedData.phone ?? null,
+            }
+          : null,
+      };
+    });
 
     return NextResponse.json({
       ok: true,

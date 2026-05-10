@@ -1,12 +1,11 @@
 import "server-only";
 
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface ExistingClientLookup {
   id: string;
   first_name: string | null;
   last_name: string | null;
-  date_of_birth: string | null;
   email: string | null;
   phone: string | null;
 }
@@ -57,14 +56,14 @@ function isValidDate(value: string): boolean {
 }
 
 async function loadExistingClients(): Promise<ExistingClientLookup[]> {
-  const supabase = createServerSupabaseAdminClientTyped();
+  const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     throw new Error("Database connection not available");
   }
 
   const { data, error } = await supabase
     .from("clients")
-    .select("id, first_name, last_name, date_of_birth, email, phone")
+    .select("id, first_name, last_name, email, phone")
     .is("archived_at", null)
     .limit(50000);
 
@@ -72,7 +71,7 @@ async function loadExistingClients(): Promise<ExistingClientLookup[]> {
     throw new Error("Failed to load clients for duplicate checks");
   }
 
-  return (data ?? []) as ExistingClientLookup[];
+  return (data ?? []) as unknown as ExistingClientLookup[];
 }
 
 export async function validateClientImportRows(
@@ -91,9 +90,9 @@ export async function validateClientImportRows(
     const phone = normalizePhone(client.phone);
     if (phone) byPhone.set(phone, client.id);
 
-    const nameDob = `${normalizeText(client.first_name).toLowerCase()}|${normalizeText(client.last_name).toLowerCase()}|${normalizeDob(client.date_of_birth)}`;
-    if (!nameDob.startsWith("||")) {
-      byNameDob.set(nameDob, client.id);
+    const nameKey = `${normalizeText(client.first_name).toLowerCase()}|${normalizeText(client.last_name).toLowerCase()}`;
+    if (nameKey !== "|") {
+      byNameDob.set(nameKey, client.id);
     }
   }
 
@@ -140,8 +139,8 @@ export async function validateClientImportRows(
       duplicateMatchClientId = byPhone.get(phone) ?? null;
     }
 
-    if (!duplicateMatchClientId && firstName && lastName && dob) {
-      const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}|${dob}`;
+    if (!duplicateMatchClientId && firstName && lastName) {
+      const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
       if (byNameDob.has(key)) {
         duplicateMatchClientId = byNameDob.get(key) ?? null;
       }

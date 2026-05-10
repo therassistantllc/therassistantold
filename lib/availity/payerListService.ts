@@ -40,6 +40,14 @@ export interface PayerSearchResponse {
   errorType?: string;
 }
 
+function resolveAvailityEnvironment(): "demo" | "production" | "sandbox" | "test" {
+  const env = process.env.AVAILITY_ENV;
+  if (env === "demo" || env === "production" || env === "sandbox" || env === "test") {
+    return env;
+  }
+  return "demo";
+}
+
 /**
  * Normalize payer data from Availity response into standard format
  */
@@ -158,7 +166,7 @@ export async function searchAvailityPayers(
     transactionId = await createAvailityTransactionLog({
       transactionType: "payer_list",
       transactionDirection: "outbound",
-      environment: process.env.AVAILITY_ENV || "demo",
+      environment: resolveAvailityEnvironment(),
       requestMethod: "GET",
       requestUrl: "/payers/search",
       requestBody: {
@@ -285,7 +293,7 @@ export async function getMockAvailityPayers(
     transactionId = await createAvailityTransactionLog({
       transactionType: "payer_list",
       transactionDirection: "internal",
-      environment: process.env.AVAILITY_ENV || "demo",
+      environment: resolveAvailityEnvironment(),
       requestMethod: "GET",
       requestUrl: "/payers/search (MOCK)",
       requestBody: {

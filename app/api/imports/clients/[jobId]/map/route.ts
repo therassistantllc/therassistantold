@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
-import { applyClientImportMapping } from "@/lib/imports/clientImportMappingService";
+import {
+  applyClientImportMapping,
+  CLIENT_IMPORT_CANONICAL_FIELDS,
+  type ClientImportMapping,
+} from "@/lib/imports/clientImportMappingService";
 import { validateClientImportRows } from "@/lib/imports/clientImportValidationService";
 
 interface MapRequest {
   mapping: Record<string, string | null>;
 }
+
+type ImportRow = {
+  id: string;
+  row_number: number;
+  raw_data: Record<string, unknown> | null;
+};
 
 export async function POST(
   req: NextRequest,
@@ -22,6 +32,14 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    const normalizedMapping = Object.fromEntries(
+      CLIENT_IMPORT_CANONICAL_FIELDS.map((field) => {
+        const rawValue = mapping[field];
+        const value = typeof rawValue === "string" && rawValue.trim() ? rawValue : null;
+        return [field, value];
+      })
+    ) as ClientImportMapping;
 
     const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) {
@@ -59,10 +77,12 @@ export async function POST(
       );
     }
 
+    const typedRows = rows as unknown as ImportRow[];
+
     // Apply mapping to all rows
-    const mappedRows = rows.map((row) => {
+    const mappedRows = typedRows.map((row) => {
       const rawData = (row.raw_data ?? {}) as Record<string, unknown>;
-      const mapped = applyClientImportMapping(rawData, mapping);
+      const mapped = applyClientImportMapping(rawData, normalizedMapping);
       return {
         id: row.id,
         mapped_data: mapped,
@@ -71,7 +91,7 @@ export async function POST(
 
     // Validate all rows
     const validatedRows = await validateClientImportRows(
-      rows.map((row) => ({
+      typedRows.map((row) => ({
         id: row.id,
         row_number: row.row_number,
         mapped_data: mappedRows.find((m) => m.id === row.id)?.mapped_data ?? null,

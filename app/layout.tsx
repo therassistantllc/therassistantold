@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Therassistant Clean",
-  description: "Mental health EHR / PM clean rebuild",
+  title: "THERASSISTANT EHR Workflow Validation Build",
+  description: "Minimal backend-first validation shell",
 };
 
 export default function RootLayout({

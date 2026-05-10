@@ -5,6 +5,14 @@ import {
   failAvailityTransactionLog,
 } from "@/lib/availity/transactionLogger";
 
+function resolveAvailityEnvironment(): "demo" | "production" | "sandbox" | "test" {
+  const env = process.env.AVAILITY_ENV;
+  if (env === "demo" || env === "production" || env === "sandbox" || env === "test") {
+    return env;
+  }
+  return "demo";
+}
+
 /**
  * Safe network diagnostics endpoint for Availity API connectivity.
  *
@@ -31,7 +39,7 @@ export async function GET(_request: NextRequest) {
     transactionId = await createAvailityTransactionLog({
       transactionType: "diagnostics",
       transactionDirection: "internal",
-      environment: process.env.AVAILITY_ENV || "demo",
+      environment: resolveAvailityEnvironment(),
       requestMethod: "GET",
       requestUrl: _request.nextUrl.pathname,
     });

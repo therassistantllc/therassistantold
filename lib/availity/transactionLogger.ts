@@ -201,7 +201,7 @@ export async function createAvailityTransactionLog(
     return null;
   }
 
-  return data?.id || null;
+  return data?.id ? String(data.id) : null;
 }
 
 interface UpdateTransactionLogInput {

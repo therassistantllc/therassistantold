@@ -1,148 +1,35 @@
-@import "tailwindcss";
-
-/* THERASSISTANT Brand Theme System */
 :root {
-  /* Primary Brand Colors - From THERASSISTANT Logo */
-  --brand-navy: #1e3a5f;        /* Deep navy / shield blue */
-  --brand-midnight: #0f1f3a;    /* Dark midnight blue */
-  --brand-green: #4a9b6f;       /* Leaf green accent */
-  
-  /* Neutral Palette */
-  --neutral-50: #f8f9fa;
-  --neutral-100: #f1f3f5;
-  --neutral-200: #e9ecef;
-  --neutral-300: #dee2e6;
-  --neutral-400: #ced4da;
-  --neutral-500: #adb5bd;
-  --neutral-600: #6c757d;
-  --neutral-700: #495057;
-  --neutral-800: #343a40;
-  --neutral-900: #212529;
-  
-  /* Semantic Colors */
-  --success: #4a9b6f;
-  --warning: #f59e0b;
-  --error: #dc2626;
-  --info: #3b82f6;
-  
-  /* Application Variables */
-  --background: #ffffff;
-  --foreground: #212529;
-  --sidebar-bg: var(--brand-midnight);
-  --sidebar-text: #e9ecef;
-  --sidebar-hover: var(--brand-navy);
-  --header-bg: #ffffff;
-  --header-border: var(--neutral-200);
-  --card-bg: #ffffff;
-  --card-border: var(--neutral-200);
-  --input-border: var(--neutral-300);
-  --input-focus: var(--brand-navy);
-  --table-header: var(--neutral-50);
-  --table-border: var(--neutral-200);
-  --table-hover: var(--neutral-50);
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 24px;
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
 }
 
-/* Global Component Styles */
-.btn-primary {
-  background: var(--brand-navy);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.15s ease;
+main {
+  max-width: 900px;
 }
 
-.btn-primary:hover {
-  background: var(--brand-midnight);
+h1,
+h2 {
+  margin-top: 0;
 }
 
-.btn-secondary {
-  background: white;
-  color: var(--brand-navy);
-  border: 1px solid var(--neutral-300);
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.15s ease;
+table {
+  border-collapse: collapse;
+  width: 100%;
 }
 
-.btn-secondary:hover {
-  background: var(--neutral-50);
-}
-
-.btn-success {
-  background: var(--brand-green);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.15s ease;
-}
-
-.btn-success:hover {
-  background: #3d8a5f;
-}
-
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-}
-
-.input-field {
-  border: 1px solid var(--input-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  transition: all 0.15s ease;
-}
-
-.input-field:focus {
-  outline: none;
-  border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.badge-warning {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badge-error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.badge-info {
-  background: #dbeafe;
-  color: #1e40af;
+th,
+td {
+  border: 1px solid #d0d0d0;
+  padding: 8px;
+  text-align: left;
 }
