@@ -10,6 +10,7 @@
     "test:workflow": "tsx scripts/test-complete-workflow.ts",
     "test:client-import": "tsx scripts/test-client-import-workflow.ts",
     "test:eligibility": "tsx scripts/test-eligibility-workflow.ts",
+    "test:claim-readiness": "tsx scripts/test-claim-readiness-workflow.ts",
     "check:migrations": "tsx scripts/check-migration-names.ts",
     "test:smoke": "tsx scripts/run-all-smoke-tests.ts"
   },
