@@ -11,6 +11,7 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const pageSize = Math.min(parseInt(searchParams.get("pageSize") ?? "50"), 500);
     const pageNumber = Math.max(parseInt(searchParams.get("pageNumber") ?? "1"), 1);
+    const includeRawRows = searchParams.get("includeRawRows") === "true";
     const offset = (pageNumber - 1) * pageSize;
 
     const supabase = createServerSupabaseAdminClientTyped();
@@ -25,7 +26,7 @@ export async function GET(
     const { data: job, error: jobError } = await supabase
       .from("client_import_jobs")
       .select(
-        "id, organization_id, source_system, original_file_name, status, total_rows, valid_rows, invalid_rows, imported_rows, duplicate_rows, created_at, updated_at"
+        "id, organization_id, source_system, original_file_name, status, total_rows, valid_rows, invalid_rows, imported_rows, duplicate_rows, validation_summary, promotion_summary, created_at, updated_at"
       )
       .eq("id", jobId)
       .single();
@@ -41,7 +42,7 @@ export async function GET(
     const { data: rows, error: rowsError, count } = await supabase
       .from("client_import_rows")
       .select(
-        "id, row_number, mapped_data, validation_errors, validation_warnings, duplicate_match_client_id, import_status, imported_client_id",
+        "id, row_number, raw_data, mapped_data, validation_errors, validation_warnings, source_client_id, duplicate_match_client_id, duplicate_reason, duplicate_strategy, import_status, imported_client_id, promoted_policy_id, promotion_error",
         { count: "exact" }
       )
       .eq("import_job_id", jobId)
@@ -68,9 +69,17 @@ export async function GET(
         importStatus: row.import_status,
         errors: row.validation_errors ?? [],
         warnings: row.validation_warnings ?? [],
+          sourceClientId: row.source_client_id ?? null,
         isDuplicate: !!row.duplicate_match_client_id,
+          duplicateReason: row.duplicate_reason ?? null,
+          duplicateStrategy: row.duplicate_strategy ?? null,
+          importedClientId: row.imported_client_id ?? null,
+          importedPolicyId: row.promoted_policy_id ?? null,
+          promotionError: row.promotion_error ?? null,
+          rawData: includeRawRows ? row.raw_data ?? null : undefined,
         mappedValues: mappedData
           ? {
+            source_client_id: mappedData.source_client_id ?? null,
               first_name: mappedData.first_name ?? null,
               last_name: mappedData.last_name ?? null,
               email: mappedData.email ?? null,
@@ -93,6 +102,8 @@ export async function GET(
         invalidRows: job.invalid_rows,
         importedRows: job.imported_rows,
         duplicateRows: job.duplicate_rows,
+        validationSummary: job.validation_summary,
+        promotionSummary: job.promotion_summary,
         createdAt: job.created_at,
         updatedAt: job.updated_at,
       },

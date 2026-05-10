@@ -4,10 +4,13 @@ import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface ExistingClientLookup {
   id: string;
+  organization_id: string;
   first_name: string | null;
   last_name: string | null;
+  date_of_birth: string | null;
   email: string | null;
   phone: string | null;
+  external_client_ref: string | null;
 }
 
 export interface ClientImportRowForValidation {
@@ -22,8 +25,16 @@ export interface ValidatedImportRow {
   mappedData: Record<string, unknown>;
   errors: string[];
   warnings: string[];
+  sourceClientId: string | null;
   duplicateMatchClientId: string | null;
+  duplicateReason: string | null;
+  duplicateStrategy: "source_client_id" | "name_dob" | null;
   importStatus: "valid" | "invalid" | "duplicate";
+}
+
+export interface ValidateClientImportOptions {
+  organizationId: string | null;
+  sourceSystem: string;
 }
 
 function normalizeText(value: unknown): string {
@@ -63,7 +74,9 @@ async function loadExistingClients(): Promise<ExistingClientLookup[]> {
 
   const { data, error } = await supabase
     .from("clients")
-    .select("id, first_name, last_name, email, phone")
+    .select(
+      "id, organization_id, first_name, last_name, date_of_birth, email, phone, external_client_ref"
+    )
     .is("archived_at", null)
     .limit(50000);
 
@@ -75,23 +88,28 @@ async function loadExistingClients(): Promise<ExistingClientLookup[]> {
 }
 
 export async function validateClientImportRows(
-  rows: ClientImportRowForValidation[]
+  rows: ClientImportRowForValidation[],
+  options: ValidateClientImportOptions
 ): Promise<ValidatedImportRow[]> {
   const existingClients = await loadExistingClients();
 
-  const byEmail = new Map<string, string>();
-  const byPhone = new Map<string, string>();
+  const bySourceRef = new Map<string, string>();
   const byNameDob = new Map<string, string>();
 
   for (const client of existingClients) {
-    const email = normalizeEmail(client.email);
-    if (email) byEmail.set(email, client.id);
+    if (options.organizationId && client.organization_id !== options.organizationId) {
+      continue;
+    }
 
-    const phone = normalizePhone(client.phone);
-    if (phone) byPhone.set(phone, client.id);
+    const sourceRef = normalizeText(client.external_client_ref);
+    if (sourceRef) {
+      bySourceRef.set(sourceRef.toLowerCase(), client.id);
+    }
 
-    const nameKey = `${normalizeText(client.first_name).toLowerCase()}|${normalizeText(client.last_name).toLowerCase()}`;
-    if (nameKey !== "|") {
+    const nameKey = `${normalizeText(client.first_name).toLowerCase()}|${normalizeText(
+      client.last_name
+    ).toLowerCase()}|${normalizeDob(client.date_of_birth)}`;
+    if (nameKey !== "||") {
       byNameDob.set(nameKey, client.id);
     }
   }
@@ -104,6 +122,10 @@ export async function validateClientImportRows(
     const firstName = normalizeText(mapped.first_name);
     const lastName = normalizeText(mapped.last_name);
     const dob = normalizeDob(mapped.date_of_birth);
+    const sourceClientId = normalizeText(mapped.source_client_id);
+    const sourceReference = sourceClientId
+      ? `${options.sourceSystem}:${sourceClientId}`.toLowerCase()
+      : "";
     const email = normalizeEmail(mapped.email);
     const phone = normalizePhone(mapped.phone);
     const primaryInsurance = normalizeText(mapped.primary_insurance_name);
@@ -130,24 +152,26 @@ export async function validateClientImportRows(
     }
 
     let duplicateMatchClientId: string | null = null;
+    let duplicateReason: string | null = null;
+    let duplicateStrategy: "source_client_id" | "name_dob" | null = null;
 
-    if (email && byEmail.has(email)) {
-      duplicateMatchClientId = byEmail.get(email) ?? null;
+    if (sourceReference && bySourceRef.has(sourceReference)) {
+      duplicateMatchClientId = bySourceRef.get(sourceReference) ?? null;
+      duplicateReason = "Matched existing client by source system + source client id";
+      duplicateStrategy = "source_client_id";
     }
 
-    if (!duplicateMatchClientId && phone && byPhone.has(phone)) {
-      duplicateMatchClientId = byPhone.get(phone) ?? null;
-    }
-
-    if (!duplicateMatchClientId && firstName && lastName) {
-      const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+    if (!duplicateMatchClientId && firstName && lastName && dob) {
+      const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}|${dob}`;
       if (byNameDob.has(key)) {
         duplicateMatchClientId = byNameDob.get(key) ?? null;
+        duplicateReason = "Matched existing client by first name + last name + DOB";
+        duplicateStrategy = "name_dob";
       }
     }
 
     if (duplicateMatchClientId) {
-      warnings.push("Possible duplicate match found");
+      warnings.push(duplicateReason ?? "Possible duplicate match found");
     }
 
     const importStatus: ValidatedImportRow["importStatus"] =
@@ -163,7 +187,10 @@ export async function validateClientImportRows(
       mappedData: mapped,
       errors,
       warnings,
+      sourceClientId: sourceClientId || null,
       duplicateMatchClientId,
+      duplicateReason,
+      duplicateStrategy,
       importStatus,
     };
   });

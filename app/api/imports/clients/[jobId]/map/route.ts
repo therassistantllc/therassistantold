@@ -52,7 +52,7 @@ export async function POST(
     // Verify job exists and get current rows
     const { data: job, error: jobError } = await supabase
       .from("client_import_jobs")
-      .select("id, status")
+      .select("id, status, organization_id, source_system")
       .eq("id", jobId)
       .single();
 
@@ -95,7 +95,17 @@ export async function POST(
         id: row.id,
         row_number: row.row_number,
         mapped_data: mappedRows.find((m) => m.id === row.id)?.mapped_data ?? null,
-      }))
+      })),
+      {
+        organizationId:
+          typeof job.organization_id === "string" && job.organization_id.trim()
+            ? job.organization_id
+            : null,
+        sourceSystem:
+          typeof job.source_system === "string" && job.source_system.trim()
+            ? job.source_system
+            : "unknown",
+      }
     );
 
     // Prepare bulk update data
@@ -104,7 +114,10 @@ export async function POST(
       mapped_data: validated.mappedData,
       validation_errors: validated.errors.length > 0 ? validated.errors : null,
       validation_warnings: validated.warnings.length > 0 ? validated.warnings : null,
+      source_client_id: validated.sourceClientId,
       duplicate_match_client_id: validated.duplicateMatchClientId,
+      duplicate_reason: validated.duplicateReason,
+      duplicate_strategy: validated.duplicateStrategy,
       import_status: validated.importStatus,
       updated_at: new Date().toISOString(),
     }));
@@ -117,7 +130,10 @@ export async function POST(
           mapped_data: update.mapped_data,
           validation_errors: update.validation_errors,
           validation_warnings: update.validation_warnings,
+          source_client_id: update.source_client_id,
           duplicate_match_client_id: update.duplicate_match_client_id,
+          duplicate_reason: update.duplicate_reason,
+          duplicate_strategy: update.duplicate_strategy,
           import_status: update.import_status,
           updated_at: update.updated_at,
         })
@@ -184,7 +200,10 @@ export async function POST(
         importStatus: r.importStatus,
         errors: r.errors,
         warnings: r.warnings,
+        sourceClientId: r.sourceClientId,
         isDuplicate: !!r.duplicateMatchClientId,
+        duplicateReason: r.duplicateReason,
+        duplicateStrategy: r.duplicateStrategy,
       })),
     });
   } catch (error) {

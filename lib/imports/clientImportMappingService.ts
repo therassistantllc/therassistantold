@@ -1,6 +1,7 @@
 import "server-only";
 
 export const CLIENT_IMPORT_CANONICAL_FIELDS = [
+  "source_client_id",
   "first_name",
   "last_name",
   "date_of_birth",
@@ -14,8 +15,10 @@ export const CLIENT_IMPORT_CANONICAL_FIELDS = [
   "primary_insurance_name",
   "primary_member_id",
   "primary_group_id",
+  "primary_policy_number",
   "secondary_insurance_name",
   "secondary_member_id",
+  "secondary_policy_number",
   "responsible_party_name",
   "emergency_contact_name",
   "emergency_contact_phone",
@@ -27,6 +30,16 @@ export type CanonicalClientImportField = (typeof CLIENT_IMPORT_CANONICAL_FIELDS)
 export type ClientImportMapping = Record<CanonicalClientImportField, string | null>;
 
 const HEADER_MATCHERS: Record<CanonicalClientImportField, string[]> = {
+  source_client_id: [
+    "source client id",
+    "source patient id",
+    "ehr client id",
+    "external client id",
+    "external id",
+    "patient id",
+    "client id",
+    "mrn",
+  ],
   first_name: ["first name", "client first name", "patient first name", "fname", "given name"],
   last_name: ["last name", "client last name", "patient last name", "lname", "surname", "family name"],
   date_of_birth: ["dob", "date of birth", "birth date", "birthday"],
@@ -40,8 +53,10 @@ const HEADER_MATCHERS: Record<CanonicalClientImportField, string[]> = {
   primary_insurance_name: ["insurance", "primary insurance", "payer", "primary payer", "insurance company"],
   primary_member_id: ["member id", "subscriber id", "policy number", "primary member id"],
   primary_group_id: ["group id", "group number", "primary group id"],
+  primary_policy_number: ["primary policy number", "primary policy", "policy id"],
   secondary_insurance_name: ["secondary insurance", "secondary payer"],
   secondary_member_id: ["secondary member id", "secondary subscriber id", "secondary policy number"],
+  secondary_policy_number: ["secondary policy number", "secondary policy"],
   responsible_party_name: ["responsible party", "guarantor", "responsible party name"],
   emergency_contact_name: ["emergency contact", "emergency contact name"],
   emergency_contact_phone: ["emergency contact phone", "emergency phone"],
