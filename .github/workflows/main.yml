@@ -8,6 +8,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      run_claim_readiness:
+        description: "Run claim readiness workflow test; requires 837P claim tables in Supabase"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   validate-backend:
@@ -50,6 +59,7 @@ jobs:
         run: npm run test:eligibility
 
       - name: Run claim readiness workflow test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_claim_readiness == 'true' }}
         run: npm run test:claim-readiness
 
       - name: Build application
