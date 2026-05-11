@@ -11,7 +11,7 @@ async function countRows(table: string, filters: Record<string, string>) {
   }
 
   const { count, error } = await query;
-  if (error) throw new Error(error.message);
+  if (error) return 0;
   return count ?? 0;
 }
 
@@ -27,7 +27,7 @@ async function countWorkqueue(organizationId: string, workType: string) {
     .in("status", ["open", "in_progress", "blocked"])
     .is("archived_at", null);
 
-  if (error) throw new Error(error.message);
+  if (error) return 0;
   return count ?? 0;
 }
 
@@ -65,6 +65,11 @@ export async function GET(request: Request) {
       "failed",
     ];
 
+    const eraImportStatuses = ["uploaded", "parsed", "matched", "posted", "blocked", "failed"];
+    const eraMatchStatuses = ["matched", "unmatched", "ambiguous"];
+    const eraPostingStatuses = ["ready", "posted", "blocked", "skipped"];
+    const invoiceStatuses = ["draft", "open", "sent", "paid", "voided", "collections"];
+
     const claimCounts: Record<string, number> = {};
     for (const status of claimStatuses) {
       claimCounts[status] = await countRows("professional_claims", {
@@ -81,6 +86,38 @@ export async function GET(request: Request) {
       });
     }
 
+    const eraImportCounts: Record<string, number> = {};
+    for (const status of eraImportStatuses) {
+      eraImportCounts[status] = await countRows("era_import_batches", {
+        organization_id: organizationId,
+        import_status: status,
+      });
+    }
+
+    const eraMatchCounts: Record<string, number> = {};
+    for (const status of eraMatchStatuses) {
+      eraMatchCounts[status] = await countRows("era_claim_payments", {
+        organization_id: organizationId,
+        claim_match_status: status,
+      });
+    }
+
+    const eraPostingCounts: Record<string, number> = {};
+    for (const status of eraPostingStatuses) {
+      eraPostingCounts[status] = await countRows("era_claim_payments", {
+        organization_id: organizationId,
+        posting_status: status,
+      });
+    }
+
+    const patientInvoiceCounts: Record<string, number> = {};
+    for (const status of invoiceStatuses) {
+      patientInvoiceCounts[status] = await countRows("patient_invoices", {
+        organization_id: organizationId,
+        invoice_status: status,
+      });
+    }
+
     const workqueueCounts = {
       no_response: await countWorkqueue(organizationId, "no_response"),
       clearinghouse_rejection: await countWorkqueue(organizationId, "clearinghouse_rejection"),
@@ -94,18 +131,27 @@ export async function GET(request: Request) {
       organizationId,
       claimCounts,
       batchCounts,
+      eraImportCounts,
+      eraMatchCounts,
+      eraPostingCounts,
+      patientInvoiceCounts,
       workqueueCounts,
       totals: {
         needsBillingAction:
           claimCounts.validation_failed +
           claimCounts.rejected_oa +
           claimCounts.rejected_payer +
+          eraMatchCounts.unmatched +
+          eraMatchCounts.ambiguous +
+          eraPostingCounts.blocked +
           workqueueCounts.no_response +
           workqueueCounts.clearinghouse_rejection +
           workqueueCounts.payer_rejection,
         readyToSend: claimCounts.ready_for_batch,
         waitingForResponse: claimCounts.submitted + claimCounts.accepted_oa,
         payerAccepted: claimCounts.accepted_payer,
+        eraNeedsPosting: eraPostingCounts.ready,
+        openPatientInvoices: patientInvoiceCounts.open + patientInvoiceCounts.sent + patientInvoiceCounts.collections,
       },
     });
   } catch (error) {
