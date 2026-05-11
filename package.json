@@ -15,6 +15,7 @@
     "test:837p-submission": "tsx scripts/test-837p-submission-workflow.ts",
     "test:999-ack": "tsx scripts/test-999-acknowledgement-workflow.ts",
     "test:277ca-ack": "tsx scripts/test-277ca-acknowledgement-workflow.ts",
+    "test:claim-aging": "tsx scripts/test-professional-claim-aging-workqueue.ts",
     "check:migrations": "tsx scripts/check-migration-names.ts",
     "test:smoke": "tsx scripts/run-all-smoke-tests.ts"
   },
