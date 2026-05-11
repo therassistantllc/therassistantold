@@ -1,5 +1,17 @@
 :root {
   color-scheme: light;
+  --navy: #10243f;
+  --navy-soft: #173456;
+  --sage: #9caf9f;
+  --sage-soft: #eef4ef;
+  --line: #d9e1dc;
+  --text: #172033;
+  --muted: #647184;
+  --danger: #9f2f2f;
+  --warning: #8a6400;
+  --success: #2f6f4e;
+  --background: #f6f8f7;
+  --card: #ffffff;
 }
 
 * {
@@ -8,28 +20,240 @@
 
 body {
   margin: 0;
-  padding: 24px;
+  padding: 0;
   font-family: Arial, sans-serif;
   line-height: 1.5;
-}
-
-main {
-  max-width: 900px;
+  color: var(--text);
+  background: var(--background);
 }
 
 h1,
-h2 {
+h2,
+h3,
+p {
   margin-top: 0;
 }
 
-table {
-  border-collapse: collapse;
-  width: 100%;
+a {
+  color: inherit;
 }
 
-th,
-td {
-  border: 1px solid #d0d0d0;
-  padding: 8px;
-  text-align: left;
+button,
+a.button {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.hero-panel,
+.panel,
+.metric-card,
+.agenda-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(16, 36, 63, 0.08);
+}
+
+.hero-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  background: linear-gradient(135deg, var(--navy), var(--navy-soft));
+  color: white;
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  color: var(--sage);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hero-copy {
+  max-width: 720px;
+  margin-bottom: 0;
+  color: #e7ece9;
+}
+
+.hero-actions,
+.agenda-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--navy);
+  border-radius: 999px;
+  background: var(--navy);
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button-secondary {
+  background: white;
+  color: var(--navy);
+  border-color: var(--line);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.metric-card {
+  padding: 18px;
+}
+
+.metric-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--navy);
+  font-size: 32px;
+}
+
+.panel {
+  padding: 24px;
+}
+
+.two-column-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.feature-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.feature-list span {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sage-soft);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel-header p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.agenda-list {
+  display: grid;
+  gap: 14px;
+}
+
+.agenda-card {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  gap: 20px;
+  padding: 18px;
+  align-items: center;
+}
+
+.agenda-time span,
+.agenda-main p {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+}
+
+.agenda-main h3 {
+  margin-bottom: 6px;
+}
+
+.status-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-green {
+  background: #e7f4ec;
+  color: var(--success);
+}
+
+.status-red {
+  background: #faeaea;
+  color: var(--danger);
+}
+
+.status-yellow {
+  background: #fff5d6;
+  color: var(--warning);
+}
+
+@media (max-width: 860px) {
+  .hero-panel,
+  .two-column-panel,
+  .agenda-card {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agenda-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell {
+    width: min(100% - 24px, 1180px);
+  }
+
+  .metric-grid,
+  .feature-list {
+    grid-template-columns: 1fr;
+  }
 }
