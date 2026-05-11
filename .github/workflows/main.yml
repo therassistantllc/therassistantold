@@ -92,6 +92,9 @@ jobs:
       - name: Validate migration filenames
         run: npm run check:migrations
 
+      - name: Run billing API route smoke test
+        run: npm run test:api-routes
+
       - name: Run client import workflow test
         run: npm run test:client-import
 
