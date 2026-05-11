@@ -49,6 +49,14 @@ on:
         options:
           - "false"
           - "true"
+      run_claim_aging:
+        description: "Run submitted professional claim no-response aging workqueue test"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   validate-backend:
@@ -109,6 +117,10 @@ jobs:
       - name: Run 277CA acknowledgement workflow test
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_277ca_ack == 'true' }}
         run: npm run test:277ca-ack
+
+      - name: Run professional claim aging workflow test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_claim_aging == 'true' }}
+        run: npm run test:claim-aging
 
       - name: Build application
         run: npm run build
