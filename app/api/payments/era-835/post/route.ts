@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { postEra835Batch } from "@/lib/payments/era835PostingService";
+import { routeEra835ExceptionsToWorkqueue } from "@/lib/workqueue/era835ExceptionWorkqueueService";
 
 export async function POST(request: Request) {
   try {
@@ -11,12 +12,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await postEra835Batch({
-      organizationId: String(body.organizationId),
-      eraImportBatchId: String(body.eraImportBatchId),
-    });
+    const organizationId = String(body.organizationId);
+    const eraImportBatchId = String(body.eraImportBatchId);
+    const result = await postEra835Batch({ organizationId, eraImportBatchId });
+    const exceptionRouting = await routeEra835ExceptionsToWorkqueue({ organizationId, eraImportBatchId });
 
-    return NextResponse.json({ success: result.ok, result }, { status: result.ok ? 200 : 422 });
+    return NextResponse.json({ success: result.ok, result, exceptionRouting }, { status: result.ok ? 200 : 422 });
   } catch (error) {
     console.error("ERA 835 posting API error:", error);
     return NextResponse.json(
