@@ -1,4 +1,5 @@
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { routeRejectedClaimsToWorkqueue } from "@/lib/workqueue/claimRejectionWorkqueueService";
 
 export type Edi277CAOutcome = "accepted" | "rejected" | "partial" | "unknown";
 
@@ -183,6 +184,7 @@ export async function intake277CAAcknowledgement(
     };
   }
 
+  const acknowledgementId = String(ack.id);
   const { error: batchUpdateError } = await supabase
     .from("edi_batches")
     .update({ status: batchStatusForOutcome(parsed.outcome) })
@@ -192,7 +194,7 @@ export async function intake277CAAcknowledgement(
   if (batchUpdateError) {
     return {
       ok: false,
-      acknowledgementId: String(ack.id),
+      acknowledgementId,
       batchId,
       outcome: parsed.outcome,
       linkedClaimIds,
@@ -210,7 +212,7 @@ export async function intake277CAAcknowledgement(
     if (claimUpdateError) {
       return {
         ok: false,
-        acknowledgementId: String(ack.id),
+        acknowledgementId,
         batchId,
         outcome: parsed.outcome,
         linkedClaimIds,
@@ -219,9 +221,32 @@ export async function intake277CAAcknowledgement(
     }
   }
 
+  if (["rejected", "partial"].includes(parsed.outcome) && linkedClaimIds.length > 0) {
+    const routed = await routeRejectedClaimsToWorkqueue({
+      organizationId: input.organizationId,
+      acknowledgementId,
+      batchId,
+      claimIds: linkedClaimIds,
+      source: "277CA",
+      outcome: parsed.outcome as "rejected" | "partial",
+      parsedContent: parsed,
+    });
+
+    if (!routed.ok) {
+      return {
+        ok: false,
+        acknowledgementId,
+        batchId,
+        outcome: parsed.outcome,
+        linkedClaimIds,
+        errors: routed.errors,
+      };
+    }
+  }
+
   return {
     ok: true,
-    acknowledgementId: String(ack.id),
+    acknowledgementId,
     batchId,
     outcome: parsed.outcome,
     linkedClaimIds,
