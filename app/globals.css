@@ -84,11 +84,16 @@ a.button {
 }
 
 .hero-actions,
-.agenda-actions {
+.agenda-actions,
+.section-actions {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.section-actions {
+  margin-top: 16px;
 }
 
 .button {
@@ -135,6 +140,11 @@ a.button {
   font-size: 32px;
 }
 
+.metric-card .metric-text {
+  font-size: 22px;
+  text-transform: capitalize;
+}
+
 .panel {
   padding: 24px;
 }
@@ -144,6 +154,16 @@ a.button {
   grid-template-columns: 1fr 1fr;
   gap: 24px;
   margin-top: 20px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.wide-panel {
+  grid-column: 1 / -1;
 }
 
 .feature-list {
@@ -167,14 +187,35 @@ a.button {
   margin-bottom: 16px;
 }
 
-.panel-header p {
+.panel-header p,
+.muted {
   margin-bottom: 0;
   color: var(--muted);
 }
 
-.agenda-list {
+.alert-panel,
+.empty-state {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+  color: var(--muted);
+}
+
+.alert-panel {
+  border-color: #f0caca;
+  color: var(--danger);
+}
+
+.agenda-list,
+.stack-list,
+.detail-list {
   display: grid;
   gap: 14px;
+}
+
+.detail-list p {
+  margin-bottom: 0;
 }
 
 .agenda-card {
@@ -186,7 +227,8 @@ a.button {
 }
 
 .agenda-time span,
-.agenda-main p {
+.agenda-main p,
+.stack-item span {
   display: block;
   margin-bottom: 2px;
   color: var(--muted);
@@ -194,6 +236,20 @@ a.button {
 
 .agenda-main h3 {
   margin-bottom: 6px;
+}
+
+.stack-item {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfcfb;
+}
+
+.stack-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
 }
 
 .status-row {
@@ -206,6 +262,7 @@ a.button {
 .status {
   display: inline-flex;
   align-items: center;
+  width: fit-content;
   min-height: 28px;
   padding: 4px 10px;
   border-radius: 999px;
@@ -213,6 +270,7 @@ a.button {
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
+  text-transform: capitalize;
 }
 
 .status-green {
@@ -233,7 +291,8 @@ a.button {
 @media (max-width: 860px) {
   .hero-panel,
   .two-column-panel,
-  .agenda-card {
+  .agenda-card,
+  .chart-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -242,8 +301,14 @@ a.button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .agenda-actions {
+  .agenda-actions,
+  .stack-row {
     justify-content: flex-start;
+  }
+
+  .stack-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
