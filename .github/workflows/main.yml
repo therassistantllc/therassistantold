@@ -25,6 +25,14 @@ on:
         options:
           - "false"
           - "true"
+      run_837p_submission:
+        description: "Run 837P submission tracking test; requires a generated 837P batch"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   validate-backend:
@@ -73,6 +81,10 @@ jobs:
       - name: Run 837P batch workflow test
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_837p_batch == 'true' }}
         run: npm run test:837p-batch
+
+      - name: Run 837P submission workflow test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_837p_submission == 'true' }}
+        run: npm run test:837p-submission
 
       - name: Build application
         run: npm run build
