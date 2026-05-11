@@ -3,6 +3,52 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+type InsurancePolicySummary = {
+  id: string;
+  plan_name?: string | null;
+  policy_number?: string | null;
+  priority?: string | null;
+  active_flag?: boolean | null;
+};
+
+type EligibilitySummary = {
+  id?: string;
+  eligibility_status?: string | null;
+  checked_at?: string | null;
+  copay_amount?: string | number | null;
+  deductible_remaining?: string | number | null;
+  coverage_start_date?: string | null;
+  coverage_end_date?: string | null;
+  response_summary?: string | null;
+};
+
+type InvoiceSummary = {
+  id: string;
+  invoice_number?: string | null;
+  invoice_status?: string | null;
+  balance_amount?: string | number | null;
+  patient_responsibility_amount?: string | number | null;
+  created_at?: string | null;
+};
+
+type EncounterSummary = {
+  id: string;
+  appointment_id?: string | null;
+  encounter_status?: string | null;
+  service_date?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+};
+
+type WorkqueueSummary = {
+  id: string;
+  title?: string | null;
+  work_type?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  created_at?: string | null;
+};
+
 type PatientSummary = {
   success: boolean;
   error?: string;
@@ -17,15 +63,15 @@ type PatientSummary = {
     pronouns?: string | null;
   };
   insurance?: {
-    policies: Array<Record<string, any>>;
-    latestEligibility: Record<string, any> | null;
+    policies: InsurancePolicySummary[];
+    latestEligibility: EligibilitySummary | null;
   };
   balance?: {
     total: number;
-    invoices: Array<Record<string, any>>;
+    invoices: InvoiceSummary[];
   };
-  encounters?: Array<Record<string, any>>;
-  workqueueItems?: Array<Record<string, any>>;
+  encounters?: EncounterSummary[];
+  workqueueItems?: WorkqueueSummary[];
 };
 
 function getOrganizationId() {
@@ -46,7 +92,7 @@ function formatMoney(value: string | number | null | undefined) {
   return amount.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function eligibilityLabel(latestEligibility: Record<string, any> | null | undefined) {
+function eligibilityLabel(latestEligibility: EligibilitySummary | null | undefined) {
   if (!latestEligibility) return "No recent eligibility check";
   const status = latestEligibility.eligibility_status ?? "unknown";
   return `Eligibility ${status}`;
@@ -184,8 +230,8 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           <div className="stack-list">
             {invoices.map((invoice) => (
               <div className="stack-item" key={invoice.id}>
-                <strong>{invoice.invoice_number}</strong>
-                <span className={statusClass(invoice.invoice_status)}>{invoice.invoice_status}</span>
+                <strong>{invoice.invoice_number ?? "Invoice"}</strong>
+                <span className={statusClass(invoice.invoice_status)}>{invoice.invoice_status ?? "status not set"}</span>
                 <span>Balance: {formatMoney(invoice.balance_amount)}</span>
               </div>
             ))}
@@ -217,9 +263,9 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           <div className="stack-list">
             {workqueueItems.map((item) => (
               <div className="stack-item" key={item.id}>
-                <strong>{item.title}</strong>
-                <span>{item.work_type} · {item.priority}</span>
-                <span className={statusClass(item.status)}>{item.status}</span>
+                <strong>{item.title ?? "Routed item"}</strong>
+                <span>{item.work_type ?? "work item"} · {item.priority ?? "priority not set"}</span>
+                <span className={statusClass(item.status)}>{item.status ?? "status not set"}</span>
               </div>
             ))}
           </div>
