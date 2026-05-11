@@ -41,6 +41,14 @@ on:
         options:
           - "false"
           - "true"
+      run_277ca_ack:
+        description: "Run 277CA acknowledgement intake test; requires an accepted_999 or submitted 837P batch"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   validate-backend:
@@ -97,6 +105,10 @@ jobs:
       - name: Run 999 acknowledgement workflow test
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_999_ack == 'true' }}
         run: npm run test:999-ack
+
+      - name: Run 277CA acknowledgement workflow test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_277ca_ack == 'true' }}
+        run: npm run test:277ca-ack
 
       - name: Build application
         run: npm run build
