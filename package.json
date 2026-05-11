@@ -13,6 +13,7 @@
     "test:claim-readiness": "tsx scripts/test-claim-readiness-workflow.ts",
     "test:837p-batch": "tsx scripts/test-837p-batch-workflow.ts",
     "test:837p-submission": "tsx scripts/test-837p-submission-workflow.ts",
+    "test:999-ack": "tsx scripts/test-999-acknowledgement-workflow.ts",
     "check:migrations": "tsx scripts/check-migration-names.ts",
     "test:smoke": "tsx scripts/run-all-smoke-tests.ts"
   },
