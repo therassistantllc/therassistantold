@@ -49,9 +49,9 @@ async function main() {
 
   for (const route of routes) {
     try {
-      const module = await import(route.path);
+      const routeModule = await import(route.path);
       for (const exportName of route.expectedExports) {
-        if (typeof module[exportName] !== "function") {
+        if (typeof routeModule[exportName] !== "function") {
           failures.push(`${route.label} is missing function export ${exportName}`);
         }
       }
