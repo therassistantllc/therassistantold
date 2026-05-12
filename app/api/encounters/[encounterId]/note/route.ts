@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { captureSignedEncounterCharge } from "@/lib/charges/signedEncounterChargeCaptureService";
+import { createClaimDraftFromChargeCapture } from "@/lib/claims/chargeCaptureClaimBridgeService";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type EncounterRow = {
@@ -104,6 +105,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
     }
 
     let chargeCapture = null;
+    let claimDraft = null;
     if (action === "sign") {
       const { error: encounterUpdateError } = await supabase
         .from("encounters")
@@ -117,6 +119,13 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
 
       if (encounterUpdateError) throw encounterUpdateError;
       chargeCapture = await captureSignedEncounterCharge({ organizationId, encounterId });
+
+      if (chargeCapture.chargeId && chargeCapture.status === "ready_for_claim") {
+        claimDraft = await createClaimDraftFromChargeCapture({
+          organizationId,
+          chargeCaptureId: chargeCapture.chargeId,
+        });
+      }
     } else {
       await supabase
         .from("encounters")
@@ -125,7 +134,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
         .eq("id", encounterId);
     }
 
-    return NextResponse.json({ success: true, noteId, encounterId, status: noteStatus, chargeCapture });
+    return NextResponse.json({ success: true, noteId, encounterId, status: noteStatus, chargeCapture, claimDraft });
   } catch (error) {
     console.error("Encounter note API error:", error);
     return NextResponse.json(
