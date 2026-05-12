@@ -1,5 +1,4 @@
 import type {
-  Appointment,
   CanonicalEhrState,
   Claim,
   ClaimServiceLine,

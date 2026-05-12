@@ -8,7 +8,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   requirePermissionInRoute,
-  enforceOrganizationInRoute,
   isValidUuid,
 } from "@/lib/rbac/middleware";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";

@@ -18,7 +18,7 @@ import { PERMISSIONS } from "@/lib/rbac/constants";
  * GET /api/roles
  * List all roles in the organization
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Require MANAGE_STAFF permission (implies role management)
   const authOrError = await requirePermissionInRoute(PERMISSIONS.MANAGE_STAFF);
   if (authOrError instanceof NextResponse) return authOrError;

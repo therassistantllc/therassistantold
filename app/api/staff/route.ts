@@ -12,9 +12,8 @@ import {
   parseRequestBody,
 } from "@/lib/rbac/middleware";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
-import { PERMISSIONS, STAFF_ROLE_LABELS } from "@/lib/rbac/constants";
+import { PERMISSIONS } from "@/lib/rbac/constants";
 import {
-  isValidEmail,
   validateCreateStaffPayload,
   type CreateStaffPayload,
 } from "@/lib/rbac/validators";

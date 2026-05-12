@@ -237,7 +237,6 @@ export async function createProfessionalClaimDraft(
   });
   errors.push(...policyResolution.errors);
 
-  const policy = policyResolution.policy;
   const payer = policyResolution.payer;
   const subscriber = policyResolution.subscriber;
 

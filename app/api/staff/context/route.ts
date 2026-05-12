@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffContext } from "@/lib/rbac/server";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = createServerSupabaseAdminClientTyped();
 

@@ -18,7 +18,6 @@ import { PERMISSIONS } from "@/lib/rbac/constants";
 import {
   roleExistsInOrg,
   staffHasRoleAssignment,
-  isLastActiveAdmin,
 } from "@/lib/rbac/validators";
 
 type StaffRoleAssignmentWithRole = {
