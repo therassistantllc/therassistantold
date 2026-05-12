@@ -19,7 +19,8 @@ export interface WorkflowContext {
 
 export interface WorkflowResult {
   success: boolean;
-  data?: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any;
   error?: string;
 }
 
