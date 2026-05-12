@@ -43,6 +43,10 @@ a.button {
   font: inherit;
 }
 
+input {
+  font: inherit;
+}
+
 .app-shell {
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
@@ -251,6 +255,7 @@ a.button {
   font-weight: 700;
 }
 
+.field-label input,
 .field-label select,
 .field-label textarea {
   width: 100%;
@@ -268,10 +273,37 @@ a.button {
   resize: vertical;
 }
 
+.field-label input:focus,
 .field-label select:focus,
 .field-label textarea:focus {
   outline: 3px solid rgba(156, 175, 159, 0.35);
   border-color: var(--sage);
+}
+
+.checkbox-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.billing-row-grid,
+.billing-service-grid {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfcfb;
+}
+
+.billing-row-grid {
+  grid-template-columns: 150px 1fr 120px 120px;
+}
+
+.billing-service-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .agenda-card {
@@ -419,7 +451,9 @@ a.button {
   .two-column-panel,
   .agenda-card,
   .chart-grid,
-  .provider-grid {
+  .provider-grid,
+  .billing-row-grid,
+  .billing-service-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
