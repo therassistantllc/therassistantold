@@ -521,6 +521,20 @@ input {
   margin-bottom: 16px;
 }
 
+.json-panel {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 960px) {
   .workqueue-layout {
     grid-template-columns: 1fr;
