@@ -76,7 +76,8 @@ export async function createAppointment(
     .single();
 
   if (error) throw new Error(`Failed to create appointment: ${error.message}`);
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data as any;
 }
 
 /**
@@ -100,7 +101,8 @@ export async function createEncounter(
     .single();
 
   if (error) throw new Error(`Failed to create encounter: ${error.message}`);
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data as any;
 }
 
 /**
@@ -128,7 +130,8 @@ export async function createNote(
     .single();
 
   if (error) throw new Error(`Failed to create note: ${error.message}`);
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data as any;
 }
 
 /**
@@ -178,7 +181,8 @@ export async function createClaim(
     .single();
 
   if (claimError) throw new Error(`Failed to create claim: ${claimError.message}`);
-  return claim;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return claim as any;
 }
 
 /**
@@ -210,7 +214,8 @@ export async function submitClaim(
     clearinghouse_name: "Change Healthcare",
   });
 
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data as any;
 }
 
 /**
@@ -258,7 +263,8 @@ export async function postPayment(
     })
     .eq("id", params.claimId);
 
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data as any;
 }
 
 /**
