@@ -236,6 +236,14 @@ a.button {
   margin-bottom: 0;
 }
 
+.compact-detail-list {
+  gap: 8px;
+}
+
+.compact-detail-list p {
+  font-size: 14px;
+}
+
 .field-label {
   display: grid;
   gap: 8px;
@@ -277,7 +285,8 @@ a.button {
 .agenda-time span,
 .agenda-main p,
 .stack-item span,
-.payment-history span {
+.payment-history span,
+.provider-card p {
   display: block;
   margin-bottom: 2px;
   color: var(--muted);
@@ -299,6 +308,32 @@ a.button {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.provider-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fbfcfb;
+}
+
+.provider-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.provider-card h3 {
+  margin-bottom: 4px;
 }
 
 .invoice-money-grid {
@@ -383,7 +418,8 @@ a.button {
   .hero-panel,
   .two-column-panel,
   .agenda-card,
-  .chart-grid {
+  .chart-grid,
+  .provider-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
