@@ -63,8 +63,8 @@ export async function GET(req: NextRequest) {
       count: count || 0,
       payers: (data ?? []) as PayerConfig[],
     });
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error) || "Unknown error";
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error) || "Unknown error";
     console.error("[GET /api/settings/payers]", errorMsg);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -175,8 +175,8 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error) || "Unknown error";
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error) || "Unknown error";
     console.error("[POST /api/settings/payers]", errorMsg);
     return NextResponse.json(
       { error: "Internal server error" },

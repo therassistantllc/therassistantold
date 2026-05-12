@@ -19,7 +19,7 @@ export interface WorkflowContext {
 
 export interface WorkflowResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 

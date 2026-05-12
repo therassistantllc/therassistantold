@@ -101,10 +101,10 @@ export async function POST(req: NextRequest) {
       document_id: document.id,
       message: "Document filed successfully"
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Mailroom filing error:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }

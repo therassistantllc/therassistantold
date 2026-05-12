@@ -11,7 +11,8 @@
  * - Background jobs
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
 // Types
 export interface CreateAppointmentParams {
@@ -57,7 +58,7 @@ export interface PostPaymentParams {
  * Create a new appointment
  */
 export async function createAppointment(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   params: CreateAppointmentParams
 ) {
   const { data, error } = await supabase
@@ -82,7 +83,7 @@ export async function createAppointment(
  * Create encounter from appointment
  */
 export async function createEncounter(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   params: CreateEncounterParams
 ) {
   const { data, error } = await supabase
@@ -105,7 +106,7 @@ export async function createEncounter(
  * Create clinical note
  */
 export async function createNote(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   params: CreateNoteParams
 ) {
   const { data, error } = await supabase
@@ -132,7 +133,7 @@ export async function createNote(
  * Create claim with service lines
  */
 export async function createClaim(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   params: CreateClaimParams
 ) {
   // Get encounter details
@@ -181,7 +182,7 @@ export async function createClaim(
  * Submit claim to clearinghouse
  */
 export async function submitClaim(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   claimId: string
 ) {
   // Update claim status
@@ -212,7 +213,7 @@ export async function submitClaim(
  * Post payment to claim
  */
 export async function postPayment(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   params: PostPaymentParams
 ) {
   // Get claim details
