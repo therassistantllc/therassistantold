@@ -46,6 +46,7 @@ async function gmailGet(path: string, accessToken: string) {
   return await res.json();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function headerValue(headers: any[], name: string) {
   const found = headers.find((h) => h.name.toLowerCase() === name.toLowerCase());
   return found?.value ?? null;
@@ -131,6 +132,7 @@ serve(async () => {
           accessToken,
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messageIds = (list.messages ?? []).map((m: any) => m.id);
       }
 
@@ -161,6 +163,7 @@ serve(async () => {
           p_subject: subject,
           p_snippet: message.snippet ?? "",
           p_received_at: receivedAt,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           p_raw_headers: Object.fromEntries(headers.map((h: any) => [h.name, h.value])),
           p_raw_payload: message,
         });

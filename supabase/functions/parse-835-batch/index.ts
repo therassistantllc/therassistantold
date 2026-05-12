@@ -300,6 +300,7 @@ serve(async (req: Request) => {
         }
       } catch (err) {
         result.files_failed += 1;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         result.errors.push(`${storagePath}: ${String((err as any)?.message ?? err)}`);
       }
     }
@@ -334,6 +335,7 @@ serve(async (req: Request) => {
     return Response.json(result);
   } catch (err) {
     return Response.json(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { error: String((err as any)?.message ?? err) },
       { status: 500 }
     );

@@ -8,6 +8,7 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getOutputText(aiJson: any): string | null {
   if (typeof aiJson.output_text === "string") return aiJson.output_text;
 
@@ -27,6 +28,7 @@ serve(async () => {
     checked: 0,
     analyzed: 0,
     failed: 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     results: [] as any[],
   };
 
@@ -217,6 +219,7 @@ ${JSON.stringify(email.raw_payload ?? {}).slice(0, 6000)}
         priority: analysis.priority,
       });
     } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const message = String((err as any)?.message ?? err);
 
       await supabase
