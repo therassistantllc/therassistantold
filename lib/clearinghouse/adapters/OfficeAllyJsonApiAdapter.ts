@@ -173,6 +173,7 @@ function benefitBuckets(response: OfficeAllyEligibilityResponse) {
   ] as const;
 
   return buckets.flatMap((bucket) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ((details as Record<string, unknown>)[bucket] as unknown[] | undefined ?? []).map((item) => ({ bucket, item: item as Record<string, any> })),
   );
 }
@@ -280,7 +281,9 @@ function arrayify<T>(value: T | T[] | null | undefined): T[] {
 }
 
 function collectClaimStatusLines(response: OfficeAllyClaimStatusResponse) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const topLevel = arrayify(response.statusInformation as any).map((item) => ({ item, serviceLine: null }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const serviceLines = (response.serviceLines ?? []).flatMap((line: any) => [
     ...arrayify(line.statusInformation).map((item) => ({ item, serviceLine: line })),
     ...arrayify(line.lineStatusInformation).map((item) => ({ item, serviceLine: line })),
@@ -329,6 +332,7 @@ async function persistClaimStatusResponse(params: {
 
   if (error) throw error;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = collectClaimStatusLines(params.response).map(({ item, serviceLine }: any) => ({
     id: uuid(),
     organization_id: params.organizationId,
