@@ -1,9 +1,9 @@
 import {
   createProfessionalClaimDraft,
   validateProfessionalClaimReadiness,
-  type BillingProviderInput,
   type ClaimServiceLineInput,
 } from "@/lib/claims/claimReadinessService";
+import { resolveProviderCredentialingProfile } from "@/lib/providers/providerCredentialingResolverService";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type DbRow = Record<string, unknown>;
@@ -36,22 +36,8 @@ function readTextArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(text).filter(Boolean) : [];
 }
 
-function billingProviderFromOrganization(org: DbRow): BillingProviderInput {
-  return {
-    name: text(org.billing_provider_name) || text(org.name),
-    npi: text(org.billing_provider_npi) || text(org.npi),
-    taxId: text(org.billing_provider_tax_id) || text(org.tax_id),
-    taxIdType: text(org.billing_provider_tax_id_type) === "SY" ? "SY" : "EI",
-    address1: text(org.billing_address_line_1) || text(org.address_line_1),
-    address2: text(org.billing_address_line_2) || text(org.address_line_2) || null,
-    city: text(org.billing_city) || text(org.city),
-    state: text(org.billing_state) || text(org.state),
-    zip: text(org.billing_postal_code) || text(org.postal_code),
-  };
-}
-
-function serviceLinesFromCharge(charge: DbRow): ClaimServiceLineInput[] {
-  return readArray(charge.service_lines).map((line, index) => ({
+function serviceLinesFromCharge(charge: DbRow, renderingProviderNpi: string | null): ClaimServiceLineInput[] {
+  return readArray(charge.service_lines).map((line) => ({
     serviceDate: text(line.serviceDate) || text(charge.service_date),
     procedureCode: text(line.procedureCode),
     modifiers: readTextArray(line.modifiers),
@@ -59,7 +45,7 @@ function serviceLinesFromCharge(charge: DbRow): ClaimServiceLineInput[] {
     chargeAmount: money(line.chargeAmount),
     diagnosisPointers: ["1"],
     placeOfService: text(line.placeOfService) || text(charge.place_of_service) || null,
-    renderingProviderNpi: text(line.renderingProviderNpi) || null,
+    renderingProviderNpi: text(line.renderingProviderNpi) || renderingProviderNpi,
     authorizationNumber: text(line.authorizationNumber) || null,
   })).filter((line) => line.procedureCode && line.chargeAmount > 0 && line.serviceDate);
 }
@@ -74,7 +60,7 @@ export async function createClaimDraftFromChargeCapture(
 
   const { data: charge, error: chargeError } = await supabase
     .from("charge_capture_items")
-    .select("id, organization_id, encounter_id, client_id, appointment_id, insurance_policy_id, charge_status, service_date, diagnosis_codes, service_lines, place_of_service")
+    .select("id, organization_id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, diagnosis_codes, service_lines, place_of_service")
     .eq("organization_id", input.organizationId)
     .eq("id", input.chargeCaptureId)
     .is("archived_at", null)
@@ -103,14 +89,13 @@ export async function createClaimDraftFromChargeCapture(
     return { ok: readiness.ok, claimId: String(existingClaim.id), errors: readiness.errors };
   }
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("*")
-    .eq("id", input.organizationId)
-    .maybeSingle();
+  const providerResolution = await resolveProviderCredentialingProfile({
+    organizationId: input.organizationId,
+    providerId: charge.provider_id ? String(charge.provider_id) : null,
+  });
 
-  if (!org) {
-    return { ok: false, claimId: null, errors: [{ field: "organization", message: "Organization settings not found" }] };
+  if (!providerResolution.ok || !providerResolution.billingProvider) {
+    return { ok: false, claimId: null, errors: providerResolution.errors };
   }
 
   const draft = await createProfessionalClaimDraft({
@@ -120,8 +105,8 @@ export async function createClaimDraftFromChargeCapture(
     appointmentId: charge.appointment_id ? String(charge.appointment_id) : null,
     placeOfService: text(charge.place_of_service) || null,
     diagnosisCodes: readTextArray(charge.diagnosis_codes),
-    serviceLines: serviceLinesFromCharge(charge as DbRow),
-    billingProvider: billingProviderFromOrganization(org as DbRow),
+    serviceLines: serviceLinesFromCharge(charge as DbRow, providerResolution.renderingProviderNpi),
+    billingProvider: providerResolution.billingProvider,
     patientAccountNumber: charge.encounter_id ? `ENC-${String(charge.encounter_id).slice(0, 8)}` : null,
     claimNumber: `CLM-${String(charge.id).slice(0, 8)}`,
   });
