@@ -209,7 +209,8 @@ a.button {
 
 .agenda-list,
 .stack-list,
-.detail-list {
+.detail-list,
+.note-editor-shell {
   display: grid;
   gap: 14px;
 }
@@ -250,6 +251,35 @@ a.button {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.note-editor-shell {
+  margin-top: 18px;
+}
+
+.note-editor-shell label {
+  display: grid;
+  gap: 8px;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.note-editor-shell textarea {
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--text);
+  background: #fbfcfb;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.note-editor-shell textarea:focus {
+  outline: 3px solid rgba(156, 175, 159, 0.35);
+  border-color: var(--sage);
 }
 
 .status-row {
