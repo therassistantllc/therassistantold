@@ -110,6 +110,11 @@ a.button {
   cursor: pointer;
 }
 
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .button-secondary {
   background: white;
   color: var(--navy);
@@ -147,6 +152,12 @@ a.button {
 
 .panel {
   padding: 24px;
+}
+
+.form-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .two-column-panel {
@@ -223,6 +234,36 @@ a.button {
 
 .detail-list p {
   margin-bottom: 0;
+}
+
+.field-label {
+  display: grid;
+  gap: 8px;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.field-label select,
+.field-label textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fbfcfb;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.field-label textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+.field-label select:focus,
+.field-label textarea:focus {
+  outline: 3px solid rgba(156, 175, 159, 0.35);
+  border-color: var(--sage);
 }
 
 .agenda-card {
