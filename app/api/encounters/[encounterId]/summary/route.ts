@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-type DbRow = Record<string, any>;
+type DbRow = Record<string, unknown>;
 
 function fullName(client: DbRow | null | undefined) {
   if (!client) return "Unknown client";
-  return [client.first_name, client.last_name].filter(Boolean).join(" ") || "Unknown client";
+  const first = typeof client.first_name === "string" ? client.first_name : "";
+  const last = typeof client.last_name === "string" ? client.last_name : "";
+  return [first, last].filter(Boolean).join(" ") || "Unknown client";
 }
 
 export async function GET(request: Request, context: { params: Promise<{ encounterId: string }> }) {
@@ -69,6 +71,14 @@ export async function GET(request: Request, context: { params: Promise<{ encount
       .is("archived_at", null)
       .order("sequence_number", { ascending: true });
 
+    const { data: clinicalNote } = await supabase
+      .from("encounter_clinical_notes")
+      .select("id, note_status, subjective, interventions, plan, signed_at, signed_by_user_id, updated_at")
+      .eq("organization_id", organizationId)
+      .eq("encounter_id", encounterId)
+      .is("archived_at", null)
+      .maybeSingle();
+
     return NextResponse.json({
       success: true,
       organizationId,
@@ -76,7 +86,7 @@ export async function GET(request: Request, context: { params: Promise<{ encount
       patient: client
         ? {
             id: client.id,
-            name: fullName(client),
+            name: fullName(client as DbRow),
             preferredName: client.preferred_name,
             dateOfBirth: client.date_of_birth,
             pronouns: client.pronouns,
@@ -85,6 +95,7 @@ export async function GET(request: Request, context: { params: Promise<{ encount
       appointment: appointment ?? null,
       diagnoses: diagnoses ?? [],
       serviceLines: serviceLines ?? [],
+      clinicalNote: clinicalNote ?? null,
     });
   } catch (error) {
     console.error("Encounter summary API error:", error);
