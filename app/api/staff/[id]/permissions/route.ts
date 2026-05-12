@@ -81,7 +81,9 @@ export async function GET(
     }
 
     // Group permissions by category
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const byCategory: Record<string, any[]> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (permissionDetails || []).forEach((perm: any) => {
       const category = perm.category || "General";
       if (!byCategory[category]) {

@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create document record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const documentData: any = {
       organization_id,
       storage_path: mailroomItem.storage_path,

@@ -85,6 +85,7 @@ export async function DELETE(
     }
 
     // Check if this is the last admin role - prevent removal
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const roleCode = (assignment as any).staff_roles?.role_code;
     if (roleCode === "admin") {
       const isLast = await isLastActiveAdmin(id, organizationId);

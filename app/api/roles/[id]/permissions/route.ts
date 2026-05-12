@@ -89,6 +89,7 @@ export async function GET(
     }
 
     // Extract and format permissions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const permissions = (rolePermissions || []).map((rp: any) => ({
       role_permission_id: rp.id,
       code: rp.staff_permissions?.permission_code,
@@ -98,7 +99,9 @@ export async function GET(
     }));
 
     // Group by category
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const byCategory: Record<string, any[]> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     permissions.forEach((perm: any) => {
       const category = perm.category;
       if (!byCategory[category]) {

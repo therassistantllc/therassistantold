@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
             .is("archived_at", null);
 
           const roles = (roleAssignments || []).map(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (a: any) => a.staff_roles,
           );
           return {
@@ -122,6 +123,7 @@ export async function GET(request: NextRequest) {
 
       filteredStaff = staffWithRoles
         .filter(({ roles }) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           roles.some((r: any) => r.id === roleFilter || r.role_code === roleFilter),
         )
         .map(({ staff }) => staff);
@@ -164,7 +166,9 @@ export async function GET(request: NextRequest) {
           .is("archived_at", null);
 
         const roles = (roleAssignments || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((a: any) => a.staff_roles)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((r: any) => !!r);
 
         return {
@@ -179,6 +183,7 @@ export async function GET(request: NextRequest) {
           is_active: staff.is_active,
           created_at: staff.created_at,
           updated_at: staff.updated_at,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           roles: roles.map((r: any) => ({
             id: r.id,
             code: r.role_code,

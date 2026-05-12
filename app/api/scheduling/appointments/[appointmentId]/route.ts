@@ -93,6 +93,7 @@ export async function PATCH(
 
     if (seriesError) throw seriesError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ids = (seriesAppointments ?? []).map((row: any) => row.id).filter(Boolean);
     if (ids.length === 0) {
       return NextResponse.json({ success: false, error: "No series appointments found." }, { status: 404 });

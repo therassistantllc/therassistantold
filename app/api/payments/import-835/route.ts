@@ -120,7 +120,9 @@ export async function POST(request: Request) {
 
     if (batchError) throw batchError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const importedItems: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unmatchedClaims: any[] = [];
 
     for (const claim of parsed.claims) {

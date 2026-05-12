@@ -112,6 +112,7 @@ export async function GET(
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const roles = (roleAssignments || []).map((assignment: any) => ({
       assignment_id: assignment.id,
       role: {
