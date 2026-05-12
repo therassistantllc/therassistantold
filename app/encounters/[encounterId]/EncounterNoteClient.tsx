@@ -6,30 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 type EncounterSummary = {
   success: boolean;
   error?: string;
-  patient?: {
-    id: string;
-    name: string;
-    preferredName?: string | null;
-    dateOfBirth?: string | null;
-    pronouns?: string | null;
-  } | null;
-  encounter?: {
-    id: string;
-    encounter_status?: string | null;
-    service_date?: string | null;
-    started_at?: string | null;
-    ended_at?: string | null;
-  };
-  appointment?: {
-    id: string;
-    scheduled_start_at?: string | null;
-    scheduled_end_at?: string | null;
-    appointment_type?: string | null;
-    service_location?: string | null;
-    telehealth_url?: string | null;
-  } | null;
+  patient?: { id: string; name: string; dateOfBirth?: string | null } | null;
+  encounter?: { id: string; encounter_status?: string | null; service_date?: string | null; started_at?: string | null; ended_at?: string | null };
+  appointment?: { appointment_type?: string | null; scheduled_start_at?: string | null; scheduled_end_at?: string | null; service_location?: string | null; telehealth_url?: string | null } | null;
   diagnoses?: Array<{ id: string; diagnosis_code?: string | null; diagnosis_description?: string | null; is_primary?: boolean | null }>;
-  serviceLines?: Array<{ id: string; cpt_hcpcs_code?: string | null; units?: string | number | null; charge_amount?: string | number | null }>;
+  clinicalNote?: { id: string; note_status?: string | null; subjective?: string | null; interventions?: string | null; plan?: string | null; signed_at?: string | null } | null;
 };
 
 function getOrganizationId() {
@@ -41,15 +22,13 @@ function getOrganizationId() {
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not listed";
   const date = new Date(`${value}`.includes("T") ? value : `${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
 }
 
 function formatTime(value: string | null | undefined) {
   if (!value) return "Not listed";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not listed";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? "Not listed" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function statusClass(value: string | null | undefined) {
@@ -61,50 +40,72 @@ function statusClass(value: string | null | undefined) {
 }
 
 export default function EncounterNoteClient({ encounterId }: { encounterId: string }) {
-  const [summary, setSummary] = useState<EncounterSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const organizationId = useMemo(getOrganizationId, []);
+  const [summary, setSummary] = useState<EncounterSummary | null>(null);
+  const [subjective, setSubjective] = useState("");
+  const [interventions, setInterventions] = useState("");
+  const [plan, setPlan] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadEncounter() {
+    if (!organizationId) {
+      setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/encounters/${encounterId}/summary?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
+      const json = (await response.json()) as EncounterSummary;
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load encounter");
+      setSummary(json);
+      setSubjective(json.clinicalNote?.subjective ?? "");
+      setInterventions(json.clinicalNote?.interventions ?? "");
+      setPlan(json.clinicalNote?.plan ?? "");
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load encounter");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadEncounter() {
-      if (!organizationId) {
-        setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/encounters/${encounterId}/summary?organizationId=${encodeURIComponent(organizationId)}`, {
-          cache: "no-store",
-        });
-        const json = (await response.json()) as EncounterSummary;
-        if (cancelled) return;
-        if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load encounter");
-        setSummary(json);
-      } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Failed to load encounter");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
     loadEncounter();
-    return () => {
-      cancelled = true;
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, organizationId]);
 
+  async function submitNote(action: "save" | "sign") {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/encounters/${encounterId}/note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, action, subjective, interventions, plan }),
+      });
+      const json = (await response.json()) as { success?: boolean; error?: string };
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Note action failed");
+      setMessage(action === "sign" ? "Note finalized." : "Draft saved.");
+      await loadEncounter();
+    } catch (noteError) {
+      setError(noteError instanceof Error ? noteError.message : "Note action failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) return <div className="empty-state">Loading encounter…</div>;
-  if (error) return <div className="alert-panel">{error}</div>;
+  if (error && !summary) return <div className="alert-panel">{error}</div>;
   if (!summary?.encounter) return <div className="alert-panel">Encounter not found.</div>;
 
   const patient = summary.patient;
   const encounter = summary.encounter;
   const appointment = summary.appointment;
   const diagnoses = summary.diagnoses ?? [];
+  const finalized = encounter.encounter_status === "signed" || summary.clinicalNote?.note_status === "signed";
 
   return (
     <>
@@ -112,16 +113,18 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
         <div>
           <p className="eyebrow">Encounter Documentation</p>
           <h1>{patient?.name ?? "Encounter"}</h1>
-          <p className="hero-copy">
-            Service date: {formatDate(encounter.service_date)} · Status: {encounter.encounter_status ?? "not set"}
-          </p>
+          <p className="hero-copy">Service date: {formatDate(encounter.service_date)} · Status: {encounter.encounter_status ?? "not set"}</p>
         </div>
         <div className="hero-actions">
           {patient?.id ? <Link className="button button-secondary" href={`/patients/${patient.id}`}>Patient Chart</Link> : null}
           <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
-          <button className="button" type="button">Sign Note</button>
+          <button className="button button-secondary" type="button" onClick={() => submitNote("save")} disabled={saving || finalized}>Save Draft</button>
+          <button className="button" type="button" onClick={() => submitNote("sign")} disabled={saving || finalized}>Finalize Note</button>
         </div>
       </section>
+
+      {message ? <div className="empty-state success-panel">{message}</div> : null}
+      {error ? <div className="alert-panel">{error}</div> : null}
 
       <section className="chart-grid">
         <article className="panel">
@@ -152,20 +155,11 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
 
         <article className="panel wide-panel">
           <h2>Documentation</h2>
-          <p className="muted">Free documentation area. Billing review runs after signature and does not interrupt the clinical note.</p>
+          <p className="muted">Free documentation area. Billing review runs after finalization and does not interrupt the clinical note.</p>
           <div className="note-editor-shell">
-            <label>
-              Subjective / Session Narrative
-              <textarea placeholder="Document the session freely..." />
-            </label>
-            <label>
-              Interventions / Clinical Work
-              <textarea placeholder="Enter interventions, client response, and clinical observations..." />
-            </label>
-            <label>
-              Plan
-              <textarea placeholder="Enter plan, follow-up, referrals, or homework..." />
-            </label>
+            <label>Subjective / Session Narrative<textarea value={subjective} onChange={(event) => setSubjective(event.target.value)} placeholder="Document the session freely..." disabled={finalized} /></label>
+            <label>Interventions / Clinical Work<textarea value={interventions} onChange={(event) => setInterventions(event.target.value)} placeholder="Enter interventions, client response, and clinical observations..." disabled={finalized} /></label>
+            <label>Plan<textarea value={plan} onChange={(event) => setPlan(event.target.value)} placeholder="Enter plan, follow-up, referrals, or homework..." disabled={finalized} /></label>
           </div>
         </article>
       </section>
