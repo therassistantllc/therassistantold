@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { captureSignedEncounterCharge } from "@/lib/charges/signedEncounterChargeCaptureService";
+import { createClaimDraftFromChargeCapture } from "@/lib/claims/chargeCaptureClaimBridgeService";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type DiagnosisInput = {
@@ -91,7 +93,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
 
     const { data: encounter, error: encounterError } = await supabase
       .from("encounters")
-      .select("id, client_id, provider_id, service_date")
+      .select("id, client_id, provider_id, service_date, encounter_status")
       .eq("organization_id", organizationId)
       .eq("id", encounterId)
       .is("archived_at", null)
@@ -161,11 +163,22 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
       if (error) throw error;
     }
 
+    let chargeCapture = null;
+    let claimDraft = null;
+    if (encounter.encounter_status === "signed") {
+      chargeCapture = await captureSignedEncounterCharge({ organizationId, encounterId });
+      if (chargeCapture.chargeId && chargeCapture.status === "ready_for_claim") {
+        claimDraft = await createClaimDraftFromChargeCapture({ organizationId, chargeCaptureId: chargeCapture.chargeId });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       encounterId,
       diagnosisCount: diagnosisPayload.length,
       serviceLineCount: servicePayload.length,
+      chargeCapture,
+      claimDraft,
     });
   } catch (error) {
     console.error("Encounter billing details POST error:", error);
