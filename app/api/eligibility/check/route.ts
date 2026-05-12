@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { appointmentId, eligibilityCheckId, organizationId } = body;
+    const { appointmentId, eligibilityCheckId } = body;
 
     if (!appointmentId && !eligibilityCheckId) {
       return NextResponse.json(

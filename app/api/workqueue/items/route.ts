@@ -7,10 +7,6 @@ function getString(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-function getNumber(value: unknown) {
-  return typeof value === "number" ? value : 0;
-}
-
 function normalizeClient(client: unknown) {
   const row = Array.isArray(client) ? client[0] : client;
   if (!row || typeof row !== "object") return null;
