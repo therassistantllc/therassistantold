@@ -121,7 +121,7 @@ export async function DELETE(
       assignment_id: roleId,
       staff_id: id,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

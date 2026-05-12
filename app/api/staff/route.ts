@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
         total_pages: Math.ceil((totalCount || 0) / perPage),
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

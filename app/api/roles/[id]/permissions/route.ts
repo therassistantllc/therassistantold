@@ -114,7 +114,7 @@ export async function GET(
       permissions,
       permissions_by_category: byCategory,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -85,7 +85,7 @@ export async function GET(
       created_at: role.created_at,
       updated_at: role.updated_at,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -127,7 +127,7 @@ export async function GET(
     }));
 
     return NextResponse.json({ staff_id: id, roles });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -276,7 +276,7 @@ export async function POST(
       },
       { status: 201 },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
