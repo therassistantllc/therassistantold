@@ -94,10 +94,10 @@ export default function EligibilityDetailClient({ clientId }: { clientId: string
 
     if (organizationId && clientId) void load();
     else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError("Missing organizationId or clientId.");
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, organizationId]);
 
   const patient = data?.patient;
