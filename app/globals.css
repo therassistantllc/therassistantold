@@ -207,10 +207,16 @@ a.button {
   color: var(--danger);
 }
 
+.success-panel {
+  border-color: #cfe6d8;
+  color: var(--success);
+}
+
 .agenda-list,
 .stack-list,
 .detail-list,
-.note-editor-shell {
+.note-editor-shell,
+.payment-history {
   display: grid;
   gap: 14px;
 }
@@ -229,7 +235,8 @@ a.button {
 
 .agenda-time span,
 .agenda-main p,
-.stack-item span {
+.stack-item span,
+.payment-history span {
   display: block;
   margin-bottom: 2px;
   color: var(--muted);
@@ -251,6 +258,19 @@ a.button {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.invoice-money-grid {
+  display: grid;
+  gap: 4px;
+  min-width: 220px;
+  text-align: right;
+}
+
+.payment-history {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .note-editor-shell {
@@ -339,6 +359,10 @@ a.button {
   .stack-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .invoice-money-grid {
+    text-align: left;
   }
 }
 
