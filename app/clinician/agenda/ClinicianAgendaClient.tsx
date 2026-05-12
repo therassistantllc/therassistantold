@@ -104,7 +104,7 @@ export default function ClinicianAgendaClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
 
   useEffect(() => {
     let cancelled = false;

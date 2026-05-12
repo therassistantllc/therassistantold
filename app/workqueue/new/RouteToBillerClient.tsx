@@ -13,7 +13,7 @@ function getOrganizationId() {
 }
 
 export default function RouteToBillerClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const clientId = useMemo(() => getParam("clientId"), []);
   const appointmentId = useMemo(() => getParam("appointmentId"), []);
   const encounterId = useMemo(() => getParam("encounterId"), []);

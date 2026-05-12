@@ -111,7 +111,7 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
 
   useEffect(() => {
     let cancelled = false;

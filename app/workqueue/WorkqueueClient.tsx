@@ -60,7 +60,7 @@ function patientName(client: WorkqueueClientInfo) {
 }
 
 export default function WorkqueueClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [status, setStatus] = useState("active");
   const [items, setItems] = useState<WorkqueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);

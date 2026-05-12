@@ -63,7 +63,7 @@ function blankServiceLine(serviceDate = today()): ServiceLineRow {
 }
 
 export default function BillingDetailsClient({ encounterId }: { encounterId: string }) {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [diagnoses, setDiagnoses] = useState<DiagnosisRow[]>([blankDiagnosis()]);
   const [serviceLines, setServiceLines] = useState<ServiceLineRow[]>([blankServiceLine()]);
   const [loading, setLoading] = useState(true);

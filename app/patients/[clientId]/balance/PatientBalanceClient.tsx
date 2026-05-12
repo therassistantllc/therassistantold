@@ -70,7 +70,7 @@ function statusClass(value: unknown) {
 }
 
 export default function PatientBalanceClient({ clientId }: { clientId: string }) {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [payload, setPayload] = useState<PatientBalancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);

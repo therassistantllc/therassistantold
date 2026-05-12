@@ -16,8 +16,8 @@ function getAppointmentId() {
 }
 
 export default function NewEncounterClient() {
-  const organizationId = useMemo(getOrganizationId, []);
-  const appointmentId = useMemo(getAppointmentId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
+  const appointmentId = useMemo(() => getAppointmentId(), []);
   const [status, setStatus] = useState("Preparing encounter…");
   const [error, setError] = useState<string | null>(null);
 

@@ -40,7 +40,7 @@ function statusClass(value: string | null | undefined) {
 }
 
 export default function EncounterNoteClient({ encounterId }: { encounterId: string }) {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [summary, setSummary] = useState<EncounterSummary | null>(null);
   const [subjective, setSubjective] = useState("");
   const [interventions, setInterventions] = useState("");

@@ -52,7 +52,7 @@ function statusClass(value: boolean | null | undefined) {
 }
 
 export default function ProviderCredentialingClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [providers, setProviders] = useState<ProviderCredentialingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,14 +88,20 @@ export default function ProviderCredentialingClient() {
     };
   }, [organizationId]);
 
-  const activeCount = providers.filter((provider) => provider.is_active !== false).length;
-  const expiringCount = providers.filter((provider) => {
-    if (!provider.payer_revalidation_date) return false;
-    const date = new Date(`${provider.payer_revalidation_date}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return false;
-    const days = (date.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    return days <= 120;
-  }).length;
+  const activeCount = useMemo(
+    () => providers.filter((provider) => provider.is_active !== false).length,
+    [providers],
+  );
+  const expiringCount = useMemo(() => {
+    const now = Date.now();
+    return providers.filter((provider) => {
+      if (!provider.payer_revalidation_date) return false;
+      const date = new Date(`${provider.payer_revalidation_date}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return false;
+      const days = (date.getTime() - now) / (1000 * 60 * 60 * 24);
+      return days <= 120;
+    }).length;
+  }, [providers]);
 
   return (
     <main className="app-shell">
