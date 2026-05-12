@@ -17,6 +17,7 @@ function minutesBetween(start?: string | null, end?: string | null): number {
 }
 
 export async function startEncounterFromAppointment(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   appointmentId: string
 ): Promise<PipelineResult> {
@@ -126,6 +127,7 @@ export async function startEncounterFromAppointment(
 }
 
 export async function signClinicalNote(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   encounterId: string,
   signedBy: string,
@@ -244,6 +246,7 @@ export async function signClinicalNote(
 }
 
 export async function evaluateEncounterReadiness(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   encounterId: string
 ): Promise<{ missing: string[] }> {
@@ -274,6 +277,7 @@ export async function evaluateEncounterReadiness(
 }
 
 export async function routeEncounterToBiller(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   encounterId: string,
   message: string,
@@ -328,6 +332,7 @@ export async function routeEncounterToBiller(
 }
 
 export async function scrubEncounterForClaim(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   encounterId: string,
   scrubbedBy: string
@@ -375,6 +380,7 @@ export async function scrubEncounterForClaim(
 }
 
 export async function createClaimFromEncounter(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   encounterId: string
 ): Promise<PipelineResult> {
@@ -460,6 +466,7 @@ export async function createClaimFromEncounter(
 }
 
 export async function submitClaim(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   claimId: string,
   submittedBy: string
