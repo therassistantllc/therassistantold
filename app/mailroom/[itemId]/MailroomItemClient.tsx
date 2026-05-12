@@ -59,6 +59,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (organizationId && itemId) void loadItem();
     else {
       setError("Missing organizationId or mailroom item ID.");
