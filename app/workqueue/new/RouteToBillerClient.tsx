@@ -19,7 +19,7 @@ export default function RouteToBillerClient() {
   const encounterId = useMemo(() => getParam("encounterId"), []);
 
   const [reason, setReason] = useState("balance_question");
-  const [priority, setPriority] = useState("medium");
+  const [priority, setPriority] = useState("normal");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export default function RouteToBillerClient() {
           Priority
           <select value={priority} onChange={(event) => setPriority(event.target.value)}>
             <option value="low">Low</option>
-            <option value="medium">Medium</option>
+            <option value="normal">Normal</option>
             <option value="high">High</option>
             <option value="urgent">Urgent</option>
           </select>
