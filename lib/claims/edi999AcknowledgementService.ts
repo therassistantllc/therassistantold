@@ -19,7 +19,8 @@ export interface Intake999AcknowledgementResult {
   errors: Array<{ field: string; message: string }>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-anytype DbRecord = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbRecord = Record<string, any>;
 
 function normalizeText(value: unknown): string {
   return String(value ?? "").trim();

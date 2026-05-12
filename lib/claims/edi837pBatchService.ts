@@ -15,7 +15,8 @@ export interface Generate837PBatchResult {
   errors: Array<{ field: string; message: string }>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-anytype DbRecord = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbRecord = Record<string, any>;
 
 function nowDate(): string {
   return new Date().toISOString().slice(0, 10).replaceAll("-", "");

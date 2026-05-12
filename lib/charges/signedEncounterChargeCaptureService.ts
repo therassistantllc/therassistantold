@@ -12,7 +12,8 @@ export interface CaptureSignedEncounterChargeResult {
   blockers: Array<{ field: string; message: string }>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-anytype DbRow = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbRow = Record<string, any>;
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
