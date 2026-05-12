@@ -313,6 +313,7 @@ serve(async (req: Request) => {
 
     const totalItemCount = totals?.length ?? 0;
     const totalAmount =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       totals?.reduce((sum: number, item: any) => sum + Number(item.net_amount ?? 0), 0) ?? 0;
     const parseErrorsCount = result.files_failed;
 

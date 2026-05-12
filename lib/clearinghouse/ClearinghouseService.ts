@@ -81,7 +81,6 @@ async function insertTransaction(transaction: Partial<EdiTransaction>) {
     ...safeTransaction,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await supabase.from("edi_transactions").insert(payload as any).select("*").maybeSingle();
   return data as EdiTransaction | null;
 }

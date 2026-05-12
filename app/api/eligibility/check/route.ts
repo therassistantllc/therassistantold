@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let eligibilityCheck: any = null;
 
     // Load existing eligibility check or find by appointment
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
       eligibilityCheck = data;
     } else if (appointmentId) {
       // Try to find an existing eligibility check for this appointment
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("eligibility_checks")
         .select("*")
         .eq("appointment_id", appointmentId)

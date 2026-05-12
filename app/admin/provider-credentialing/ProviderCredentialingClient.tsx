@@ -93,6 +93,7 @@ export default function ProviderCredentialingClient() {
     [providers],
   );
   const expiringCount = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     return providers.filter((provider) => {
       if (!provider.payer_revalidation_date) return false;
