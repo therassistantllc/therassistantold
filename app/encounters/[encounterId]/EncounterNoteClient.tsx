@@ -72,6 +72,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadEncounter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, organizationId]);

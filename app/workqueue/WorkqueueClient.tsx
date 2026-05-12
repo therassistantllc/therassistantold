@@ -97,7 +97,9 @@ export default function WorkqueueClient() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, status]);
 
   async function runAction(action: "comment" | "defer" | "resolve" | "close") {

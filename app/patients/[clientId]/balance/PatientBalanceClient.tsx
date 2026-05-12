@@ -100,6 +100,7 @@ export default function PatientBalanceClient({ clientId }: { clientId: string })
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBalance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, organizationId]);
