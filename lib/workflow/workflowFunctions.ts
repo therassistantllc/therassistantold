@@ -28,7 +28,8 @@ export interface WorkflowResult {
  * Step 2: Create encounter from appointment
  */
 export async function createEncounter(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   appointmentId: string
 ): Promise<WorkflowResult> {
@@ -60,7 +61,8 @@ export async function createEncounter(
  * Step 3: Create and sign clinical note
  */
 export async function createNote(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -86,7 +88,8 @@ export async function createNote(
  * Step 4: Create encounter service line
  */
 export async function createServiceLine(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -121,7 +124,8 @@ export async function createServiceLine(
  * Step 5: Create claim with service line
  */
 export async function createClaim(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   encounterId: string
 ): Promise<WorkflowResult> {
@@ -177,7 +181,8 @@ export async function createClaim(
  * Step 7: Submit claim
  */
 export async function submitClaim(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   claimId: string
 ): Promise<WorkflowResult> {
@@ -235,7 +240,8 @@ export async function submitClaim(
  * Step 9: Post payment
  */
 export async function postPayment(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   ctx: WorkflowContext,
   claimId: string
 ): Promise<WorkflowResult> {
