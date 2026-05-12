@@ -64,7 +64,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
  * Get the organization_id for an authenticated user
  * Looks up from auth metadata or staff_profiles table
  */
-export async function getUserOrganization(userId: string): Promise<string | null> {
+export async function getUserOrganization(_userId: string): Promise<string | null> {
   const supabase = createServerSupabaseAdminClientTyped();
   if (!supabase) return null;
 

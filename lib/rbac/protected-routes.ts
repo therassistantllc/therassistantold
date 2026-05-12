@@ -8,7 +8,7 @@
  * - For feature flag gating
  */
 
-import { PERMISSIONS, STAFF_ROLES } from "./constants";
+import { PERMISSIONS } from "./constants";
 import type { PermissionCode, StaffRoleCode } from "./constants";
 
 /**

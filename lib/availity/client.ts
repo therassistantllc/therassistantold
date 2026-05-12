@@ -70,7 +70,7 @@ export async function availityFetch(
   }
 
   // Remove body and headers from options to avoid duplication
-  const { mockResponse, mockScenarioId, headers: _, ...fetchOptions } = options;
+  const { mockResponse: _mockResponse, mockScenarioId: _mockScenarioId, headers: _headers, ...fetchOptions } = options;
 
   return fetch(url, {
     ...fetchOptions,

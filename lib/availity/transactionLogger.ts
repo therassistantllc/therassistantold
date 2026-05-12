@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
-import type { Database } from "@/src/types/supabase";
 
 /**
  * Sensitive key patterns to redact from headers and request/response bodies

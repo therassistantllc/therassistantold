@@ -129,7 +129,7 @@ export async function signClinicalNote(
   supabase: SupabaseClient<any>,
   encounterId: string,
   signedBy: string,
-  noteFields: Record<string, string>
+  _noteFields: Record<string, string>
 ): Promise<PipelineResult> {
   const { data: encounter, error: encounterError } = await supabase
     .from("encounters")

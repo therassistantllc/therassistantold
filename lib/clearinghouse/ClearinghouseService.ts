@@ -4,13 +4,11 @@ import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import type {
   ClaimStatusCheck,
   ClaimStatusRequestInput,
-  ClaimStatusResponseNormalized,
   ClearinghouseConnection,
   ClearinghouseResponseEvent,
   EdiTransaction,
   EligibilityCheck,
   EligibilityRequestInput,
-  EligibilityResponseNormalized,
 } from "@/types/clearinghouse";
 
 interface AppPatient {
