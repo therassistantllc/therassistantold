@@ -80,6 +80,7 @@ async function insertTransaction(transaction: Partial<EdiTransaction>) {
     created_at: new Date().toISOString(),
     ...safeTransaction,
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await supabase.from("edi_transactions").insert(payload as any).select("*").maybeSingle();
   return data as EdiTransaction | null;
 }

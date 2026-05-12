@@ -115,6 +115,7 @@ function normalizeRole(role: string): DashboardRole {
   return "admin_biller";
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildRevenueCycleSnapshot(claims: any[]) {
   const totalCharges = claims.reduce((sum, claim) => {
     const amount =

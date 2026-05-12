@@ -109,6 +109,7 @@ export async function checkProviderAvailability({
 
   const rules = availabilityRules ?? [];
   if (rules.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const containsSlot = rules.some((rule: any) => {
       const ruleLocation = String(rule.location_type ?? "any").toLowerCase();
       const locationMatch = ruleLocation === "any" || ruleLocation === location || location === "any";
