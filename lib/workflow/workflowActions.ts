@@ -15,6 +15,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Types
 export interface CreateAppointmentParams {
+  organizationId: string;
   patientId: string;
   providerId: string;
   appointmentType: string;
@@ -24,21 +25,22 @@ export interface CreateAppointmentParams {
 }
 
 export interface CreateEncounterParams {
+  organizationId: string;
   appointmentId: string;
   patientId: string;
-  dateOfService?: string;
-  placeOfServiceCode?: string;
+  providerId?: string;
+  serviceDate?: string;
 }
 
 export interface CreateNoteParams {
+  organizationId: string;
   encounterId: string;
   subjective?: string;
   objective?: string;
   assessment?: string;
   plan?: string;
   status: "draft" | "signed";
-  riskNotes?: string;
-  sessionSummary?: string;
+  riskAssessment?: string;
 }
 
 export interface CreateClaimParams {
@@ -47,10 +49,10 @@ export interface CreateClaimParams {
 }
 
 export interface PostPaymentParams {
+  organizationId: string;
   claimId: string;
   amount: number;
-  paymentType?: "insurance_payment" | "patient_payment";
-  checkNumber?: string;
+  postingReference?: string;
 }
 
 /**
@@ -64,13 +66,13 @@ export async function createAppointment(
   const { data, error } = await supabase
     .from("appointments")
     .insert({
+      organization_id: params.organizationId,
       client_id: params.patientId,
       provider_id: params.providerId,
       appointment_type: params.appointmentType,
       scheduled_start_at: params.scheduledStartAt,
       scheduled_end_at: params.scheduledEndAt,
-      status: "scheduled",
-      notes: params.notes,
+      appointment_status: "scheduled",
     })
     .select()
     .single();
@@ -91,11 +93,12 @@ export async function createEncounter(
   const { data, error } = await supabase
     .from("encounters")
     .insert({
+      organization_id: params.organizationId,
       client_id: params.patientId,
+      provider_id: params.providerId,
       appointment_id: params.appointmentId,
-      date_of_service: params.dateOfService || new Date().toISOString().split("T")[0],
-      encounter_status: "open",
-      place_of_service_code: params.placeOfServiceCode || "11", // Default: Office
+      service_date: params.serviceDate || new Date().toISOString().split("T")[0],
+      encounter_status: "in_progress",
     })
     .select()
     .single();
@@ -113,25 +116,37 @@ export async function createNote(
   supabase: SupabaseClient<any>,
   params: CreateNoteParams
 ) {
-  const { data, error } = await supabase
+  const signedAt = params.status === "signed" ? new Date().toISOString() : null;
+
+  // Insert encounter_notes header record
+  const { data: note, error: noteError } = await supabase
     .from("encounter_notes")
     .insert({
+      organization_id: params.organizationId,
+      encounter_id: params.encounterId,
+      status: params.status,
+      signed_at: signedAt,
+    })
+    .select()
+    .single();
+
+  if (noteError) throw new Error(`Failed to create note: ${noteError.message}`);
+
+  // Insert SOAP content into clinical_notes
+  if (params.subjective || params.objective || params.assessment || params.plan) {
+    await supabase.from("clinical_notes").insert({
       encounter_id: params.encounterId,
       subjective: params.subjective,
       objective: params.objective,
       assessment: params.assessment,
       plan: params.plan,
-      status: params.status,
-      signed_at: params.status === "signed" ? new Date().toISOString() : null,
-      risk_notes: params.riskNotes,
-      session_summary: params.sessionSummary,
-    })
-    .select()
-    .single();
+      risk_assessment: params.riskAssessment,
+      signed_at: signedAt,
+    });
+  }
 
-  if (error) throw new Error(`Failed to create note: ${error.message}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return data as any;
+  return note as any;
 }
 
 /**
@@ -145,37 +160,43 @@ export async function createClaim(
   // Get encounter details
   const { data: encounter, error: encounterError } = await supabase
     .from("encounters")
-    .select("client_id, date_of_service, place_of_service_code")
+    .select("organization_id, client_id, service_date")
     .eq("id", params.encounterId)
     .single();
 
   if (encounterError) throw new Error(`Failed to fetch encounter: ${encounterError.message}`);
   if (!encounter) throw new Error("Encounter not found");
 
-  // Get active insurance
+  // Get active insurance (lowest priority number = primary)
   const { data: insurance, error: insuranceError } = await supabase
     .from("insurance_policies")
-    .select("id, payer_id")
+    .select("id")
     .eq("client_id", encounter.client_id)
-    .eq("policy_type", "primary")
     .eq("active_flag", true)
+    .is("archived_at", null)
+    .order("priority", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (insuranceError) throw new Error(`Failed to fetch insurance: ${insuranceError.message}`);
   if (!insurance) throw new Error("No active insurance found for patient");
 
+  const serviceDate = encounter.service_date || new Date().toISOString().split("T")[0];
+
   // Create claim
   const { data: claim, error: claimError } = await supabase
     .from("claims")
     .insert({
+      organization_id: encounter.organization_id,
       encounter_id: params.encounterId,
       client_id: encounter.client_id,
-      payer_id: insurance.payer_id,
       insurance_policy_id: insurance.id,
+      claim_number: `CLM-${Date.now()}`,
       claim_status: params.status || "ready_to_submit",
-      billed_amount: "0.00", // Will be updated when service lines added
-      date_of_service: encounter.date_of_service,
-      place_of_service_code: encounter.place_of_service_code,
+      total_charge_amount: "0.00",
+      date_of_service_from: serviceDate,
+      date_of_service_to: serviceDate,
+      duplicate_detection_key: `${encounter.client_id}_${params.encounterId}_${serviceDate}`,
     })
     .select()
     .single();
@@ -207,11 +228,12 @@ export async function submitClaim(
   if (error) throw new Error(`Failed to submit claim: ${error.message}`);
 
   // Create submission record
-  await supabase.from("clearinghouse_submissions").insert({
+  await supabase.from("claim_submissions").insert({
     claim_id: claimId,
-    submission_status: "pending_acceptance",
+    submission_status: "submitted",
     submitted_at: new Date().toISOString(),
-    clearinghouse_name: "Change Healthcare",
+    submission_sequence: 1,
+    duplicate_detection_key: `${claimId}_${Date.now()}`,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -236,30 +258,28 @@ export async function postPayment(
   if (claimError) throw new Error(`Failed to fetch claim: ${claimError.message}`);
   if (!claim) throw new Error("Claim not found");
 
-  // Create payment
+  // Create payment posting record
   const { data, error } = await supabase
-    .from("payments")
+    .from("payment_postings")
     .insert({
-      claim_id: params.claimId,
-      client_id: claim.client_id,
-      encounter_id: claim.encounter_id,
-      payment_type: params.paymentType || "insurance_payment",
-      amount: params.amount.toFixed(2),
-      payment_date: new Date().toISOString().split("T")[0],
+      organization_id: params.organizationId,
+      posting_status: "posted",
+      posting_reference: params.postingReference || `PAY-${Date.now()}`,
+      total_posted_amount: params.amount.toFixed(2),
+      note: `Payment for claim ${params.claimId}`,
       posted_at: new Date().toISOString(),
-      check_number: params.checkNumber,
     })
     .select()
     .single();
 
   if (error) throw new Error(`Failed to post payment: ${error.message}`);
 
-  // Update claim with payment amount
+  // Mark claim as paid
   await supabase
     .from("claims")
     .update({
-      paid_amount: params.amount.toFixed(2),
       claim_status: "paid",
+      paid_at: new Date().toISOString(),
     })
     .eq("id", params.claimId);
 
@@ -268,15 +288,18 @@ export async function postPayment(
 }
 
 /**
- * Complete workflow: Execute all steps in sequence
+ * Complete workflow: Execute all steps in sequence.
+ * Requires organizationId so all DB inserts satisfy NOT NULL constraints.
  */
 export async function executeCompleteWorkflow(
   supabase: ReturnType<typeof createClient>,
+  organizationId: string,
   patientId: string,
   providerId: string
 ) {
   // Step 1: Create appointment
   const appointment = await createAppointment(supabase, {
+    organizationId,
     patientId,
     providerId,
     appointmentType: "Initial Consultation",
@@ -286,12 +309,15 @@ export async function executeCompleteWorkflow(
 
   // Step 2: Create encounter
   const encounter = await createEncounter(supabase, {
+    organizationId,
     appointmentId: appointment.id,
     patientId,
+    providerId,
   });
 
   // Step 3: Create note
   const note = await createNote(supabase, {
+    organizationId,
     encounterId: encounter.id,
     status: "signed",
     subjective: "Patient reports improved symptoms.",
@@ -311,6 +337,7 @@ export async function executeCompleteWorkflow(
 
   // Step 6: Post payment
   const payment = await postPayment(supabase, {
+    organizationId,
     claimId: claim.id,
     amount: 100.0,
   });
