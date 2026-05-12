@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import { PipelineResult } from "./types";
 
 function nowIso(): string {
@@ -17,7 +18,7 @@ function minutesBetween(start?: string | null, end?: string | null): number {
 }
 
 export async function startEncounterFromAppointment(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   appointmentId: string
 ): Promise<PipelineResult> {
   const { data: appointment, error: appointmentError } = await supabase
@@ -126,7 +127,7 @@ export async function startEncounterFromAppointment(
 }
 
 export async function signClinicalNote(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   signedBy: string,
   _noteFields: Record<string, string>
@@ -244,7 +245,7 @@ export async function signClinicalNote(
 }
 
 export async function evaluateEncounterReadiness(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   encounterId: string
 ): Promise<{ missing: string[] }> {
   const missing: string[] = [];
@@ -274,7 +275,7 @@ export async function evaluateEncounterReadiness(
 }
 
 export async function routeEncounterToBiller(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   message: string,
   ticketType: string,
@@ -328,7 +329,7 @@ export async function routeEncounterToBiller(
 }
 
 export async function scrubEncounterForClaim(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   encounterId: string,
   scrubbedBy: string
 ): Promise<PipelineResult> {
@@ -375,7 +376,7 @@ export async function scrubEncounterForClaim(
 }
 
 export async function createClaimFromEncounter(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   encounterId: string
 ): Promise<PipelineResult> {
   const { data: encounter } = await supabase.from("encounters").select("*").eq("id", encounterId).single();
@@ -460,7 +461,7 @@ export async function createClaimFromEncounter(
 }
 
 export async function submitClaim(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   claimId: string,
   submittedBy: string
 ): Promise<PipelineResult> {
