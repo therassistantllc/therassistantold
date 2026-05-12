@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureSignedEncounterCharge } from "@/lib/charges/signedEncounterChargeCaptureService";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 type EncounterRow = {
@@ -102,6 +103,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
       noteId = String(inserted.id);
     }
 
+    let chargeCapture = null;
     if (action === "sign") {
       const { error: encounterUpdateError } = await supabase
         .from("encounters")
@@ -114,6 +116,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
         .eq("id", encounterId);
 
       if (encounterUpdateError) throw encounterUpdateError;
+      chargeCapture = await captureSignedEncounterCharge({ organizationId, encounterId });
     } else {
       await supabase
         .from("encounters")
@@ -122,7 +125,7 @@ export async function POST(request: Request, context: { params: Promise<{ encoun
         .eq("id", encounterId);
     }
 
-    return NextResponse.json({ success: true, noteId, encounterId, status: noteStatus });
+    return NextResponse.json({ success: true, noteId, encounterId, status: noteStatus, chargeCapture });
   } catch (error) {
     console.error("Encounter note API error:", error);
     return NextResponse.json(
