@@ -13,8 +13,8 @@ function getEnvChecks(): EnvCheck[] {
       present: Boolean(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     },
     {
-      name: "SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
-      present: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY),
+      name: "SUPABASE_SERVICE_ROLE_KEY",
+      present: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     },
   ];
 }

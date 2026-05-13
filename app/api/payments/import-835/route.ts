@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         {
           success: false,
           error:
-            "SUPABASE_SERVICE_ROLE_KEY (or NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY) is required for 835 import writes. Add it to .env.local and restart dev server.",
+            "SUPABASE_SERVICE_ROLE_KEY is required for 835 import writes. Add it to .env.local and restart dev server.",
         },
         { status: 503 },
       );
