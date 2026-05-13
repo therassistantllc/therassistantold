@@ -60,35 +60,57 @@ export default function ClaimReadinessClient() {
   const organizationId = useMemo(getOrganizationId, []);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [batching, setBatching] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    if (!organizationId) {
+      setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
+      const json = (await response.json()) as Payload;
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load claim readiness");
+      setPayload(json);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load claim readiness");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
-
-    async function load() {
-      if (!organizationId) {
-        setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
-        setLoading(false);
-        return;
-      }
-      try {
-        const response = await fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
-        const json = (await response.json()) as Payload;
-        if (cancelled) return;
-        if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load claim readiness");
-        setPayload(json);
-      } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Failed to load claim readiness");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
+    if (!cancelled) load();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
+
+  async function create837PBatch() {
+    setBatching(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/billing/claim-readiness/create-837p-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId }),
+      });
+      const json = (await response.json()) as { success?: boolean; error?: string; batchNumber?: string; claimCount?: number };
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to create 837P batch");
+      setMessage(`Created batch ${json.batchNumber} with ${json.claimCount ?? 0} claims.`);
+      await load();
+    } catch (batchError) {
+      setError(batchError instanceof Error ? batchError.message : "Failed to create 837P batch");
+    } finally {
+      setBatching(false);
+    }
+  }
 
   const metrics = payload?.metrics ?? { total: 0, blocked: 0, readyForClaim: 0, claimCreated: 0, validationFailed: 0, readyForBatch: 0 };
   const items = payload?.items ?? [];
@@ -102,10 +124,14 @@ export default function ClaimReadinessClient() {
           <p className="hero-copy">Review blocked charge capture, claim validation failures, and claims ready for batching.</p>
         </div>
         <div className="hero-actions">
+          <button className="button" type="button" onClick={create837PBatch} disabled={batching || metrics.readyForBatch === 0}>
+            {batching ? "Creating Batch…" : "Create 837P Batch"}
+          </button>
           <Link className="button button-secondary" href="/">Home</Link>
         </div>
       </section>
 
+      {message ? <div className="empty-state success-panel">{message}</div> : null}
       {error ? <div className="alert-panel">{error}</div> : null}
 
       <section className="metric-grid">
