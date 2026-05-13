@@ -56,11 +56,10 @@ export default function CheckInClient({ appointmentId }: { appointmentId: string
     }
 
     if (organizationId && appointmentId) void load();
-    else {
+    else void Promise.resolve().then(() => {
       setError("Missing organization or appointment.");
       setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    });
   }, [organizationId, appointmentId]);
 
   async function submit() {
