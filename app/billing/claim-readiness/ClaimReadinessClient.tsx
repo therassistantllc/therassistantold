@@ -57,7 +57,7 @@ function statusClass(value: unknown) {
 }
 
 export default function ClaimReadinessClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [batching, setBatching] = useState(false);
@@ -65,12 +65,10 @@ export default function ClaimReadinessClient() {
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    if (!organizationId) {
-      setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
-      setLoading(false);
-      return;
-    }
     try {
+      if (!organizationId) {
+        throw new Error("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
+      }
       const response = await fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
       const json = (await response.json()) as Payload;
       if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load claim readiness");
@@ -83,11 +81,7 @@ export default function ClaimReadinessClient() {
   }
 
   useEffect(() => {
-    let cancelled = false;
-    if (!cancelled) load();
-    return () => {
-      cancelled = true;
-    };
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
