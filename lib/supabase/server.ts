@@ -3,11 +3,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/types/supabase";
 
 function getServiceRoleKey() {
+  // Only accept server-side env vars. NEXT_PUBLIC_ prefixed vars are bundled
+  // into client JavaScript and must never hold a service role key.
   const candidates = [
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
     process.env.SUPABASE_SERVICE_ROLE,
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE,
   ];
 
   for (const candidate of candidates) {
