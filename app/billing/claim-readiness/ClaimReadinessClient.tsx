@@ -1,0 +1,158 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+type ClaimReadinessItem = {
+  chargeCaptureId: string;
+  encounterId: string;
+  clientId: string;
+  patientName: string;
+  dateOfBirth?: string | null;
+  serviceDate?: string | null;
+  chargeStatus?: string | null;
+  totalCharge: number;
+  diagnosisCount: number;
+  serviceLineCount: number;
+  blockers: Array<{ field?: string; message?: string }>;
+  updatedAt?: string | null;
+  claim: { id: string; claimNumber?: unknown; status?: unknown; totalChargeAmount: number; updatedAt?: unknown } | null;
+};
+
+type Payload = {
+  success: boolean;
+  error?: string;
+  metrics?: {
+    total: number;
+    blocked: number;
+    readyForClaim: number;
+    claimCreated: number;
+    validationFailed: number;
+    readyForBatch: number;
+  };
+  items?: ClaimReadinessItem[];
+};
+
+function getOrganizationId() {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+}
+
+function formatDate(value: unknown) {
+  if (!value) return "Not listed";
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+}
+
+function formatMoney(value: number) {
+  return Number(value ?? 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function statusClass(value: unknown) {
+  const status = String(value ?? "").toLowerCase();
+  if (status.includes("ready") || status.includes("created")) return "status status-green";
+  if (status.includes("blocked") || status.includes("failed")) return "status status-red";
+  return "status status-yellow";
+}
+
+export default function ClaimReadinessClient() {
+  const organizationId = useMemo(getOrganizationId, []);
+  const [payload, setPayload] = useState<Payload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!organizationId) {
+        setError("Missing organizationId. Add ?organizationId=... to the URL or configure NEXT_PUBLIC_ORGANIZATION_ID.");
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
+        const json = (await response.json()) as Payload;
+        if (cancelled) return;
+        if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load claim readiness");
+        setPayload(json);
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Failed to load claim readiness");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  const metrics = payload?.metrics ?? { total: 0, blocked: 0, readyForClaim: 0, claimCreated: 0, validationFailed: 0, readyForBatch: 0 };
+  const items = payload?.items ?? [];
+
+  return (
+    <main className="app-shell">
+      <section className="hero-panel">
+        <div>
+          <p className="eyebrow">Billing/Admin</p>
+          <h1>Claim Readiness</h1>
+          <p className="hero-copy">Review blocked charge capture, claim validation failures, and claims ready for batching.</p>
+        </div>
+        <div className="hero-actions">
+          <Link className="button button-secondary" href="/">Home</Link>
+        </div>
+      </section>
+
+      {error ? <div className="alert-panel">{error}</div> : null}
+
+      <section className="metric-grid">
+        <article className="metric-card"><span>Total</span><strong>{loading ? "—" : metrics.total}</strong></article>
+        <article className="metric-card"><span>Blocked</span><strong>{loading ? "—" : metrics.blocked}</strong></article>
+        <article className="metric-card"><span>Validation Failed</span><strong>{loading ? "—" : metrics.validationFailed}</strong></article>
+        <article className="metric-card"><span>Ready for Batch</span><strong>{loading ? "—" : metrics.readyForBatch}</strong></article>
+      </section>
+
+      <section className="panel">
+        <h2>Charge Capture / Claim Queue</h2>
+        {loading ? <div className="empty-state">Loading claim readiness…</div> : null}
+        {!loading && items.length === 0 ? <div className="empty-state">No charge capture items found.</div> : null}
+
+        <div className="stack-list">
+          {items.map((item) => (
+            <article className="stack-item" key={item.chargeCaptureId}>
+              <div className="stack-row">
+                <div>
+                  <strong>{item.patientName}</strong>
+                  <span>DOB: {formatDate(item.dateOfBirth)} · Service: {formatDate(item.serviceDate)}</span>
+                  <span>Diagnosis count: {item.diagnosisCount} · Service lines: {item.serviceLineCount} · Total: {formatMoney(item.totalCharge)}</span>
+                </div>
+                <div className="invoice-money-grid">
+                  <span className={statusClass(item.chargeStatus)}>{item.chargeStatus ?? "status not set"}</span>
+                  {item.claim ? <span className={statusClass(item.claim.status)}>Claim {String(item.claim.status ?? "status not set")}</span> : <span className="status">No claim</span>}
+                </div>
+              </div>
+
+              {item.blockers.length > 0 ? (
+                <div className="payment-history">
+                  <strong>Blockers</strong>
+                  {item.blockers.map((blocker, index) => (
+                    <span key={`${item.chargeCaptureId}-blocker-${index + 1}`}>{blocker.field ?? "field"}: {blocker.message ?? "Needs review"}</span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="section-actions">
+                <Link className="button button-secondary" href={`/encounters/${item.encounterId}`}>Open Note</Link>
+                <Link className="button button-secondary" href={`/encounters/${item.encounterId}/billing`}>Billing Details</Link>
+                {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Patient Chart</Link> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
