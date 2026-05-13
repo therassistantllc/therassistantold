@@ -14,6 +14,8 @@ export default function HomePage() {
         </div>
         <div className="hero-actions">
           <Link className="button" href="/clinician/agenda">Open Agenda</Link>
+          <Link className="button button-secondary" href="/billing/claim-readiness">Claim Readiness</Link>
+          <Link className="button button-secondary" href="/admin/provider-credentialing">Provider Credentialing</Link>
           <Link className="button button-secondary" href="/workflow-status">Workflow Status</Link>
         </div>
       </section>
@@ -32,6 +34,23 @@ export default function HomePage() {
           <span>Eligibility snapshot</span>
           <span>Balance visibility</span>
           <span>Route to biller</span>
+        </div>
+      </section>
+
+      <section className="panel two-column-panel">
+        <div>
+          <h2>Billing/admin flow</h2>
+          <p>
+            Billing work is separated from the clinical note so claim cleanup, credentialing review, and readiness checks can happen without interrupting care documentation.
+          </p>
+        </div>
+        <div className="feature-list">
+          <span>Claim readiness</span>
+          <span>Encounter billing details</span>
+          <span>Provider credentialing</span>
+          <span>Charge capture</span>
+          <span>Claim drafts</span>
+          <span>Workqueue routing</span>
         </div>
       </section>
     </main>
