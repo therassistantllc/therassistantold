@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import styles from "./EhrTopNav.module.css";
 
 const navItems = [
   { label: "Dashboard", href: "/", match: ["/"] },
@@ -22,23 +23,22 @@ export default function EhrTopNav() {
   const pathname = usePathname();
 
   return (
-    <header className="ehr-top-nav">
-      <div className="ehr-top-nav-inner">
-        <Link className="ehr-brand" href="/">
+    <header className={styles.topNav}>
+      <div className={styles.inner}>
+        <Link className={styles.brand} href="/">
           <span>THERASSISTANT</span>
           <small>EHR</small>
         </Link>
 
-        <nav className="ehr-nav-links" aria-label="Primary navigation">
-          {navItems.map((item) => (
-            <Link
-              key={item.label}
-              className={isActive(pathname, item) ? "ehr-nav-link ehr-nav-link-active" : "ehr-nav-link"}
-              href={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav className={styles.links} aria-label="Primary navigation">
+          {navItems.map((item) => {
+            const className = isActive(pathname, item) ? `${styles.link} ${styles.active}` : styles.link;
+            return (
+              <Link key={item.label} className={className} href={item.href}>
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </header>
