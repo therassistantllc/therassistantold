@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { requireRoleInRoute } from "@/lib/rbac/middleware";
 import type { Database } from "@/src/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -81,6 +82,10 @@ async function createWorkqueueItem(
 }
 
 export async function POST(request: Request) {
+  // Restrict to admin role — this endpoint mutates the full billing lifecycle
+  const authOrError = await requireRoleInRoute("admin");
+  if (authOrError instanceof NextResponse) return authOrError;
+
   try {
     const supabase = createServerSupabaseAdminClientTyped();
     if (!supabase) return NextResponse.json({ error: "Database connection not available" }, { status: 500 });

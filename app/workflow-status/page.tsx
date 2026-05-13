@@ -79,7 +79,7 @@ const DOMAIN_DEFINITIONS: DomainDefinition[] = [
 ];
 
 async function fileExists(relativePath: string): Promise<boolean> {
-  const fullPath = path.join(process.cwd(), relativePath);
+  const fullPath = path.join(/*turbopackIgnore: true*/ process.cwd(), relativePath);
 
   try {
     await fs.access(fullPath);
@@ -90,7 +90,7 @@ async function fileExists(relativePath: string): Promise<boolean> {
 }
 
 async function migrationSignalExists(pattern: RegExp): Promise<boolean> {
-  const migrationsRoot = path.join(process.cwd(), "supabase", "migrations");
+  const migrationsRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), "supabase", "migrations");
 
   let entries: string[] = [];
   try {

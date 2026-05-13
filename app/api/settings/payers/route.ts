@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
         supported_transactions: supported_transactions ?? [],
         states: states ?? [],
         source: "availity",
-        environment: "demo",
+        environment: process.env.AVAILITY_ENV ?? "demo",
         is_active: true,
         notes: notes ?? null,
       })
