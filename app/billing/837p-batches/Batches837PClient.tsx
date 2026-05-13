@@ -64,7 +64,7 @@ function statusClass(value: unknown) {
 }
 
 export default function Batches837PClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +89,7 @@ export default function Batches837PClient() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);

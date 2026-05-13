@@ -40,7 +40,7 @@ function statusClass(value: unknown) {
 }
 
 export default function PatientsRosterClient() {
-  const organizationId = useMemo(getOrganizationId, []);
+  const organizationId = useMemo(() => getOrganizationId(), []);
   const [query, setQuery] = useState("");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +69,7 @@ export default function PatientsRosterClient() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadClients("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
