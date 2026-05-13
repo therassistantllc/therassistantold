@@ -1,10 +1,11 @@
 // File: app/layout.tsx
 import type { Metadata } from "next";
+import EhrTopNav from "@/components/layout/EhrTopNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "THERASSISTANT EHR Workflow Validation Build",
-  description: "Minimal backend-first validation shell",
+  title: "THERASSISTANT EHR",
+  description: "Clinician-first EHR and revenue cycle workspace",
 };
 
 export default function RootLayout({
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <EhrTopNav />
+        {children}
+      </body>
     </html>
   );
 }
