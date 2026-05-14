@@ -395,7 +395,7 @@ export async function validateProfessionalClaimReadiness(
 
   const { data: lines } = await supabase
     .from("professional_claim_service_lines")
-    .select("id, line_number, service_date_from, procedure_code, charge_amount, units, diagnosis_pointers, place_of_service")
+    .select("id, line_number, service_date_from, procedure_code, charge_amount, units, diagnosis_pointers, place_of_service, rendering_provider_npi")
     .eq("claim_id", claimId)
     .order("line_number", { ascending: true });
 
@@ -411,6 +411,21 @@ export async function validateProfessionalClaimReadiness(
       if (!Number.isFinite(Number(line.units)) || Number(line.units) <= 0) {
         errors.push({ field: `service_lines.${line.line_number}.units`, message: "Service line units must be greater than zero" });
       }
+      // Diagnosis pointer must reference a valid position (1-based, 1-8)
+      const pointers = Array.isArray(line.diagnosis_pointers) ? line.diagnosis_pointers as unknown[] : [];
+      if (pointers.length === 0) {
+        errors.push({ field: `service_lines.${line.line_number}.diagnosis_pointers`, message: "Service line requires at least one diagnosis pointer" });
+      } else {
+        const diagCount = Array.isArray(claim.diagnosis_codes) ? (claim.diagnosis_codes as unknown[]).length : 0;
+        for (const ptr of pointers) {
+          const ptrNum = Number(ptr);
+          if (!Number.isInteger(ptrNum) || ptrNum < 1 || ptrNum > diagCount) {
+            errors.push({ field: `service_lines.${line.line_number}.diagnosis_pointers`, message: `Diagnosis pointer ${String(ptr)} does not reference a valid diagnosis position (1–${diagCount})` });
+          }
+        }
+      }
+      // Place of service required per line
+      addRequired(errors, `service_lines.${line.line_number}.place_of_service`, line.place_of_service ?? claim.place_of_service, "Place of service is required");
     }
   }
 
@@ -446,7 +461,27 @@ export async function validateProfessionalClaimReadiness(
     for (const [field, message] of requiredSnapshotFields) {
       addRequired(errors, `claim_parties_snapshot.${field}`, (snapshot as DbRecord)[field], message);
     }
+
+    // Validate ZIP format (5-digit or 9-digit ZIP+4)
+    const zipPattern = /^\d{5}(-?\d{4})?$/;
+    for (const zipField of ["billing_provider_zip", "subscriber_zip", "patient_zip", "service_facility_zip"] as const) {
+      const zipVal = normalizeText((snapshot as DbRecord)[zipField]);
+      if (zipVal && !zipPattern.test(zipVal)) {
+        errors.push({ field: `claim_parties_snapshot.${zipField}`, message: `${zipField} must be a valid 5 or 9-digit ZIP code` });
+      }
+    }
+
+    // If rendering provider is different from billing, NPI is required
+    if ((snapshot as DbRecord).rendering_same_as_billing === false) {
+      addRequired(errors, "claim_parties_snapshot.rendering_provider_npi", (snapshot as DbRecord).rendering_provider_npi, "Rendering provider NPI is required when different from billing provider");
+    }
+
+    // Patient DOB is required
+    if (!(snapshot as DbRecord).patient_is_subscriber) {
+      addRequired(errors, "claim_parties_snapshot.patient_dob", (snapshot as DbRecord).patient_dob, "Patient date of birth is required");
+    }
   }
+
 
   const ready = errors.length === 0;
   await supabase
