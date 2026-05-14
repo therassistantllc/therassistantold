@@ -1,17 +1,19 @@
 :root {
   color-scheme: light;
   --navy: #10243f;
-  --navy-soft: #1a304f;
-  --sage: #7a9e82;
-  --sage-soft: #f2f6f3;
-  --line: #e2e8e4;
+  --navy-soft: #1a3d68;
+  --sage: #5e8a6a;
+  --sage-soft: #edf3ef;
+  --sage-mid: #c6d8cc;
+  --line: #d8e1e9;
   --text: #1a2332;
-  --muted: #6b7a8a;
-  --danger: #b33030;
-  --warning: #7a5c00;
-  --success: #2a6045;
-  --background: #f8faf9;
+  --muted: #5c6e82;
+  --danger: #b02020;
+  --warning: #7a5000;
+  --success: #1e5e40;
+  --background: #f2f4f7;
   --card: #ffffff;
+  --nav-height: 56px;
 }
 
 * {
@@ -54,22 +56,37 @@ input {
   padding: 32px 0;
 }
 
-.hero-panel,
 .panel,
 .metric-card,
 .agenda-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 
 .hero-panel {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px;
-  background: var(--navy);
-  color: white;
+  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--navy);
+  border-radius: 0 4px 4px 0;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+/* Lighter page-header variant — no left accent, just a clean title bar */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 20px 0 16px;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 20px;
+  color: var(--text);
 }
 
 .eyebrow {
@@ -84,7 +101,7 @@ input {
 .hero-copy {
   max-width: 720px;
   margin-bottom: 0;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--muted);
 }
 
 .hero-actions,
@@ -134,7 +151,8 @@ input {
 }
 
 .metric-card {
-  padding: 16px;
+  padding: 16px 20px;
+  border-top: 3px solid var(--navy);
 }
 
 .metric-card span {
@@ -157,7 +175,8 @@ input {
 }
 
 .panel {
-  padding: 24px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 4px rgba(16, 36, 63, 0.06);
 }
 
 .form-panel {
@@ -213,20 +232,25 @@ input {
 
 .alert-panel,
 .empty-state {
-  padding: 16px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: white;
+  background: var(--card);
   color: var(--muted);
+  font-size: 14px;
 }
 
 .alert-panel {
-  border-color: #e8b4b4;
+  border-left: 4px solid var(--danger);
+  border-color: var(--danger);
+  background: #fdf3f3;
   color: var(--danger);
 }
 
 .success-panel {
-  border-color: #b4d4c2;
+  border-left: 4px solid var(--success);
+  border-color: var(--success);
+  background: #f0f7f3;
   color: var(--success);
 }
 
@@ -336,10 +360,15 @@ input {
 }
 
 .stack-item {
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--card);
+  transition: border-color 0.12s;
+}
+
+.stack-item:hover {
+  border-color: var(--navy);
 }
 
 .stack-row {
@@ -429,35 +458,41 @@ input {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  min-height: 22px;
+  min-height: 20px;
   padding: 2px 8px;
   border-radius: 3px;
-  background: #eef0f3;
-  color: var(--text);
+  border: 1px solid transparent;
+  background: #eaecef;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.02em;
   text-transform: capitalize;
 }
 
 .status-green {
-  background: #e7f4ec;
+  background: #e6f3ec;
+  border-color: #a8d4b8;
   color: var(--success);
 }
 
 .status-red,
 .status-pill.urgent {
   background: #faeaea;
+  border-color: #e8b4b4;
   color: var(--danger);
 }
 
 .status-yellow,
 .status-pill.high {
-  background: #fff5d6;
+  background: #fef6e0;
+  border-color: #e8d08a;
   color: var(--warning);
 }
 
 .status-pill.normal {
   background: var(--sage-soft);
+  border-color: var(--sage-mid);
   color: var(--navy);
 }
 
@@ -471,11 +506,12 @@ input {
   gap: 12px;
   align-items: end;
   flex-wrap: wrap;
-  margin: 16px 0;
-  padding: 14px 16px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--card);
+  box-shadow: 0 1px 3px rgba(16, 36, 63, 0.05);
 }
 
 .workqueue-layout {
@@ -495,18 +531,24 @@ input {
   display: grid;
   gap: 4px;
   width: 100%;
-  padding: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
+  border-left: 3px solid transparent;
   border-radius: 4px;
   background: var(--card);
   color: var(--text);
   text-align: left;
   cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
 }
 
-.workqueue-list-item:hover,
+.workqueue-list-item:hover {
+  border-left-color: var(--sage);
+  background: var(--sage-soft);
+}
+
 .workqueue-list-item.selected {
-  border-color: var(--navy);
+  border-left-color: var(--navy);
   background: var(--sage-soft);
 }
 
@@ -521,6 +563,124 @@ input {
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 16px;
+}
+
+/* ── Tab bar ─────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 9px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--navy);
+  background: var(--sage-soft);
+}
+
+.tab.active,
+.tab[aria-current="page"] {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+}
+
+/* ── Context banner (patient / claim context header) ─ */
+.context-banner {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--sage-soft);
+  border: 1px solid var(--sage-mid);
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.context-banner strong {
+  color: var(--navy);
+}
+
+.context-banner span {
+  color: var(--muted);
+}
+
+/* ── Clinical data table ──────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--background);
+  border-bottom: 2px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  color: var(--text);
+}
+
+.data-table tbody tr:hover td {
+  background: var(--sage-soft);
+}
+
+.data-table .col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Inline link (clinical in-text navigation) ────── */
+.inline-link {
+  color: var(--navy-soft);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--sage-mid);
+  text-underline-offset: 2px;
+}
+
+.inline-link:hover {
+  color: var(--navy);
+  text-decoration-color: var(--navy);
+}
+
+/* ── Section title divider ────────────────────────── */
+.section-title {
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .json-panel {
