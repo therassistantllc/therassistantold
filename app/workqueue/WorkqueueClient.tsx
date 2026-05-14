@@ -62,6 +62,7 @@ function patientName(client: WorkqueueClientInfo) {
 export default function WorkqueueClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [status, setStatus] = useState("active");
+  const [workType, setWorkType] = useState("");
   const [items, setItems] = useState<WorkqueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [counts, setCounts] = useState<WorkqueueResponse["counts"] | null>(null);
@@ -82,7 +83,9 @@ export default function WorkqueueClient() {
 
     setLoading(true);
     setError(null);
-    const response = await fetch(`/api/workqueue/items?organizationId=${encodeURIComponent(organizationId)}&status=${encodeURIComponent(status)}`);
+    const params = new URLSearchParams({ organizationId, status });
+    if (workType) params.set("workType", workType);
+    const response = await fetch(`/api/workqueue/items?${params.toString()}`);
     const json = (await response.json()) as WorkqueueResponse;
     if (!response.ok || !json.success) {
       setError(json.error || "Failed to load workqueue.");
@@ -100,7 +103,7 @@ export default function WorkqueueClient() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, status]);
+  }, [organizationId, status, workType]);
 
   async function runAction(action: "comment" | "defer" | "resolve" | "close") {
     if (!selected) return;
@@ -156,6 +159,38 @@ export default function WorkqueueClient() {
             <option value="resolved">Resolved</option>
             <option value="closed">Closed</option>
             <option value="all">All</option>
+          </select>
+        </label>
+        <label className="field-label compact-field">
+          Queue
+          <select value={workType} onChange={(event) => setWorkType(event.target.value)}>
+            <option value="">All Queues</option>
+            <optgroup label="AR Aging">
+              <option value="no_response">No Response</option>
+              <option value="aging_0_30">0–30 Days</option>
+              <option value="aging_31_60">31–60 Days</option>
+              <option value="aging_61_90">61–90 Days</option>
+              <option value="aging_91_120">91–120 Days</option>
+              <option value="aging_120_plus">120+ Days</option>
+            </optgroup>
+            <optgroup label="Payer Response">
+              <option value="denied">Denied</option>
+              <option value="clearinghouse_rejection">Clearinghouse Rejection</option>
+              <option value="payer_rejection">Payer Rejection</option>
+              <option value="appeal_needed">Appeal Needed</option>
+              <option value="recoupment">Recoupment</option>
+            </optgroup>
+            <optgroup label="Eligibility">
+              <option value="eligibility_issue">Eligibility Issue</option>
+              <option value="eligibility_needed">Eligibility Needed</option>
+            </optgroup>
+            <optgroup label="ERA">
+              <option value="era_mismatch">ERA Mismatch</option>
+            </optgroup>
+            <optgroup label="Billing">
+              <option value="ready_to_bill">Ready to Bill</option>
+              <option value="biller_review">Biller Review</option>
+            </optgroup>
           </select>
         </label>
         <button className="button button-secondary" type="button" onClick={() => void loadItems()} disabled={loading}>Refresh</button>
