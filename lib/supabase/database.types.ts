@@ -231,6 +231,7 @@ export type Database = {
           appointment_id: string | null;
           encounter_id: string | null;
           claim_id: string | null;
+          professional_claim_id: string | null;
           priority: "low" | "medium" | "high" | "urgent" | null;
           status: string | null;
           work_type: string | null;

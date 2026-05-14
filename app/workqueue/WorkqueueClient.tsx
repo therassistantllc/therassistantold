@@ -21,6 +21,7 @@ type WorkqueueItem = {
   appointmentId: string;
   encounterId: string;
   claimId: string;
+  professionalClaimId: string;
   assignedToUserId: string;
   deferredUntil: string;
   deferReason: string;
@@ -234,6 +235,11 @@ export default function WorkqueueClient() {
                 <p><strong>Created:</strong> {formatDate(selected.createdAt)}</p>
                 <p><strong>Updated:</strong> {formatDate(selected.updatedAt)}</p>
                 <p><strong>Claim ID:</strong> {selected.claimId || "—"}</p>
+                <p><strong>Professional Claim:</strong>{" "}
+                  {selected.professionalClaimId
+                    ? <Link className="inline-link" href={`/billing/claim-readiness?organizationId=${organizationId}`}>{selected.professionalClaimId}</Link>
+                    : "—"}
+                </p>
                 <p><strong>Encounter ID:</strong> {selected.encounterId || "—"}</p>
                 <p><strong>Appointment ID:</strong> {selected.appointmentId || "—"}</p>
               </div>

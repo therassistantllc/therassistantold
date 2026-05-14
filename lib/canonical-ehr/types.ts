@@ -382,6 +382,7 @@ export interface WorkqueueItem {
   patient_id: ID | null;
   encounter_id: ID | null;
   claim_id: ID | null;
+  professional_claim_id: ID | null;
   payer_id: ID | null;
   queue_type: WorkqueueType;
   priority: "low" | "normal" | "high" | "urgent";

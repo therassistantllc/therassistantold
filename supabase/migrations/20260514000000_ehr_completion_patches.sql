@@ -142,7 +142,20 @@ create policy audit_logs_org_policy
     )
   );
 
--- ─── 10. professional_claims: add encounter_id RLS index ─────────────────────
--- (already created above; here for documentation completeness)
+-- ─── 10. workqueue_items: add professional_claim_id FK ───────────────────────
+-- Separate from legacy claim_id which references public.claims.
+-- All services that create items for professional claims write here; legacy
+-- modules that create items for public.claims continue to write claim_id only.
+alter table public.workqueue_items
+  add column if not exists professional_claim_id uuid
+    references public.professional_claims(id) on delete set null;
+
+create index if not exists idx_workqueue_items_professional_claim_id
+  on public.workqueue_items (organization_id, professional_claim_id)
+  where professional_claim_id is not null;
+
+comment on column public.workqueue_items.professional_claim_id
+  is 'FK to professional_claims.id. Set by billing-flow services (aging, ERA, rejection). '
+     'Distinct from legacy claim_id which references public.claims (workflow engine).';
 
 select pg_notify('pgrst', 'reload schema');

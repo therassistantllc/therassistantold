@@ -150,7 +150,7 @@ export async function routeEra835ExceptionsToWorkqueue(
         source_object_type: "era_claim_payment",
         source_object_id: payment.id,
         client_id: payment.client_id,
-        claim_id: payment.professional_claim_id,
+        professional_claim_id: payment.professional_claim_id,
         context_payload: {
           clp01_claim_control_number: payment.clp01_claim_control_number,
           payer_claim_control_number: payment.payer_claim_control_number,

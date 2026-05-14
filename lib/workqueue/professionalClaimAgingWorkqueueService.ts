@@ -171,7 +171,7 @@ export async function routeAgingProfessionalClaimsToWorkqueue(
           source_object_type: "professional_claim",
           source_object_id: claim.id,
           client_id: claim.patient_id,
-          claim_id: claim.id,
+          professional_claim_id: claim.id,
           context_payload: { claim_status: claim.claim_status, claim_number: claim.claim_number, days_outstanding: days },
           created_at: now,
           updated_at: now,
@@ -194,7 +194,7 @@ export async function routeAgingProfessionalClaimsToWorkqueue(
           source_object_type: "professional_claim",
           source_object_id: claim.id,
           client_id: claim.patient_id,
-          claim_id: claim.id,
+          professional_claim_id: claim.id,
           context_payload: {
             claim_status: claim.claim_status,
             claim_number: claim.claim_number,

@@ -126,7 +126,7 @@ export async function routeRejectedClaimsToWorkqueue(
         source_object_type: "professional_claim",
         source_object_id: claim.id,
         client_id: claim.patient_id,
-        claim_id: claim.id,
+        professional_claim_id: claim.id,
         context_payload: {
           source: input.source,
           outcome: input.outcome,

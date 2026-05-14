@@ -400,6 +400,7 @@ export const canonicalSeed: CanonicalEhrState = {
       patient_id: "pat-avery",
       encounter_id: "enc-avery-001",
       claim_id: null,
+      professional_claim_id: null,
       payer_id: "payer-co-medicaid",
       queue_type: "documentation_hold",
       priority: "normal",
