@@ -7,11 +7,11 @@ type MailroomItem = {
   id: string;
   clientId: string;
   fileName: string;
-  fileType: string;
+  mimeType: string;
   status: string;
-  documentCategory: string;
+  documentType: string;
   source: string;
-  description: string;
+  notes: string;
   createdAt: string;
 };
 
@@ -31,13 +31,13 @@ function formatDate(value: string) {
 
 export default function MailroomClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
-  const [status, setStatus] = useState("pending");
+  const [status, setStatus] = useState("needs_review");
   const [items, setItems] = useState<MailroomItem[]>([]);
   const [fileName, setFileName] = useState("");
-  const [fileType, setFileType] = useState("application/pdf");
+  const [mimeType, setMimeType] = useState("application/pdf");
   const [clientId, setClientId] = useState("");
-  const [documentCategory, setDocumentCategory] = useState("payer_correspondence");
-  const [description, setDescription] = useState("");
+  const [documentType, setDocumentType] = useState("payer_correspondence");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,10 +77,10 @@ export default function MailroomClient() {
       body: JSON.stringify({
         organizationId,
         fileName,
-        fileType,
+        mimeType,
         clientId: clientId || null,
-        documentCategory,
-        description,
+        documentType,
+        notes,
         source: "manual_upload",
       }),
     });
@@ -91,7 +91,7 @@ export default function MailroomClient() {
       setMessage("Mailroom item created and routed to workqueue.");
       setFileName("");
       setClientId("");
-      setDescription("");
+      setNotes("");
       await loadItems();
     }
     setSaving(false);
@@ -122,8 +122,8 @@ export default function MailroomClient() {
             <input value={fileName} onChange={(event) => setFileName(event.target.value)} placeholder="paper-eob.pdf" />
           </label>
           <label className="field-label">
-            File type
-            <select value={fileType} onChange={(event) => setFileType(event.target.value)}>
+            File type (MIME)
+            <select value={mimeType} onChange={(event) => setMimeType(event.target.value)}>
               <option value="application/pdf">PDF</option>
               <option value="image/jpeg">JPEG image</option>
               <option value="image/png">PNG image</option>
@@ -136,7 +136,7 @@ export default function MailroomClient() {
           </label>
           <label className="field-label">
             Category
-            <select value={documentCategory} onChange={(event) => setDocumentCategory(event.target.value)}>
+            <select value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
               <option value="payer_correspondence">Payer correspondence</option>
               <option value="paper_eob">Paper EOB</option>
               <option value="refund_request">Refund request</option>
@@ -146,8 +146,8 @@ export default function MailroomClient() {
             </select>
           </label>
           <label className="field-label">
-            Description
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe what billing/admin needs to review..." />
+            Notes
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Describe what billing/admin needs to review..." />
           </label>
           <button className="button" type="button" onClick={submit} disabled={saving || !fileName.trim()}>
             {saving ? "Routing…" : "Create Mailroom Item"}
@@ -163,7 +163,7 @@ export default function MailroomClient() {
             <label className="field-label compact-field">
               Status
               <select value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="pending">Pending</option>
+                <option value="needs_review">Needs Review</option>
                 <option value="filed">Filed</option>
                 <option value="all">All</option>
               </select>
@@ -176,8 +176,8 @@ export default function MailroomClient() {
                 <div className="stack-row">
                   <div>
                     <strong>{item.fileName || "Mailroom document"}</strong>
-                    <span>{item.documentCategory || "document"} · {item.status || "pending"}</span>
-                    <span>{item.description || "No description"}</span>
+                    <span>{item.documentType || "document"} · {item.status || "needs_review"}</span>
+                    <span>{item.notes || "No notes"}</span>
                     <span>{formatDate(item.createdAt)}</span>
                   </div>
                   {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Patient Chart</Link> : null}

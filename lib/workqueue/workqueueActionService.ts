@@ -147,7 +147,6 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
   const { error } = await supabase
     .from("workqueue_items")
     .update({
-      status: "deferred",
       deferred_until: deferredDate.toISOString(),
       defer_reason: input.deferReason ?? input.comment ?? null,
       updated_at: new Date().toISOString(),
@@ -165,7 +164,7 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
     userId: input.userId ?? null,
   });
 
-  return { ok: true, workqueueItemId: input.workqueueItemId, status: "deferred", errors: [] };
+  return { ok: true, workqueueItemId: input.workqueueItemId, status: item.status, errors: [] };
 }
 
 export async function resolveWorkqueueItem(input: WorkqueueActionInput): Promise<WorkqueueActionResult> {

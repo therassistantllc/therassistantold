@@ -13,14 +13,14 @@ function itemDto(row: DbRow) {
     organizationId: clean(row.organization_id),
     clientId: clean(row.client_id),
     fileName: clean(row.file_name),
-    fileType: clean(row.file_type),
+    mimeType: clean(row.mime_type),
     storagePath: clean(row.storage_path),
     status: clean(row.status),
-    documentCategory: clean(row.document_category),
+    documentType: clean(row.document_type),
     source: clean(row.source),
-    description: clean(row.description),
+    notes: clean(row.notes),
     adminComments: clean(row.admin_comments),
-    uploadedBy: clean(row.uploaded_by),
+    uploadedByUserId: clean(row.uploaded_by_user_id),
     createdAt: clean(row.created_at),
     updatedAt: clean(row.updated_at),
   };
@@ -39,7 +39,7 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
 
     const { data, error } = await supabase
       .from("mailroom_items")
-      .select("id, organization_id, client_id, file_name, file_type, storage_path, status, document_category, source, description, admin_comments, uploaded_by, created_at, updated_at")
+      .select("id, organization_id, client_id, file_name, mime_type, storage_path, status, document_type, source, notes, admin_comments, uploaded_by_user_id, created_at, updated_at")
       .eq("organization_id", organizationId)
       .eq("id", itemId)
       .maybeSingle();

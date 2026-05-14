@@ -8,12 +8,12 @@ type MailroomItem = {
   organizationId: string;
   clientId: string;
   fileName: string;
-  fileType: string;
+  mimeType: string;
   storagePath: string;
   status: string;
-  documentCategory: string;
+  documentType: string;
   source: string;
-  description: string;
+  notes: string;
   adminComments: string;
   createdAt: string;
 };
@@ -119,17 +119,17 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
             <div className="panel-header">
               <div>
                 <h2>Document details</h2>
-                <p>{item.documentCategory || "document"} · {item.status || "pending"}</p>
+                <p>{item.documentType || "document"} · {item.status || "needs_review"}</p>
               </div>
               <span className={`status ${item.status === "filed" ? "status-green" : "status-yellow"}`}>{item.status || "pending"}</span>
             </div>
             <div className="detail-list">
               <p><strong>File:</strong> {item.fileName || "—"}</p>
-              <p><strong>Type:</strong> {item.fileType || "—"}</p>
+              <p><strong>Type:</strong> {item.mimeType || "—"}</p>
               <p><strong>Storage path:</strong> {item.storagePath || "—"}</p>
               <p><strong>Source:</strong> {item.source || "—"}</p>
               <p><strong>Created:</strong> {formatDate(item.createdAt)}</p>
-              <p><strong>Description:</strong> {item.description || "—"}</p>
+              <p><strong>Notes:</strong> {item.notes || "—"}</p>
               <p><strong>Linked patient:</strong> {item.clientId || "Not linked"}</p>
             </div>
             <div className="section-actions">

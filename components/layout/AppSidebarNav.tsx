@@ -9,16 +9,16 @@ type NavItem =
   | { label: string; href?: undefined; disabled: true };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/", exact: true },
+  { label: "Service Queue", href: "/", exact: true },
   { label: "Agenda", href: "/clinician/agenda" },
-  { label: "Patients", href: "/patients" },
+  { label: "Clients", href: "/patients" },
   { label: "Encounters", href: "/encounters" },
   { label: "Workqueue", href: "/workqueue" },
   { label: "Claims", href: "/billing/claim-readiness" },
-  { label: "Payments", href: "/payments" },
+  { label: "Payments", disabled: true },
   { label: "Mail Room", href: "/mailroom" },
   { label: "Reports", disabled: true },
-  { label: "Settings", href: "/admin/provider-credentialing" },
+  { label: "Settings", href: "/settings" },
 ];
 
 export default function AppSidebarNav() {

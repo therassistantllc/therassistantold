@@ -96,7 +96,7 @@ export async function GET(request: Request) {
       .limit(limit);
 
     if (status === "active") {
-      query = query.in("status", ["open", "in_progress", "deferred"]);
+      query = query.in("status", ["open", "in_progress", "blocked"]);
     } else if (status && status !== "all") {
       query = query.eq("status", status);
     }

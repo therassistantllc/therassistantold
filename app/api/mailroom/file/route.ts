@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
       organization_id,
       storage_path: mailroomItem.storage_path,
       file_name: mailroomItem.file_name || "mailroom_document",
-      file_type: mailroomItem.file_type || "application/pdf",
-      uploaded_by: mailroomItem.uploaded_by,
+      file_type: mailroomItem.mime_type || "application/pdf",
+      uploaded_by: mailroomItem.uploaded_by_user_id,
       uploaded_at: new Date().toISOString(),
     };
 
