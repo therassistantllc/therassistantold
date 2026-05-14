@@ -25,6 +25,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Dev bypass: set DEV_AUTH_BYPASS=true in .env.local to skip session validation
+  // Only honoured in development — never set this in production.
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.DEV_AUTH_BYPASS === "true"
+  ) {
+    return NextResponse.next();
+  }
+
   // Allow explicitly public routes through
   if (
     PUBLIC_API_EXACT.has(pathname) ||
