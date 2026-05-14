@@ -53,19 +53,24 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    const clinicianId = searchParams.get("clinicianId");
+    const organizationId = searchParams.get("organizationId") ?? process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? null;
     const dateParam = searchParams.get("date");
 
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
 
+    // Dev fallback: when no clinicianId is supplied and we're not in production,
+    // use the known test provider so today's appointments are visible without a session.
+    const paramClinicianId = searchParams.get("clinicianId");
+    const devFallback = !paramClinicianId && process.env.NODE_ENV !== "production";
+    const clinicianId = paramClinicianId ?? (devFallback ? "22222222-2222-2222-2222-222222222222" : null);
+
     const { start, end } = getDayRange(dateParam ? new Date(dateParam) : new Date());
 
     let appointmentQuery = supabase
       .from("appointments")
-      .select("id, client_id, provider_id, appointment_status, appointment_type, scheduled_start_at, scheduled_end_at, service_location, telehealth_url")
+      .select("id, client_id, provider_id, appointment_status, appointment_type, scheduled_start_at, scheduled_end_at, check_in_at, telehealth_url")
       .eq("organization_id", organizationId)
       .gte("scheduled_start_at", start)
       .lt("scheduled_start_at", end)
@@ -136,7 +141,7 @@ export async function GET(request: Request) {
         endTime: appointment.scheduled_end_at,
         status: appointment.appointment_status ?? null,
         type: appointment.appointment_type ?? null,
-        serviceLocation: appointment.service_location ?? null,
+        serviceLocation: null,
         telehealthUrl: appointment.telehealth_url ?? null,
         encounter: encounter ? { id: encounter.id, status: encounter.encounter_status } : null,
         checkIn: appointment.check_in_at ? { status: "checked_in", checkedInAt: appointment.check_in_at } : null,
@@ -165,7 +170,7 @@ export async function GET(request: Request) {
       balancesToReview: agenda.filter((item) => item.patientBalance > 0).length,
     };
 
-    return NextResponse.json({ success: true, organizationId, clinicianId, date: start.slice(0, 10), metrics, agenda });
+    return NextResponse.json({ success: true, organizationId, clinicianId, devFallback, date: start.slice(0, 10), metrics, agenda });
   } catch (error) {
     console.error("Clinician command center API error:", error);
     return NextResponse.json(

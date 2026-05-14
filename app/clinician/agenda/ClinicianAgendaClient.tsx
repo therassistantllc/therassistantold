@@ -32,6 +32,7 @@ type AgendaItem = {
 type CommandCenterPayload = {
   success: boolean;
   error?: string;
+  devFallback?: boolean;
   organizationId?: string;
   clinicianId?: string | null;
   date?: string;
@@ -139,10 +140,18 @@ export default function ClinicianAgendaClient() {
 
   const metrics = payload?.metrics ?? emptyMetrics();
   const agenda = payload?.agenda ?? [];
+  const devFallback = payload?.devFallback ?? false;
+
+  // In development, replace the red auth error with a muted notice
+  const isDev = process.env.NODE_ENV !== "production";
+  const isAuthError = error === "Not authenticated";
 
   return (
     <>
-      {error ? <div className="alert-panel">{error}</div> : null}
+      {error && !(isDev && isAuthError) ? <div className="alert-panel">{error}</div> : null}
+      {devFallback || (isDev && isAuthError) ? (
+        <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0 0 12px" }}>Development fallback active</p>
+      ) : null}
 
       <section className="metric-grid">
         <article className="metric-card">
