@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
   --navy: #10243f;
-  --navy-soft: #173456;
-  --sage: #9caf9f;
-  --sage-soft: #eef4ef;
-  --line: #d9e1dc;
-  --text: #172033;
-  --muted: #647184;
-  --danger: #9f2f2f;
-  --warning: #8a6400;
-  --success: #2f6f4e;
-  --background: #f6f8f7;
+  --navy-soft: #1a304f;
+  --sage: #7a9e82;
+  --sage-soft: #f2f6f3;
+  --line: #e2e8e4;
+  --text: #1a2332;
+  --muted: #6b7a8a;
+  --danger: #b33030;
+  --warning: #7a5c00;
+  --success: #2a6045;
+  --background: #f8faf9;
   --card: #ffffff;
 }
 
@@ -21,7 +21,8 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
   line-height: 1.5;
   color: var(--text);
   background: var(--background);
@@ -59,8 +60,7 @@ input {
 .agenda-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: 0 12px 28px rgba(16, 36, 63, 0.08);
+  border-radius: 6px;
 }
 
 .hero-panel {
@@ -68,30 +68,30 @@ input {
   justify-content: space-between;
   gap: 24px;
   padding: 28px;
-  background: linear-gradient(135deg, var(--navy), var(--navy-soft));
+  background: var(--navy);
   color: white;
 }
 
 .eyebrow {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--sage);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .hero-copy {
   max-width: 720px;
   margin-bottom: 0;
-  color: #e7ece9;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .hero-actions,
 .agenda-actions,
 .section-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -104,18 +104,19 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 6px 14px;
   border: 1px solid var(--navy);
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--navy);
   color: white;
   text-decoration: none;
+  font-size: 14px;
   cursor: pointer;
 }
 
 .button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -133,7 +134,7 @@ input {
 }
 
 .metric-card {
-  padding: 18px;
+  padding: 16px;
 }
 
 .metric-card span {
@@ -144,9 +145,10 @@ input {
 
 .metric-card strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--navy);
-  font-size: 32px;
+  font-size: 28px;
+  font-weight: 600;
 }
 
 .metric-card .metric-text {
@@ -188,11 +190,11 @@ input {
 }
 
 .feature-list span {
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
   background: var(--sage-soft);
   color: var(--navy);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .panel-header {
@@ -213,18 +215,18 @@ input {
 .empty-state {
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 4px;
   background: white;
   color: var(--muted);
 }
 
 .alert-panel {
-  border-color: #f0caca;
+  border-color: #e8b4b4;
   color: var(--danger);
 }
 
 .success-panel {
-  border-color: #cfe6d8;
+  border-color: #b4d4c2;
   color: var(--success);
 }
 
@@ -265,24 +267,24 @@ input {
 .field-label textarea {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: #fbfcfb;
+  border-radius: 4px;
+  padding: 9px 12px;
+  background: var(--card);
   color: var(--text);
   font: inherit;
   font-weight: 400;
 }
 
 .field-label textarea {
-  min-height: 160px;
+  min-height: 120px;
   resize: vertical;
 }
 
 .field-label input:focus,
 .field-label select:focus,
 .field-label textarea:focus {
-  outline: 3px solid rgba(156, 175, 159, 0.35);
-  border-color: var(--sage);
+  outline: none;
+  border-color: var(--navy);
 }
 
 .checkbox-label {
@@ -297,10 +299,10 @@ input {
 .billing-service-grid {
   display: grid;
   gap: 12px;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fbfcfb;
+  border-radius: 4px;
+  background: var(--card);
 }
 
 .billing-row-grid {
@@ -314,8 +316,8 @@ input {
 .agenda-card {
   display: grid;
   grid-template-columns: 150px 1fr auto;
-  gap: 20px;
-  padding: 18px;
+  gap: 16px;
+  padding: 16px;
   align-items: center;
 }
 
@@ -334,10 +336,10 @@ input {
 }
 
 .stack-item {
-  padding: 14px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fbfcfb;
+  border-radius: 4px;
+  background: var(--card);
 }
 
 .stack-row {
@@ -355,10 +357,10 @@ input {
 }
 
 .provider-card {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #fbfcfb;
+  border-radius: 6px;
+  background: var(--card);
 }
 
 .provider-card-header {
@@ -398,21 +400,21 @@ input {
 }
 
 .note-editor-shell textarea {
-  min-height: 150px;
+  min-height: 120px;
   resize: vertical;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 4px;
+  padding: 10px 12px;
   color: var(--text);
-  background: #fbfcfb;
+  background: var(--card);
   font: inherit;
   font-weight: 400;
   line-height: 1.5;
 }
 
 .note-editor-shell textarea:focus {
-  outline: 3px solid rgba(156, 175, 159, 0.35);
-  border-color: var(--sage);
+  outline: none;
+  border-color: var(--navy);
 }
 
 .status-row {
@@ -427,13 +429,13 @@ input {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  min-height: 28px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #f0f2f5;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #eef0f3;
   color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -469,10 +471,10 @@ input {
   gap: 12px;
   align-items: end;
   flex-wrap: wrap;
-  margin: 20px 0;
-  padding: 16px;
+  margin: 16px 0;
+  padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 6px;
   background: var(--card);
 }
 
@@ -491,12 +493,12 @@ input {
 
 .workqueue-list-item {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fbfcfb;
+  border-radius: 4px;
+  background: var(--card);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -504,7 +506,7 @@ input {
 
 .workqueue-list-item:hover,
 .workqueue-list-item.selected {
-  border-color: var(--sage);
+  border-color: var(--navy);
   background: var(--sage-soft);
 }
 
@@ -525,9 +527,9 @@ input {
   max-height: 420px;
   overflow: auto;
   margin: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 4px;
   background: #0f172a;
   color: #e2e8f0;
   font-size: 13px;
