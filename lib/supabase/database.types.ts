@@ -202,6 +202,8 @@ export type Database = {
           mode: string | null;
           is_active: boolean;
           created_at: string | null;
+          eligibility_service_type_code: string | null;
+          eligibility_transaction_set: string | null;
         }>;
       clearinghouse_response_events: TableDef<{
           id: string;
@@ -443,6 +445,14 @@ export type Database = {
           event_summary: string | null;
           event_metadata: Json | null;
           created_at: string | null;
+          // Medplum-style fields added in migration 20260514000000
+          user_id: string | null;
+          user_role: string | null;
+          action: string | null;
+          object_type: string | null;
+          object_id: string | null;
+          before_value: Json | null;
+          after_value: Json | null;
         }>;
       organization_members: TableDef<{
           id: string;

@@ -345,17 +345,34 @@ export interface ClaimAdjustment {
 }
 
 export type WorkqueueType =
+  // AR Aging buckets
   | "no_response"
+  | "aging_0_30"
+  | "aging_31_60"
+  | "aging_61_90"
+  | "aging_91_120"
+  | "aging_120_plus"
+  // Payer response
+  | "denied"
+  | "clearinghouse_rejection"
+  | "payer_rejection"
+  | "appeal_needed"
+  | "recoupment"
+  // Eligibility
   | "eligibility_issue"
+  | "eligibility_needed"
+  // ERA
+  | "era_mismatch"
+  // Billing
+  | "ready_to_bill"
+  | "biller_review"
+  // Legacy (kept for backwards compat)
   | "rejection"
   | "denial"
   | "authorization_needed"
-  | "appeal_needed"
   | "underpayment"
   | "patient_balance"
-  | "documentation_hold"
-  | "ready_to_bill"
-  | "biller_review";
+  | "documentation_hold";
 
 export interface WorkqueueItem {
   id: ID;
