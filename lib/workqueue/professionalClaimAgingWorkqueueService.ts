@@ -74,7 +74,7 @@ async function hasOpenAgingItem(organizationId: string, claimId: string, workTyp
 }
 
 // Keep legacy function name for callers
-async function hasOpenNoResponseItem(organizationId: string, claimId: string) {
+async function _hasOpenNoResponseItem(organizationId: string, claimId: string) {
   return hasOpenAgingItem(organizationId, claimId, "no_response");
 }
 

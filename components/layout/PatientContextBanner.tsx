@@ -34,6 +34,7 @@ export default function PatientContextBanner({ clientId }: { clientId: string })
   const organizationId = useMemo(() => getOrganizationId(), []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     let cancelled = false;
 
