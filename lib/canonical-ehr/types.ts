@@ -363,6 +363,8 @@ export type WorkqueueType =
   | "eligibility_needed"
   // ERA
   | "era_mismatch"
+  | "era_unmatched_claim"
+  | "era_recoupment_review"
   // Billing
   | "ready_to_bill"
   | "biller_review"

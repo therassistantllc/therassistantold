@@ -186,6 +186,8 @@ export default function WorkqueueClient() {
             </optgroup>
             <optgroup label="ERA">
               <option value="era_mismatch">ERA Mismatch</option>
+              <option value="era_unmatched_claim">ERA Unmatched Claim</option>
+              <option value="era_recoupment_review">ERA Recoupment Review</option>
             </optgroup>
             <optgroup label="Billing">
               <option value="ready_to_bill">Ready to Bill</option>

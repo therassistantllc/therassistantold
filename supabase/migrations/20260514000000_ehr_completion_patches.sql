@@ -77,10 +77,12 @@ insert into public.workqueue_type_catalog (work_type, label, category, aging_day
   ('eligibility_issue',      'Eligibility Issue',         'eligibility',    null, null, 10),
   ('eligibility_needed',     'Eligibility Needed',        'eligibility',    null, null, 11),
   ('era_mismatch',           'ERA Mismatch',              'era',            null, null, 12),
-  ('appeal_needed',          'Appeal Needed',             'payer_response', null, null, 13),
-  ('recoupment',             'Recoupment',                'payer_response', null, null, 14),
-  ('ready_to_bill',          'Ready to Bill',             'billing',        null, null, 15),
-  ('biller_review',          'Biller Review',             'billing',        null, null, 16)
+  ('era_unmatched_claim',    'ERA Unmatched Claim',       'era',            null, null, 13),
+  ('era_recoupment_review',  'ERA Recoupment Review',     'era',            null, null, 14),
+  ('appeal_needed',          'Appeal Needed',             'payer_response', null, null, 15),
+  ('recoupment',             'Recoupment',                'payer_response', null, null, 16),
+  ('ready_to_bill',          'Ready to Bill',             'billing',        null, null, 17),
+  ('biller_review',          'Biller Review',             'billing',        null, null, 18)
 on conflict (work_type) do nothing;
 
 -- ─── 6. workqueue_items: add work_type FK (soft constraint via catalog) ───────
