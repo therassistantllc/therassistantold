@@ -1,6 +1,6 @@
 // File: app/layout.tsx
 import type { Metadata } from "next";
-import EhrTopNav from "@/components/layout/EhrTopNav";
+import AppShell from "@/components/layout/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,8 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <EhrTopNav />
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
