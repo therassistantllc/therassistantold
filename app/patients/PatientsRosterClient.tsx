@@ -110,33 +110,50 @@ export default function PatientsRosterClient() {
       </section>
 
       <section className="panel">
-        <h2>Roster</h2>
+        <div className="panel-header">
+          <h2 style={{ margin: 0 }}>Roster</h2>
+        </div>
         {loading ? <div className="empty-state">Loading clients…</div> : null}
         {!loading && clients.length === 0 ? <div className="empty-state">No clients found.</div> : null}
 
-        <div className="stack-list">
-          {clients.map((client) => (
-            <article className="stack-item" key={client.id}>
-              <div className="stack-row">
-                <div>
-                  <strong>{client.name}</strong>
-                  <span>{String(client.email ?? "No email")} · {String(client.phone ?? "No phone")}</span>
-                  <span>Preferred: {String(client.preferredName ?? "Not listed")}</span>
-                </div>
-                <div className="invoice-money-grid">
-                  <span className={statusClass(client.status)}>{String(client.status ?? "active")}</span>
-                  <span className={statusClass(client.intakeStatus)}>{String(client.intakeStatus ?? "intake not set")}</span>
-                  <span>Balance {formatMoney(client.openBalance)}</span>
-                </div>
-              </div>
-              <div className="section-actions">
-                <Link className="button button-secondary" href={`/patients/${client.id}`}>Open Chart</Link>
-                <Link className="button button-secondary" href={`/patients/${client.id}/balance`}>Ledger & Stripe</Link>
-                <Link className="button button-secondary" href={`/workqueue/new?clientId=${client.id}`}>Route to Biller</Link>
-              </div>
-            </article>
-          ))}
-        </div>
+        {clients.length > 0 ? (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Intake</th>
+                <th style={{ textAlign: "right" }}>Balance</th>
+                <th className="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((client) => (
+                <tr key={client.id}>
+                  <td>
+                    <strong>{client.name}</strong>
+                    {client.preferredName ? <span style={{ display: "block", color: "var(--muted)", fontSize: "12px" }}>Preferred: {String(client.preferredName)}</span> : null}
+                  </td>
+                  <td style={{ color: "var(--muted)", fontSize: "13px" }}>
+                    <span style={{ display: "block" }}>{String(client.email ?? "No email")}</span>
+                    <span style={{ display: "block" }}>{String(client.phone ?? "No phone")}</span>
+                  </td>
+                  <td><span className={statusClass(client.status)}>{String(client.status ?? "active")}</span></td>
+                  <td><span className={statusClass(client.intakeStatus)}>{String(client.intakeStatus ?? "not set")}</span></td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatMoney(client.openBalance)}</td>
+                  <td className="col-actions">
+                    <div className="hero-actions">
+                      <Link className="button button-secondary" href={`/patients/${client.id}`}>Chart</Link>
+                      <Link className="button button-secondary" href={`/patients/${client.id}/balance`}>Ledger</Link>
+                      <Link className="button button-secondary" href={`/workqueue/new?clientId=${client.id}`}>Route</Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
       </section>
     </main>
   );
