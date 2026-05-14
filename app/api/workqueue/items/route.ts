@@ -77,7 +77,6 @@ export async function GET(request: Request) {
         source_object_type,
         source_object_id,
         client_id,
-        appointment_id,
         encounter_id,
         claim_id,
         professional_claim_id,

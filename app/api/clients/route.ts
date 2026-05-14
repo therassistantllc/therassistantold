@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     const { data: clients, error } = await supabase
       .from("clients")
-      .select("id, first_name, last_name, preferred_name, email, phone, client_status, intake_status, updated_at")
+      .select("id, first_name, last_name, preferred_name, email, phone, archived_at, deceased_at, updated_at")
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("last_name", { ascending: true })
@@ -70,8 +70,8 @@ export async function GET(request: Request) {
       preferredName: client.preferred_name ?? null,
       email: client.email ?? null,
       phone: client.phone ?? null,
-      status: client.client_status ?? "active",
-      intakeStatus: client.intake_status ?? null,
+      status: client.deceased_at ? "deceased" : "active",
+      intakeStatus: null,
       openBalance: balances.get(value(client.id)) ?? 0,
       updatedAt: client.updated_at ?? null,
     }));
