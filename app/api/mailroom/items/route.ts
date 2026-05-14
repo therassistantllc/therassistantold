@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     const { error: workqueueError } = await supabase.from("workqueue_items").insert({
       organization_id: organizationId,
       title: `Mailroom review - ${fileName}`,
-      description,
+      description: notes,
       work_type: "mailroom_review",
       status: "open",
       priority: "normal",
