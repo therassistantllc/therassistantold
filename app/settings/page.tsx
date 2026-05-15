@@ -3,38 +3,53 @@ import Link from "next/link";
 const SETTINGS_SECTIONS = [
   {
     label: "Organization Settings",
-    href: "#",
+    href: "/settings/organization",
     description: "Practice name, address, NPI, tax ID, and billing configuration.",
   },
   {
     label: "Staff & Users",
-    href: "#",
+    href: "/settings/security",
     description: "Manage staff accounts, roles, and access permissions.",
   },
   {
     label: "Provider Credentialing",
-    href: "/admin/provider-credentialing",
+    href: "/settings/providers",
     description: "Credentialing profiles, payer enrollments, and network status.",
   },
   {
     label: "Clearinghouse / Office Ally",
-    href: "/admin/provider-credentialing",
+    href: "/settings/clearinghouse",
     description: "Clearinghouse connection settings and test submission tools.",
   },
   {
+    label: "Payer Profiles",
+    href: "/settings/payers",
+    description: "Payer IDs, enrollment status, and Office Ally payer mappings.",
+  },
+  {
+    label: "Service Locations",
+    href: "/settings/service-locations",
+    description: "Practice locations, place-of-service codes, and NPI assignments.",
+  },
+  {
     label: "Billing Defaults",
-    href: "#",
+    href: "/settings/billing-defaults",
     description: "Default diagnosis codes, fee schedules, and billing rules.",
   },
   {
     label: "Security",
-    href: "#",
+    href: "/settings/security",
     description: "Password policy, two-factor authentication, and audit logs.",
   },
   {
     label: "Mail Room Settings",
-    href: "/mailroom",
+    href: "/settings/mailroom",
     description: "Mail routing rules, document categories, and filing workflows.",
+  },
+  {
+    label: "System Readiness",
+    href: "/settings/system-readiness",
+    description: "Configuration checklist — verify the system is ready to generate and submit claims.",
   },
 ];
 
