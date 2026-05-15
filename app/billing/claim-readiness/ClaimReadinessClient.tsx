@@ -88,6 +88,29 @@ export default function ClaimReadinessClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
+  async function checkClaimStatus(item: ClaimReadinessItem) {
+    if (!item.claim?.id || !item.clientId) return;
+    const claimId = item.claim.id;
+    setClaimStatusChecking((prev) => ({ ...prev, [claimId]: true }));
+    setClaimStatusResults((prev) => ({ ...prev, [claimId]: "" }));
+    try {
+      const response = await fetch("/api/clearinghouse/office-ally/claim-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, clientId: item.clientId, claimId }),
+      });
+      const json = (await response.json()) as { success: boolean; error?: string };
+      setClaimStatusResults((prev) => ({
+        ...prev,
+        [claimId]: json.success ? "Claim status submitted" : (json.error ?? "Claim status check failed"),
+      }));
+    } catch {
+      setClaimStatusResults((prev) => ({ ...prev, [claimId]: "Claim status check failed" }));
+    } finally {
+      setClaimStatusChecking((prev) => ({ ...prev, [claimId]: false }));
+    }
+  }
+
   async function create837PBatch() {
     setBatching(true);
     setError(null);
@@ -171,6 +194,19 @@ export default function ClaimReadinessClient() {
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}`}>Open Note</Link>
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}/billing`}>Billing Details</Link>
                 {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Patient Chart</Link> : null}
+                {item.claim?.id && item.clientId ? (
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={claimStatusChecking[item.claim.id]}
+                    onClick={() => void checkClaimStatus(item)}
+                  >
+                    {claimStatusChecking[item.claim.id] ? "Checking…" : "Check Claim Status"}
+                  </button>
+                ) : null}
+                {item.claim?.id && claimStatusResults[item.claim.id] ? (
+                  <span className="status muted-text">{claimStatusResults[item.claim.id]}</span>
+                ) : null}
               </div>
             </article>
           ))}
