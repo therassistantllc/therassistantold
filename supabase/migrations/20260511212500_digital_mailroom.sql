@@ -37,7 +37,7 @@ create table if not exists public.mailroom_items (
 );
 
 create index if not exists idx_mailroom_items_status
-  on public.mailroom_items (organization_id, mail_status, priority, created_at desc)
+  on public.mailroom_items (organization_id, status, created_at desc)
   where archived_at is null;
 
 create index if not exists idx_mailroom_items_client
