@@ -137,6 +137,30 @@ export default function WorkqueueClient() {
     setActing(false);
   }
 
+  async function checkClaimStatus(item: WorkqueueItem) {
+    if (!item.claimId || !item.clientId) return;
+    setClaimStatusChecking(true);
+    setClaimStatusResult(null);
+    try {
+      const response = await fetch("/api/clearinghouse/office-ally/claim-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          clientId: item.clientId,
+          claimId: item.claimId,
+          request: null,
+        }),
+      });
+      const json = (await response.json()) as { success: boolean; error?: string };
+      setClaimStatusResult(json.success ? "Claim status submitted" : (json.error ?? "Claim status check failed"));
+    } catch {
+      setClaimStatusResult("Claim status check failed");
+    } finally {
+      setClaimStatusChecking(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-panel">
