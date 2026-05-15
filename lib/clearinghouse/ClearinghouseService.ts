@@ -1,6 +1,6 @@
 // File: lib/clearinghouse/ClearinghouseService.ts
 import { MockClearinghouseAdapter } from "@/lib/clearinghouse/MockClearinghouseAdapter";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient as createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import type {
   ClaimStatusCheck,
   ClaimStatusRequestInput,

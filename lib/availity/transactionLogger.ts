@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient as createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 
 /**
  * Sensitive key patterns to redact from headers and request/response bodies
