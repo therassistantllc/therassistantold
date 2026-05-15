@@ -25,7 +25,7 @@ function money(value: unknown, fallback = "0.00") {
 }
 
 async function createWorkqueueItem(
-  supabase: SupabaseClient<Database>,
+  supabase: SupabaseClient,
   input: {
     organization_id: string;
     title: string;
