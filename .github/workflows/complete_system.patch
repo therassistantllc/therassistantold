@@ -1,0 +1,98 @@
+*** Begin Patch
+*** Add File: supabase/migrations/20260515100000_fix_mailroom_index.sql
++-- Migration to fix incorrect index on mailroom_items
++-- Drops the invalid index referencing non-existent 'status' column and creates a correct index on 'mail_status'
++
++drop index if exists public.idx_mailroom_items_status;
++
++create index if not exists idx_mailroom_items_mail_status
++  on public.mailroom_items (organization_id, mail_status, created_at desc)
++  where archived_at is null;
++
++-- notify pgrst to reload schema so API reflects changes
++select pg_notify('pgrst', 'reload schema');
+
+*** End Patch
+
+*** Begin Patch
+*** Update File: lib/workqueue/workqueueActionService.ts
+@@
+ import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+@@
+ async function addComment(params: {
+@@
+   if (error) throw new Error(error.message);
+ }
++
++/**
++ * Create a billing alert for workqueue items. These alerts are used for billing
++ * reporting and downstream workflows. Alerts are created when workqueue items
++ * are deferred or resolved so that billing reports capture these actions.
++ */
++async function createBillingAlert(params: {
++  organizationId: string;
++  workqueueItemId: string;
++  alertType: string;
++  title: string;
++  description: string | null;
++  severity?: string;
++  alertStatus?: string;
++  dueDate?: string | null;
++  userId?: string | null;
++}) {
++  const supabase = createServerSupabaseAdminClient();
++  if (!supabase) throw new Error("Database connection not available");
++  const severity = params.severity ?? "info";
++  const alertStatus = params.alertStatus ?? "open";
++  const { error } = await supabase.from("billing_alerts").insert({
++    organization_id: params.organizationId,
++    workqueue_item_id: params.workqueueItemId,
++    alert_type: params.alertType,
++    severity,
++    alert_status: alertStatus,
++    title: params.title,
++    description: params.description,
++    due_date: params.dueDate ?? null,
++    created_at: new Date().toISOString(),
++    updated_at: new Date().toISOString(),
++    context_payload: {},
++  });
++  if (error) throw new Error(error.message);
++}
+@@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<WorkqueueActionResult> {
+@@
+   await addComment({
+@@
+   });
++
++  // Create a billing alert for the deferred workqueue item
++  await createBillingAlert({
++    organizationId: input.organizationId,
++    workqueueItemId: input.workqueueItemId,
++    alertType: "defer",
++    title: "Workqueue item deferred",
++    description: input.deferReason ?? input.comment ?? null,
++    severity: "info",
++    alertStatus: "open",
++    dueDate: deferredDate.toISOString(),
++    userId: input.userId ?? null,
++  });
+@@ export async function resolveWorkqueueItem(input: WorkqueueActionInput): Promise<WorkqueueActionResult> {
+@@
+   await addComment({
+@@
+   });
++
++  // Create a billing alert for the resolved workqueue item
++  await createBillingAlert({
++    organizationId: input.organizationId,
++    workqueueItemId: input.workqueueItemId,
++    alertType: "resolution",
++    title: "Workqueue item resolved",
++    description: input.comment ?? null,
++    severity: "info",
++    alertStatus: "resolved",
++    dueDate: null,
++    userId: input.userId ?? null,
++  });
+*** End Patch
