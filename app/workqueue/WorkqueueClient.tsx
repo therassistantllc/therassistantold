@@ -72,6 +72,8 @@ export default function WorkqueueClient() {
   const [comment, setComment] = useState("");
   const [deferDays, setDeferDays] = useState("3");
   const [acting, setActing] = useState(false);
+  const [claimStatusResult, setClaimStatusResult] = useState<string | null>(null);
+  const [claimStatusChecking, setClaimStatusChecking] = useState(false);
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
