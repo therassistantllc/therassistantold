@@ -200,6 +200,27 @@ export async function createProfessionalClaimDraft(
   addRequired(errors, "billing_provider.name", input.billingProvider.name, "Billing provider name is required");
   addRequired(errors, "billing_provider.npi", input.billingProvider.npi, "Billing provider NPI is required");
   addRequired(errors, "billing_provider.tax_id", input.billingProvider.taxId, "Billing provider tax ID is required");
+  addRequired(errors, "billing_provider.address1", input.billingProvider.address1, "Billing provider address is required");
+  addRequired(errors, "billing_provider.city", input.billingProvider.city, "Billing provider city is required");
+  addRequired(errors, "billing_provider.state", input.billingProvider.state, "Billing provider state is required");
+  addRequired(errors, "billing_provider.zip", input.billingProvider.zip, "Billing provider ZIP is required");
+
+  // Format gates — block claim creation if format is invalid
+  const npiVal = normalizeText(input.billingProvider.npi);
+  if (npiVal && !/^\d{10}$/.test(npiVal)) {
+    errors.push({ field: "billing_provider.npi", message: "Billing provider NPI must be exactly 10 digits" });
+  }
+  const stateVal = normalizeText(input.billingProvider.state);
+  if (stateVal && !/^[A-Z]{2}$/.test(stateVal)) {
+    errors.push({ field: "billing_provider.state", message: "Billing provider state must be a valid 2-character state code (e.g. CA, NY)" });
+  }
+  const zipVal = normalizeText(input.billingProvider.zip);
+  if (zipVal && !/^\d{5}(?:-\d{4})?$/.test(zipVal)) {
+    errors.push({ field: "billing_provider.zip", message: "Billing provider ZIP must be 5 or 9 digits (e.g. 12345 or 12345-6789)" });
+  }
+  if (input.billingProvider.address1 && /^p\.?\s*o\.?\s*box/i.test(normalizeText(input.billingProvider.address1))) {
+    errors.push({ field: "billing_provider.address1", message: "Billing provider address must be a street address, not a PO Box" });
+  }
 
   if (!input.diagnosisCodes.length) {
     errors.push({ field: "diagnosis_codes", message: "At least one diagnosis code is required" });
@@ -479,6 +500,24 @@ export async function validateProfessionalClaimReadiness(
     // Patient DOB is required
     if (!(snapshot as DbRecord).patient_is_subscriber) {
       addRequired(errors, "claim_parties_snapshot.patient_dob", (snapshot as DbRecord).patient_dob, "Patient date of birth is required");
+    }
+
+    // NPI format: billing provider NPI must be exactly 10 digits
+    const billingNpi = normalizeText((snapshot as DbRecord).billing_provider_npi);
+    if (billingNpi && !/^\d{10}$/.test(billingNpi)) {
+      errors.push({ field: "claim_parties_snapshot.billing_provider_npi", message: "Billing provider NPI must be exactly 10 digits" });
+    }
+
+    // NPI format: rendering provider NPI when present
+    const renderingNpi = normalizeText((snapshot as DbRecord).rendering_provider_npi);
+    if (renderingNpi && !/^\d{10}$/.test(renderingNpi)) {
+      errors.push({ field: "claim_parties_snapshot.rendering_provider_npi", message: "Rendering provider NPI must be exactly 10 digits" });
+    }
+
+    // PO Box is not permitted for billing provider address per 837P spec
+    const billingAddr = normalizeText((snapshot as DbRecord).billing_provider_address1);
+    if (billingAddr && /^p\.?\s*o\.?\s*box/i.test(billingAddr)) {
+      errors.push({ field: "claim_parties_snapshot.billing_provider_address1", message: "Billing provider address must be a street address, not a PO Box" });
     }
   }
 

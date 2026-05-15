@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import type { EligibilityCheckResponse } from "@/types/integrations";
+import { resolveBillingProviderIdentity } from "@/lib/providers/providerBillingIdentity";
 
 function generateUuid() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -149,6 +150,11 @@ export async function POST(request: Request) {
     const orgId = eligibilityCheck.organization_id;
     const now = new Date().toISOString();
 
+    // Resolve actual provider NPI from canonical credentialing profile
+    const billingId = await resolveBillingProviderIdentity({ organizationId: orgId });
+    const providerNpi = billingId.billingProvider?.npi ?? "0000000000";
+    const providerName = (billingId.billingProvider?.name ?? "PROVIDER").toUpperCase().slice(0, 35);
+
     // Get Office Ally clearinghouse connection
     const { data: connection } = await supabase
       .from("clearinghouse_connections")
@@ -194,7 +200,7 @@ BHT*0022*13*${eligibilityCheck.id}*${now.slice(0, 8)}*${now.slice(11, 19)}~
 HL*1**20*1~
 NM1*PR*2*MOCK PAYER*****PI*MOCKPAYER~
 HL*2*1*21*1~
-NM1*1P*2*PROVIDER*****XX*1234567890~
+NM1*1P*2*${providerName}*****XX*${providerNpi}~
 HL*3*2*22*0~
 TRN*1*${eligibilityCheck.id}~
 NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.client_id}~
@@ -211,7 +217,7 @@ BHT*0022*11*${eligibilityCheck.id}*${now.slice(0, 8)}*${now.slice(11, 19)}~
 HL*1**20*1~
 NM1*PR*2*MOCK INSURANCE*****PI*MOCKPAYER~
 HL*2*1*21*1~
-NM1*1P*2*PROVIDER*****XX*1234567890~
+NM1*1P*2*${providerName}*****XX*${providerNpi}~
 HL*3*2*22*0~
 TRN*2*${eligibilityCheck.id}~
 NM1*IL*1*DOE*JOHN****MI*${eligibilityCheck.client_id}~
