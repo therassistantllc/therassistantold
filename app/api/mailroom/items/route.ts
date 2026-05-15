@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
     const status = searchParams.get("status") || "pending";
+    const clientId = searchParams.get("clientId") || null;
     const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 100);
 
     if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
       .limit(limit);
 
     if (status !== "all") query = query.eq("status", status);
+    if (clientId) query = query.eq("client_id", clientId);
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 422 });
