@@ -9343,6 +9343,7 @@ export type Database = {
         Row: {
           id: string
           organization_id: string
+          auth_user_id: string | null
           first_name: string
           last_name: string
           email: string
@@ -9358,6 +9359,7 @@ export type Database = {
         Insert: {
           id?: string
           organization_id: string
+          auth_user_id?: string | null
           first_name: string
           last_name: string
           email: string
@@ -9373,6 +9375,7 @@ export type Database = {
         Update: {
           id?: string
           organization_id?: string
+          auth_user_id?: string | null
           first_name?: string
           last_name?: string
           email?: string
