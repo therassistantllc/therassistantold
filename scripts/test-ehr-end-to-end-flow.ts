@@ -298,7 +298,7 @@ async function run() {
 
   // ── Step 14: Clearinghouse transaction (EDI) ──────────────────────────────
   console.log("\nStep 14: Clearinghouse transaction (edi_transactions)");
-  const ediTxn = await insertRow<{ id: string }>(
+  await insertRow<{ id: string }>(
     "edi_transactions",
     {
       organization_id: orgId,
