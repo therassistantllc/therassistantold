@@ -39,18 +39,24 @@ export default function ClientMailroomPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!clientId || !orgId) { setLoading(false); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
-    const params = new URLSearchParams({ organizationId: orgId, clientId, limit: "50", status: "all" });
-    fetch(`/api/mailroom/items?${params.toString()}`, { cache: "no-store" })
-      .then((r) => r.json() as Promise<{ success: boolean; items?: MailroomItem[]; error?: string }>)
-      .then((json) => {
+    if (!clientId || !orgId) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const qp = new URLSearchParams({ organizationId: orgId, clientId, limit: "50", status: "all" });
+        const r = await fetch(`/api/mailroom/items?${qp.toString()}`, { cache: "no-store" });
+        const json = await r.json() as { success: boolean; items?: MailroomItem[]; error?: string };
+        if (cancelled) return;
         if (!json.success) throw new Error(json.error ?? "Failed");
         setItems(json.items ?? []);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, [clientId, orgId]);
 
   const orgQ = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : "";

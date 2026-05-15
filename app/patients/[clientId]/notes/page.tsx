@@ -41,17 +41,23 @@ export default function NotesPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!clientId || !orgId) { setLoading(false); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
-    fetch(`/api/patients/${clientId}/notes?organizationId=${encodeURIComponent(orgId)}`, { cache: "no-store" })
-      .then((r) => r.json() as Promise<{ success: boolean; notes?: NoteItem[]; error?: string }>)
-      .then((json) => {
+    if (!clientId || !orgId) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const r = await fetch(`/api/patients/${clientId}/notes?organizationId=${encodeURIComponent(orgId)}`, { cache: "no-store" });
+        const json = await r.json() as { success: boolean; notes?: NoteItem[]; error?: string };
+        if (cancelled) return;
         if (!json.success) throw new Error(json.error ?? "Failed");
         setNotes(json.notes ?? []);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, [clientId, orgId]);
 
   const orgQ = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : "";
