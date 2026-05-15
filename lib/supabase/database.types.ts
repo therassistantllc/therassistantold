@@ -245,6 +245,8 @@ export type Database = {
           resolved_by: string | null;
           resolved_at: string | null;
           context_payload: Json | null;
+          billing_alert_id: string | null;
+          ticket_id: string | null;
           created_at: string | null;
           updated_at: string | null;
           archived_at: string | null;

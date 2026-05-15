@@ -26,6 +26,9 @@ export interface WorkqueueActionResult {
 type WorkqueueItem = {
   id: string;
   status: string;
+  client_id: string | null;
+  claim_id: string | null;
+  encounter_id: string | null;
 };
 
 async function loadWorkqueueItem(organizationId: string, workqueueItemId: string) {
@@ -34,7 +37,7 @@ async function loadWorkqueueItem(organizationId: string, workqueueItemId: string
 
   const { data, error } = await supabase
     .from("workqueue_items")
-    .select("id, status")
+    .select("id, status, client_id, claim_id, encounter_id")
     .eq("organization_id", organizationId)
     .eq("id", workqueueItemId)
     .is("archived_at", null)
@@ -42,6 +45,50 @@ async function loadWorkqueueItem(organizationId: string, workqueueItemId: string
 
   if (error) throw new Error(error.message);
   return data as WorkqueueItem | null;
+}
+
+async function createBillingAlert(params: {
+  organizationId: string;
+  workqueueItemId: string;
+  clientId?: string | null;
+  claimId?: string | null;
+  encounterId?: string | null;
+  alertType: string;
+  severity: "info" | "warning" | "critical";
+  alertStatus: "open" | "acknowledged" | "resolved" | "dismissed";
+  title: string;
+  description?: string | null;
+}): Promise<string | null> {
+  const supabase = createServerSupabaseAdminClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("billing_alerts")
+    .insert({
+      organization_id: params.organizationId,
+      workqueue_item_id: params.workqueueItemId,
+      client_id: params.clientId ?? null,
+      claim_id: params.claimId ?? null,
+      encounter_id: params.encounterId ?? null,
+      alert_type: params.alertType,
+      severity: params.severity,
+      alert_status: params.alertStatus,
+      title: params.title,
+      description: params.description ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) return null;
+
+  // Link the billing alert back to the workqueue item
+  await supabase
+    .from("workqueue_items")
+    .update({ billing_alert_id: data.id, updated_at: new Date().toISOString() })
+    .eq("organization_id", params.organizationId)
+    .eq("id", params.workqueueItemId);
+
+  return data.id;
 }
 
 async function addComment(params: {
@@ -164,6 +211,19 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
     userId: input.userId ?? null,
   });
 
+  await createBillingAlert({
+    organizationId: input.organizationId,
+    workqueueItemId: input.workqueueItemId,
+    clientId: item.client_id,
+    claimId: item.claim_id,
+    encounterId: item.encounter_id,
+    alertType: "other",
+    severity: "info",
+    alertStatus: "open",
+    title: "Workqueue item deferred",
+    description: input.deferReason ?? input.comment ?? `Deferred until ${deferredDate.toISOString()}`,
+  });
+
   return { ok: true, workqueueItemId: input.workqueueItemId, status: item.status, errors: [] };
 }
 
@@ -193,6 +253,19 @@ export async function resolveWorkqueueItem(input: WorkqueueActionInput): Promise
     commentBody: input.comment ?? "Resolved workqueue item",
     commentType: "resolution",
     userId: input.userId ?? null,
+  });
+
+  await createBillingAlert({
+    organizationId: input.organizationId,
+    workqueueItemId: input.workqueueItemId,
+    clientId: item.client_id,
+    claimId: item.claim_id,
+    encounterId: item.encounter_id,
+    alertType: "other",
+    severity: "info",
+    alertStatus: "resolved",
+    title: "Workqueue item resolved",
+    description: input.comment ?? "Workqueue item marked as resolved",
   });
 
   return { ok: true, workqueueItemId: input.workqueueItemId, status: "resolved", errors: [] };
