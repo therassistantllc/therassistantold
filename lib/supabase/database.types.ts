@@ -9201,6 +9201,288 @@ export type Database = {
         }
         Relationships: []
       }
+      client_payments: {
+        Row: {
+          id: string
+          organization_id: string
+          client_id: string
+          claim_id: string | null
+          payment_method: string
+          amount: number
+          reference_number: string | null
+          note: string | null
+          posted_at: string
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          client_id: string
+          claim_id?: string | null
+          payment_method: string
+          amount: number
+          reference_number?: string | null
+          note?: string | null
+          posted_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          client_id?: string
+          claim_id?: string | null
+          payment_method?: string
+          amount?: number
+          reference_number?: string | null
+          note?: string | null
+          posted_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      insurance_manual_payments: {
+        Row: {
+          id: string
+          organization_id: string
+          claim_id: string
+          client_id: string
+          eob_reference: string | null
+          allowed_amount: number
+          paid_amount: number
+          adjustment_amount: number
+          patient_responsibility_amount: number
+          note: string | null
+          posted_at: string
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          claim_id: string
+          client_id: string
+          eob_reference?: string | null
+          allowed_amount?: number
+          paid_amount?: number
+          adjustment_amount?: number
+          patient_responsibility_amount?: number
+          note?: string | null
+          posted_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          claim_id?: string
+          client_id?: string
+          eob_reference?: string | null
+          allowed_amount?: number
+          paid_amount?: number
+          adjustment_amount?: number
+          patient_responsibility_amount?: number
+          note?: string | null
+          posted_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      payment_applications: {
+        Row: {
+          id: string
+          organization_id: string
+          payment_kind: string
+          payment_source_id: string
+          client_id: string
+          claim_id: string | null
+          applied_amount: number
+          applied_at: string
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          payment_kind: string
+          payment_source_id: string
+          client_id: string
+          claim_id?: string | null
+          applied_amount: number
+          applied_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          payment_kind?: string
+          payment_source_id?: string
+          client_id?: string
+          claim_id?: string | null
+          applied_amount?: number
+          applied_at?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      staff_profiles: {
+        Row: {
+          id: string
+          organization_id: string
+          first_name: string
+          last_name: string
+          email: string
+          phone: string | null
+          job_title: string | null
+          provider_npi: string | null
+          is_active: boolean
+          staff_status: string | null
+          archived_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          first_name: string
+          last_name: string
+          email: string
+          phone?: string | null
+          job_title?: string | null
+          provider_npi?: string | null
+          is_active?: boolean
+          staff_status?: string | null
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          first_name?: string
+          last_name?: string
+          email?: string
+          phone?: string | null
+          job_title?: string | null
+          provider_npi?: string | null
+          is_active?: boolean
+          staff_status?: string | null
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff_roles: {
+        Row: {
+          id: string
+          organization_id: string
+          role_code: string
+          role_name: string
+          description: string | null
+          is_default: boolean
+          display_order: number | null
+          archived_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          role_code: string
+          role_name: string
+          description?: string | null
+          is_default?: boolean
+          display_order?: number | null
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          role_code?: string
+          role_name?: string
+          description?: string | null
+          is_default?: boolean
+          display_order?: number | null
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff_role_permissions: {
+        Row: {
+          id: string
+          organization_id: string
+          staff_role_id: string
+          permission_code: string
+          archived_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          staff_role_id: string
+          permission_code: string
+          archived_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          staff_role_id?: string
+          permission_code?: string
+          archived_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      staff_role_assignments: {
+        Row: {
+          id: string
+          organization_id: string
+          staff_id: string
+          staff_role_id: string
+          archived_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          staff_id: string
+          staff_role_id: string
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          staff_id?: string
+          staff_role_id?: string
+          archived_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       appointment_eligibility_status: {
