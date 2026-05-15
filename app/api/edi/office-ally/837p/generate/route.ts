@@ -354,7 +354,7 @@ export async function POST(request: Request) {
     }
 
     const { error: linkError } = await supabase.from("edi_batch_claims").insert({
-      edi_batch_id: (batchRow as Record<string, unknown>).id,
+      edi_batch_id: (batchRow as Record<string, unknown>).id as string,
       claim_id: claimId,
       created_at: new Date().toISOString(),
     });
