@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient, createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 
 const BILLING_PROFILE_KEY = "organization.billing_profile";
 
