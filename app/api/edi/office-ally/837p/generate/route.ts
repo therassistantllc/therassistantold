@@ -367,7 +367,7 @@ export async function POST(request: Request) {
       .from("professional_claims")
       .update({
         claim_status: "batched",
-        validation_errors: validation.warnings,
+        validation_errors: validation.warnings as unknown as import("@/lib/supabase/database.types").Json,
         last_validated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
