@@ -11,7 +11,7 @@ async function main() {
     organization_id: "11111111-1111-1111-1111-111111111111",
     client_id: "00000000-0000-0000-0000-000000000099",
     contact_type: "emergency",
-    name: "Test Contact",
+    contact_name: "Test Contact",
     phone: "555-0000",
   }).select("id").single();
   console.log("client_contacts insert result:", JSON.stringify({ code: ccInsErr?.code, msg: ccInsErr?.message }));
