@@ -179,6 +179,42 @@ create policy patient_diagnoses_org_policy on public.patient_diagnoses
   with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 5b: provider_profiles (prerequisite for FK references below)
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.provider_profiles (
+  id                              uuid        primary key default gen_random_uuid(),
+  organization_id                 uuid        not null references public.organizations(id) on delete cascade,
+  staff_id                        uuid,
+  provider_npi                    text,
+  provider_type                   text,
+  specialty                       text,
+  credentials                     text,
+  license_number                  text,
+  license_state                   text,
+  license_expiration_date         date,
+  board_certifications            jsonb       not null default '[]'::jsonb,
+  malpractice_insurance_carrier   text,
+  malpractice_tail_coverage       boolean     not null default false,
+  is_rendering_provider           boolean     not null default true,
+  is_billing_provider             boolean     not null default false,
+  is_referring_provider           boolean     not null default false,
+  created_at                      timestamptz not null default now(),
+  updated_at                      timestamptz not null default now(),
+  archived_at                     timestamptz
+);
+
+create index if not exists idx_provider_profiles_org
+  on public.provider_profiles (organization_id)
+  where archived_at is null;
+
+alter table public.provider_profiles enable row level security;
+drop policy if exists provider_profiles_org_policy on public.provider_profiles;
+create policy provider_profiles_org_policy on public.provider_profiles
+  for all to authenticated
+  using  (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''))
+  with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- SECTION 6: treatment_plans + treatment_plan_goals
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.treatment_plans (
@@ -490,6 +526,25 @@ create table if not exists public.billing_alerts (
   updated_at          timestamptz not null default now(),
   archived_at         timestamptz
 );
+
+-- Ensure all required columns exist (table may have been created with an older schema)
+alter table public.billing_alerts
+  add column if not exists client_id           uuid        references public.clients(id) on delete set null,
+  add column if not exists claim_id            uuid        references public.professional_claims(id) on delete set null,
+  add column if not exists encounter_id        uuid        references public.encounters(id) on delete set null,
+  add column if not exists workqueue_item_id   uuid        references public.workqueue_items(id) on delete set null,
+  add column if not exists alert_type          text        not null default 'other',
+  add column if not exists severity            text        not null default 'warning',
+  add column if not exists alert_status        text        not null default 'open',
+  add column if not exists title               text        not null default '',
+  add column if not exists description         text,
+  add column if not exists due_date            date,
+  add column if not exists acknowledged_by     uuid,
+  add column if not exists acknowledged_at     timestamptz,
+  add column if not exists resolved_by         uuid,
+  add column if not exists resolved_at         timestamptz,
+  add column if not exists context_payload     jsonb       not null default '{}'::jsonb,
+  add column if not exists archived_at         timestamptz;
 
 create index if not exists idx_billing_alerts_org_status
   on public.billing_alerts (organization_id, alert_status, severity, created_at desc)
