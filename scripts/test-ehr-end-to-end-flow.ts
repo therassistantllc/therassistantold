@@ -513,6 +513,7 @@ async function run() {
       title: "Test Session Note",
       file_name: "note_test.pdf",
       storage_bucket: "documents",
+      storage_path: "test/note_test.pdf",
       mime_type: "application/pdf",
       notes: "Uploaded during E2E test",
     },
