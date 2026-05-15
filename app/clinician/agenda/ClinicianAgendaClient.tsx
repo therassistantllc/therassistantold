@@ -104,8 +104,38 @@ export default function ClinicianAgendaClient() {
   const [payload, setPayload] = useState<CommandCenterPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eligibilityChecking, setEligibilityChecking] = useState<Record<string, boolean>>({});
+  const [eligibilityResults, setEligibilityResults] = useState<Record<string, string>>({});
 
   const organizationId = useMemo(() => getOrganizationId(), []);
+
+  const checkEligibility = useCallback(async (item: AgendaItem) => {
+    if (!organizationId) return;
+    setEligibilityChecking((prev) => ({ ...prev, [item.appointmentId]: true }));
+    setEligibilityResults((prev) => ({ ...prev, [item.appointmentId]: "" }));
+    try {
+      const response = await fetch("/api/clearinghouse/office-ally/eligibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          clientId: item.clientId,
+          appointmentId: item.appointmentId,
+          insurancePolicyId: null,
+          request: null,
+        }),
+      });
+      const json = (await response.json()) as { success: boolean; error?: string };
+      setEligibilityResults((prev) => ({
+        ...prev,
+        [item.appointmentId]: json.success ? "Eligibility submitted" : (json.error ?? "Eligibility check failed"),
+      }));
+    } catch {
+      setEligibilityResults((prev) => ({ ...prev, [item.appointmentId]: "Eligibility check failed" }));
+    } finally {
+      setEligibilityChecking((prev) => ({ ...prev, [item.appointmentId]: false }));
+    }
+  }, [organizationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +241,17 @@ export default function ClinicianAgendaClient() {
                   <a className="button button-secondary" href={item.encounter?.id ? `/encounters/${item.encounter.id}` : `/encounters/new?appointmentId=${item.appointmentId}`}>Open Note</a>
                   <a className="button button-secondary" href={`/patients/${item.clientId}/balance`}>Collect</a>
                   <a className="button" href={`/workqueue/new?clientId=${item.clientId}&appointmentId=${item.appointmentId}`}>Route to Biller</a>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={eligibilityChecking[item.appointmentId]}
+                    onClick={() => void checkEligibility(item)}
+                  >
+                    {eligibilityChecking[item.appointmentId] ? "Checking…" : "Check Eligibility"}
+                  </button>
+                  {eligibilityResults[item.appointmentId] ? (
+                    <span className="status muted-text">{eligibilityResults[item.appointmentId]}</span>
+                  ) : null}
                 </div>
               </article>
             );
