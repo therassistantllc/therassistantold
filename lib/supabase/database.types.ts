@@ -9339,6 +9339,33 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_permissions: {
+        Row: {
+          id: string
+          permission_code: string
+          permission_label: string
+          category: string | null
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          permission_code: string
+          permission_label: string
+          category?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          permission_code?: string
+          permission_label?: string
+          category?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       staff_profiles: {
         Row: {
           id: string
