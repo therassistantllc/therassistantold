@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient as createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import { requireRoleInRoute } from "@/lib/rbac/middleware";
 import type { Database } from "@/src/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
