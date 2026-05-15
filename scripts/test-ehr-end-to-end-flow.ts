@@ -40,8 +40,15 @@ function ok(label: string, id?: string) {
 }
 
 function fail(label: string, err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
-  console.error(`   ❌ ${label}: ${msg}`);
+  let msg: string;
+  if (err instanceof Error) {
+    msg = err.message;
+  } else if (err && typeof err === "object") {
+    msg = JSON.stringify(err, null, 2);
+  } else {
+    msg = String(err);
+  }
+  console.error(`   ❌ ${label}:\n${msg}`);
   failed++;
   failures.push(`${label}: ${msg}`);
 }
@@ -52,9 +59,11 @@ async function requireRow<T extends { id: string }>(
   table: string,
   filter: Record<string, unknown>,
   label: string,
+  nullColumns: string[] = [],
 ): Promise<T | null> {
   let query = supabase.from(table).select("*").limit(1);
   for (const [k, v] of Object.entries(filter)) query = query.eq(k, v);
+  for (const col of nullColumns) query = query.is(col, null);
   const { data, error } = await query.maybeSingle() as { data: T | null; error: unknown };
   if (error || !data) { fail(`Fetch ${label}`, error ?? "no rows"); return null; }
   ok(`Fetched ${label}`, data.id);
@@ -88,7 +97,10 @@ async function run() {
   // ── Step 2: Provider ──────────────────────────────────────────────────────
   console.log("\nStep 2: Provider");
   const provider = await requireRow<{ id: string; npi?: string }>(
-    "provider_profiles", { organization_id: orgId }, "provider_profile"
+    "providers",
+    { organization_id: orgId, is_active: true },
+    "provider",
+    ["archived_at"],
   );
   if (!provider) { printSummary(); return; }
 
