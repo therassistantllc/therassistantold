@@ -18,7 +18,8 @@
     "test:claim-aging": "tsx scripts/test-professional-claim-aging-workqueue.ts",
     "test:api-routes": "tsx scripts/test-billing-api-route-exports.ts",
     "check:migrations": "tsx scripts/check-migration-names.ts",
-    "test:smoke": "tsx scripts/run-all-smoke-tests.ts"
+    "test:smoke": "tsx scripts/run-all-smoke-tests.ts",
+    "test:ehr-flow": "tsx scripts/test-ehr-end-to-end-flow.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
