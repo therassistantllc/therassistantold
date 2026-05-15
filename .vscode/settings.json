@@ -20,5 +20,9 @@
   ],
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
-  }
+  },
+  "jsts-chat-features.skills.enabled": true,
+  "github.copilot.chat.agent.autoFix": true,
+  "github.copilot.chat.languageContext.fix.typescript.enabled": true,
+  "git.addAICoAuthor": "all"
 }
