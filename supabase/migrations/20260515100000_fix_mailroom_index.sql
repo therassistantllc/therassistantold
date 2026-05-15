@@ -1,0 +1,11 @@
+-- Migration to fix incorrect index on mailroom_items
+-- Drops the invalid index referencing non-existent 'status' column and creates a correct index on 'mail_status'
+
+drop index if exists public.idx_mailroom_items_status;
+
+create index if not exists idx_mailroom_items_mail_status
+  on public.mailroom_items (organization_id, mail_status, created_at desc)
+  where archived_at is null;
+
+-- notify pgrst to reload schema so API reflects changes
+select pg_notify('pgrst', 'reload schema');
