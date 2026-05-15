@@ -273,7 +273,18 @@ export default function WorkqueueClient() {
               <div className="section-actions">
                 {selected.clientId ? <Link className="button button-secondary" href={`/patients/${selected.clientId}`}>Open Chart</Link> : null}
                 {selected.encounterId ? <Link className="button button-secondary" href={`/encounters/${selected.encounterId}`}>Open Encounter</Link> : null}
+                {selected.claimId && selected.clientId ? (
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={claimStatusChecking}
+                    onClick={() => void checkClaimStatus(selected)}
+                  >
+                    {claimStatusChecking ? "Checking…" : "Check Claim Status"}
+                  </button>
+                ) : null}
               </div>
+              {claimStatusResult ? <p className="muted-text">{claimStatusResult}</p> : null}
 
               <label className="field-label">
                 Comment / action note
