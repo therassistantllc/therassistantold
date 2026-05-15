@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
   }
 
-  const supabase = createServerSupabaseAdminClientTyped();
+  const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Database connection not available" }, { status: 503 });
   }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
   }
 
-  const supabase = createServerSupabaseAdminClientTyped();
+  const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Database connection not available" }, { status: 503 });
   }
@@ -125,7 +125,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
   }
 
-  const supabase = createServerSupabaseAdminClientTyped();
+  const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Database connection not available" }, { status: 503 });
   }
