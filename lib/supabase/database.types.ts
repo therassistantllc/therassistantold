@@ -9434,7 +9434,7 @@ export type Database = {
           id: string
           organization_id: string
           staff_role_id: string
-          permission_code: string
+          permission_id: string
           archived_at: string | null
           created_at: string
         }
@@ -9442,7 +9442,7 @@ export type Database = {
           id?: string
           organization_id: string
           staff_role_id: string
-          permission_code: string
+          permission_id: string
           archived_at?: string | null
           created_at?: string
         }
@@ -9450,7 +9450,7 @@ export type Database = {
           id?: string
           organization_id?: string
           staff_role_id?: string
-          permission_code?: string
+          permission_id?: string
           archived_at?: string | null
           created_at?: string
         }
@@ -9462,6 +9462,9 @@ export type Database = {
           organization_id: string
           staff_id: string
           staff_role_id: string
+          assigned_at: string | null
+          effective_at: string | null
+          expires_at: string | null
           archived_at: string | null
           created_at: string
           updated_at: string
@@ -9471,6 +9474,9 @@ export type Database = {
           organization_id: string
           staff_id: string
           staff_role_id: string
+          assigned_at?: string | null
+          effective_at?: string | null
+          expires_at?: string | null
           archived_at?: string | null
           created_at?: string
           updated_at?: string
@@ -9480,6 +9486,9 @@ export type Database = {
           organization_id?: string
           staff_id?: string
           staff_role_id?: string
+          assigned_at?: string | null
+          effective_at?: string | null
+          expires_at?: string | null
           archived_at?: string | null
           created_at?: string
           updated_at?: string
