@@ -86,34 +86,38 @@ export async function PATCH(req: NextRequest) {
   if (Object.keys(orgUpdates).length > 0) {
     orgUpdates.updated_at = new Date().toISOString();
     ops.push(
-      supabase
-        .from("organizations")
-        .update(orgUpdates)
-        .eq("id", organizationId)
-        .then(({ error }) => {
-          if (error) throw new Error(`Organization update failed: ${error.message}`);
-        }),
+      Promise.resolve(
+        supabase
+          .from("organizations")
+          .update(orgUpdates)
+          .eq("id", organizationId)
+          .then(({ error }) => {
+            if (error) throw new Error(`Organization update failed: ${error.message}`);
+          }),
+      ),
     );
   }
 
   if (body.billing_profile && typeof body.billing_profile === "object") {
     const now = new Date().toISOString();
     ops.push(
-      supabase
-        .from("system_settings")
-        .upsert(
-          {
-            organization_id: organizationId,
-            setting_key: BILLING_PROFILE_KEY,
-            setting_value: body.billing_profile as Record<string, unknown>,
-            updated_at: now,
-            created_at: now,
-          },
-          { onConflict: "organization_id,setting_key" },
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Billing profile update failed: ${error.message}`);
-        }),
+      Promise.resolve(
+        supabase
+          .from("system_settings")
+          .upsert(
+            {
+              organization_id: organizationId,
+              setting_key: BILLING_PROFILE_KEY,
+              setting_value: body.billing_profile as Record<string, unknown>,
+              updated_at: now,
+              created_at: now,
+            },
+            { onConflict: "organization_id,setting_key" },
+          )
+          .then(({ error }) => {
+            if (error) throw new Error(`Billing profile update failed: ${error.message}`);
+          }),
+      ),
     );
   }
 

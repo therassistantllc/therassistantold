@@ -175,16 +175,15 @@ async function insertClaimStatusEvent(
   await supabase.from("claim_status_events").insert({
     claim_id: claimId,
     source,
-    transaction_type: source === "837p_batch" ? "837P" : "validation",
-    status_code: status,
-    status_description: statusMessage,
-    raw_event: {
+    status: status,
+    status_message: statusMessage,
+    raw_payload: {
       ...rawPayload,
-      status,
-      status_message: statusMessage,
+      transaction_type: source === "837p_batch" ? "837P" : "validation",
+      status_code: status,
+      status_description: statusMessage,
       office_ally_file_id: officeAllyFileId ?? null,
     },
-    event_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   });
 }

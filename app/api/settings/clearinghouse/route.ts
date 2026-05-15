@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   }
 
   const connections = (data ?? []).map((row) =>
-    sanitizeConnection(row as Record<string, unknown>),
+    sanitizeConnection(row as unknown as Record<string, unknown>),
   );
 
   return NextResponse.json({ connections });
