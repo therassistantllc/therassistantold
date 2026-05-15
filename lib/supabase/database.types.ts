@@ -3575,6 +3575,14 @@ export type Database = {
           external_transaction_id?: string | null
           id?: string
           insurance_policy_id?: string | null
+          organization_id: string
+          out_of_pocket_remaining?: number | null
+          raw_status_text?: string | null
+          response_summary?: Json | null
+          updated_at?: string
+          updated_by_user_id?: string | null
+        }
+        Update: {
           appointment_id?: string | null
           archived_at?: string | null
           checked_at?: string | null
@@ -3589,7 +3597,7 @@ export type Database = {
           encounter_id?: string | null
           external_transaction_id?: string | null
           id?: string
-          insurance_policy_id?: string
+          insurance_policy_id?: string | null
           organization_id?: string
           out_of_pocket_remaining?: number | null
           raw_status_text?: string | null
