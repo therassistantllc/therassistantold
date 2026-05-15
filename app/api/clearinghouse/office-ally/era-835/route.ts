@@ -4,6 +4,7 @@ import { OfficeAllyJsonApiAdapter } from "@/lib/clearinghouse/adapters/OfficeAll
 import { parse835 } from "@/lib/clearinghouse/parsers/parse835";
 import { createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
 import type { Json } from "@/src/types/supabase";
+import type { Database } from "@/lib/supabase/database.types";
 
 function generateUuid() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
