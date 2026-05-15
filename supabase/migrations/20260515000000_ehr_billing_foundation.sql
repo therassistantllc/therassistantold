@@ -929,12 +929,18 @@ comment on column public.era_claim_payments.carc_codes is
 comment on column public.era_claim_payments.rarc_codes is
   'RARC (Remittance Advice Remark Codes) from 835 MOA/LQ segments';
 
--- 19e. era_service_line_payments: add CARC/RARC detail columns
-alter table public.era_service_line_payments
-  add column if not exists carc_code         text,
-  add column if not exists rarc_code         text,
-  add column if not exists group_code        text check (group_code in ('PR', 'CO', 'OA', 'PI') or group_code is null),
-  add column if not exists adjustment_amount numeric(12,2);
+-- 19e. era_service_line_payments: add CARC/RARC detail columns (only if table exists)
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'era_service_line_payments') then
+    alter table public.era_service_line_payments
+      add column if not exists carc_code         text,
+      add column if not exists rarc_code         text,
+      add column if not exists group_code        text check (group_code in ('PR', 'CO', 'OA', 'PI') or group_code is null),
+      add column if not exists adjustment_amount numeric(12,2);
+  end if;
+end;
+$$;
 
 -- 19f. workqueue_items: link to billing_alerts and tickets
 alter table public.workqueue_items
