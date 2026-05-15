@@ -296,7 +296,7 @@ export async function POST(request: Request) {
         .from("professional_claims")
         .update({
           claim_status: "validation_failed",
-          validation_errors: validation.errors,
+          validation_errors: validation.errors as unknown as import("@/lib/supabase/database.types").Json,
           last_validated_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
