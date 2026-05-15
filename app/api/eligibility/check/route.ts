@@ -1,6 +1,6 @@
 // File: app/api/eligibility/check/route.ts
 import { NextResponse } from "next/server";
-import { createServerSupabaseAdminClient, createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import type { EligibilityCheckResponse } from "@/types/integrations";
 
 function generateUuid() {

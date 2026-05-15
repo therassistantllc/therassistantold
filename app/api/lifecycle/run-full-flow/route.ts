@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient as createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import { requireRoleInRoute } from "@/lib/rbac/middleware";
-import type { Database } from "@/src/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
