@@ -63,6 +63,8 @@ export default function ClaimReadinessClient() {
   const [batching, setBatching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [claimStatusChecking, setClaimStatusChecking] = useState<Record<string, boolean>>({});
+  const [claimStatusResults, setClaimStatusResults] = useState<Record<string, string>>({});
 
   async function load() {
     try {
