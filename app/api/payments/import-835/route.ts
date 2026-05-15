@@ -1,7 +1,7 @@
 // File: app/api/payments/import-835/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient as createServerSupabaseServiceRoleClientTyped } from "@/lib/supabase/server";
 import { parse835 } from "@/lib/clearinghouse/parsers/parse835";
 import type { Json } from "@/src/types/supabase";
 
