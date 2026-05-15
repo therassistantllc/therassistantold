@@ -615,4 +615,15 @@ export class OfficeAllyJsonApiAdapter {
       contentType: "text/plain",
     });
   }
+
+  async fetchEra835(params: { organizationId: string }): Promise<{ raw835: string; fileName: string }> {
+    const response = await this.request<string>({
+      organizationId: params.organizationId,
+      operation: "ERA_DownloadLatest",
+      method: "GET",
+      path: "/v1/era/download",
+      accept: "application/EDI-X12",
+    });
+    return { raw835: response.rawText, fileName: `era835-${new Date().toISOString().slice(0, 10)}.835` };
+  }
 }
