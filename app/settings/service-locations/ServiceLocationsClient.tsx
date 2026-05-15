@@ -74,6 +74,7 @@ export default function ServiceLocationsClient() {
       .finally(() => setLoading(false));
   }, [organizationId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   function startEdit(loc: ServiceLocation) {

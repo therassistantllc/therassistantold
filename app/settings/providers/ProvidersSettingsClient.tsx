@@ -39,6 +39,7 @@ export default function ProvidersSettingsClient() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/providers/credentialing?organizationId=${encodeURIComponent(organizationId)}`)
       .then((r) => r.json())

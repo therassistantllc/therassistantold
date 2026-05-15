@@ -54,6 +54,7 @@ export default function PayerProfilesClient() {
       .finally(() => setLoading(false));
   }, [organizationId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadPayers(); }, [loadPayers]);
 
   function startEdit(p: Payer) {

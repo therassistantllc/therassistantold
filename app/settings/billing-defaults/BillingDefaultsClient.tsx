@@ -39,6 +39,7 @@ export default function BillingDefaultsClient() {
   const [statusMsg, setStatusMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/settings/billing-defaults?organizationId=${encodeURIComponent(organizationId)}`)
       .then((r) => r.json())

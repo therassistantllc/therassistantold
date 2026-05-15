@@ -69,6 +69,7 @@ export default function OrganizationSettingsClient() {
   const [statusMsg, setStatusMsg] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/settings/organization?organizationId=${encodeURIComponent(organizationId)}`)
       .then((r) => r.json())

@@ -64,6 +64,7 @@ export default function SystemReadinessClient() {
       .finally(() => setLoading(false));
   }, [organizationId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   return (

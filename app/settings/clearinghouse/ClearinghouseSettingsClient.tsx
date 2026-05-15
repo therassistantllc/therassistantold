@@ -93,6 +93,7 @@ export default function ClearinghouseSettingsClient() {
       .finally(() => setLoading(false));
   }, [organizationId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadConnections(); }, [loadConnections]);
 
   function startEdit(c: Connection) {

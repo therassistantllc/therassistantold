@@ -125,7 +125,7 @@ export async function POST(request: Request) {
           client_id: appointment.client_id,
           appointment_id: appointmentId,
           insurance_policy_id: appointment.insurance_policy_id,
-          eligibility_status: "not_checked" as "not_checked",
+          eligibility_status: "not_checked" as const,
           created_at: new Date().toISOString(),
         };
 

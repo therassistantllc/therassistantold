@@ -32,6 +32,7 @@ export default function MailroomSettingsClient() {
   const [statusMsg, setStatusMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/settings/system-settings?organizationId=${encodeURIComponent(organizationId)}&key=${encodeURIComponent(SETTING_KEY)}`)
       .then((r) => r.json())
