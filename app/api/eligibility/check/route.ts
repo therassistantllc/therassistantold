@@ -1,6 +1,6 @@
 // File: app/api/eligibility/check/route.ts
 import { NextResponse } from "next/server";
-import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
+import { createServerSupabaseAdminClient, createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import type { EligibilityCheckResponse } from "@/types/integrations";
 
 function generateUuid() {
@@ -48,7 +48,7 @@ function generateMockEligibilityResponse() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerSupabaseAdminClientTyped();
+    const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
       return NextResponse.json(
         { error: "Database connection not available" },
