@@ -72,6 +72,7 @@ export default function WorkqueueClient() {
   const [comment, setComment] = useState("");
   const [deferDays, setDeferDays] = useState("3");
   const [acting, setActing] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [claimStatusResult, setClaimStatusResult] = useState<string | null>(null);
   const [claimStatusChecking, setClaimStatusChecking] = useState(false);
 
@@ -112,6 +113,7 @@ export default function WorkqueueClient() {
     if (!selected) return;
     setActing(true);
     setError(null);
+    setActionFeedback(null);
 
     const deferredUntil = new Date(Date.now() + Math.max(Number(deferDays) || 1, 1) * 24 * 60 * 60 * 1000).toISOString();
     const response = await fetch("/api/workqueue/action", {
@@ -129,9 +131,11 @@ export default function WorkqueueClient() {
 
     const json = (await response.json()) as { ok?: boolean; success?: boolean; error?: string; errors?: Array<{ message: string }> };
     if (!response.ok || (!json.ok && !json.success)) {
-      setError(json.error || json.errors?.[0]?.message || "Workqueue action failed.");
+      const msg = json.errors?.[0]?.message || json.error || "Workqueue action failed.";
+      setActionFeedback({ type: "error", message: msg });
     } else {
       setComment("");
+      setActionFeedback({ type: "success", message: `Action "${action}" completed successfully.` });
       await loadItems();
     }
     setActing(false);
@@ -271,7 +275,7 @@ export default function WorkqueueClient() {
               </div>
 
               <div className="section-actions">
-                {selected.clientId ? <Link className="button button-secondary" href={`/patients/${selected.clientId}`}>Open Chart</Link> : null}
+                {selected.clientId ? <Link className="button button-secondary" href={`/clients/${selected.clientId}`}>Open Chart</Link> : null}
                 {selected.encounterId ? <Link className="button button-secondary" href={`/encounters/${selected.encounterId}`}>Open Encounter</Link> : null}
                 {selected.claimId && selected.clientId ? (
                   <button
@@ -285,6 +289,11 @@ export default function WorkqueueClient() {
                 ) : null}
               </div>
               {claimStatusResult ? <p className="muted-text">{claimStatusResult}</p> : null}
+              {actionFeedback ? (
+                <div className={actionFeedback.type === "error" ? "alert-panel" : "alert-panel alert-panel-success"}>
+                  {actionFeedback.message}
+                </div>
+              ) : null}
 
               <label className="field-label">
                 Comment / action note

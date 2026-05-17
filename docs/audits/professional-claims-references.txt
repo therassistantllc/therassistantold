@@ -1,0 +1,86 @@
+./scripts/test-837p-batch-workflow.ts:27:  for (const table of ["edi_batches", "edi_batch_claims", "clearinghouse_connections", "professional_claims"]) {
+./scripts/test-837p-batch-workflow.ts:46:    .from("professional_claims")
+./scripts/test-837p-batch-workflow.ts:103:    .from("professional_claims")
+./scripts/test-ehr-end-to-end-flow.ts:279:  console.log("\nStep 12: Claim header (professional_claims)");
+./scripts/test-ehr-end-to-end-flow.ts:298:    "professional_claims",
+./scripts/test-ehr-end-to-end-flow.ts:310:    "claim_header (professional_claims)",
+./scripts/test-ehr-end-to-end-flow.ts:568:    ["professional_claims",           claim?.id],
+./scripts/test-999-acknowledgement-workflow.ts:25:  for (const table of ["edi_batches", "edi_batch_claims", "edi_acknowledgements", "professional_claims"]) {
+./scripts/test-999-acknowledgement-workflow.ts:93:    .from("professional_claims")
+./scripts/test-professional-claim-aging-workqueue.ts:25:  for (const table of ["professional_claims", "workqueue_items", "edi_batch_claims", "edi_acknowledgements"]) {
+./scripts/test-professional-claim-aging-workqueue.ts:58:    .from("professional_claims")
+./scripts/test-277ca-acknowledgement-workflow.ts:25:  for (const table of ["edi_batches", "edi_batch_claims", "edi_acknowledgements", "professional_claims"]) {
+./scripts/test-277ca-acknowledgement-workflow.ts:99:    .from("professional_claims")
+./scripts/test-837p-submission-workflow.ts:25:  for (const table of ["edi_batches", "edi_batch_claims", "professional_claims"]) {
+./scripts/test-837p-submission-workflow.ts:74:    .from("professional_claims")
+./scripts/test-claim-readiness-workflow.ts:223:    .from("professional_claims")
+./lib/payments/era835IntakeService.ts:30:    .from("professional_claims")
+./lib/payments/era835PostingService.ts:195:        .from("professional_claims")
+./lib/supabase/database.types.ts:531:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:885:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:1102:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:1243:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:1511:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:3374:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:4487:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:4623:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:6696:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:7370:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:7375:      professional_claims: {
+./lib/supabase/database.types.ts:8625:            referencedRelation: "professional_claims"
+./lib/supabase/database.types.ts:9150:            referencedRelation: "professional_claims"
+./lib/claims/edi837pSubmissionService.ts:130:    .from("professional_claims")
+./lib/claims/edi837pSubmissionService.ts:140:      errors: [{ field: "professional_claims", message: claimUpdateError.message }],
+./lib/claims/edi837pBatchService.ts:55:    .from("professional_claims")
+./lib/claims/edi837pBatchService.ts:150:    return { ok: false, batchId: null, fileName: null, claimCount: 0, errors: [{ field: "professional_claims", message: "No ready_for_batch claims found" }] };
+./lib/claims/edi837pBatchService.ts:200:    .from("professional_claims")
+./lib/claims/edi837pBatchService.ts:204:    return { ok: false, batchId, fileName, claimCount: prepared.length, errors: [{ field: "professional_claims", message: updateError.message }] };
+./lib/claims/edi277caAcknowledgementService.ts:208:      .from("professional_claims")
+./lib/claims/edi277caAcknowledgementService.ts:220:        errors: [{ field: "professional_claims", message: claimUpdateError.message }],
+./lib/claims/claimDetailRouting.ts:7: *   Canonical path  → /billing/claims/[id]  backed by professional_claims
+./lib/claims/claimDetailRouting.ts:12: * /billing/claim-readiness workspace (which already reads professional_claims).
+./lib/claims/claimDetailRouting.ts:45:  /** ID from the `professional_claims` table — canonical. */
+./lib/claims/claimDetailRouting.ts:54:export type ClaimDetailTable = "professional_claims" | "claims";
+./lib/claims/claimDetailRouting.ts:62:  /** True when resolution used `professional_claims`. */
+./lib/claims/claimDetailRouting.ts:72: *   1. `professionalClaimId` → professional_claims  (canonical)
+./lib/claims/claimDetailRouting.ts:86:      table: "professional_claims",
+./lib/claims/claimDetailRouting.ts:102: * Returns true when the ref points to the canonical `professional_claims` table.
+./lib/claims/claimDetailRouting.ts:105: * adjustment) that require a `professional_claims` row.
+./lib/claims/claimDetailRouting.ts:120: * Returns the canonical claim detail href for a given `professional_claims` ID.
+./lib/claims/chargeCaptureClaimBridgeService.ts:78:    .from("professional_claims")
+./lib/claims/claimReadinessService.ts:289:    .from("professional_claims")
+./lib/claims/claimReadinessService.ts:310:      errors: [{ field: "professional_claims", message: claimError?.message ?? "Failed to create professional claim" }],
+./lib/claims/claimReadinessService.ts:391:    .from("professional_claims")
+./lib/claims/claimReadinessService.ts:527:    .from("professional_claims")
+./lib/claims/edi999AcknowledgementService.ts:227:      .from("professional_claims")
+./lib/claims/edi999AcknowledgementService.ts:239:        errors: [{ field: "professional_claims", message: claimUpdateError.message }],
+./lib/claims/claimRouting.ts:9: * Canonical path  → professional_claims + professional_claim_service_lines
+./lib/claims/claimRouting.ts:16:export const CANONICAL_CLAIM_TABLE = "professional_claims" as const;
+./lib/claims/claimRouting.ts:18:/** Preferred table for new service-line records linked to professional_claims. */
+./lib/claims/claimRouting.ts:34: * canonical        – Uses professional_claims only. Correct for all new code.
+./lib/claims/claimRouting.ts:56: * (professional_claims or professional_claim_service_lines).
+./lib/claims/claimRouting.ts:78: * Always "professional_claims".
+./lib/workqueue/claimRejectionWorkqueueService.ts:84:    .from("professional_claims")
+./lib/workqueue/claimRejectionWorkqueueService.ts:94:      errors: [{ field: "professional_claims", message: claimError.message }],
+./lib/workqueue/professionalClaimAgingWorkqueueService.ts:125:    .from("professional_claims")
+./lib/workqueue/professionalClaimAgingWorkqueueService.ts:139:      errors: [{ field: "professional_claims", message: claimError.message }],
+./lib/workqueue/workqueueClaimRouting.ts:6: *   professional_claim_id  (FK → professional_claims)   ← CANONICAL, preferred
+./lib/workqueue/workqueueClaimRouting.ts:25:  /** Canonical reference → professional_claims (preferred). */
+./lib/workqueue/workqueueClaimRouting.ts:36:  /** Canonical reference → professional_claims (preferred). */
+./lib/workqueue/workqueueClaimRouting.ts:43:export type WorkqueueClaimTable = "professional_claims" | "claims";
+./lib/workqueue/workqueueClaimRouting.ts:91: * Always prefer `professional_claims` when `professional_claim_id` is set.
+./lib/workqueue/workqueueClaimRouting.ts:112:      table: "professional_claims",
+./lib/workqueue/workqueueClaimRouting.ts:139: * or calling services that expect professional_claims rows.
+./lib/workqueue/workqueueClaimRouting.ts:172: * workqueue item linked to a `professional_claims` row.
+./app/api/settings/system-readiness/route.ts:157:      label: "Duplicate claims tables: claims and professional_claims both exist",
+./app/api/settings/system-readiness/route.ts:159:      detail: "Use claims for standard billing; professional_claims for EDI 837P. Ensure claim generation targets the correct table.",
+./app/api/edi/office-ally/837p/generate/route.ts:206:      .from("professional_claims")
+./app/api/edi/office-ally/837p/generate/route.ts:296:        .from("professional_claims")
+./app/api/edi/office-ally/837p/generate/route.ts:367:      .from("professional_claims")
+./app/api/patients/[clientId]/claims/route.ts:17:    // professional_claims uses patient_id which maps to clients.id
+./app/api/patients/[clientId]/claims/route.ts:19:      .from("professional_claims")
+./app/api/billing/claim-readiness/create-837p-batch/route.ts:32:      .from("professional_claims")
+./app/api/billing/claim-readiness/create-837p-batch/route.ts:80:      .from("professional_claims")
+./app/api/billing/claim-readiness/route.ts:49:          .from("professional_claims")
+./app/api/billing/837p-batches/route.ts:48:          .from("professional_claims")
+./app/api/billing/workflow-dashboard/route.ts:75:      claimCounts[status] = await countRows("professional_claims", {

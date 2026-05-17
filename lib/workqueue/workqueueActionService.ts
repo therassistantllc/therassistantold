@@ -28,6 +28,9 @@ type WorkqueueItem = {
   status: string;
   client_id: string | null;
   claim_id: string | null;
+  professional_claim_id: string | null;
+  billing_alert_id: string | null;
+  ticket_id: string | null;
   encounter_id: string | null;
 };
 
@@ -37,7 +40,7 @@ async function loadWorkqueueItem(organizationId: string, workqueueItemId: string
 
   const { data, error } = await supabase
     .from("workqueue_items")
-    .select("id, status, client_id, claim_id, encounter_id")
+    .select("id, status, client_id, claim_id, professional_claim_id, billing_alert_id, ticket_id, encounter_id")
     .eq("organization_id", organizationId)
     .eq("id", workqueueItemId)
     .is("archived_at", null)
@@ -215,7 +218,7 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
     organizationId: input.organizationId,
     workqueueItemId: input.workqueueItemId,
     clientId: item.client_id,
-    claimId: item.claim_id,
+    claimId: item.professional_claim_id ?? null,
     encounterId: item.encounter_id,
     alertType: "other",
     severity: "info",
@@ -259,7 +262,7 @@ export async function resolveWorkqueueItem(input: WorkqueueActionInput): Promise
     organizationId: input.organizationId,
     workqueueItemId: input.workqueueItemId,
     clientId: item.client_id,
-    claimId: item.claim_id,
+    claimId: item.professional_claim_id ?? null,
     encounterId: item.encounter_id,
     alertType: "other",
     severity: "info",

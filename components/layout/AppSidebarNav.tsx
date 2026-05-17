@@ -11,7 +11,7 @@ type NavItem =
 const NAV_ITEMS: NavItem[] = [
   { label: "Service Queue", href: "/", exact: true },
   { label: "Agenda", href: "/clinician/agenda" },
-  { label: "Clients", href: "/patients" },
+  { label: "Clients", href: "/clients" },
   { label: "Encounters", href: "/encounters" },
   { label: "Workqueue", href: "/workqueue" },
   { label: "Claims", href: "/billing/claim-readiness" },

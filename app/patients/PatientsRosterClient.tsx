@@ -144,8 +144,8 @@ export default function PatientsRosterClient() {
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatMoney(client.openBalance)}</td>
                   <td className="col-actions">
                     <div className="hero-actions">
-                      <Link className="button button-secondary" href={`/patients/${client.id}`}>Chart</Link>
-                      <Link className="button button-secondary" href={`/patients/${client.id}/balance`}>Ledger</Link>
+                      <Link className="button button-secondary" href={`/clients/${client.id}`}>Chart</Link>
+                      <Link className="button button-secondary" href={`/clients/${client.id}/billing`}>Ledger</Link>
                       <Link className="button button-secondary" href={`/workqueue/new?clientId=${client.id}`}>Route</Link>
                     </div>
                   </td>

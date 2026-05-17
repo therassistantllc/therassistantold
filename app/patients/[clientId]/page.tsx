@@ -1,11 +1,10 @@
-import PatientChartClient from "./PatientChartClient";
+import { redirect } from "next/navigation";
 
-export default async function PatientChartPage({ params }: { params: Promise<{ clientId: string }> }) {
+export default async function PatientChartRedirectPage({
+  params,
+}: {
+  params: Promise<{ clientId: string }>;
+}) {
   const { clientId } = await params;
-
-  return (
-    <main className="app-shell">
-      <PatientChartClient clientId={clientId} />
-    </main>
-  );
+  redirect(`/clients/${clientId}`);
 }
