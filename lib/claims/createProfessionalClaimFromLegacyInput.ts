@@ -1,4 +1,5 @@
 export type LegacyClaimInput = {
+  id?: string;
   organization_id: string;
   client_id?: string | null;
   encounter_id?: string | null;
@@ -8,6 +9,7 @@ export type LegacyClaimInput = {
 };
 
 type ProfessionalClaimInput = {
+  id?: string;
   organization_id: string;
   client_id: string | null;
   patient_id: string | null;
@@ -37,6 +39,7 @@ function toNumber(value: number | string | null | undefined): number {
 
 export function mapLegacyClaimInputToProfessionalClaim(input: LegacyClaimInput): ProfessionalClaimInput {
   return {
+    ...(input.id && { id: input.id }),
     organization_id: input.organization_id,
     client_id: input.client_id ?? null,
     patient_id: input.client_id ?? null,

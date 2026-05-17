@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient as createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import { requireRoleInRoute } from "@/lib/rbac/middleware";
+import { mapLegacyClaimInputToProfessionalClaim } from "@/lib/claims/createProfessionalClaimFromLegacyInput";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -220,28 +221,20 @@ export async function POST(request: Request) {
       steps.push({ step: "claim", status: "reused", id: existingClaim.id, message: "Claim already exists" });
     } else {
       const claimNumber = `CLM-${Date.now()}`;
+      const claimId = generateUuid();
+      const mappedClaim = mapLegacyClaimInputToProfessionalClaim({
+        id: claimId,
+        organization_id: encounter.organization_id,
+        client_id: encounter.client_id,
+        encounter_id: encounter.id,
+        claim_number: claimNumber,
+        claim_status: "submitted",
+        total_charge_amount: billedAmount,
+      });
+
       const { data: createdClaim, error: claimError } = await supabase
-        .from("claims")
-        .insert({
-          id: generateUuid(),
-          organization_id: encounter.organization_id,
-          client_id: encounter.client_id,
-          insurance_policy_id: appointment.insurance_policy_id ?? null,
-          encounter_id: encounter.id,
-          claim_number: claimNumber,
-          claim_status: "submitted",
-          total_charge_amount: billedAmount,
-          date_of_service_from: encounter.service_date,
-          date_of_service_to: encounter.service_date,
-          claim_frequency_code: "1",
-          duplicate_detection_key: `claim-${encounter.id}`,
-          ready_to_submit_at: now,
-          submitted_at: now,
-          patient_responsibility_amount: patientResponsibilityAmount,
-          payer_responsibility_amount: paidAmount,
-          created_at: now,
-          updated_at: now,
-        })
+        .from("professional_claims")
+        .insert(mappedClaim)
         .select()
         .single();
 
