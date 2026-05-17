@@ -424,12 +424,9 @@ export async function POST(request: Request) {
       }
 
       const { error: claimPaidError } = await supabase
-        .from("claims")
+        .from("professional_claims")
         .update({
           claim_status: "paid",
-          paid_at: now,
-          patient_responsibility_amount: patientResponsibilityAmount,
-          payer_responsibility_amount: paidAmount,
           updated_at: now,
         })
         .eq("id", claim.id);
