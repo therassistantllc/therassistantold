@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mapLegacyClaimInputToProfessionalClaim } from "@/lib/claims/createProfessionalClaimFromLegacyInput";
 
 export interface WorkflowContext {
   organizationId: string;
@@ -132,20 +133,18 @@ export async function createClaim(
 
   // Create claim
   const claimData = {
-    organization_id: ctx.organizationId,
-    encounter_id: encounterId,
-    client_id: ctx.clientId,
-    insurance_policy_id: ctx.insurancePolicyId,
-    claim_number: `CLM-${Date.now()}`,
-    claim_status: "ready_to_submit",
-    total_charge_amount: "150.00",
-    date_of_service_from: serviceDate,
-    date_of_service_to: serviceDate,
-    duplicate_detection_key: `${ctx.clientId}_${encounterId}_${serviceDate}`,
+    ...mapLegacyClaimInputToProfessionalClaim({
+      organization_id: ctx.organizationId,
+      encounter_id: encounterId,
+      client_id: ctx.clientId,
+      claim_number: `CLM-${Date.now()}`,
+      claim_status: "ready_to_submit",
+      total_charge_amount: "150.00",
+    }),
   };
 
   const { data: claim, error: claimError } = await supabase
-    .from("claims")
+    .from("professional_claims")
     .insert(claimData)
     .select()
     .single();
