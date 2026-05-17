@@ -56,7 +56,7 @@ export function buildHomeDashboardPayload(role: string) {
         key: "clients",
         label: "Clients",
         value: Math.max(data.appointments.length, 12),
-        href: "/patients",
+        href: "/clients",
       },
       {
         key: "encounters",

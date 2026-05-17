@@ -68,7 +68,7 @@ export default function RouteToBillerClient() {
           <p className="hero-copy">Create a workqueue item without interrupting clinical documentation.</p>
         </div>
         <div className="hero-actions">
-          {clientId ? <Link className="button button-secondary" href={`/patients/${clientId}`}>Patient Chart</Link> : null}
+          {clientId ? <Link className="button button-secondary" href={`/clients/${clientId}`}>Patient Chart</Link> : null}
           <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
         </div>
       </section>
@@ -114,7 +114,7 @@ export default function RouteToBillerClient() {
           <button className="button" type="button" onClick={submit} disabled={submitting}>
             {submitting ? "Routing…" : "Route to Biller"}
           </button>
-          {clientId ? <Link className="button button-secondary" href={`/patients/${clientId}`}>Cancel</Link> : null}
+          {clientId ? <Link className="button button-secondary" href={`/clients/${clientId}`}>Cancel</Link> : null}
         </div>
       </section>
     </main>

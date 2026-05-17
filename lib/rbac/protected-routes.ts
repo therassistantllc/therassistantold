@@ -55,7 +55,22 @@ export const PROTECTED_ROUTES: ProtectedRouteConfig[] = [
     section: "patients",
   },
   {
+    path: "/clients/[id]",
+    description: "Patient Chart",
+    requiredPermissions: [PERMISSIONS.VIEW_PATIENT_CHART],
+    section: "patients",
+  },
+  {
     path: "/patients/[id]/edit",
+    description: "Edit Patient Demographics",
+    requiredPermissions: [
+      PERMISSIONS.VIEW_PATIENT_CHART,
+      PERMISSIONS.EDIT_PATIENT_DEMOGRAPHICS,
+    ],
+    section: "patients",
+  },
+  {
+    path: "/clients/[id]/edit",
     description: "Edit Patient Demographics",
     requiredPermissions: [
       PERMISSIONS.VIEW_PATIENT_CHART,
@@ -70,7 +85,19 @@ export const PROTECTED_ROUTES: ProtectedRouteConfig[] = [
     section: "patients",
   },
   {
+    path: "/clients/[id]/billing-settings",
+    description: "Patient Billing Settings",
+    requiredPermissions: [PERMISSIONS.VIEW_PATIENT_BILLING],
+    section: "patients",
+  },
+  {
     path: "/patients/[id]/patient-billing",
+    description: "Patient Billing View",
+    requiredPermissions: [PERMISSIONS.VIEW_PATIENT_BILLING],
+    section: "patients",
+  },
+  {
+    path: "/clients/[id]/patient-billing",
     description: "Patient Billing View",
     requiredPermissions: [PERMISSIONS.VIEW_PATIENT_BILLING],
     section: "patients",
@@ -180,7 +207,7 @@ export function getRouteConfig(path: string): ProtectedRouteConfig | undefined {
   let config = PROTECTED_ROUTES.find((r) => r.path === path);
   if (config) return config;
 
-  // Dynamic route match (e.g., /patients/[id] matches /patients/abc123)
+  // Dynamic route match (e.g., /clients/[id] matches /clients/abc123)
   config = PROTECTED_ROUTES.find((r) => {
     const pattern = r.path.replace(/\[id\]/g, "[^/]+").replace(/\//g, "\\/");
     const regex = new RegExp(`^${pattern}$`);

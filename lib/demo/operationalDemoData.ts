@@ -148,7 +148,7 @@ export const demoOperationalData = {
       balanceLabel: "$20 due today",
       priority: "low",
       message: "Collect copay from appointment card.",
-      href: "/patients/demo-client-001/patient-billing",
+      href: "/clients/demo-client-001/patient-billing",
     },
   ],
 };

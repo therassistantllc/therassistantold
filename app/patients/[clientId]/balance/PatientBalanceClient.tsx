@@ -185,7 +185,7 @@ export default function PatientBalanceClient({ clientId }: { clientId: string })
           <p className="hero-copy">Manual collection workflow for patient responsibility balances.</p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href={`/patients/${patient.id}`}>Patient Chart</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}`}>Patient Chart</Link>
           <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
         </div>
       </section>

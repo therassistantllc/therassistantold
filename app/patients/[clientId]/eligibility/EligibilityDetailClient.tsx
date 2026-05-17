@@ -112,7 +112,7 @@ export default function EligibilityDetailClient({ clientId }: { clientId: string
           <p className="hero-copy">Coverage, copay, deductible, and benefit history for the visit workflow.</p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href={`/patients/${clientId}`}>Patient Chart</Link>
+          <Link className="button button-secondary" href={`/clients/${clientId}`}>Patient Chart</Link>
           <Link className="button button-secondary" href={`/workqueue/new?clientId=${clientId}&organizationId=${organizationId}&reason=eligibility_question`}>Route Issue</Link>
         </div>
       </section>

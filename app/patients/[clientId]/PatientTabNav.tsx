@@ -25,11 +25,11 @@ export default function PatientTabNav({ clientId }: { clientId: string }) {
   return (
     <div className={styles.patientTabs} role="navigation" aria-label="Patient chart tabs">
       {PATIENT_TABS.map(({ label, slug }) => {
-        const base = `/patients/${clientId}${slug ? `/${slug}` : ""}`;
+        const base = `/clients/${clientId}${slug ? `/${slug}` : ""}`;
         const href = orgId ? `${base}?organizationId=${encodeURIComponent(orgId)}` : base;
         const active = slug === ""
-          ? pathname === `/patients/${clientId}`
-          : pathname.startsWith(`/patients/${clientId}/${slug}`);
+          ? pathname === `/clients/${clientId}`
+          : pathname.startsWith(`/clients/${clientId}/${slug}`);
         return (
           <Link
             key={label}

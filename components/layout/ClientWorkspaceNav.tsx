@@ -15,15 +15,15 @@ const clientSections = [
 
 function hrefFor(clientId: string, slug: string, organizationId: string) {
   const suffix = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
-  if (slug === "profile") return `/patients/${clientId}${suffix}`;
-  if (slug === "balance") return `/patients/${clientId}/balance${suffix}`;
-  return `/patients/${clientId}/${slug}${suffix}`;
+  if (slug === "profile") return `/clients/${clientId}${suffix}`;
+  if (slug === "balance") return `/clients/${clientId}/balance${suffix}`;
+  return `/clients/${clientId}/${slug}${suffix}`;
 }
 
 function activeFor(pathname: string, clientId: string, slug: string) {
-  if (slug === "profile") return pathname === `/patients/${clientId}`;
-  if (slug === "balance") return pathname === `/patients/${clientId}/balance`;
-  return pathname.startsWith(`/patients/${clientId}/${slug}`);
+  if (slug === "profile") return pathname === `/clients/${clientId}`;
+  if (slug === "balance") return pathname === `/clients/${clientId}/balance`;
+  return pathname.startsWith(`/clients/${clientId}/${slug}`);
 }
 
 export default function ClientWorkspaceNav({ clientId }: { clientId: string }) {
