@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { PipelineResult } from "./types";
+import { mapLegacyClaimInputToProfessionalClaim } from "../claims/createProfessionalClaimFromLegacyInput";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -391,41 +392,28 @@ export async function createClaimFromEncounter(
     return { ok: false, encounterId, message: "Encounter must be scrubbed or ready before claim creation." };
   }
 
-  const { data: existing } = await supabase.from("claims").select("*").eq("encounter_id", encounterId).maybeSingle();
+  const { data: existing } = await supabase.from("professional_claims").select("*").eq("encounter_id", encounterId).maybeSingle();
   if (existing) {
     return { ok: true, encounterId, claimId: existing.id, message: "Existing claim opened." };
   }
-
-  const { data: policy } = await supabase
-    .from("insurance_policies")
-    .select("*")
-    .eq("client_id", encounter.client_id)
-    .eq("priority", 1)
-    .limit(1)
-    .maybeSingle();
 
   const { data: lines } = await supabase.from("encounter_service_lines").select("*").eq("encounter_id", encounterId);
   const total = (lines ?? []).reduce((sum, line) => sum + Number(line.charge_amount ?? 0), 0);
 
   const claimNumber = `CLM-${Date.now().toString().slice(-8)}`;
 
+  const mappedClaim = mapLegacyClaimInputToProfessionalClaim({
+    organization_id: encounter.organization_id,
+    client_id: encounter.client_id,
+    encounter_id: encounterId,
+    claim_number: claimNumber,
+    claim_status: "draft",
+    total_charge_amount: total,
+  });
+
   const { data: claim, error } = await supabase
-    .from("claims")
-    .insert({
-      organization_id: encounter.organization_id,
-      client_id: encounter.client_id,
-      encounter_id: encounterId,
-      insurance_policy_id: policy?.id ?? null,
-      claim_number: claimNumber,
-      claim_status: "draft",
-      total_charge_amount: total,
-      date_of_service_from: encounter.service_date,
-      date_of_service_to: encounter.service_date,
-      claim_frequency_code: "1",
-      patient_responsibility_amount: 0,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    })
+    .from("professional_claims")
+    .insert(mappedClaim)
     .select("*")
     .single();
 
@@ -471,14 +459,13 @@ export async function submitClaim(
   claimId: string,
   submittedBy: string
 ): Promise<PipelineResult> {
-  const { data: claim } = await supabase.from("claims").select("*").eq("id", claimId).single();
+  const { data: claim } = await supabase.from("professional_claims").select("*").eq("id", claimId).single();
   if (!claim) return { ok: false, claimId, message: "Claim not found." } as PipelineResult;
 
   await supabase
-    .from("claims")
+    .from("professional_claims")
     .update({
       claim_status: "submitted",
-      submitted_at: nowIso(),
       updated_at: nowIso(),
     })
     .eq("id", claimId);
