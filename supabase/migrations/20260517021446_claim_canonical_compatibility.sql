@@ -32,4 +32,3 @@ select
   pc.created_at,
   pc.updated_at,
   pc.legacy_claim_id
-from public.professional_claims pc;
