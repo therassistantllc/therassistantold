@@ -187,10 +187,9 @@ export async function submitClaim(
 ): Promise<WorkflowResult> {
   // Update claim status
   const { error: updateError } = await supabase
-    .from("claims")
+    .from("professional_claims")
     .update({
       claim_status: "submitted",
-      submitted_at: new Date().toISOString(),
     })
     .eq("id", claimId);
 
@@ -266,10 +265,9 @@ export async function postPayment(
 
   // Update claim to paid
   const { error: claimUpdateError } = await supabase
-    .from("claims")
+    .from("professional_claims")
     .update({
       claim_status: "paid",
-      paid_at: new Date().toISOString(),
     })
     .eq("id", claimId);
 
