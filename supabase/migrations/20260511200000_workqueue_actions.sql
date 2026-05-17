@@ -23,9 +23,14 @@ create index if not exists idx_workqueue_item_comments_item
   on public.workqueue_item_comments (organization_id, workqueue_item_id, created_at desc)
   where archived_at is null;
 
-create index if not exists idx_workqueue_items_deferred_until
-  on public.workqueue_items (organization_id, deferred_until)
-  where archived_at is null and deferred_until is not null;
+do $$
+begin
+  if to_regclass('public.workqueue_items') is not null then
+    create index if not exists idx_workqueue_items_deferred_until
+      on public.workqueue_items (organization_id, deferred_until)
+      where archived_at is null and deferred_until is not null;
+  end if;
+end $$;
 
 alter table public.workqueue_item_comments enable row level security;
 

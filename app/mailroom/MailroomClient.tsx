@@ -180,7 +180,7 @@ export default function MailroomClient() {
                     <span>{item.notes || "No notes"}</span>
                     <span>{formatDate(item.createdAt)}</span>
                   </div>
-                  {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Patient Chart</Link> : null}
+                  {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Client Chart</Link> : null}
                 </div>
               </div>
             ))}

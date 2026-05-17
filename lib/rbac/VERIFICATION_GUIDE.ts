@@ -86,7 +86,7 @@
  * Test Cases:
  *   ✓ GET  /scheduling → 200, can see calendar
  *   ✓ POST /api/scheduling/appointments/create → 200, can create appointment
- *   ✓ GET  /patients/[id] → 200, can view patient
+ *   ✓ GET  /clients/[id] → 200, can view patient
  *   ✓ POST /api/encounters → 200, can create encounter/note
  *   ✓ GET  /work-schedule → 200, can view work schedule
  *   ✗ GET  /billing/workqueue → 403, access denied (no view_billing)
@@ -130,7 +130,7 @@
  *   ✓ POST /api/payments/post → 200, can post payments
  *   ✓ POST /api/claims/submit → 200, can submit claims
  *   ✗ GET  /scheduling → 403, access denied (no view_calendar)
- *   ✗ GET  /patients/[id] → 403, access denied (no view_patient_chart)
+ *   ✗ GET  /clients/[id] → 403, access denied (no view_patient_chart)
  *   ✗ POST /api/encounters → 403, access denied (no create_notes)
  *   ✗ GET  /staff → 403, access denied (no manage_users)
  *
@@ -164,10 +164,10 @@
  * Test Cases:
  *   ✓ GET  /scheduling → 200, can view calendar
  *   ✓ GET  /patients → 200, can view patients
- *   ✓ GET  /patients/[id] → 200, can view patient chart
+ *   ✓ GET  /clients/[id] → 200, can view patient chart
  *   ✓ GET  /billing/workqueue → 200, can view billing queue
  *   ✗ POST /api/scheduling/appointments/create → 403, no permission
- *   ✗ PUT  /patients/[id] → 403, no permission (edit_patient_demographics)
+ *   ✗ PUT  /clients/[id] → 403, no permission (edit_patient_demographics)
  *   ✗ POST /api/payments/post → 403, no permission (post_payments)
  *   ✗ POST /api/claims/submit → 403, no permission
  *

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { mapLegacyClaimInputToProfessionalClaim } from "@/lib/claims/createProfessionalClaimFromLegacyInput";
 
 function generateUuid() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -26,10 +27,9 @@ export async function POST(request: Request) {
     }
 
     const { data: existingClaim } = await supabase
-      .from("claims")
+      .from("professional_claims")
       .select("*")
       .eq("encounter_id", encounterId)
-      .is("archived_at", null)
       .maybeSingle();
 
     if (existingClaim) {
@@ -41,21 +41,20 @@ export async function POST(request: Request) {
 
     const claimPayload = {
       id: generateUuid(),
-      organization_id: encounter.organization_id,
-      client_id: encounter.client_id,
-      provider_id: encounter.provider_id,
-      encounter_id: encounterId,
-      claim_number: claimNumber,
-      claim_status: "ready_to_submit",
-      date_of_service_from: encounter.service_date,
-      date_of_service_to: encounter.service_date,
-      ready_to_submit_at: now,
+      ...mapLegacyClaimInputToProfessionalClaim({
+        organization_id: encounter.organization_id,
+        client_id: encounter.client_id,
+        encounter_id: encounterId,
+        claim_number: claimNumber,
+        claim_status: "ready_to_submit",
+        total_charge_amount: 0,
+      }),
       created_at: now,
       updated_at: now,
     };
 
     const { data: claim, error: claimError } = await supabase
-      .from("claims")
+      .from("professional_claims")
       .insert(claimPayload)
       .select()
       .single();
@@ -73,7 +72,7 @@ export async function POST(request: Request) {
       source_object_id: claim.id,
       client_id: encounter.client_id,
       encounter_id: encounterId,
-      claim_id: claim.id,
+      professional_claim_id: claim.id,
       context_payload: { lifecycle_step: "claim_created" },
       created_at: now,
       updated_at: now,

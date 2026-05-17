@@ -7,7 +7,7 @@ import styles from "./EhrTopNav.module.css";
 const navItems = [
   { label: "Dashboard", href: "/", match: ["/"] },
   { label: "Schedule", href: "/clinician/agenda", match: ["/clinician/agenda", "/schedule"] },
-  { label: "Clients", href: "/patients", match: ["/patients"] },
+  { label: "Clients", href: "/clients", match: ["/clients", "/patients"] },
   { label: "Biller Hub", href: "/billing/claim-readiness", match: ["/billing", "/workqueue", "/encounters"] },
   { label: "Mailroom", href: "/mailroom", match: ["/mailroom"] },
   { label: "Payments / Stripe", href: "/payments", match: ["/payments"] },

@@ -133,7 +133,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
               <p><strong>Linked patient:</strong> {item.clientId || "Not linked"}</p>
             </div>
             <div className="section-actions">
-              {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Open Patient Chart</Link> : null}
+              {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Open Client Chart</Link> : null}
             </div>
           </div>
 

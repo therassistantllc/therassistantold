@@ -185,8 +185,7 @@ export async function createClaim(
 
   // Create claim
   const { data: claim, error: claimError } = await supabase
-    .from("claims")
-    .insert({
+.from("professional_claims")    .insert({
       organization_id: encounter.organization_id,
       encounter_id: params.encounterId,
       client_id: encounter.client_id,
@@ -216,10 +215,9 @@ export async function submitClaim(
 ) {
   // Update claim status
   const { data, error } = await supabase
-    .from("claims")
+    .from("professional_claims")
     .update({
       claim_status: "submitted",
-      submitted_at: new Date().toISOString(),
     })
     .eq("id", claimId)
     .select()
@@ -250,8 +248,8 @@ export async function postPayment(
 ) {
   // Get claim details
   const { data: claim, error: claimError } = await supabase
-    .from("claims")
-    .select("client_id, encounter_id, billed_amount")
+    .from("professional_claims")
+    .select("id")
     .eq("id", params.claimId)
     .single();
 
@@ -276,10 +274,9 @@ export async function postPayment(
 
   // Mark claim as paid
   await supabase
-    .from("claims")
+    .from("professional_claims")
     .update({
       claim_status: "paid",
-      paid_at: new Date().toISOString(),
     })
     .eq("id", params.claimId);
 

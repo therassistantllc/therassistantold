@@ -117,10 +117,9 @@ export async function POST() {
 
     for (const encounter of encountersWithoutClaims ?? []) {
       const { data: claim, error: claimLookupError } = await supabase
-        .from("claims")
+        .from("professional_claims")
         .select("id")
         .eq("encounter_id", encounter.id)
-        .is("archived_at", null)
         .maybeSingle();
 
       if (claimLookupError) throw claimLookupError;
@@ -144,11 +143,10 @@ export async function POST() {
     }
 
     const { data: claimsWithoutResponse, error: noResponseError } = await supabase
-      .from("claims")
+      .from("professional_claims")
       .select("id, client_id, encounter_id, claim_number, organization_id, claim_status, updated_at")
       .eq("claim_status", "submitted")
-      .lt("updated_at", thirtyDaysAgo)
-      .is("archived_at", null);
+      .lt("updated_at", thirtyDaysAgo);
 
     if (noResponseError) throw noResponseError;
 
@@ -187,10 +185,9 @@ export async function POST() {
     }
 
     const { data: deniedClaims, error: deniedError } = await supabase
-      .from("claims")
+      .from("professional_claims")
       .select("id, client_id, encounter_id, claim_number, organization_id, claim_status")
-      .in("claim_status", ["denied", "rejected"])
-      .is("archived_at", null);
+      .in("claim_status", ["denied", "rejected"]);
 
     if (deniedError) throw deniedError;
 

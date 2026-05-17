@@ -117,7 +117,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           <p className="hero-copy">Service date: {formatDate(encounter.service_date)} · Status: {encounter.encounter_status ?? "not set"}</p>
         </div>
         <div className="hero-actions">
-          {patient?.id ? <Link className="button button-secondary" href={`/patients/${patient.id}`}>Patient Chart</Link> : null}
+          {patient?.id ? <Link className="button button-secondary" href={`/clients/${patient.id}`}>Patient Chart</Link> : null}
           <Link className="button button-secondary" href={`/encounters/${encounterId}/billing`}>Billing Details</Link>
           <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
           <button className="button button-secondary" type="button" onClick={() => submitNote("save")} disabled={saving || finalized}>Save Draft</button>

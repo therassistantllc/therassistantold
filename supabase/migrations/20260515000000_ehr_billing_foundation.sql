@@ -947,9 +947,14 @@ alter table public.workqueue_items
   add column if not exists billing_alert_id uuid references public.billing_alerts(id) on delete set null,
   add column if not exists ticket_id        uuid references public.tickets(id) on delete set null;
 
-create index if not exists idx_workqueue_items_billing_alert
-  on public.workqueue_items (organization_id, billing_alert_id)
-  where billing_alert_id is not null and archived_at is null;
+do $$
+begin
+  if to_regclass('public.workqueue_items') is not null then
+    create index if not exists idx_workqueue_items_billing_alert
+      on public.workqueue_items (organization_id, billing_alert_id)
+      where billing_alert_id is not null and archived_at is null;
+  end if;
+end $$;
 
 -- 19g. workqueue_item_comments: smart_phrase tracking
 alter table public.workqueue_item_comments

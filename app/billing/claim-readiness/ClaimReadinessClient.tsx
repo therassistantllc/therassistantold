@@ -193,7 +193,7 @@ export default function ClaimReadinessClient() {
               <div className="section-actions">
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}`}>Open Note</Link>
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}/billing`}>Billing Details</Link>
-                {item.clientId ? <Link className="button button-secondary" href={`/patients/${item.clientId}`}>Patient Chart</Link> : null}
+                {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Patient Chart</Link> : null}
                 {item.claim?.id && item.clientId ? (
                   <button
                     className="button button-secondary"

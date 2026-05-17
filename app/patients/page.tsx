@@ -1,5 +1,5 @@
-import PatientsRosterClient from "./PatientsRosterClient";
+import { redirect } from "next/navigation";
 
 export default function PatientsPage() {
-  return <PatientsRosterClient />;
+  redirect("/clients");
 }

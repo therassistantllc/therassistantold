@@ -174,9 +174,9 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
       <section className="toolbar-panel" style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "12px 0" }}>
         <Link className="button button-secondary" href={`/encounters/new?clientId=${patient.id}&organizationId=${organizationId}`}>Create Encounter</Link>
         <Link className="button button-secondary" href={`/workqueue/new?clientId=${patient.id}${organizationId ? `&organizationId=${organizationId}` : ""}`}>Route to Biller</Link>
-        <Link className="button button-secondary" href={`/patients/${patient.id}/eligibility?organizationId=${organizationId}`}>Check Eligibility</Link>
-        <Link className="button button-secondary" href={`/patients/${patient.id}/claims?organizationId=${organizationId}`}>Claims</Link>
-        <Link className="button button-secondary" href={`/patients/${patient.id}/balance?organizationId=${organizationId}`}>Billing</Link>
+        <Link className="button button-secondary" href={`/clients/${patient.id}/eligibility?organizationId=${organizationId}`}>Check Eligibility</Link>
+        <Link className="button button-secondary" href={`/clients/${patient.id}/claims?organizationId=${organizationId}`}>Claims</Link>
+        <Link className="button button-secondary" href={`/clients/${patient.id}/balance?organizationId=${organizationId}`}>Billing</Link>
         <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Upload Document</span>
         <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Collect Payment</span>
         <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Schedule Appointment</span>
@@ -248,7 +248,7 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
             ))}
           </div>
           <div className="section-actions">
-            <Link className="button button-secondary" href={`/patients/${patient.id}/balance`}>Open Balance</Link>
+            <Link className="button button-secondary" href={`/clients/${patient.id}/balance`}>Open Balance</Link>
           </div>
         </article>
 

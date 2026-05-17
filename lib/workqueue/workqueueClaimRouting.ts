@@ -30,7 +30,7 @@ export interface WorkqueueClaimRef {
 
 /**
  * camelCase variant used by frontend DTO objects returned from
- * /api/workqueue/items and /api/patients/[clientId]/workqueue.
+ * /api/workqueue/items and /api/clients/[clientId]/workqueue.
  */
 export interface WorkqueueClaimRefCamel {
   /** Canonical reference → professional_claims (preferred). */

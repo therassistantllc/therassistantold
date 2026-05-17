@@ -92,9 +92,14 @@ comment on column public.workqueue_items.work_type
   is 'References workqueue_type_catalog.work_type. Valid values: no_response, aging_0_30, aging_31_60, aging_61_90, aging_91_120, aging_120_plus, denied, clearinghouse_rejection, payer_rejection, eligibility_issue, eligibility_needed, era_mismatch, appeal_needed, recoupment, ready_to_bill, biller_review.';
 
 -- Add a work_type filter index for AR aging queries
-create index if not exists idx_workqueue_items_open_work_type_claim
-  on public.workqueue_items (organization_id, work_type, claim_id, created_at desc)
-  where archived_at is null and status in ('open', 'in_progress', 'blocked');
+do $$
+begin
+  if to_regclass('public.workqueue_items') is not null then
+    create index if not exists idx_workqueue_items_open_work_type_claim
+      on public.workqueue_items (organization_id, work_type, claim_id, created_at desc)
+      where archived_at is null and status in ('open', 'in_progress', 'blocked');
+  end if;
+end $$;
 
 -- ─── 7. RLS on workqueue_type_catalog (public read) ──────────────────────────
 alter table public.workqueue_type_catalog enable row level security;
@@ -150,9 +155,14 @@ alter table public.workqueue_items
   add column if not exists professional_claim_id uuid
     references public.professional_claims(id) on delete set null;
 
-create index if not exists idx_workqueue_items_professional_claim_id
-  on public.workqueue_items (organization_id, professional_claim_id)
-  where professional_claim_id is not null;
+do $$
+begin
+  if to_regclass('public.workqueue_items') is not null then
+    create index if not exists idx_workqueue_items_professional_claim_id
+      on public.workqueue_items (organization_id, professional_claim_id)
+      where professional_claim_id is not null;
+  end if;
+end $$;
 
 comment on column public.workqueue_items.professional_claim_id
   is 'FK to professional_claims.id. Set by billing-flow services (aging, ERA, rejection). '

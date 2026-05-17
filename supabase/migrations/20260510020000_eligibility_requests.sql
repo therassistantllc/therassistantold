@@ -6,7 +6,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.eligibility_requests (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid,
-  patient_id uuid,
+  client_id uuid,
   payer_configuration_id uuid,
   payer_id text,
   payer_name text,
@@ -49,8 +49,8 @@ create table if not exists public.eligibility_requests (
 create index if not exists idx_eligibility_requests_organization_id
   on public.eligibility_requests (organization_id);
 
-create index if not exists idx_eligibility_requests_patient_id
-  on public.eligibility_requests (patient_id);
+create index if not exists idx_eligibility_requests_client_id
+  on public.eligibility_requests (client_id);
 
 create index if not exists idx_eligibility_requests_payer_configuration_id
   on public.eligibility_requests (payer_configuration_id);

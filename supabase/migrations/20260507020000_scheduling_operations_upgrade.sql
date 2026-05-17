@@ -79,9 +79,14 @@ create index if not exists idx_provider_schedule_blocks_lookup
   on public.provider_schedule_blocks (organization_id, provider_id, starts_at, ends_at)
   where archived_at is null;
 
-create index if not exists idx_appointment_series_lookup
-  on public.appointments (organization_id, series_id, scheduled_start_at)
-  where archived_at is null and series_id is not null;
+do $$
+begin
+  if to_regclass('public.appointments') is not null then
+    create index if not exists idx_appointment_series_lookup
+      on public.appointments (organization_id, series_id, scheduled_start_at)
+      where archived_at is null and series_id is not null;
+  end if;
+end $$;
 
 create index if not exists idx_appointment_reminders_due
   on public.appointment_reminders (organization_id, reminder_status, scheduled_for)
