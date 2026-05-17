@@ -134,7 +134,7 @@ create index if not exists idx_eligibility_checks_org_client_appt_checked
   on public.eligibility_checks (organization_id, client_id, appointment_id, checked_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_claim_received
-  on public.claim_status_inquiries (organization_id, claim_id, requested_at desc);
+  on public.claim_status_inquiries (organization_id, claim_id, created_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_client_created
   on public.claim_status_inquiries (organization_id, client_id, created_at desc);
