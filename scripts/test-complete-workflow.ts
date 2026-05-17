@@ -11,6 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
 import * as path from "path";
+import { mapLegacyClaimInputToProfessionalClaim } from "../lib/claims/createProfessionalClaimFromLegacyInput";
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
@@ -286,23 +287,19 @@ async function createClaim(
 ): Promise<WorkflowResult> {
   console.log("\n💰 Step 5: Creating claim...");
 
-  const serviceDate = new Date().toISOString().split("T")[0];
-
   const claimData = {
-    organization_id: ctx.organizationId,
-    encounter_id: encounterId,
-    client_id: ctx.clientId,
-    insurance_policy_id: ctx.insurancePolicyId,
-    claim_number: "TEST-" + Date.now(),
-    claim_status: "ready_to_submit",
-    total_charge_amount: "150.00",
-    date_of_service_from: serviceDate,
-    date_of_service_to: serviceDate,
-    duplicate_detection_key: `${ctx.clientId}_${encounterId}_${serviceDate}`,
+    ...mapLegacyClaimInputToProfessionalClaim({
+      organization_id: ctx.organizationId,
+      encounter_id: encounterId,
+      client_id: ctx.clientId,
+      claim_number: "TEST-" + Date.now(),
+      claim_status: "ready_to_submit",
+      total_charge_amount: "150.00",
+    }),
   };
 
   const { data, error } = await supabase
-    .from("claims")
+    .from("professional_claims")
     .insert(claimData)
     .select()
     .single();
