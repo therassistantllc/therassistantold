@@ -1,5 +1,12 @@
 create extension if not exists pgcrypto;
 
+-- Drop legacy era_claim_payments and its dependents from 20260505030000_office_ally_response_schemas.
+-- That migration created an early draft with incompatible columns. This migration is the canonical
+-- 835/ERA redesign, so we drop-and-recreate on a fresh DB where the tables are always empty.
+drop table if exists public.era_adjustments cascade;
+drop table if exists public.era_service_line_payments cascade;
+drop table if exists public.era_claim_payments cascade;
+
 create table if not exists public.era_import_batches (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,

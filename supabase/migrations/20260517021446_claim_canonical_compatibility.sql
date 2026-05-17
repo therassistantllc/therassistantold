@@ -28,7 +28,8 @@ select
   pc.claim_number,
   pc.claim_status,
   pc.total_charge,
-  pc.submitted_at,
+  null::timestamptz as submitted_at,
   pc.created_at,
   pc.updated_at,
   pc.legacy_claim_id
+from public.professional_claims pc;

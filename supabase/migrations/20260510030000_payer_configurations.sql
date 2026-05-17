@@ -39,8 +39,8 @@ create policy payer_configurations_org_policy on public.payer_configurations
   for all
   using (
     organization_id is null or
-    organization_id = auth.jwt() ->> 'org_id'::text or
-    (auth.jwt() ->> 'org_id'::text) is null
+    organization_id = (auth.jwt() ->> 'org_id')::uuid or
+    (auth.jwt() ->> 'org_id') is null
   );
 
 -- Comments

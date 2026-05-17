@@ -119,7 +119,7 @@ create index if not exists idx_eligibility_checks_org_patient_appt_checked
   on public.eligibility_checks (organization_id, client_id, appointment_id, checked_at desc);
 
 create index if not exists idx_claim_status_inquiries_org_claim_received
-  on public.claim_status_inquiries (organization_id, claim_id, requested_at desc);
+  on public.claim_status_inquiries (organization_id, claim_id, created_at desc);
 
 create index if not exists idx_response_events_org_claim_type_resolved
   on public.clearinghouse_response_events (organization_id, claim_id, event_type, is_resolved);

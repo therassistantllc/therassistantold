@@ -18,7 +18,7 @@ create table if not exists public.claim_status_inquiries (
   organization_id uuid not null,
   claim_id uuid not null,
   client_id uuid not null,
-  inquiry_status text not null default 'created',
+  status text not null default 'created',
   external_transaction_id text null,
   duplicate_detection_key text null,
   payer_status_code text null,
@@ -123,7 +123,7 @@ alter table if exists public.eligibility_checks
 alter table if exists public.claim_status_inquiries drop constraint if exists claim_status_inquiries_status_chk;
 alter table if exists public.claim_status_inquiries
   add constraint claim_status_inquiries_status_chk
-  check (inquiry_status in ('created', 'sent', 'received', 'parsed', 'failed', 'not_found', 'pending', 'paid', 'denied', 'rejected', 'needs_info', 'unknown'));
+  check (status in ('created', 'sent', 'received', 'parsed', 'failed', 'not_found', 'pending', 'paid', 'denied', 'rejected', 'needs_info', 'unknown'));
 
 alter table if exists public.encounters alter column client_id set not null;
 alter table if exists public.claims alter column client_id set not null;
@@ -139,17 +139,26 @@ create index if not exists idx_claim_status_inquiries_org_claim_received
 create index if not exists idx_claim_status_inquiries_org_client_created
   on public.claim_status_inquiries (organization_id, client_id, created_at desc);
 
-create index if not exists idx_workqueue_items_open_by_type
-  on public.workqueue_items (organization_id, status, work_type, priority, created_at desc)
-  where archived_at is null;
+do $$
+begin
+  if to_regclass('public.workqueue_items') is not null then
+    create index if not exists idx_workqueue_items_open_by_type
+      on public.workqueue_items (organization_id, status, work_type, priority, created_at desc)
+      where archived_at is null;
 
-create index if not exists idx_workqueue_items_source_dedupe
-  on public.workqueue_items (source_object_type, source_object_id, work_type)
-  where archived_at is null and status in ('open', 'in_progress', 'blocked');
+    create index if not exists idx_workqueue_items_source_dedupe
+      on public.workqueue_items (source_object_type, source_object_id, work_type);
+  end if;
+end $$;
 
-create index if not exists idx_claims_org_client_status
-  on public.claims (organization_id, client_id, claim_status, updated_at desc)
-  where archived_at is null;
+do $$
+begin
+  if to_regclass('public.claims') is not null then
+    create index if not exists idx_claims_org_client_status
+      on public.claims (organization_id, client_id, claim_status, updated_at desc)
+      where archived_at is null;
+  end if;
+end $$;
 
 alter table public.claim_status_inquiries enable row level security;
 

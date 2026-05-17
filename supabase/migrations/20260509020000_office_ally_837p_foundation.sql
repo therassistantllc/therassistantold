@@ -6,7 +6,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.clearinghouse_connections (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  clearinghouse_name text not null default 'office_ally',
+  vendor text not null default 'office_ally',
   mode text not null default 'test' check (mode in ('test', 'production')),
   submitter_id text not null,
   sender_qualifier text not null default 'ZZ' check (sender_qualifier in ('30', 'ZZ')),
@@ -27,7 +27,7 @@ create table if not exists public.clearinghouse_connections (
 );
 
 create unique index if not exists idx_clearinghouse_connections_org_name_mode
-  on public.clearinghouse_connections (organization_id, clearinghouse_name, mode);
+  on public.clearinghouse_connections (organization_id, vendor, mode);
 
 create table if not exists public.payer_profiles (
   id uuid primary key default gen_random_uuid(),
