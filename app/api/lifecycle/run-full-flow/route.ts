@@ -208,10 +208,9 @@ export async function POST(request: Request) {
 
     let claim: DbRow;
     const { data: existingClaim, error: existingClaimError } = await supabase
-      .from("claims")
+      .from("professional_claims")
       .select("*")
       .eq("encounter_id", encounter.id)
-      .is("archived_at", null)
       .maybeSingle();
 
     if (existingClaimError) throw existingClaimError;
