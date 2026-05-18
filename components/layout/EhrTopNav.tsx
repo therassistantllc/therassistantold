@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation";
 import styles from "./EhrTopNav.module.css";
 
 const navItems = [
-  { label: "Dashboard", href: "/", match: ["/"] },
-  { label: "Schedule", href: "/clinician/agenda", match: ["/clinician/agenda", "/schedule"] },
+  { label: "Home", href: "/", match: ["/"] },
   { label: "Clients", href: "/clients", match: ["/clients", "/patients"] },
-  { label: "Billing", href: "/billing", match: ["/billing", "/workqueue", "/encounters"] },
-  { label: "Reports", href: "/billing/reports", match: ["/billing/reports"] },
+  { label: "Agenda", href: "/clinician/agenda", match: ["/clinician/agenda"] },
+  { label: "Encounters", href: "/encounters", match: ["/encounters"] },
+  { label: "Workqueue", href: "/workqueue", match: ["/workqueue"] },
   { label: "Mailroom", href: "/mailroom", match: ["/mailroom"] },
-  { label: "Payments / Stripe", href: "/payments", match: ["/payments"] },
-  { label: "Settings & Staff", href: "/admin/provider-credentialing", match: ["/admin", "/settings"] },
+  { label: "Billing", href: "/billing", match: ["/billing"] },
+  { label: "Settings", href: "/settings", match: ["/settings", "/admin"] },
 ];
 
 function isActive(pathname: string, item: { href: string; match: string[] }) {

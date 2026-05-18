@@ -11,7 +11,7 @@ const RBAC_SECTIONS = [
   {
     label: "Roles & Permissions",
     description: "Define roles (admin, biller, clinician) and assign granular permissions.",
-    href: "/admin/roles",
+    href: "/admin/staff",
   },
   {
     label: "Role Assignments",
