@@ -4,7 +4,6 @@ const OPENMRS_PASSWORD = process.env.OPENMRS_PASSWORD;
 
 function authHeader() {
   const token = Buffer.from(`${OPENMRS_USERNAME}:${OPENMRS_PASSWORD}`).toString("base64");
-
   return `Basic ${token}`;
 }
 

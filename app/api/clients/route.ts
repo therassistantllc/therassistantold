@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+const useOpenMrsPatients = process.env.USE_OPENMRS_PATIENTS === "true";
 
 type Row = Record<string, unknown>;
 
