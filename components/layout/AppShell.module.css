@@ -110,6 +110,11 @@
   flex: 1;
 }
 
+.navGroup {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Section divider label */
 .navSection {
   padding: 14px 14px 4px;
@@ -145,6 +150,36 @@
   background: rgba(255, 255, 255, 0.11);
   color: #ffffff;
   border-left-color: #5e8a6a;
+  font-weight: 600;
+}
+
+.subnav {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px;
+}
+
+.subnavItem {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 6px 32px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.62);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  line-height: 1.3;
+}
+
+.subnavItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.subnavItemActive {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-left-color: rgba(255, 255, 255, 0.78);
   font-weight: 600;
 }
 
