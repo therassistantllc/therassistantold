@@ -14,10 +14,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Clients", href: "/clients" },
   { label: "Encounters", href: "/encounters" },
   { label: "Workqueue", href: "/workqueue" },
-  { label: "Claims", href: "/billing/claim-readiness" },
-  { label: "Payments", disabled: true },
+  { label: "Billing", href: "/billing" },
+  { label: "Payments", href: "/billing/reports" },
   { label: "Mail Room", href: "/mailroom" },
-  { label: "Reports", disabled: true },
+  { label: "Reports", href: "/billing/reports" },
   { label: "Settings", href: "/settings" },
 ];
 

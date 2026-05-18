@@ -17,9 +17,6 @@ type EligibilitySummary = {
   checked_at?: string | null;
   copay_amount?: string | number | null;
   deductible_remaining?: string | number | null;
-  coverage_start_date?: string | null;
-  coverage_end_date?: string | null;
-  response_summary?: string | null;
 };
 
 type InvoiceSummary = {
@@ -27,17 +24,12 @@ type InvoiceSummary = {
   invoice_number?: string | null;
   invoice_status?: string | null;
   balance_amount?: string | number | null;
-  patient_responsibility_amount?: string | number | null;
-  created_at?: string | null;
 };
 
 type EncounterSummary = {
   id: string;
-  appointment_id?: string | null;
   encounter_status?: string | null;
   service_date?: string | null;
-  started_at?: string | null;
-  ended_at?: string | null;
 };
 
 type WorkqueueSummary = {
@@ -52,7 +44,6 @@ type WorkqueueSummary = {
 type PatientSummary = {
   success: boolean;
   error?: string;
-  organizationId?: string;
   patient?: {
     id: string;
     name: string;
@@ -74,6 +65,64 @@ type PatientSummary = {
   workqueueItems?: WorkqueueSummary[];
 };
 
+type AppointmentSummary = {
+  id: string;
+  scheduledStart?: string | null;
+  status?: string | null;
+  type?: string | null;
+  reason?: string | null;
+  encounter?: { id: string; status?: string | null } | null;
+};
+
+type ConditionSummary = {
+  id: string;
+  code: string;
+  description?: string | null;
+  encounterId: string;
+  encounterDate?: string | null;
+};
+
+type ClaimSummary = {
+  id: string;
+  claimNumber?: string | null;
+  status?: string | null;
+  totalCharge?: number | null;
+  createdAt?: string | null;
+};
+
+type NoteSummary = {
+  id: string;
+  encounterId: string;
+  encounterDate?: string | null;
+  noteStatus?: string | null;
+  noteType?: string | null;
+};
+
+type DocumentSummary = {
+  id: string;
+  title?: string | null;
+  fileName?: string | null;
+  createdAt?: string | null;
+  mailroomItemId?: string | null;
+};
+
+type MailroomSummary = {
+  id: string;
+  fileName?: string;
+  status?: string;
+  documentType?: string;
+  createdAt?: string;
+};
+
+type DetailState = {
+  appointments: AppointmentSummary[];
+  conditions: ConditionSummary[];
+  claims: ClaimSummary[];
+  notes: NoteSummary[];
+  documents: DocumentSummary[];
+  mailroomItems: MailroomSummary[];
+};
+
 function getOrganizationId() {
   if (typeof window === "undefined") return "";
   const params = new URLSearchParams(window.location.search);
@@ -92,23 +141,36 @@ function formatMoney(value: string | number | null | undefined) {
   return amount.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function eligibilityLabel(latestEligibility: EligibilitySummary | null | undefined) {
-  if (!latestEligibility) return "No recent eligibility check";
-  const status = latestEligibility.eligibility_status ?? "unknown";
-  return `Eligibility ${status}`;
-}
-
 function statusClass(value: string | null | undefined) {
   const normalized = String(value ?? "").toLowerCase();
   if (normalized.includes("active") && !normalized.includes("inactive")) return "status status-green";
-  if (normalized.includes("paid")) return "status status-green";
-  if (normalized.includes("inactive") || normalized.includes("blocked") || normalized.includes("collections")) return "status status-red";
-  if (normalized.includes("open") || normalized.includes("sent") || normalized.includes("draft")) return "status status-yellow";
+  if (normalized.includes("paid") || normalized.includes("accepted") || normalized.includes("resolved")) return "status status-green";
+  if (normalized.includes("inactive") || normalized.includes("blocked") || normalized.includes("denied") || normalized.includes("rejected")) return "status status-red";
+  if (normalized.includes("open") || normalized.includes("sent") || normalized.includes("draft") || normalized.includes("submitted") || normalized.includes("in_progress")) return "status status-yellow";
   return "status";
+}
+
+async function fetchList<T>(url: string, field: string): Promise<T[]> {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    const json = (await response.json()) as Record<string, unknown> & { success?: boolean };
+    if (!response.ok || !json.success) return [];
+    return (Array.isArray(json[field]) ? (json[field] as T[]) : []);
+  } catch {
+    return [];
+  }
 }
 
 export default function PatientChartClient({ clientId }: { clientId: string }) {
   const [summary, setSummary] = useState<PatientSummary | null>(null);
+  const [details, setDetails] = useState<DetailState>({
+    appointments: [],
+    conditions: [],
+    claims: [],
+    notes: [],
+    documents: [],
+    mailroomItems: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const organizationId = useMemo(() => getOrganizationId(), []);
@@ -124,13 +186,32 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
       }
 
       try {
-        const response = await fetch(`/api/patients/${clientId}/summary?organizationId=${encodeURIComponent(organizationId)}`, {
+        const summaryResponse = await fetch(`/api/patients/${clientId}/summary?organizationId=${encodeURIComponent(organizationId)}`, {
           cache: "no-store",
         });
-        const json = (await response.json()) as PatientSummary;
+        const summaryJson = (await summaryResponse.json()) as PatientSummary;
+        if (!summaryResponse.ok || !summaryJson.success) throw new Error(summaryJson.error ?? "Failed to load patient chart");
+
+        const [appointments, conditions, claims, notes, documents, mailroomItems] = await Promise.all([
+          fetchList<AppointmentSummary>(`/api/patients/${clientId}/appointments?organizationId=${encodeURIComponent(organizationId)}`, "appointments"),
+          fetchList<ConditionSummary>(`/api/patients/${clientId}/conditions?organizationId=${encodeURIComponent(organizationId)}`, "conditions"),
+          fetchList<ClaimSummary>(`/api/patients/${clientId}/claims?organizationId=${encodeURIComponent(organizationId)}`, "claims"),
+          fetchList<NoteSummary>(`/api/patients/${clientId}/notes?organizationId=${encodeURIComponent(organizationId)}`, "notes"),
+          fetchList<DocumentSummary>(`/api/patients/${clientId}/documents?organizationId=${encodeURIComponent(organizationId)}`, "documents"),
+          fetchList<MailroomSummary>(`/api/mailroom/items?organizationId=${encodeURIComponent(organizationId)}&clientId=${encodeURIComponent(clientId)}&status=all&limit=10`, "items"),
+        ]);
+
         if (cancelled) return;
-        if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load patient chart");
-        setSummary(json);
+
+        setSummary(summaryJson);
+        setDetails({
+          appointments,
+          conditions,
+          claims,
+          notes,
+          documents,
+          mailroomItems,
+        });
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Failed to load patient chart");
       } finally {
@@ -138,7 +219,7 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
       }
     }
 
-    loadPatient();
+    void loadPatient();
     return () => {
       cancelled = true;
     };
@@ -151,73 +232,96 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
   const encounters = summary?.encounters ?? [];
   const workqueueItems = summary?.workqueueItems ?? [];
 
-  if (loading) return <div className="empty-state">Loading patient chart…</div>;
+  const claimCounts = details.claims.reduce(
+    (acc, claim) => {
+      const key = String(claim.status ?? "unknown");
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const deniedOrRejectedCount = details.claims.filter((claim) => {
+    const status = String(claim.status ?? "").toLowerCase();
+    return status.includes("denied") || status.includes("rejected");
+  }).length;
+
+  const alerts: string[] = [];
+  if (!latestEligibility) alerts.push("No recent eligibility check on file.");
+  if (latestEligibility && String(latestEligibility.eligibility_status ?? "").toLowerCase().includes("inactive")) {
+    alerts.push("Coverage is marked inactive. Verify eligibility before next visit.");
+  }
+  if ((summary?.balance?.total ?? 0) > 0) alerts.push("Outstanding patient balance requires follow-up.");
+  if (deniedOrRejectedCount > 0) alerts.push(`${deniedOrRejectedCount} denied/rejected claim(s) need billing action.`);
+  if (workqueueItems.length > 0) alerts.push(`${workqueueItems.length} open workqueue item(s) linked to this client.`);
+
+  const orgQ = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+
+  if (loading) return <div className="empty-state">Loading client chart…</div>;
   if (error) return <div className="alert-panel">{error}</div>;
-  if (!patient) return <div className="alert-panel">Patient record not found.</div>;
+  if (!patient) return <div className="alert-panel">Client record not found.</div>;
 
   return (
     <>
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Patient Chart</p>
+          <p className="eyebrow">Client Chart Summary</p>
           <h1>{patient.name}</h1>
           <p className="hero-copy">
             DOB: {formatDate(patient.dateOfBirth)}{patient.pronouns ? ` · Pronouns: ${patient.pronouns}` : ""}
           </p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
-          <Link className="button" href={`/workqueue/new?clientId=${patient.id}`}>Route to Biller</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/appointments${orgQ}`}>Appointments</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/notes${orgQ}`}>Notes</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/eligibility${orgQ}`}>Eligibility</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/claims${orgQ}`}>Claims</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/balance${orgQ}`}>Balance</Link>
+          <Link className="button button-secondary" href={`/clients/${patient.id}/documents${orgQ}`}>Documents</Link>
+          <Link className="button" href={`/workqueue/new?clientId=${patient.id}${organizationId ? `&organizationId=${organizationId}` : ""}`}>Route to Biller</Link>
         </div>
-      </section>
-
-      <section className="toolbar-panel" style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "12px 0" }}>
-        <Link className="button button-secondary" href={`/encounters/new?clientId=${patient.id}&organizationId=${organizationId}`}>Create Encounter</Link>
-        <Link className="button button-secondary" href={`/workqueue/new?clientId=${patient.id}${organizationId ? `&organizationId=${organizationId}` : ""}`}>Route to Biller</Link>
-        <Link className="button button-secondary" href={`/clients/${patient.id}/eligibility?organizationId=${organizationId}`}>Check Eligibility</Link>
-        <Link className="button button-secondary" href={`/clients/${patient.id}/claims?organizationId=${organizationId}`}>Claims</Link>
-        <Link className="button button-secondary" href={`/clients/${patient.id}/balance?organizationId=${organizationId}`}>Billing</Link>
-        <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Upload Document</span>
-        <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Collect Payment</span>
-        <span className="button button-secondary" aria-disabled="true" style={{ opacity: 0.5, cursor: "not-allowed" }}>Schedule Appointment</span>
       </section>
 
       <section className="metric-grid">
         <article className="metric-card">
-          <span>Balance</span>
+          <span>Outstanding Balance</span>
           <strong>{formatMoney(summary?.balance?.total ?? 0)}</strong>
         </article>
         <article className="metric-card">
-          <span>Eligibility</span>
-          <strong className="metric-text">{latestEligibility?.eligibility_status ?? "None"}</strong>
+          <span>Claims</span>
+          <strong>{details.claims.length}</strong>
         </article>
         <article className="metric-card">
-          <span>Encounters</span>
+          <span>Recent Encounters</span>
           <strong>{encounters.length}</strong>
         </article>
         <article className="metric-card">
-          <span>Open Issues</span>
+          <span>Open Workqueue</span>
           <strong>{workqueueItems.length}</strong>
         </article>
       </section>
 
+      <section className="panel" style={{ marginBottom: "16px" }}>
+        <h2>Alerts</h2>
+        {alerts.length === 0 ? <p className="muted">No active chart alerts.</p> : null}
+        <div className="stack-list">
+          {alerts.map((alert) => (
+            <div className="stack-item" key={alert}>
+              <span className="status status-yellow">Attention</span>
+              <strong>{alert}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="chart-grid">
         <article className="panel">
-          <h2>Overview</h2>
+          <h2>Demographics</h2>
           <div className="detail-list">
             <p><strong>Preferred name:</strong> {patient.preferredName ?? "Not listed"}</p>
             <p><strong>Email:</strong> {patient.email ?? "Not listed"}</p>
             <p><strong>Phone:</strong> {patient.phone ?? "Not listed"}</p>
-          </div>
-        </article>
-
-        <article className="panel">
-          <h2>Eligibility Snapshot</h2>
-          <div className="detail-list">
-            <p><strong>Status:</strong> <span className={statusClass(latestEligibility?.eligibility_status)}>{eligibilityLabel(latestEligibility)}</span></p>
-            <p><strong>Last checked:</strong> {formatDate(latestEligibility?.checked_at)}</p>
-            <p><strong>Copay:</strong> {formatMoney(latestEligibility?.copay_amount)}</p>
-            <p><strong>Deductible remaining:</strong> {formatMoney(latestEligibility?.deductible_remaining)}</p>
+            <p><strong>Client ID:</strong> {patient.id}</p>
           </div>
         </article>
 
@@ -225,7 +329,7 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           <h2>Insurance</h2>
           {policies.length === 0 ? <p className="muted">No active insurance policies found.</p> : null}
           <div className="stack-list">
-            {policies.map((policy) => (
+            {policies.slice(0, 3).map((policy) => (
               <div className="stack-item" key={policy.id}>
                 <strong>{policy.plan_name ?? "Insurance policy"}</strong>
                 <span>{policy.priority ?? "priority not set"} · {policy.active_flag ? "active" : "inactive"}</span>
@@ -233,22 +337,42 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
               </div>
             ))}
           </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/eligibility${orgQ}`}>Open Eligibility</Link>
+          </div>
         </article>
 
         <article className="panel">
-          <h2>Patient Balance</h2>
-          {invoices.length === 0 ? <p className="muted">No open patient invoices.</p> : null}
+          <h2>Recent Appointments</h2>
+          {details.appointments.length === 0 ? <p className="muted">No appointments found.</p> : null}
           <div className="stack-list">
-            {invoices.map((invoice) => (
-              <div className="stack-item" key={invoice.id}>
-                <strong>{invoice.invoice_number ?? "Invoice"}</strong>
-                <span className={statusClass(invoice.invoice_status)}>{invoice.invoice_status ?? "status not set"}</span>
-                <span>Balance: {formatMoney(invoice.balance_amount)}</span>
+            {details.appointments.slice(0, 5).map((appointment) => (
+              <div className="stack-item" key={appointment.id}>
+                <strong>{formatDate(appointment.scheduledStart)}</strong>
+                <span>{appointment.type ?? "visit"} · {appointment.reason ?? "no reason listed"}</span>
+                <span className={statusClass(appointment.status)}>{appointment.status ?? "scheduled"}</span>
               </div>
             ))}
           </div>
           <div className="section-actions">
-            <Link className="button button-secondary" href={`/clients/${patient.id}/balance`}>Open Balance</Link>
+            <Link className="button button-secondary" href={`/clients/${patient.id}/appointments${orgQ}`}>Open Appointments</Link>
+          </div>
+        </article>
+
+        <article className="panel">
+          <h2>Active Conditions / Diagnoses</h2>
+          {details.conditions.length === 0 ? <p className="muted">No diagnoses documented.</p> : null}
+          <div className="stack-list">
+            {details.conditions.slice(0, 6).map((condition) => (
+              <div className="stack-item" key={condition.id}>
+                <strong>{condition.code}</strong>
+                <span>{condition.description ?? "No description"}</span>
+                <span>Last seen: {formatDate(condition.encounterDate)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/conditions${orgQ}`}>Open Diagnoses</Link>
           </div>
         </article>
 
@@ -256,29 +380,109 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           <h2>Recent Encounters</h2>
           {encounters.length === 0 ? <p className="muted">No encounters found.</p> : null}
           <div className="stack-list">
-            {encounters.map((encounter) => (
+            {encounters.slice(0, 6).map((encounter) => (
               <div className="stack-item stack-row" key={encounter.id}>
                 <div>
                   <strong>{formatDate(encounter.service_date)}</strong>
                   <span className={statusClass(encounter.encounter_status)}>{encounter.encounter_status ?? "status not set"}</span>
                 </div>
-                <Link className="button button-secondary" href={`/encounters/${encounter.id}`}>Open Note</Link>
+                <Link className="button button-secondary" href={`/encounters/${encounter.id}${orgQ}`}>Open Encounter</Link>
               </div>
             ))}
           </div>
         </article>
 
-        <article className="panel wide-panel">
-          <h2>Open Routed Items</h2>
+        <article className="panel">
+          <h2>Open Workqueue Items</h2>
           {workqueueItems.length === 0 ? <p className="muted">No open routed items.</p> : null}
           <div className="stack-list">
-            {workqueueItems.map((item) => (
+            {workqueueItems.slice(0, 6).map((item) => (
               <div className="stack-item" key={item.id}>
                 <strong>{item.title ?? "Routed item"}</strong>
                 <span>{item.work_type ?? "work item"} · {item.priority ?? "priority not set"}</span>
                 <span className={statusClass(item.status)}>{item.status ?? "status not set"}</span>
               </div>
             ))}
+          </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/workqueue${orgQ}`}>Open Client Workqueue</Link>
+          </div>
+        </article>
+
+        <article className="panel">
+          <h2>Balance Summary</h2>
+          <div className="detail-list">
+            <p><strong>Outstanding:</strong> {formatMoney(summary?.balance?.total ?? 0)}</p>
+            <p><strong>Open invoices:</strong> {invoices.length}</p>
+            <p><strong>Latest eligibility:</strong> <span className={statusClass(latestEligibility?.eligibility_status)}>{latestEligibility?.eligibility_status ?? "not checked"}</span></p>
+          </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/balance${orgQ}`}>Open Balance</Link>
+          </div>
+        </article>
+
+        <article className="panel wide-panel">
+          <h2>Claim Summary</h2>
+          {details.claims.length === 0 ? <p className="muted">No professional claims found.</p> : null}
+          <div className="detail-list" style={{ marginBottom: "12px" }}>
+            {Object.entries(claimCounts).slice(0, 6).map(([status, count]) => (
+              <p key={status}><strong>{status}:</strong> {count}</p>
+            ))}
+          </div>
+          <div className="stack-list">
+            {details.claims.slice(0, 5).map((claim) => (
+              <div className="stack-item" key={claim.id}>
+                <strong>{claim.claimNumber ?? claim.id.slice(0, 8)}</strong>
+                <span className={statusClass(claim.status)}>{claim.status ?? "status not set"}</span>
+                <span>Total charge: {formatMoney(claim.totalCharge)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/claims${orgQ}`}>Open Claims</Link>
+            <Link className="button button-secondary" href={`/billing/claim-readiness${orgQ}`}>Claim Readiness</Link>
+          </div>
+        </article>
+
+        <article className="panel wide-panel">
+          <h2>Documents / Mailroom Summary</h2>
+          <div className="metric-grid" style={{ marginTop: 0 }}>
+            <article className="metric-card">
+              <span>Documents</span>
+              <strong>{details.documents.length}</strong>
+            </article>
+            <article className="metric-card">
+              <span>Mailroom Items</span>
+              <strong>{details.mailroomItems.length}</strong>
+            </article>
+            <article className="metric-card">
+              <span>Clinical Notes</span>
+              <strong>{details.notes.length}</strong>
+            </article>
+            <article className="metric-card">
+              <span>Latest Note</span>
+              <strong className="metric-text">{formatDate(details.notes[0]?.encounterDate ?? null)}</strong>
+            </article>
+          </div>
+          <div className="stack-list">
+            {details.documents.slice(0, 3).map((document) => (
+              <div className="stack-item" key={document.id}>
+                <strong>{document.title ?? document.fileName ?? "Document"}</strong>
+                <span>Created: {formatDate(document.createdAt)}</span>
+              </div>
+            ))}
+            {details.mailroomItems.slice(0, 3).map((mailroomItem) => (
+              <div className="stack-item" key={mailroomItem.id}>
+                <strong>{mailroomItem.fileName ?? "Mailroom item"}</strong>
+                <span>{mailroomItem.documentType ?? "document"} · {mailroomItem.status ?? "status not set"}</span>
+                <span>Received: {formatDate(mailroomItem.createdAt ?? null)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="section-actions">
+            <Link className="button button-secondary" href={`/clients/${patient.id}/documents${orgQ}`}>Open Documents</Link>
+            <Link className="button button-secondary" href={`/mailroom${orgQ}`}>Open Mailroom</Link>
+            <Link className="button button-secondary" href={`/clients/${patient.id}/notes${orgQ}`}>Open Notes</Link>
           </div>
         </article>
       </section>

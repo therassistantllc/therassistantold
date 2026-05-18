@@ -171,6 +171,10 @@ export default function PatientBalanceClient({ clientId }: { clientId: string })
   const patient = payload?.patient;
   const totals = payload?.totals;
   const invoices = payload?.invoices ?? [];
+  const recentPayments = invoices
+    .flatMap((invoice) => invoice.payments.map((payment) => ({ invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, payment })))
+    .sort((a, b) => String(b.payment.paid_at ?? "").localeCompare(String(a.payment.paid_at ?? "")))
+    .slice(0, 8);
 
   if (loading) return <div className="empty-state">Loading balance…</div>;
   if (error) return <div className="alert-panel">{error}</div>;
@@ -249,6 +253,23 @@ export default function PatientBalanceClient({ clientId }: { clientId: string })
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="panel" style={{ marginTop: "16px" }}>
+        <h2>Recent Payment Activity</h2>
+        {recentPayments.length === 0 ? (
+          <p className="muted">No posted payment activity yet.</p>
+        ) : (
+          <div className="stack-list">
+            {recentPayments.map((entry) => (
+              <div className="stack-item" key={entry.payment.id}>
+                <strong>{String(entry.invoiceNumber ?? "Invoice")}</strong>
+                <span>{formatDate(entry.payment.paid_at)} · {entry.payment.payment_method ?? "method not set"}</span>
+                <span>Amount: {formatMoney(entry.payment.amount)} · Status: {entry.payment.payment_status ?? "posted"}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </>
   );

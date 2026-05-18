@@ -45,6 +45,14 @@ export default function ClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const submittedCount = claims.filter((claim) => String(claim.status ?? "").toLowerCase().includes("submitted")).length;
+  const paidCount = claims.filter((claim) => String(claim.status ?? "").toLowerCase().includes("paid")).length;
+  const deniedOrRejectedCount = claims.filter((claim) => {
+    const status = String(claim.status ?? "").toLowerCase();
+    return status.includes("denied") || status.includes("rejected");
+  }).length;
+  const totalCharges = claims.reduce((sum, claim) => sum + Number(claim.totalCharge ?? 0), 0);
+
   useEffect(() => {
     if (!clientId || !orgId) return;
     let cancelled = false;
@@ -78,8 +86,34 @@ export default function ClaimsPage() {
           <Link className="button button-secondary" href={`/billing/claim-readiness${orgQ}`}>
             Claim Readiness
           </Link>
+          <Link className="button button-secondary" href={`/billing/837p-batches${orgQ}`}>
+            837P Batches
+          </Link>
         </div>
       </section>
+
+      <section className="metric-grid">
+        <article className="metric-card">
+          <span>Total Claims</span>
+          <strong>{loading ? "-" : claims.length}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Submitted</span>
+          <strong>{loading ? "-" : submittedCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Paid</span>
+          <strong>{loading ? "-" : paidCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Total Charge</span>
+          <strong className="metric-text">{loading ? "-" : formatMoney(totalCharges)}</strong>
+        </article>
+      </section>
+
+      {!loading && deniedOrRejectedCount > 0 ? (
+        <div className="alert-panel">{deniedOrRejectedCount} denied/rejected claim(s) need follow-up.</div>
+      ) : null}
 
       {loading && <div className="empty-state">Loading claims…</div>}
       {error && <div className="alert-panel">{error}</div>}
