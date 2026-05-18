@@ -237,10 +237,14 @@ export default function ClinicianAgendaClient() {
                 </div>
 
                 <div className="agenda-actions">
-                  <a className="button button-secondary" href={`/clients/${item.clientId}`}>Open Chart</a>
+                  {item.clientId ? <a className="button button-secondary" href={`/clients/${item.clientId}`}>Open Chart</a> : null}
                   <a className="button button-secondary" href={item.encounter?.id ? `/encounters/${item.encounter.id}` : `/encounters/new?appointmentId=${item.appointmentId}`}>Open Note</a>
-                  <a className="button button-secondary" href={`/clients/${item.clientId}/balance`}>Collect</a>
-                  <a className="button" href={`/workqueue/new?clientId=${item.clientId}&appointmentId=${item.appointmentId}`}>Route to Biller</a>
+                  {item.clientId ? (
+                    <a className="button button-secondary" href={`/clients/${item.clientId}/balance`}>
+                      Collect
+                    </a>
+                  ) : null}
+                  {item.clientId ? <a className="button" href={`/workqueue/new?clientId=${item.clientId}&appointmentId=${item.appointmentId}`}>Route to Biller</a> : null}
                   <button
                     className="button button-secondary"
                     type="button"
