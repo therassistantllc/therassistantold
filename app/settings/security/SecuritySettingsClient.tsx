@@ -6,17 +6,17 @@ const RBAC_SECTIONS = [
   {
     label: "Staff Profiles",
     description: "Manage staff accounts, contact info, and active status.",
-    href: "/admin/staff",
+    href: "/settings/security",
   },
   {
     label: "Roles & Permissions",
     description: "Define roles (admin, biller, clinician) and assign granular permissions.",
-    href: "/admin/staff",
+    href: "/settings/security",
   },
   {
     label: "Role Assignments",
     description: "Assign roles to individual staff members.",
-    href: "/admin/staff",
+    href: "/settings/security",
   },
 ];
 
