@@ -244,7 +244,8 @@ export default function ClinicianAgendaClient() {
                       Collect
                     </a>
                   ) : null}
-                  {item.clientId ? <a className="button" href={`/workqueue/new?clientId=${item.clientId}&appointmentId=${item.appointmentId}`}>Route to Biller</a> : null}
+                  {item.clientId ? <a className="button button-secondary" href={`/clients/${item.clientId}/appointments`}>Schedule Follow-up</a> : null}
+                  {item.clientId ? <a className="button" href={`/billing/workqueue?clientId=${item.clientId}&appointmentId=${item.appointmentId}`}>Route to Biller</a> : null}
                   <button
                     className="button button-secondary"
                     type="button"

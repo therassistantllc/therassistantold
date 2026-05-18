@@ -24,34 +24,24 @@ type BillingTile = {
 
 const BILLING_TILES: BillingTile[] = [
   {
-    title: "Claim Readiness",
-    href: "/billing/claim-readiness",
+    title: "Charge Capture",
+    href: "/billing/charge-capture",
     description: "Validate encounters, diagnosis, and coding before batching.",
   },
   {
-    title: "837P Batches",
-    href: "/billing/837p-batches",
-    description: "Generate and track EDI batch lifecycle through payer responses.",
+    title: "Claim Submission",
+    href: "/billing/claim-submission",
+    description: "Generate and track 837P submission lifecycle through clearinghouse responses.",
   },
   {
-    title: "AR Aging",
-    href: "/workqueue",
-    description: "Triage no-response, denied, and aged claims in operational queue.",
-  },
-  {
-    title: "Payments",
-    href: "/billing/reports",
-    description: "Review payment throughput, posted activity, and patient receivables.",
+    title: "Workqueue",
+    href: "/billing/workqueue",
+    description: "Triage routed billing tasks, denials, and follow-up actions.",
   },
   {
     title: "Reports",
     href: "/billing/reports",
-    description: "Monthly revenue-cycle performance and workqueue movement.",
-  },
-  {
-    title: "Workqueue",
-    href: "/workqueue",
-    description: "Open, defer, resolve, and close billing workflow items.",
+    description: "Claim status, payment activity, and monthly revenue-cycle performance.",
   },
 ];
 
@@ -104,7 +94,7 @@ export default function BillingLandingClient() {
           </p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href={`/workqueue${orgQuery}`}>Open Workqueue</Link>
+          <Link className="button button-secondary" href={`/billing/workqueue${orgQuery}`}>Open Workqueue</Link>
           <Link className="button" href={`/billing/reports${orgQuery}`}>Open Reports</Link>
         </div>
       </section>

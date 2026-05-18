@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { buildClaimDetailHref } from "@/lib/claims/claimDetailRouting";
 
 type ClaimReadinessItem = {
   chargeCaptureId: string;
@@ -73,10 +74,10 @@ export default function ClaimReadinessClient() {
       }
       const response = await fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
       const json = (await response.json()) as Payload;
-      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load claim readiness");
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load charge capture queue");
       setPayload(json);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load claim readiness");
+      setError(loadError instanceof Error ? loadError.message : "Failed to load charge capture queue");
     } finally {
       setLoading(false);
     }
@@ -140,14 +141,14 @@ export default function ClaimReadinessClient() {
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Billing/Admin</p>
-          <h1>Claim Readiness</h1>
+          <h1>Charge Capture</h1>
           <p className="hero-copy">Review blocked charge capture, claim validation failures, and claims ready for batching.</p>
         </div>
         <div className="hero-actions">
           <button className="button" type="button" onClick={create837PBatch} disabled={batching || metrics.readyForBatch === 0}>
             {batching ? "Creating Batch…" : "Create 837P Batch"}
           </button>
-          <Link className="button button-secondary" href="/">Home</Link>
+          <Link className="button button-secondary" href="/calendar">Calendar</Link>
         </div>
       </section>
 
@@ -163,7 +164,7 @@ export default function ClaimReadinessClient() {
 
       <section className="panel">
         <h2>Charge Capture / Claim Queue</h2>
-        {loading ? <div className="empty-state">Loading claim readiness…</div> : null}
+        {loading ? <div className="empty-state">Loading charge capture queue…</div> : null}
         {!loading && items.length === 0 ? <div className="empty-state">No charge capture items found.</div> : null}
 
         <div className="stack-list">
@@ -194,6 +195,17 @@ export default function ClaimReadinessClient() {
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}`}>Open Note</Link>
                 <Link className="button button-secondary" href={`/encounters/${item.encounterId}/billing`}>Billing Details</Link>
                 {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Patient Chart</Link> : null}
+                {item.claim?.id ? (
+                  <Link
+                    className="button button-secondary"
+                    href={buildClaimDetailHref({
+                      professionalClaimId: item.claim.id,
+                      organizationId,
+                    })}
+                  >
+                    Open Claim Detail
+                  </Link>
+                ) : null}
                 {item.claim?.id && item.clientId ? (
                   <button
                     className="button button-secondary"

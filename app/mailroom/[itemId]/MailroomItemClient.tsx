@@ -105,7 +105,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
         </div>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/mailroom">Mailroom</Link>
-          <Link className="button button-secondary" href="/workqueue">Workqueue</Link>
+          <Link className="button button-secondary" href="/billing/workqueue">Workqueue</Link>
         </div>
       </section>
 
@@ -134,6 +134,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
             </div>
             <div className="section-actions">
               {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Open Client Chart</Link> : null}
+              {filingDestination === "encounter" && targetId ? <Link className="button button-secondary" href={`/encounters/${targetId}`}>Open Encounter</Link> : null}
             </div>
           </div>
 

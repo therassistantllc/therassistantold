@@ -16,19 +16,20 @@ type NavItem = NavLink & {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/", exact: true },
+  { label: "Calendar", href: "/", exact: true, match: ["/", "/calendar", "/clinician/agenda"] },
   { label: "Clients", href: "/clients" },
-  { label: "Agenda", href: "/clinician/agenda" },
-  { label: "Encounters", href: "/encounters" },
-  { label: "Workqueue", href: "/workqueue" },
+  { label: "Chart Room", href: "/chart-room", match: ["/chart-room", "/encounters"] },
   { label: "Mailroom", href: "/mailroom" },
   {
     label: "Billing",
     href: "/billing",
+    match: ["/billing", "/workqueue"],
     children: [
       { label: "Billing Home", href: "/billing" },
-      { label: "Claim Readiness", href: "/billing/claim-readiness" },
+      { label: "Charge Capture", href: "/billing/charge-capture", match: ["/billing/charge-capture", "/billing/claim-readiness"] },
+      { label: "Claim Submission", href: "/billing/claim-submission", match: ["/billing/claim-submission", "/billing/837p-batches"] },
       { label: "837P Batches", href: "/billing/837p-batches" },
+      { label: "Workqueue", href: "/billing/workqueue", match: ["/billing/workqueue", "/workqueue"] },
       { label: "Reports", href: "/billing/reports" },
     ],
   },

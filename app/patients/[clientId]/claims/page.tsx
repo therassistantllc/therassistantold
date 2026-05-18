@@ -83,8 +83,8 @@ export default function ClaimsPage() {
           <h2>Claims History</h2>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href={`/billing/claim-readiness${orgQ}`}>
-            Claim Readiness
+          <Link className="button button-secondary" href={`/billing/charge-capture${orgQ}`}>
+            Charge Capture
           </Link>
           <Link className="button button-secondary" href={`/billing/837p-batches${orgQ}`}>
             837P Batches
