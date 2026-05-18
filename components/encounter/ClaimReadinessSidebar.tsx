@@ -17,7 +17,7 @@ export default function ClaimReadinessSidebar({ checks }: Props) {
 
   return (
     <aside className="claim-readiness-sidebar">
-      <h3>Claim Readiness</h3>
+      <h3>Charge Capture Readiness</h3>
 
       <div className="readiness-summary">
         <p className="readiness-status">

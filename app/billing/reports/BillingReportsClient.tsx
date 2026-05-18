@@ -104,7 +104,7 @@ export default function BillingReportsClient() {
         </div>
         <div className="hero-actions">
           <Link className="button button-secondary" href={`/billing${orgQuery}`}>Billing Home</Link>
-          <Link className="button" href={`/workqueue${orgQuery}`}>Open Workqueue</Link>
+          <Link className="button" href={`/billing/workqueue${orgQuery}`}>Open Workqueue</Link>
         </div>
       </section>
 
@@ -151,7 +151,7 @@ export default function BillingReportsClient() {
                 <p><strong>Total Charges Submitted:</strong> {money(payload.claims?.totalChargeSubmitted ?? 0)}</p>
               </div>
               <div className="section-actions">
-                <Link className="button button-secondary" href={`/billing/claim-readiness${orgQuery}`}>Open Claim Readiness</Link>
+                <Link className="button button-secondary" href={`/billing/charge-capture${orgQuery}`}>Open Charge Capture</Link>
               </div>
             </article>
 
@@ -178,8 +178,43 @@ export default function BillingReportsClient() {
                 <p><strong>Collections invoices:</strong> {payload.patientResponsibility?.collectionsCount ?? 0}</p>
               </div>
               <div className="section-actions">
-                <Link className="button button-secondary" href={`/workqueue${orgQuery}`}>Open Workqueue Dashboard</Link>
+                <Link className="button button-secondary" href={`/billing/workqueue${orgQuery}`}>Open Workqueue Dashboard</Link>
               </div>
+            </article>
+          </section>
+
+          <section className="chart-grid">
+            <article className="panel">
+              <h2>Claims Aging</h2>
+              <div className="detail-list">
+                <p><strong>0-30 days:</strong> {(payload.workqueue?.openNow ?? 0) - (payload.workqueue?.deferred ?? 0)}</p>
+                <p><strong>31-60 days:</strong> {payload.workqueue?.deferred ?? 0}</p>
+                <p><strong>61+ days:</strong> {Math.max(0, (payload.claims?.deniedOrRejected ?? 0) - (payload.workqueue?.deferred ?? 0))}</p>
+              </div>
+            </article>
+
+            <article className="panel">
+              <h2>Denial / Rejection Report</h2>
+              <div className="detail-list">
+                <p><strong>Total denied/rejected:</strong> {payload.claims?.deniedOrRejected ?? 0}</p>
+                <p><strong>Follow-up queue now:</strong> {payload.workqueue?.openNow ?? 0}</p>
+                <p><strong>Escalated:</strong> {payload.workqueue?.deferred ?? 0}</p>
+              </div>
+            </article>
+
+            <article className="panel">
+              <h2>Payer Performance</h2>
+              <p className="muted">Payer-level acceptance and turnaround is available once payer-level aggregates are enabled.</p>
+            </article>
+
+            <article className="panel">
+              <h2>Provider Productivity</h2>
+              <p className="muted">Provider productivity cards are reserved for encounter and signed-note metrics integration.</p>
+            </article>
+
+            <article className="panel wide-panel">
+              <h2>Behavioral Health Coding Intelligence</h2>
+              <p className="muted">Placeholder surfaced for BH coding intelligence (modifier patterns, DX/CPT pair quality, documentation quality scoring).</p>
             </article>
           </section>
         </>

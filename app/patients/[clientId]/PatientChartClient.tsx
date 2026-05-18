@@ -440,7 +440,7 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           </div>
           <div className="section-actions">
             <Link className="button button-secondary" href={`/clients/${patient.id}/claims${orgQ}`}>Open Claims</Link>
-            <Link className="button button-secondary" href={`/billing/claim-readiness${orgQ}`}>Claim Readiness</Link>
+            <Link className="button button-secondary" href={`/billing/charge-capture${orgQ}`}>Charge Capture</Link>
           </div>
         </article>
 

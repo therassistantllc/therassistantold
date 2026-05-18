@@ -106,7 +106,8 @@ export default function MailroomClient() {
           <p className="hero-copy">Capture paper EOBs, refund requests, payer letters, and other correspondence into billing/admin review.</p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/workqueue">Workqueue</Link>
+          <a className="button" href="#mailroom-upload">Upload Document</a>
+          <Link className="button button-secondary" href="/billing/workqueue">Workqueue</Link>
           <Link className="button button-secondary" href="/clinician/agenda">Agenda</Link>
         </div>
       </section>
@@ -115,7 +116,7 @@ export default function MailroomClient() {
       {message ? <div className="empty-state success-panel">{message}</div> : null}
 
       <section className="two-column-panel">
-        <div className="panel form-panel">
+        <div className="panel form-panel" id="mailroom-upload">
           <h2>Add mailroom item</h2>
           <label className="field-label">
             File name

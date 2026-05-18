@@ -5,11 +5,9 @@ import { usePathname } from "next/navigation";
 import styles from "./EhrTopNav.module.css";
 
 const navItems = [
-  { label: "Home", href: "/", match: ["/"] },
+  { label: "Calendar", href: "/", match: ["/", "/calendar", "/clinician/agenda"] },
   { label: "Clients", href: "/clients", match: ["/clients", "/patients"] },
-  { label: "Agenda", href: "/clinician/agenda", match: ["/clinician/agenda"] },
-  { label: "Encounters", href: "/encounters", match: ["/encounters"] },
-  { label: "Workqueue", href: "/workqueue", match: ["/workqueue"] },
+  { label: "Chart Room", href: "/chart-room", match: ["/chart-room", "/encounters"] },
   { label: "Mailroom", href: "/mailroom", match: ["/mailroom"] },
   { label: "Billing", href: "/billing", match: ["/billing"] },
   { label: "Settings", href: "/settings", match: ["/settings", "/admin"] },

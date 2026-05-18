@@ -6,7 +6,7 @@ export default function ClinicianAgendaPage() {
     <main className="app-shell">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Clinician Workspace</p>
+          <p className="eyebrow">Calendar</p>
           <h1>Today’s Agenda</h1>
           <p className="hero-copy">
             A clean visit-focused view for clinicians: schedule, check-in, eligibility, balance, and routing support.
@@ -14,8 +14,9 @@ export default function ClinicianAgendaPage() {
           </p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/">Home</Link>
-          <Link className="button" href="/clinician/agenda">Refresh</Link>
+          <Link className="button" href="/clients">Schedule Appointment</Link>
+          <Link className="button button-secondary" href="/calendar">Calendar Home</Link>
+          <Link className="button button-secondary" href="/clinician/agenda">Refresh</Link>
         </div>
       </section>
 

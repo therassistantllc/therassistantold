@@ -101,13 +101,13 @@ export default function Batches837PClient() {
     <main className="app-shell">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Biller Hub</p>
-          <h1>837P Batches</h1>
-          <p className="hero-copy">Transmission Desk for professional claim batches created from ready claims.</p>
+          <p className="eyebrow">Billing</p>
+          <h1>Claim Submission</h1>
+          <p className="hero-copy">Submit and monitor 837P batch transmissions using existing clearinghouse integration workflows.</p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/billing/claim-readiness">Claim Readiness</Link>
-          <Link className="button button-secondary" href="/">Home</Link>
+          <Link className="button button-secondary" href="/billing/charge-capture">Charge Capture</Link>
+          <Link className="button button-secondary" href="/calendar">Calendar</Link>
         </div>
       </section>
 
@@ -121,7 +121,7 @@ export default function Batches837PClient() {
       </section>
 
       <section className="panel">
-        <h2>Batch Queue</h2>
+        <h2>Submission Queue</h2>
         {loading ? <div className="empty-state">Loading 837P batches…</div> : null}
         {!loading && batches.length === 0 ? <div className="empty-state">No 837P batches found.</div> : null}
 

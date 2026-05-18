@@ -1,5 +1,5 @@
-import ServiceQueueClient from "./ServiceQueueClient";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return <ServiceQueueClient />;
+  redirect("/calendar");
 }

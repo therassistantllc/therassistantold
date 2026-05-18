@@ -73,25 +73,25 @@ export default function ServiceQueueClient() {
     {
       label: "Eligibility Needed",
       count: wqCounts["eligibility_check"] ?? 0,
-      href: "/workqueue?workType=eligibility_check",
+      href: "/billing/workqueue?workType=eligibility_check",
       accent: "#5e8a6a",
     },
     {
-      label: "Claims Ready",
+      label: "Charge Capture",
       count: (wqCounts["claim_readiness"] ?? 0) + (wqCounts["claim_review"] ?? 0),
-      href: "/billing/claim-readiness",
+      href: "/billing/charge-capture",
       accent: "#2e6da4",
     },
     {
       label: "No Response",
       count: wqCounts["claim_no_response"] ?? 0,
-      href: "/workqueue?workType=claim_no_response",
+      href: "/billing/workqueue?workType=claim_no_response",
       accent: "#a04020",
     },
     {
       label: "Denials / Rejections",
       count: (wqCounts["claim_denial"] ?? 0) + (wqCounts["denial_appeal"] ?? 0),
-      href: "/workqueue?workType=claim_denial",
+      href: "/billing/workqueue?workType=claim_denial",
       accent: "#c05030",
     },
     {
@@ -106,13 +106,13 @@ export default function ServiceQueueClient() {
         (wqCounts["era_mismatch"] ?? 0) +
         (wqCounts["era_review"] ?? 0) +
         (wqCounts["payment_review"] ?? 0),
-      href: "/workqueue?workType=era_mismatch",
+      href: "/billing/workqueue?workType=era_mismatch",
       accent: "#1e5e40",
     },
     {
       label: "Billing Alerts",
       count: totalItems,
-      href: "/workqueue",
+      href: "/billing/workqueue",
       accent: "#6a3a8a",
     },
   ];
@@ -139,9 +139,9 @@ export default function ServiceQueueClient() {
         </div>
         <div className="hero-actions">
           <Link className="button" href="/clinician/agenda">
-            Open Agenda
+            Open Calendar
           </Link>
-          <Link className="button button-secondary" href="/workqueue/new">
+          <Link className="button button-secondary" href="/billing/workqueue">
             Route to Biller
           </Link>
         </div>
@@ -184,7 +184,7 @@ export default function ServiceQueueClient() {
       <section className="panel">
         <div className="panel-header">
           <h2>{query ? `Search results for "${query}"` : "Active Work Items"}</h2>
-          <Link className="button button-secondary" href="/workqueue">
+          <Link className="button button-secondary" href="/billing/workqueue">
             View All
           </Link>
         </div>
@@ -214,7 +214,7 @@ export default function ServiceQueueClient() {
                   </div>
                   <Link
                     className="button button-secondary"
-                    href={`/workqueue?selected=${item.id}`}
+                    href={`/billing/workqueue?selected=${item.id}`}
                   >
                     Review
                   </Link>

@@ -179,7 +179,7 @@ export default function WorkqueueClient() {
         </div>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/clinician/agenda">Clinician Agenda</Link>
-          <Link className="button button-secondary" href="/">Home</Link>
+          <Link className="button button-secondary" href="/calendar">Calendar</Link>
         </div>
       </section>
 
@@ -290,7 +290,7 @@ export default function WorkqueueClient() {
                 <p><strong>Claim ID:</strong> {selected.claimId || "—"}</p>
                 <p><strong>Professional Claim:</strong>{" "}
                   {selected.professionalClaimId
-                    ? <Link className="inline-link" href={`/billing/claim-readiness?organizationId=${organizationId}`}>{selected.professionalClaimId}</Link>
+                    ? <Link className="inline-link" href={`/billing/charge-capture?organizationId=${organizationId}`}>{selected.professionalClaimId}</Link>
                     : "—"}
                 </p>
                 <p><strong>Encounter ID:</strong> {selected.encounterId || "—"}</p>
