@@ -5,14 +5,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import styles from "@/components/layout/AppShell.module.css";
 
 const CLIENT_TABS = [
-  { label: "Summary",      slug: "" },
-  { label: "Demographics", slug: "demographics" },
+  { label: "Summary", slug: "" },
   { label: "Appointments", slug: "appointments" },
-  { label: "Encounters",   slug: "encounters" },
-  { label: "Notes",        slug: "notes" },
-  { label: "Billing",      slug: "billing" },
-  { label: "Documents",    slug: "documents" },
-  { label: "Workqueue",    slug: "workqueue" },
+  { label: "Notes", slug: "notes" },
+  { label: "Eligibility", slug: "eligibility" },
+  { label: "Claims", slug: "claims" },
+  { label: "Balance", slug: "balance" },
+  { label: "Documents", slug: "documents" },
+  { label: "Workqueue", slug: "workqueue" },
 ] satisfies { label: string; slug: string }[];
 
 export default function ClientTabNav({ clientId }: { clientId: string }) {

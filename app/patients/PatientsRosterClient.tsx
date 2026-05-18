@@ -42,6 +42,8 @@ function statusClass(value: unknown) {
 export default function PatientsRosterClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "deceased">("all");
+  const [balanceFilter, setBalanceFilter] = useState<"all" | "with-balance">("all");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +78,17 @@ export default function PatientsRosterClient() {
 
   const metrics = payload?.metrics ?? { total: 0, active: 0, intakeIncomplete: 0, withBalance: 0 };
   const clients = payload?.clients ?? [];
+  const filteredClients = clients.filter((client) => {
+    if (statusFilter !== "all" && String(client.status ?? "") !== statusFilter) return false;
+    if (balanceFilter === "with-balance" && Number(client.openBalance ?? 0) <= 0) return false;
+    return true;
+  });
+  const organizationQuery = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+
+  function clientHref(clientId: string, path = "") {
+    const base = `/clients/${clientId}${path}`;
+    return organizationId ? `${base}${organizationQuery}` : base;
+  }
 
   return (
     <main className="app-shell">
@@ -96,8 +109,24 @@ export default function PatientsRosterClient() {
           Search clients
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, email, phone..." />
         </label>
+        <label className="field-label compact-field">
+          Status
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "deceased")}>
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="deceased">Deceased</option>
+          </select>
+        </label>
+        <label className="field-label compact-field">
+          Balance
+          <select value={balanceFilter} onChange={(event) => setBalanceFilter(event.target.value as "all" | "with-balance")}>
+            <option value="all">All</option>
+            <option value="with-balance">With Outstanding Balance</option>
+          </select>
+        </label>
         <button className="button" type="button" onClick={() => loadClients(query)}>Search</button>
-        <button className="button button-secondary" type="button" onClick={() => { setQuery(""); loadClients(""); }}>Clear</button>
+        <button className="button button-secondary" type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setBalanceFilter("all"); loadClients(""); }}>Clear</button>
+        {!loading ? <span className="muted-text">Showing {filteredClients.length} of {clients.length} clients</span> : null}
       </section>
 
       {error ? <div className="alert-panel">{error}</div> : null}
@@ -114,9 +143,9 @@ export default function PatientsRosterClient() {
           <h2 style={{ margin: 0 }}>Roster</h2>
         </div>
         {loading ? <div className="empty-state">Loading clients…</div> : null}
-        {!loading && clients.length === 0 ? <div className="empty-state">No clients found.</div> : null}
+        {!loading && filteredClients.length === 0 ? <div className="empty-state">No clients found for current filters.</div> : null}
 
-        {clients.length > 0 ? (
+        {filteredClients.length > 0 ? (
           <table className="data-table">
             <thead>
               <tr>
@@ -129,7 +158,7 @@ export default function PatientsRosterClient() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => (
+              {filteredClients.map((client) => (
                 <tr key={client.id}>
                   <td>
                     <strong>{client.name}</strong>
@@ -144,9 +173,14 @@ export default function PatientsRosterClient() {
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatMoney(client.openBalance)}</td>
                   <td className="col-actions">
                     <div className="hero-actions">
-                      <Link className="button button-secondary" href={`/clients/${client.id}`}>Chart</Link>
-                      <Link className="button button-secondary" href={`/clients/${client.id}/billing`}>Ledger</Link>
-                      <Link className="button button-secondary" href={`/workqueue/new?clientId=${client.id}`}>Route</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id)}>Chart</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/appointments")}>Appointments</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/notes")}>Notes</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/eligibility")}>Eligibility</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/claims")}>Claims</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/balance")}>Balance</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/documents")}>Documents</Link>
+                      <Link className="button button-secondary" href={clientHref(client.id, "/workqueue")}>Workqueue</Link>
                     </div>
                   </td>
                 </tr>

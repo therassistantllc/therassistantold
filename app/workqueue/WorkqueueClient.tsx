@@ -77,6 +77,10 @@ export default function WorkqueueClient() {
   const [claimStatusChecking, setClaimStatusChecking] = useState(false);
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  const byStatus = counts?.byStatus ?? {};
+  const openCount = (byStatus.open ?? 0) + (byStatus.in_progress ?? 0) + (byStatus.blocked ?? 0);
+  const deferredCount = byStatus.deferred ?? 0;
+  const resolvedCount = byStatus.resolved ?? 0;
 
   async function loadItems() {
     if (!organizationId) {
@@ -232,6 +236,25 @@ export default function WorkqueueClient() {
 
       {error ? <div className="alert-panel">{error}</div> : null}
       {loading ? <div className="empty-state">Loading workqueue…</div> : null}
+
+      <section className="metric-grid">
+        <article className="metric-card">
+          <span>Open</span>
+          <strong>{loading ? "-" : openCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Deferred</span>
+          <strong>{loading ? "-" : deferredCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Resolved</span>
+          <strong>{loading ? "-" : resolvedCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Total Returned</span>
+          <strong>{loading ? "-" : counts?.total ?? 0}</strong>
+        </article>
+      </section>
 
       <section className="workqueue-layout">
         <div className="workqueue-list panel">
