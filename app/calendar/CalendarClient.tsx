@@ -67,6 +67,7 @@ export function CalendarClient() {
 
   useEffect(() => {
     if (organizationId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadAppointments();
     } else {
       setError("Missing organizationId.");
