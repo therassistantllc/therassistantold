@@ -73,13 +73,13 @@ export default function ServiceQueueClient() {
     {
       label: "Eligibility Needed",
       count: wqCounts["eligibility_check"] ?? 0,
-      href: "/billing/workqueue?workType=eligibility_check",
+      href: "/workqueue?workType=eligibility_check",
       accent: "#5e8a6a",
     },
     {
-      label: "Charge Capture",
+      label: "Claims Ready",
       count: (wqCounts["claim_readiness"] ?? 0) + (wqCounts["claim_review"] ?? 0),
-      href: "/billing/charge-capture",
+      href: "/billing/claim-readiness",
       accent: "#2e6da4",
     },
     {

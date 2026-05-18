@@ -33,8 +33,6 @@ export default function MailroomClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [status, setStatus] = useState("needs_review");
   const [items, setItems] = useState<MailroomItem[]>([]);
-  const [fileName, setFileName] = useState("");
-  const [mimeType, setMimeType] = useState("application/pdf");
   const [clientId, setClientId] = useState("");
   const [documentType, setDocumentType] = useState("payer_correspondence");
   const [notes, setNotes] = useState("");
@@ -42,6 +40,7 @@ export default function MailroomClient() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   async function loadItems() {
     setLoading(true);
@@ -71,28 +70,39 @@ export default function MailroomClient() {
     setSaving(true);
     setError(null);
     setMessage(null);
-    const response = await fetch("/api/mailroom/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        organizationId,
-        fileName,
-        mimeType,
-        clientId: clientId || null,
-        documentType,
-        notes,
-        source: "manual_upload",
-      }),
-    });
-    const json = (await response.json()) as { success?: boolean; error?: string; mailroomItemId?: string };
-    if (!response.ok || !json.success) {
-      setError(json.error || "Unable to create mailroom item.");
-    } else {
-      setMessage("Mailroom item created and routed to workqueue.");
-      setFileName("");
-      setClientId("");
-      setNotes("");
-      await loadItems();
+
+    if (!selectedFile) {
+      setError("Please select a file to upload.");
+      setSaving(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("organizationId", organizationId);
+    formData.append("file", selectedFile);
+    formData.append("fileName", selectedFile.name);
+    formData.append("mimeType", selectedFile.type || "application/octet-stream");
+    formData.append("clientId", clientId || "");
+    formData.append("documentType", documentType);
+    formData.append("notes", notes);
+
+    try {
+      const response = await fetch("/api/mailroom/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const json = (await response.json()) as { success?: boolean; error?: string; mailroomItemId?: string };
+      if (!response.ok || !json.success) {
+        setError(json.error || "Unable to create mailroom item.");
+      } else {
+        setMessage("Mailroom item created and routed to workqueue.");
+        setSelectedFile(null);
+        setClientId("");
+        setNotes("");
+        await loadItems();
+      }
+    } catch (err) {
+      setError((err instanceof Error) ? err.message : "Upload failed");
     }
     setSaving(false);
   }
@@ -119,18 +129,24 @@ export default function MailroomClient() {
         <div className="panel form-panel" id="mailroom-upload">
           <h2>Add mailroom item</h2>
           <label className="field-label">
-            File name
-            <input value={fileName} onChange={(event) => setFileName(event.target.value)} placeholder="paper-eob.pdf" />
+            Select file to upload
+            <input 
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setSelectedFile(file);
+                }
+              }}
+              accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx"
+              disabled={saving}
+            />
           </label>
-          <label className="field-label">
-            File type (MIME)
-            <select value={mimeType} onChange={(event) => setMimeType(event.target.value)}>
-              <option value="application/pdf">PDF</option>
-              <option value="image/jpeg">JPEG image</option>
-              <option value="image/png">PNG image</option>
-              <option value="text/plain">Text</option>
-            </select>
-          </label>
+          {selectedFile && (
+            <div className="field-label">
+              <small>File: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)</small>
+            </div>
+          )}
           <label className="field-label">
             Optional patient/client ID
             <input value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="client UUID if known" />
@@ -150,8 +166,8 @@ export default function MailroomClient() {
             Notes
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Describe what billing/admin needs to review..." />
           </label>
-          <button className="button" type="button" onClick={submit} disabled={saving || !fileName.trim()}>
-            {saving ? "Routing…" : "Create Mailroom Item"}
+          <button className="button" type="button" onClick={() => void submit()} disabled={saving || !selectedFile}>
+            {saving ? "Uploading…" : "Upload Document"}
           </button>
         </div>
 
