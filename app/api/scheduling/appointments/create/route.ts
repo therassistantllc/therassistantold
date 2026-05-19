@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { addMonthsKeepingClock, checkProviderAvailability, resolveOrganizationId } from "@/lib/scheduling/core";
 
+const _useOpenMrsAppointments = process.env.USE_OPENMRS_APPOINTMENTS === "true";
+
 type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 type RecurrenceEndMode = "by_date" | "by_count";
 

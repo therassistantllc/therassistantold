@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+const _useOpenMrsAppointments = process.env.USE_OPENMRS_APPOINTMENTS === "true";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbRow = Record<string, any>;
 

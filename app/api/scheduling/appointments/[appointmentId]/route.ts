@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 
+const _useOpenMrsAppointments = process.env.USE_OPENMRS_APPOINTMENTS === "true";
+
 function extractMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Appointment update failed";
