@@ -3,6 +3,8 @@ import { captureSignedEncounterCharge } from "@/lib/charges/signedEncounterCharg
 import { createClaimDraftFromChargeCapture } from "@/lib/claims/chargeCaptureClaimBridgeService";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+const useOpenMrsEncounters = process.env.USE_OPENMRS_ENCOUNTERS === "true";
+
 type EncounterRow = {
   id: string;
   organization_id: string;
