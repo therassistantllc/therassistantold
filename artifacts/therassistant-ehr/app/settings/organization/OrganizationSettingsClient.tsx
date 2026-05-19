@@ -25,7 +25,8 @@ type BillingProfile = {
   billing_state: string;
   billing_zip: string;
   billing_phone: string;
-  default_pos: string;
+  default_pos_office: string;
+  default_pos_telehealth: string;
   default_service_location_id: string;
 };
 
@@ -50,7 +51,8 @@ const EMPTY_BILLING: BillingProfile = {
   billing_state: "",
   billing_zip: "",
   billing_phone: "",
-  default_pos: "11",
+  default_pos_office: "11",
+  default_pos_telehealth: "10",
   default_service_location_id: "",
 };
 
@@ -196,13 +198,26 @@ export default function OrganizationSettingsClient() {
               </label>
               {bf("billing_phone", "Billing Phone")}
               <label className="field-label">
-                Default Place of Service Code
+                Default POS – Office
                 <select
-                  value={billing.default_pos}
-                  onChange={(e) => setBilling((prev) => ({ ...prev, default_pos: e.target.value }))}
+                  value={billing.default_pos_office}
+                  onChange={(e) => setBilling((prev) => ({ ...prev, default_pos_office: e.target.value }))}
                 >
+                  <option value="11">11 – Office</option>
+                  <option value="12">12 – Home</option>
+                  <option value="49">49 – Independent Clinic</option>
                   <option value="02">02 – Telehealth</option>
                   <option value="10">10 – Telehealth (patient home)</option>
+                </select>
+              </label>
+              <label className="field-label">
+                Default POS – Telehealth
+                <select
+                  value={billing.default_pos_telehealth}
+                  onChange={(e) => setBilling((prev) => ({ ...prev, default_pos_telehealth: e.target.value }))}
+                >
+                  <option value="10">10 – Telehealth (patient home)</option>
+                  <option value="02">02 – Telehealth</option>
                   <option value="11">11 – Office</option>
                   <option value="12">12 – Home</option>
                   <option value="49">49 – Independent Clinic</option>
