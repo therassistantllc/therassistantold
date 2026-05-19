@@ -163,9 +163,39 @@ export default function ClaimSubmissionClient() {
         <article className="panel">
           <h2>Claim Inspector</h2>
           <div className="detail-list">
-            {batches.slice(0, 5).map((batch) => (
-              <p key={batch.id}><strong>{String(batch.batchNumber ?? batch.id.slice(0, 8))}</strong> · {String(batch.status ?? "pending")} · {batch.claimCount} claim(s)</p>
-            ))}
+            {batches.slice(0, 5).map((batch) => {
+              const params = new URLSearchParams();
+              if (organizationId) params.set("organizationId", organizationId);
+              params.set("batchId", batch.id);
+              return (
+                <Link
+                  key={batch.id}
+                  href={`/billing/837p-batches?${params.toString()}`}
+                  style={{
+                    display: "block",
+                    padding: "10px 12px",
+                    margin: "4px 0",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 6,
+                    color: "#111827",
+                    textDecoration: "none",
+                    background: "#fff",
+                    transition: "background 0.15s, border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#F3F4F6";
+                    e.currentTarget.style.borderColor = "#3B82F6";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.borderColor = "#E5E7EB";
+                  }}
+                >
+                  <strong style={{ color: "#3B82F6" }}>{String(batch.batchNumber ?? batch.id.slice(0, 8))}</strong>
+                  {" · "}{String(batch.status ?? "pending")} · {batch.claimCount} claim(s)
+                </Link>
+              );
+            })}
             {!loading && batches.length === 0 ? <p>No recent batches.</p> : null}
           </div>
           <div className="section-actions">

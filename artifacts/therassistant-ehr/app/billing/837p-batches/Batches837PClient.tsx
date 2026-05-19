@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 
 type BatchClaim = {
@@ -47,6 +47,11 @@ function getOrganizationId() {
   return params.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
 }
 
+function getHighlightBatchId() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("batchId");
+}
+
 function formatDate(value: unknown) {
   if (!value) return "Not listed";
   const date = new Date(String(value));
@@ -66,9 +71,19 @@ function statusClass(value: unknown) {
 
 export default function Batches837PClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
+  const highlightBatchId = useMemo(() => getHighlightBatchId(), []);
+  const highlightedRef = useRef<HTMLElement | null>(null);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightBatchId || loading) return;
+    const node = highlightedRef.current;
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightBatchId, loading, payload]);
 
   async function load() {
     if (!organizationId) {
@@ -127,33 +142,53 @@ export default function Batches837PClient() {
         {!loading && batches.length === 0 ? <div className="empty-state">No 837P batches found.</div> : null}
 
         <div className="stack-list">
-          {batches.map((batch) => (
-            <article className="stack-item" key={batch.id}>
-              <div className="stack-row">
-                <div>
-                  <strong>{String(batch.batchNumber ?? "837P Batch")}</strong>
-                  <span>Created: {formatDate(batch.createdAt)} · Claims: {batch.claimCount}</span>
-                  <span>Total charge: {formatMoney(batch.totalChargeAmount)}</span>
-                  {batch.generatedFileName ? <span>File: {String(batch.generatedFileName)}</span> : null}
+          {batches.map((batch) => {
+            const isHighlighted = highlightBatchId === batch.id;
+            return (
+              <article
+                className="stack-item"
+                key={batch.id}
+                ref={isHighlighted ? highlightedRef : undefined}
+                style={isHighlighted ? {
+                  border: "2px solid #3B82F6",
+                  background: "#EFF6FF",
+                  boxShadow: "0 0 0 4px rgba(59,130,246,0.12)",
+                  transition: "background 0.3s",
+                } : undefined}
+              >
+                <div className="stack-row">
+                  <div>
+                    <strong>
+                      {String(batch.batchNumber ?? "837P Batch")}
+                      {isHighlighted ? (
+                        <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: "#3B82F6", background: "#DBEAFE", padding: "2px 8px", borderRadius: 12 }}>
+                          Selected
+                        </span>
+                      ) : null}
+                    </strong>
+                    <span>Created: {formatDate(batch.createdAt)} · Claims: {batch.claimCount}</span>
+                    <span>Total charge: {formatMoney(batch.totalChargeAmount)}</span>
+                    {batch.generatedFileName ? <span>File: {String(batch.generatedFileName)}</span> : null}
+                  </div>
+                  <div className="invoice-money-grid">
+                    <span className={statusClass(batch.status)}>{String(batch.status ?? "status not set")}</span>
+                    {batch.submittedAt ? <span>Submitted {formatDate(batch.submittedAt)}</span> : <span>Not submitted</span>}
+                  </div>
                 </div>
-                <div className="invoice-money-grid">
-                  <span className={statusClass(batch.status)}>{String(batch.status ?? "status not set")}</span>
-                  {batch.submittedAt ? <span>Submitted {formatDate(batch.submittedAt)}</span> : <span>Not submitted</span>}
-                </div>
-              </div>
 
-              {batch.claims.length > 0 ? (
-                <div className="payment-history">
-                  <strong>Claims in Batch</strong>
-                  {batch.claims.map((claim) => (
-                    <span key={claim.id}>
-                      {claim.patientName} · Claim {String(claim.claimNumber ?? claim.id.slice(0, 8))} · {String(claim.status ?? "status not set")} · {formatMoney(claim.totalChargeAmount)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </article>
-          ))}
+                {batch.claims.length > 0 ? (
+                  <div className="payment-history">
+                    <strong>Claims in Batch</strong>
+                    {batch.claims.map((claim) => (
+                      <span key={claim.id}>
+                        {claim.patientName} · Claim {String(claim.claimNumber ?? claim.id.slice(0, 8))} · {String(claim.status ?? "status not set")} · {formatMoney(claim.totalChargeAmount)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       </section>
     </main>
