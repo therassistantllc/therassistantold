@@ -34,7 +34,7 @@ export type SaveEncounterNoteInput = {
  * @returns OpenMRS visit UUID or null if disabled
  */
 export async function createOpenMrsVisitFromAppointment(
-  input: CreateEncounterFromAppointmentInput,
+  _input: CreateEncounterFromAppointmentInput,
 ): Promise<string | null> {
   // TODO: Check if OpenMRS sync is enabled
   // TODO: Fetch appointment details from Supabase
@@ -61,7 +61,7 @@ export async function createOpenMrsVisitFromAppointment(
  * @returns OpenMRS encounter UUID or null if disabled
  */
 export async function saveOpenMrsEncounterNote(
-  input: SaveEncounterNoteInput,
+  _input: SaveEncounterNoteInput,
 ): Promise<string | null> {
   // TODO: Check if OpenMRS sync is enabled
   // TODO: Validate encounter exists in OpenMRS (via cross-reference)

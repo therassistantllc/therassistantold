@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-const useOpenMrsEncounters = process.env.USE_OPENMRS_ENCOUNTERS === "true";
+const _useOpenMrsEncounters = process.env.USE_OPENMRS_ENCOUNTERS === "true";
 
 export async function POST(request: Request) {
   try {
