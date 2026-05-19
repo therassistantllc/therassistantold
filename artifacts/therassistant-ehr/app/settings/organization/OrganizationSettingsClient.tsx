@@ -30,6 +30,8 @@ type BillingProfile = {
   default_service_location_id: string;
 };
 
+type BillingErrors = Partial<Record<keyof BillingProfile, string>>;
+
 const EMPTY_ORG: OrgFields = {
   name: "",
   legal_name: "",
@@ -56,6 +58,57 @@ const EMPTY_BILLING: BillingProfile = {
   default_service_location_id: "",
 };
 
+/* ── Validation rules ── */
+const DIGITS_ONLY = (v: string) => v.replace(/\D/g, "");
+
+function validateField(field: keyof BillingProfile, value: string): string {
+  const v = value.trim();
+  if (!v) return ""; // empty is allowed; required enforcement is server-side
+
+  switch (field) {
+    case "billing_provider_npi": {
+      const digits = DIGITS_ONLY(v);
+      if (digits.length !== 10) return "NPI must be exactly 10 digits.";
+      return "";
+    }
+    case "billing_tax_id": {
+      const digits = DIGITS_ONLY(v);
+      if (digits.length !== 9) return "Tax ID / EIN must be exactly 9 digits.";
+      return "";
+    }
+    case "billing_zip": {
+      if (!/^\d{5}(-\d{4})?$/.test(v)) return "ZIP must be 5 digits or ZIP+4 (e.g. 80202 or 80202-1234).";
+      return "";
+    }
+    case "billing_phone": {
+      const digits = DIGITS_ONLY(v);
+      if (digits.length !== 10) return "Phone must be a 10-digit US number.";
+      return "";
+    }
+    default:
+      return "";
+  }
+}
+
+function validateAll(billing: BillingProfile): BillingErrors {
+  const checked: Array<keyof BillingProfile> = [
+    "billing_provider_npi",
+    "billing_tax_id",
+    "billing_zip",
+    "billing_phone",
+  ];
+  const errs: BillingErrors = {};
+  for (const field of checked) {
+    const msg = validateField(field, billing[field]);
+    if (msg) errs[field] = msg;
+  }
+  return errs;
+}
+
+function hasErrors(errors: BillingErrors): boolean {
+  return Object.values(errors).some(Boolean);
+}
+
 function getOrganizationId() {
   if (typeof window === "undefined") return DEFAULT_ORG_ID;
   const params = new URLSearchParams(window.location.search);
@@ -66,13 +119,14 @@ export default function OrganizationSettingsClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [org, setOrg] = useState<OrgFields>(EMPTY_ORG);
   const [billing, setBilling] = useState<BillingProfile>(EMPTY_BILLING);
+  const [errors, setErrors] = useState<BillingErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof BillingProfile, boolean>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/settings/organization?organizationId=${encodeURIComponent(organizationId)}`)
       .then((r) => r.json())
@@ -85,6 +139,18 @@ export default function OrganizationSettingsClient() {
   }, [organizationId]);
 
   const handleSave = useCallback(async () => {
+    // Mark all validated fields as touched so errors become visible
+    setTouched({
+      billing_provider_npi: true,
+      billing_tax_id: true,
+      billing_zip: true,
+      billing_phone: true,
+    });
+
+    const errs = validateAll(billing);
+    setErrors(errs);
+    if (hasErrors(errs)) return; // block save
+
     setSaving(true);
     setStatus("idle");
     try {
@@ -107,6 +173,26 @@ export default function OrganizationSettingsClient() {
     }
   }, [organizationId, org, billing]);
 
+  /* Update a billing field, re-validate it immediately if it's been touched */
+  function updateBilling<K extends keyof BillingProfile>(field: K, value: string) {
+    setBilling((prev) => {
+      const next = { ...prev, [field]: value };
+      if (touched[field]) {
+        const msg = validateField(field, value);
+        setErrors((e) => ({ ...e, [field]: msg }));
+      }
+      return next;
+    });
+  }
+
+  function markTouched(field: keyof BillingProfile) {
+    if (touched[field]) return;
+    setTouched((t) => ({ ...t, [field]: true }));
+    const msg = validateField(field, billing[field]);
+    setErrors((e) => ({ ...e, [field]: msg }));
+  }
+
+  /* Org field helper */
   function tf(field: keyof OrgFields, label: string, type = "text") {
     return (
       <label className="field-label">
@@ -120,18 +206,42 @@ export default function OrganizationSettingsClient() {
     );
   }
 
+  /* Billing field helper — shows inline error when touched */
   function bf(field: keyof BillingProfile, label: string, type = "text") {
+    const errMsg = errors[field];
+    const hasErr = Boolean(errMsg);
     return (
       <label className="field-label">
         {label}
         <input
           type={type}
           value={String(billing[field] ?? "")}
-          onChange={(e) => setBilling((prev) => ({ ...prev, [field]: e.target.value }))}
+          style={hasErr ? { borderColor: "var(--danger, #b02020)", boxShadow: "0 0 0 2px rgba(176,32,32,0.12)" } : undefined}
+          onChange={(e) => updateBilling(field, e.target.value)}
+          onBlur={() => markTouched(field)}
+          aria-invalid={hasErr}
+          aria-describedby={hasErr ? `err-${field}` : undefined}
         />
+        {hasErr && (
+          <span
+            id={`err-${field}`}
+            role="alert"
+            style={{
+              display: "block",
+              marginTop: 4,
+              fontSize: "var(--text-xs, 11px)",
+              color: "var(--danger, #b02020)",
+              fontWeight: 500,
+            }}
+          >
+            {errMsg}
+          </span>
+        )}
       </label>
     );
   }
+
+  const saveBlocked = hasErrors(errors) || saving || !organizationId;
 
   return (
     <main className="app-shell">
@@ -243,10 +353,20 @@ export default function OrganizationSettingsClient() {
             </div>
           )}
 
-          <div style={{ padding: "0 var(--space-6) var(--space-6)" }}>
-            <button className="button button-primary" onClick={handleSave} disabled={saving || !organizationId}>
+          <div style={{ padding: "0 var(--space-6) var(--space-6)", display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+            <button
+              className="button button-primary"
+              onClick={handleSave}
+              disabled={saveBlocked}
+              title={hasErrors(errors) ? "Fix validation errors before saving" : undefined}
+            >
               {saving ? "Saving…" : "Save Organization Settings"}
             </button>
+            {hasErrors(errors) && (
+              <span style={{ fontSize: "var(--text-sm, 13px)", color: "var(--danger, #b02020)", fontWeight: 500 }}>
+                Fix the errors above before saving.
+              </span>
+            )}
           </div>
         </>
       )}
