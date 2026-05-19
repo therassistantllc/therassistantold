@@ -3,5 +3,9 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/payments-era/V1Hierarchy.tsx": () => import("../components/mockups/payments-era/V1Hierarchy.tsx"),
   "./components/mockups/payments-era/V2Interaction.tsx": () => import("../components/mockups/payments-era/V2Interaction.tsx"),
-  "./components/mockups/payments-era/V3Accessibility.tsx": () => import("../components/mockups/payments-era/V3Accessibility.tsx")
+  "./components/mockups/payments-era/V3Accessibility.tsx": () => import("../components/mockups/payments-era/V3Accessibility.tsx"),
+  "./components/mockups/schedule-variants/ActionTriageQueue.tsx": () => import("../components/mockups/schedule-variants/ActionTriageQueue.tsx"),
+  "./components/mockups/schedule-variants/NowPatientCockpit.tsx": () => import("../components/mockups/schedule-variants/NowPatientCockpit.tsx"),
+  "./components/mockups/schedule-variants/StatusPipelineBoard.tsx": () => import("../components/mockups/schedule-variants/StatusPipelineBoard.tsx"),
+  "./components/mockups/schedule-variants/TimelineDayGrid.tsx": () => import("../components/mockups/schedule-variants/TimelineDayGrid.tsx")
 };
