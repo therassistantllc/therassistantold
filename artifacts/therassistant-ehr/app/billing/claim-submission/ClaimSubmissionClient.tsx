@@ -25,8 +25,8 @@ type Payload = {
 };
 
 function getOrganizationId() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+  if (typeof window === "undefined") return "11111111-1111-1111-1111-111111111111";
+  return new URLSearchParams(window.location.search).get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 }
 
 function agingBucket(value: unknown) {

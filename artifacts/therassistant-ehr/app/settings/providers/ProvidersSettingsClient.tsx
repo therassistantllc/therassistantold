@@ -19,9 +19,9 @@ type CredentialingRecord = {
 };
 
 function getOrganizationId() {
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") return "11111111-1111-1111-1111-111111111111";
   const params = new URLSearchParams(window.location.search);
-  return params.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+  return params.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 }
 
 function missing(value: string | null | undefined) {

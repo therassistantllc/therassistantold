@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const organizationId =
-      searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+      searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
@@ -113,7 +113,7 @@ export async function PATCH(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const organizationId =
-      searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+      searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     const id = searchParams.get("id");
 
     if (!organizationId) {

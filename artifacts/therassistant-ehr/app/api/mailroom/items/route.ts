@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
 
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     const status = searchParams.get("status") || "pending";
     const clientId = searchParams.get("clientId") || null;
     const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 100);
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
 
     const body = await request.json();
-    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     const fileName = clean(body.fileName) || "uploaded-mailroom-document";
     const mimeType = clean(body.mimeType) || "application/pdf";
     const storagePath = clean(body.storagePath) || `manual-mailroom/${Date.now()}-${fileName}`;

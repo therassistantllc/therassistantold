@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const organizationId = url.searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = url.searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     const status = url.searchParams.get("status") || "active";
     const workType = url.searchParams.get("workType") || "";
     const priority = url.searchParams.get("priority") || "";

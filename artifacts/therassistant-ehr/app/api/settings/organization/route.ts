@@ -38,7 +38,11 @@ export async function GET(req: NextRequest) {
 
   if (orgResult.error) {
     if (orgResult.error.code === "PGRST116") {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return NextResponse.json({
+        organization: null,
+        billing_profile: {},
+        _notice: "No organization record found. Save to create one.",
+      });
     }
     console.error("[GET /api/settings/organization]", orgResult.error);
     return NextResponse.json({ error: "Failed to load organization" }, { status: 500 });

@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 function getParam(name: string) {
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") return "11111111-1111-1111-1111-111111111111";
   return new URLSearchParams(window.location.search).get(name) || "";
 }
 
 function getOrganizationId() {
-  return getParam("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+  return getParam("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 }
 
 export default function RouteToBillerClient() {

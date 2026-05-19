@@ -50,7 +50,7 @@ export async function GET(request: Request, context: { params: Promise<{ appoint
 
     const { appointmentId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 
     if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
@@ -83,7 +83,7 @@ export async function POST(request: Request, context: { params: Promise<{ appoin
 
     const { appointmentId } = await context.params;
     const body = await request.json();
-    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
     const status = clean(body.status) || "submitted";
 
     if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });

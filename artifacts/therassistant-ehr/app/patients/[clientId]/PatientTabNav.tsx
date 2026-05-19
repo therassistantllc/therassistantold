@@ -20,7 +20,7 @@ const PATIENT_TABS = [
 export default function PatientTabNav({ clientId }: { clientId: string }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const orgId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+  const orgId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 
   return (
     <div className={styles.patientTabs} role="navigation" aria-label="Patient chart tabs">

@@ -57,7 +57,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { clientId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "11111111-1111-1111-1111-111111111111";
 
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
