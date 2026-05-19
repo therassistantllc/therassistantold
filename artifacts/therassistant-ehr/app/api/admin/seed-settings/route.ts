@@ -194,7 +194,7 @@ export async function POST() {
         source: "manual",
         environment: "demo",
         is_active: true,
-        notes: null,
+        notes: "",
         created_at: now,
         updated_at: now,
       },

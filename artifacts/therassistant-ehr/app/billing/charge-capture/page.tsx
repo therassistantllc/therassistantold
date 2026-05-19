@@ -1,1 +1,5 @@
-export { default } from "../claim-readiness/page";
+import ChargeCaptureClient from "./ChargeCaptureClient";
+
+export default function ChargeCapturePageWrapper() {
+  return <ChargeCaptureClient />;
+}

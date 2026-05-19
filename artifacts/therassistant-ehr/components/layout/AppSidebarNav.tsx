@@ -208,7 +208,7 @@ export default function AppSidebarNav() {
   const billingActive = active(pathname, ["/billing", "/workqueue"]);
   const adminActive = active(pathname, ["/settings", "/admin"]);
 
-  const [billingOpen, setBillingOpen] = useState(billingActive || true);
+  const [billingOpen, setBillingOpen] = useState<boolean>(billingActive || true);
   const [adminOpen, setAdminOpen] = useState(adminActive || false);
   const [workqueuesOpen, setWorkqueuesOpen] = useState(active(pathname, ["/workqueue"]));
   const [collectionsOpen, setCollectionsOpen] = useState(false);
@@ -246,7 +246,7 @@ export default function AppSidebarNav() {
           <SubNavLink href="/billing" label="Dashboard" prefixes={["/billing"]} exact={pathname === "/billing"} pathname={pathname} />
           <SubNavLink href="/billing/charge-capture" label="Charge Capture" prefixes={["/billing/charge-capture", "/billing/claim-readiness"]} pathname={pathname} />
           <SubNavLink href="/billing/claim-submission" label="Claims" prefixes={["/billing/claim-submission", "/billing/837p-batches"]} pathname={pathname} />
-          <SubNavLink href="/billing/reports" label="Payments / ERA" prefixes={[]} pathname={pathname} activeOverride={false} />
+          <SubNavLink href="/billing/payments" label="Payments / ERA" prefixes={["/billing/payments"]} pathname={pathname} />
 
           {/* Workqueues sub-group */}
           <button

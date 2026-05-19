@@ -1,0 +1,307 @@
+/* ─── Charge Capture Page ─────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 44px);
+  overflow: hidden;
+  background: #F8FAFC;
+}
+
+/* ── Header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #E2E8F0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.headerTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.headerSpacer { flex: 1; }
+
+.searchWrap { position: relative; }
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94A3B8;
+  pointer-events: none;
+  display: flex;
+}
+
+.searchInput {
+  height: 32px;
+  padding: 0 10px 0 30px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #1E293B;
+  background: #F8FAFC;
+  width: 200px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
+  background: #fff;
+}
+
+.filterRow {
+  display: flex;
+  gap: 4px;
+}
+
+.filterBtn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748B;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+
+.filterBtn:hover { border-color: #94A3B8; color: #1E293B; }
+
+.filterBtnActive {
+  border-color: #3B82F6;
+  color: #3B82F6;
+  background: #EFF6FF;
+  font-weight: 600;
+}
+
+.releaseBtn {
+  height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 7px;
+  background: #3B82F6;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.releaseBtn:disabled { background: #93C5FD; cursor: default; }
+.releaseBtn:not(:disabled):hover { background: #2563EB; }
+
+/* ── Summary Strip ─── */
+.summaryStrip {
+  display: flex;
+  gap: 1px;
+  background: #E2E8F0;
+  border-bottom: 1px solid #E2E8F0;
+  flex-shrink: 0;
+}
+
+.summaryCard {
+  flex: 1;
+  background: #ffffff;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summaryValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1;
+}
+
+.summaryLabel {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.summaryValueAmber { color: #D97706; }
+.summaryValueRed { color: #DC2626; }
+.summaryValueGreen { color: #059669; }
+
+/* ── Table Container ─── */
+.tableWrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 860px;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+.table th:first-child { padding-left: 16px; }
+.table th:last-child { text-align: right; padding-right: 16px; }
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  vertical-align: middle;
+  color: #1E293B;
+}
+
+.table td:first-child { padding-left: 16px; }
+.table td:last-child { text-align: right; padding-right: 12px; }
+
+.table tbody tr:hover { background: #F8FAFC; }
+.table tbody tr.rowSelected { background: #EFF6FF; }
+
+.checkCell {
+  width: 36px;
+  padding: 10px 0 10px 16px !important;
+  text-align: center !important;
+}
+
+.cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #3B82F6;
+}
+
+.patientName {
+  font-weight: 600;
+  color: #0F172A;
+  display: block;
+}
+
+.patientDob {
+  font-size: 11.5px;
+  color: #94A3B8;
+}
+
+.cptCode {
+  font-weight: 600;
+  color: #1E293B;
+  font-family: ui-monospace, monospace;
+}
+
+.cptDesc {
+  font-size: 11.5px;
+  color: #94A3B8;
+  display: block;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chargeAmt {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Status Badge ─── */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.statusReady { background: #D1FAE5; color: #065F46; }
+.statusUnsigned { background: #FEF3C7; color: #92400E; }
+.statusMissingDx { background: #FEE2E2; color: #991B1B; }
+.statusHold { background: #F1F5F9; color: #475569; }
+
+/* ── Row Actions ─── */
+.rowActions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.actionBtn {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #475569;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.actionBtn:hover { border-color: #3B82F6; color: #3B82F6; background: #F0F7FF; }
+
+.actionBtnGreen {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+  color: #166534;
+  font-weight: 600;
+}
+
+.actionBtnGreen:hover { background: #DCFCE7; border-color: #16A34A; }
+
+/* Blocker chip */
+.blocker {
+  display: inline-block;
+  font-size: 11px;
+  color: #DC2626;
+  background: #FEE2E2;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 1px 2px 0 0;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60px 0;
+  color: #94A3B8;
+  font-size: 13.5px;
+}

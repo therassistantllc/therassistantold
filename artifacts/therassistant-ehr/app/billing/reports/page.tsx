@@ -1,5 +1,5 @@
-import BillingReportsClient from "./BillingReportsClient";
+import { redirect } from "next/navigation";
 
 export default function BillingReportsPage() {
-  return <BillingReportsClient />;
+  redirect("/billing/payments");
 }
