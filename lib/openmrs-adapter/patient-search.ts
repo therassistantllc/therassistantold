@@ -15,7 +15,7 @@
 import { mapOpenMRSPatientToClient, validateMappedPatient } from "./transform";
 import type { OpenMRSPatient } from "./types";
 
-interface OpenMRSSearchOptions {
+export interface OpenMRSSearchOptions {
   /** Search query (name, email, phone, MRN) */
   query?: string;
 
@@ -35,7 +35,7 @@ interface OpenMRSSearchOptions {
   representation?: "simple" | "default" | "full";
 }
 
-interface TherAssistantClientRosterItem {
+export interface TherAssistantClientRosterItem {
   id: string;
   name: string;
   preferredName: string | null;
@@ -43,10 +43,10 @@ interface TherAssistantClientRosterItem {
   phone: string | null;
   status: "active" | "deceased";
   intakeStatus: null; // OpenMRS patients don't have intake status
-  openBalance: 0; // OpenMRS doesn't track billing
+  openBalance: number; // OpenMRS defaults to 0; Supabase may have balances
   updatedAt: string | null;
-  externalSource: "openmrs"; // Marker for where data came from
-  externalPatientUuid: string; // Cross-system reference
+  externalSource: "openmrs" | "supabase"; // Marker for where data came from
+  externalPatientUuid: string | null; // Cross-system reference
 }
 
 /**
