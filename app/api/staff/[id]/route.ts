@@ -16,6 +16,8 @@ import {
 import { createServerSupabaseAdminClientTyped } from "@/lib/supabase/server";
 import { PERMISSIONS } from "@/lib/rbac/constants";
 
+const _useOpenMrsProviders = process.env.USE_OPENMRS_PROVIDERS === "true";
+
 interface StaffUpdatePayload {
   first_name?: string;
   last_name?: string;

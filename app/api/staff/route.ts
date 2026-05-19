@@ -18,6 +18,8 @@ import {
   type CreateStaffPayload,
 } from "@/lib/rbac/validators";
 
+const _useOpenMrsProviders = process.env.USE_OPENMRS_PROVIDERS === "true";
+
 /**
  * GET /api/staff
  * List all staff in the organization with optional search/filter/pagination
