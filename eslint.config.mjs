@@ -37,6 +37,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored third-party assets (kept as-is from upstream OpenMRS)
+    "vendor/**",
   ]),
 ]);
 

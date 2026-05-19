@@ -9,6 +9,7 @@ import {
   OpenMRSPatient,
   OpenMRSVisit,
   OpenMRSEncounter,
+  OpenMRSOrder,
   OpenMRSAttachment,
   MappedPatient,
   MappedVisit,
@@ -95,7 +96,6 @@ export function mapOpenMRSVisitToAppointmentAndEncounter(
 
   // Determine location type (office vs telehealth)
   const locationUuid = visit.location?.uuid || "";
-  const locationName = visit.location?.display || "Unknown";
   const serviceLocation = determineTelehealthFromLocation(locationUuid, config)
     ? "telehealth"
     : "office";
@@ -286,7 +286,7 @@ function isServiceLineOrder(orderTypeUuid: string): boolean {
 /**
  * Extract CPT code from OpenMRS order
  */
-function extractCptCode(order: any): string {
+function extractCptCode(order: OpenMRSOrder): string {
   // Could be in order properties or concept mapping
   // Default to concept UUID if CPT code not found
   return order.concept.uuid;

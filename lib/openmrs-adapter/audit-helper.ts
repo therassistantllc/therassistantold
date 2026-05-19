@@ -22,15 +22,6 @@ interface NPMPackageInfo {
   time?: Record<string, string>;
 }
 
-interface GitHubRepoInfo {
-  owner: string;
-  repo: string;
-  description?: string;
-  stars?: number;
-  lastPush?: string;
-  size?: number;
-}
-
 /**
  * Fetch npm package info
  */
