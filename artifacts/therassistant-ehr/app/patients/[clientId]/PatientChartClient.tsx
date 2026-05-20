@@ -203,6 +203,8 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
   const [intakeSubmissions, setIntakeSubmissions] = useState<IntakeSubmission[]>([]);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
+  const [cardRefresh, setCardRefresh] = useState(0);
+  const [cardBusy, setCardBusy] = useState<string | null>(null);
   const organizationId = useMemo(() => getOrganizationId(), []);
 
   async function reloadIntake() {
@@ -217,6 +219,71 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
       if (subsRes.ok && subsJson.success) setIntakeSubmissions(subsJson.submissions ?? []);
     } catch {
       // intake data is best-effort
+    }
+  }
+
+  async function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleReplaceCard(submissionId: string, side: "front" | "back", file: File) {
+    const key = `${submissionId}:${side}`;
+    setCardBusy(key);
+    setIntakeMessage(null);
+    try {
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Please choose an image file (PNG, JPEG, WebP, or GIF).");
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("Image must be 5 MB or smaller.");
+      }
+      const content = await readFileAsDataUrl(file);
+      const response = await fetch(
+        `/api/intake/card/${encodeURIComponent(submissionId)}/${side}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, name: file.name, type: file.type }),
+        },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to replace card image");
+      setIntakeMessage(`Insurance card ${side} updated.`);
+      setCardRefresh((n) => n + 1);
+      await reloadIntake();
+    } catch (err) {
+      setIntakeMessage(err instanceof Error ? err.message : "Failed to replace card image");
+    } finally {
+      setCardBusy(null);
+    }
+  }
+
+  async function handleRemoveCard(submissionId: string, side: "front" | "back") {
+    if (typeof window !== "undefined" && !window.confirm(`Remove the insurance card ${side} image from this submission?`)) {
+      return;
+    }
+    const key = `${submissionId}:${side}`;
+    setCardBusy(key);
+    setIntakeMessage(null);
+    try {
+      const response = await fetch(
+        `/api/intake/card/${encodeURIComponent(submissionId)}/${side}`,
+        { method: "DELETE" },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to remove card image");
+      setIntakeMessage(`Insurance card ${side} removed.`);
+      setCardRefresh((n) => n + 1);
+      await reloadIntake();
+    } catch (err) {
+      setIntakeMessage(err instanceof Error ? err.message : "Failed to remove card image");
+    } finally {
+      setCardBusy(null);
     }
   }
 
@@ -403,11 +470,12 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
                 if (typeof obj.content === "string" && obj.content.startsWith("data:image/")) return true;
                 return false;
               };
+              const cacheBust = `?v=${encodeURIComponent(String((insurance.cardFront as Record<string, unknown> | null | undefined)?.uploadedAt ?? "") + ":" + String((insurance.cardBack as Record<string, unknown> | null | undefined)?.uploadedAt ?? "") + ":" + cardRefresh)}`;
               const frontUrl = hasCard(insurance.cardFront)
-                ? `/api/intake/card/${encodeURIComponent(submission.id)}/front`
+                ? `/api/intake/card/${encodeURIComponent(submission.id)}/front${cacheBust}`
                 : null;
               const backUrl = hasCard(insurance.cardBack)
-                ? `/api/intake/card/${encodeURIComponent(submission.id)}/back`
+                ? `/api/intake/card/${encodeURIComponent(submission.id)}/back${cacheBust}`
                 : null;
               const consents = (submission.consents ?? {}) as Record<string, unknown>;
               const consentList = [
@@ -424,38 +492,64 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
                     GAD-7: {submission.gad7Score ?? "—"} ({submission.gad7Severity ?? "—"})
                   </span>
                   <span>Consents on file: {consentList || "—"}</span>
-                  {frontUrl || backUrl ? (
-                    <div style={{ marginTop: "6px" }}>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        {frontUrl ? (
-                          <a href={frontUrl} target="_blank" rel="noreferrer" title="View insurance card front">
-                            <img
-                              src={frontUrl}
-                              alt="Insurance card front"
-                              style={{ height: "70px", border: "1px solid var(--border, #ddd)", borderRadius: "4px", display: "block" }}
-                            />
-                          </a>
-                        ) : null}
-                        {backUrl ? (
-                          <a href={backUrl} target="_blank" rel="noreferrer" title="View insurance card back">
-                            <img
-                              src={backUrl}
-                              alt="Insurance card back"
-                              style={{ height: "70px", border: "1px solid var(--border, #ddd)", borderRadius: "4px", display: "block" }}
-                            />
-                          </a>
-                        ) : null}
-                      </div>
-                      <div style={{ marginTop: "4px", fontSize: "12px" }}>
-                        {frontUrl ? (
-                          <a href={frontUrl} target="_blank" rel="noreferrer" style={{ marginRight: "12px" }}>View original front</a>
-                        ) : null}
-                        {backUrl ? (
-                          <a href={backUrl} target="_blank" rel="noreferrer">View original back</a>
-                        ) : null}
-                      </div>
+                  <div style={{ marginTop: "6px" }}>
+                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                      {(["front", "back"] as const).map((side) => {
+                        const url = side === "front" ? frontUrl : backUrl;
+                        const busyKey = `${submission.id}:${side}`;
+                        const busy = cardBusy === busyKey;
+                        const label = side === "front" ? "Front" : "Back";
+                        return (
+                          <div key={side} style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "120px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: 600 }}>Card {label}</span>
+                            {url ? (
+                              <a href={url} target="_blank" rel="noreferrer" title={`View insurance card ${side}`}>
+                                <img
+                                  src={url}
+                                  alt={`Insurance card ${side}`}
+                                  style={{ height: "70px", border: "1px solid var(--border, #ddd)", borderRadius: "4px", display: "block" }}
+                                />
+                              </a>
+                            ) : (
+                              <div style={{ height: "70px", width: "120px", border: "1px dashed var(--border, #ccc)", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted, #777)", fontSize: "12px" }}>
+                                No image
+                              </div>
+                            )}
+                            <div style={{ fontSize: "12px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                              <label className="button button-secondary" style={{ padding: "2px 8px", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                                {busy ? "Working…" : url ? "Replace" : "Upload"}
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp,image/gif"
+                                  style={{ display: "none" }}
+                                  disabled={busy}
+                                  onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    event.target.value = "";
+                                    if (file) void handleReplaceCard(submission.id, side, file);
+                                  }}
+                                />
+                              </label>
+                              {url ? (
+                                <button
+                                  type="button"
+                                  className="button button-secondary"
+                                  style={{ padding: "2px 8px" }}
+                                  disabled={busy}
+                                  onClick={() => void handleRemoveCard(submission.id, side)}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                              {url ? (
+                                <a href={url} target="_blank" rel="noreferrer">View original</a>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
               );
             })}
