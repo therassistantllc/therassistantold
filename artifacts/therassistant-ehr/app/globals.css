@@ -558,6 +558,77 @@ input {
   font-size: 13px;
 }
 
+.workqueue-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.workqueue-bulk-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.workqueue-bulk-checkbox-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.workqueue-bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--navy-soft);
+  border-radius: 4px;
+  background: var(--sage-soft);
+  margin-bottom: 4px;
+}
+
+.workqueue-bulk-toolbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-right: 4px;
+}
+
+.workqueue-list-item-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: stretch;
+  gap: 4px;
+  border-radius: 4px;
+}
+
+.workqueue-list-item-row.bulk-selected {
+  background: var(--sage-soft);
+}
+
+.workqueue-row-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.workqueue-row-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;

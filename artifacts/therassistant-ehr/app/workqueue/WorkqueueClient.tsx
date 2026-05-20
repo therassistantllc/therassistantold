@@ -67,6 +67,7 @@ export default function WorkqueueClient() {
   const [workType, setWorkType] = useState("");
   const [items, setItems] = useState<WorkqueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBulkIds, setSelectedBulkIds] = useState<Set<string>>(new Set());
   const [counts, setCounts] = useState<WorkqueueResponse["counts"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,11 +102,117 @@ export default function WorkqueueClient() {
       setItems([]);
       setCounts(null);
     } else {
-      setItems(json.items || []);
+      const nextItems = json.items || [];
+      setItems(nextItems);
       setCounts(json.counts || null);
-      setSelectedId((current) => current && (json.items || []).some((item) => item.id === current) ? current : (json.items || [])[0]?.id ?? null);
+      setSelectedId((current) => current && nextItems.some((item) => item.id === current) ? current : nextItems[0]?.id ?? null);
+      // Drop bulk selections whose items are no longer in the active view.
+      setSelectedBulkIds((prev) => {
+        if (prev.size === 0) return prev;
+        const next = new Set<string>();
+        const presentIds = new Set(nextItems.map((item) => item.id));
+        prev.forEach((id) => { if (presentIds.has(id)) next.add(id); });
+        return next.size === prev.size ? prev : next;
+      });
     }
     setLoading(false);
+  }
+
+  function toggleBulkSelect(id: string) {
+    setSelectedBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedBulkIds((prev) => {
+      if (prev.size === items.length && items.length > 0) return new Set();
+      return new Set(items.map((item) => item.id));
+    });
+  }
+
+  async function runBulkAction(bulkAction: "resolve" | "close" | "defer") {
+    if (selectedBulkIds.size === 0) return;
+    setActing(true);
+    setError(null);
+    setActionFeedback(null);
+
+    const ids = Array.from(selectedBulkIds);
+    const deferredUntil = bulkAction === "defer"
+      ? new Date(Date.now() + Math.max(Number(deferDays) || 1, 1) * 24 * 60 * 60 * 1000).toISOString()
+      : undefined;
+
+    const response = await fetch("/api/workqueue/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "bulk",
+        bulkAction,
+        organizationId,
+        workqueueItemIds: ids,
+        comment: comment || undefined,
+        deferredUntil,
+        deferReason: bulkAction === "defer" ? (comment || `Deferred for ${deferDays} days`) : undefined,
+      }),
+    });
+
+    const json = (await response.json()) as {
+      success?: boolean;
+      error?: string;
+      result?: {
+        ok?: boolean;
+        successCount?: number;
+        failedCount?: number;
+        totalCount?: number;
+        results?: Array<{ ok: boolean; workqueueItemId: string; errors?: Array<{ message: string }> }>;
+      };
+    };
+
+    const result = json.result;
+    if (!response.ok && !result) {
+      setActionFeedback({ type: "error", message: json.error || "Bulk action failed." });
+      setActing(false);
+      return;
+    }
+
+    const successCount = result?.successCount ?? 0;
+    const failedCount = result?.failedCount ?? 0;
+    const totalCount = result?.totalCount ?? ids.length;
+    const succeededIds = new Set((result?.results ?? []).filter((r) => r.ok).map((r) => r.workqueueItemId));
+    const firstError = (result?.results ?? []).find((r) => !r.ok)?.errors?.[0]?.message;
+
+    if (successCount > 0) {
+      // Mirror single-item behavior: remove successfully terminated items from the active view immediately.
+      const terminal = bulkAction === "resolve" || bulkAction === "close";
+      const removeFromActiveView = terminal && (status === "active" || status === "open" || status === "in_progress");
+      if (removeFromActiveView) {
+        setItems((prev) => prev.filter((item) => !succeededIds.has(item.id)));
+        setSelectedId((current) => (current && succeededIds.has(current) ? null : current));
+      }
+      setSelectedBulkIds((prev) => {
+        const next = new Set<string>();
+        prev.forEach((id) => { if (!succeededIds.has(id)) next.add(id); });
+        return next;
+      });
+    }
+
+    if (failedCount === 0) {
+      setComment("");
+      setActionFeedback({
+        type: "success",
+        message: `Bulk ${bulkAction} succeeded for ${successCount} item${successCount === 1 ? "" : "s"}.`,
+      });
+    } else {
+      setActionFeedback({
+        type: "error",
+        message: `${successCount} of ${totalCount} succeeded · ${failedCount} failed${firstError ? ` — ${firstError}` : ""}.`,
+      });
+    }
+
+    await loadItems();
+    setActing(false);
   }
 
   useEffect(() => {
@@ -278,16 +385,95 @@ export default function WorkqueueClient() {
 
       <section className="workqueue-layout">
         <div className="workqueue-list panel">
+          {items.length > 0 ? (
+            <div className="workqueue-list-header">
+              <label className="workqueue-bulk-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={selectedBulkIds.size === items.length && items.length > 0}
+                  ref={(el) => {
+                    if (el) el.indeterminate = selectedBulkIds.size > 0 && selectedBulkIds.size < items.length;
+                  }}
+                  onChange={toggleSelectAll}
+                  aria-label="Select all workqueue items"
+                />
+                <span>
+                  {selectedBulkIds.size > 0
+                    ? `${selectedBulkIds.size} selected`
+                    : `Select all (${items.length})`}
+                </span>
+              </label>
+            </div>
+          ) : null}
+
+          {selectedBulkIds.size > 0 ? (
+            <div className="workqueue-bulk-toolbar">
+              <span className="workqueue-bulk-toolbar-label">Bulk actions:</span>
+              <button
+                className="button"
+                type="button"
+                onClick={() => void runBulkAction("resolve")}
+                disabled={acting}
+              >
+                Resolve {selectedBulkIds.size}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void runBulkAction("close")}
+                disabled={acting}
+              >
+                Close {selectedBulkIds.size}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void runBulkAction("defer")}
+                disabled={acting}
+              >
+                Defer {selectedBulkIds.size}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setSelectedBulkIds(new Set())}
+                disabled={acting}
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
+
           {items.length === 0 && !loading ? <div className="empty-state">No workqueue items found.</div> : null}
-          {items.map((item) => (
-            <button key={item.id} className={`workqueue-list-item ${selected?.id === item.id ? "selected" : ""}`} type="button" onClick={() => setSelectedId(item.id)}>
-              <span className={`status-pill ${item.priority || "normal"}`}>{item.priority || "normal"}</span>
-              <strong>{item.title}</strong>
-              <span>{patientName(item.client)}</span>
-              <span>{item.workType || "workqueue"}</span>
-              <span>{formatDate(item.createdAt)}</span>
-            </button>
-          ))}
+          {items.map((item) => {
+            const isBulkSelected = selectedBulkIds.has(item.id);
+            return (
+              <div
+                key={item.id}
+                className={`workqueue-list-item-row ${selected?.id === item.id ? "selected" : ""} ${isBulkSelected ? "bulk-selected" : ""}`}
+              >
+                <label className="workqueue-row-checkbox" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={isBulkSelected}
+                    onChange={() => toggleBulkSelect(item.id)}
+                    aria-label={`Select ${item.title}`}
+                  />
+                </label>
+                <button
+                  className="workqueue-list-item"
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                >
+                  <span className={`status-pill ${item.priority || "normal"}`}>{item.priority || "normal"}</span>
+                  <strong>{item.title}</strong>
+                  <span>{patientName(item.client)}</span>
+                  <span>{item.workType || "workqueue"}</span>
+                  <span>{formatDate(item.createdAt)}</span>
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         <div className="workqueue-detail panel">

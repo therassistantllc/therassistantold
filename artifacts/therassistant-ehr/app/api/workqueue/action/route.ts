@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   addWorkqueueComment,
   assignWorkqueueItem,
+  bulkWorkqueueAction,
   closeWorkqueueItem,
   deferWorkqueueItem,
   resolveWorkqueueItem,
@@ -10,9 +11,47 @@ import {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    if (!body.organizationId || !body.workqueueItemId || !body.action) {
+    if (!body.organizationId || !body.action) {
       return NextResponse.json(
-        { success: false, error: "organizationId, workqueueItemId, and action are required" },
+        { success: false, error: "organizationId and action are required" },
+        { status: 400 },
+      );
+    }
+
+    // ── Bulk path: act on many items at once ────────────────────────────────
+    if (body.action === "bulk") {
+      const bulkAction = body.bulkAction ? String(body.bulkAction) : "";
+      if (!["resolve", "close", "defer"].includes(bulkAction)) {
+        return NextResponse.json(
+          { success: false, error: "bulkAction must be one of: resolve, close, defer" },
+          { status: 400 },
+        );
+      }
+      const ids = Array.isArray(body.workqueueItemIds) ? body.workqueueItemIds.map((id: unknown) => String(id)) : [];
+      if (ids.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "workqueueItemIds must be a non-empty array" },
+          { status: 400 },
+        );
+      }
+      if (bulkAction === "defer" && !body.deferredUntil) {
+        return NextResponse.json({ success: false, error: "deferredUntil is required for bulk defer" }, { status: 400 });
+      }
+      const result = await bulkWorkqueueAction({
+        organizationId: String(body.organizationId),
+        workqueueItemIds: ids,
+        action: bulkAction as "resolve" | "close" | "defer",
+        userId: body.userId ?? null,
+        comment: body.comment ?? null,
+        deferredUntil: body.deferredUntil ?? null,
+        deferReason: body.deferReason ?? null,
+      });
+      return NextResponse.json({ success: result.ok, result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (!body.workqueueItemId) {
+      return NextResponse.json(
+        { success: false, error: "workqueueItemId is required" },
         { status: 400 },
       );
     }
