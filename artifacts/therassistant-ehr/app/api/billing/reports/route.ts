@@ -323,9 +323,9 @@ export async function GET(request: Request) {
     const payerAggMap = new Map<string, PayerAgg>();
     for (const claim of claimsForPayer ?? []) {
       if (!claim.payer_profile_id) continue;
-      const existing =
+      const existing: PayerAgg =
         payerAggMap.get(claim.payer_profile_id) ??
-        ({
+        {
           payerProfileId: claim.payer_profile_id,
           payerName: payerNameById.get(claim.payer_profile_id) ?? "Unknown payer",
           totalClaims: 0,
@@ -334,7 +334,7 @@ export async function GET(request: Request) {
           rejectedClaims: 0,
           totalCharge: 0,
           turnaroundSamples: [],
-        } satisfies PayerAgg);
+        };
       existing.totalClaims += 1;
       existing.totalCharge += Number(claim.total_charge ?? 0);
       if (claim.claim_status === "paid") {

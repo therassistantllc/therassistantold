@@ -2,8 +2,26 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Bell,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  FileText,
+  MapPin,
+  MoreVertical,
+  Search,
+  User,
+  Video,
+  XCircle,
+} from "lucide-react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
-import styles from "./schedule.module.css";
+
+function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
 
 function getOrganizationId() {
   if (typeof window === "undefined") return DEFAULT_ORG_ID;
@@ -104,14 +122,11 @@ const APPOINTMENTS: ScheduleAppointment[] = [
     telehealthUrl: "https://telehealth.example.com/session/appt-1001",
     insurance: "Aetna",
     status: "scheduled",
-    alerts: [
-      { text: "Telehealth – verify location", tone: "purple" },
-    ],
-    recentNote: "Client reported significant improvement in sleep and daily functioning. Continuing CBT techniques for anxiety management.",
+    alerts: [{ text: "Telehealth – verify location", tone: "purple" }],
+    recentNote:
+      "Client reported significant improvement in sleep and daily functioning. Continuing CBT techniques for anxiety management.",
     diagnoses: ["F33.1 – Major Depressive Disorder, recurrent"],
-    tasks: [
-      { text: "Confirm telehealth link sent", color: "#8B5CF6" },
-    ],
+    tasks: [{ text: "Confirm telehealth link sent", color: "#8B5CF6" }],
     copay: "$20",
   },
   {
@@ -132,7 +147,8 @@ const APPOINTMENTS: ScheduleAppointment[] = [
       { text: "Minor – guardian in waiting room", tone: "blue" },
       { text: "School ROI pending", tone: "amber" },
     ],
-    recentNote: "Session focused on school-related stressors. Family dynamics improving. Guardian engaged and supportive.",
+    recentNote:
+      "Session focused on school-related stressors. Family dynamics improving. Guardian engaged and supportive.",
     diagnoses: ["F43.23 – Adjustment Disorder with mixed anxiety and depressed mood"],
     tasks: [
       { text: "Send school ROI to guardian", color: "#F59E0B" },
@@ -154,10 +170,9 @@ const APPOINTMENTS: ScheduleAppointment[] = [
     location: "Office",
     insurance: "Medicare",
     status: "needs_signature",
-    alerts: [
-      { text: "Note unsigned – required for billing", tone: "amber" },
-    ],
-    recentNote: "Client discussed employment transition. Mood stable. Sleep improved with behavioral changes. GAD symptoms reduced.",
+    alerts: [{ text: "Note unsigned – required for billing", tone: "amber" }],
+    recentNote:
+      "Client discussed employment transition. Mood stable. Sleep improved with behavioral changes. GAD symptoms reduced.",
     diagnoses: ["F41.1 – Generalized Anxiety Disorder", "Z56.0 – Problems with employment"],
     tasks: [
       { text: "Sign clinical note", color: "#F59E0B" },
@@ -206,10 +221,9 @@ const APPOINTMENTS: ScheduleAppointment[] = [
     location: "Office",
     insurance: "United Behavioral Health",
     status: "scheduled",
-    alerts: [
-      { text: "Treatment plan expires in 3 days", tone: "red" },
-    ],
-    recentNote: "Strong session — client identifying triggers for depressive episodes. Setting behavioral activation goals for the next 2 weeks.",
+    alerts: [{ text: "Treatment plan expires in 3 days", tone: "red" }],
+    recentNote:
+      "Strong session — client identifying triggers for depressive episodes. Setting behavioral activation goals for the next 2 weeks.",
     diagnoses: ["F32.1 – Major Depressive Episode, moderate"],
     tasks: [
       { text: "Update and sign treatment plan", color: "#EF4444" },
@@ -231,9 +245,7 @@ const APPOINTMENTS: ScheduleAppointment[] = [
     location: "Office",
     insurance: "Aetna",
     status: "no_show",
-    alerts: [
-      { text: "No-show – 2nd occurrence this month", tone: "red" },
-    ],
+    alerts: [{ text: "No-show – 2nd occurrence this month", tone: "red" }],
     recentNote: "Client expressed ambivalence about therapy goals. Recommended adding structure between sessions.",
     diagnoses: ["F33.0 – Major Depressive Disorder, recurrent, mild"],
     tasks: [
@@ -246,57 +258,45 @@ const APPOINTMENTS: ScheduleAppointment[] = [
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
-const STATUS_LABEL: Record<AppointmentStatus, string> = {
-  scheduled: "Scheduled",
-  checked_in: "Checked In",
-  in_session: "In Session",
-  needs_signature: "Needs Signature",
-  completed: "Completed",
-  no_show: "No Show",
-  cancelled: "Cancelled",
-};
-
-function statusBadgeClass(status: AppointmentStatus): string {
-  return {
-    scheduled: styles.badgeScheduled,
-    checked_in: styles.badgeCheckedIn,
-    in_session: styles.badgeInSession,
-    needs_signature: styles.badgeNeedsSignature,
-    completed: styles.badgeCompleted,
-    no_show: styles.badgeNoShow,
-    cancelled: styles.badgeCancelled,
-  }[status] ?? styles.badgeCompleted;
-}
-
-function statusAccentClass(appt: ScheduleAppointment): string {
-  if (appt.location === "Telehealth" && (appt.status === "scheduled" || appt.status === "in_session")) {
-    return styles.accentTelehealth;
-  }
-  return {
-    scheduled: styles.accentScheduled,
-    checked_in: styles.accentCheckedIn,
-    in_session: styles.accentInSession,
-    needs_signature: styles.accentNeedsSignature,
-    completed: styles.accentCompleted,
-    no_show: styles.accentNoShow,
-    cancelled: styles.accentCancelled,
-  }[appt.status] ?? styles.accentCompleted;
-}
-
-function alertClass(tone: string): string {
-  if (tone === "red") return `${styles.alert} ${styles.alertRed}`;
-  if (tone === "blue") return `${styles.alert} ${styles.alertBlue}`;
-  if (tone === "purple") return `${styles.alert} ${styles.alertPurple}`;
-  return styles.alert;
+function parseTimeToMinutes(timeStr: string): number {
+  const [hm, p] = timeStr.split(" ");
+  const [hh, mm] = hm.split(":").map((n) => parseInt(n, 10));
+  const h24 = p === "PM" && hh !== 12 ? hh + 12 : p === "AM" && hh === 12 ? 0 : hh;
+  return h24 * 60 + mm;
 }
 
 function formatDob(iso: string): string {
+  if (!iso) return "";
   const date = new Date(`${iso}T00:00:00`);
   const age = Math.floor((Date.now() - date.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Age ${age}`;
 }
 
-/* ─── Summary counts ─────────────────────────────────────────────────────── */
+function money(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+}
+
+function getStatusConfig(status: AppointmentStatus) {
+  switch (status) {
+    case "scheduled":
+      return { bg: "bg-blue-50 border-blue-200", accent: "bg-blue-500", text: "text-blue-900", label: "Scheduled" };
+    case "checked_in":
+      return { bg: "bg-emerald-50 border-emerald-200", accent: "bg-emerald-500", text: "text-emerald-900", label: "Checked In" };
+    case "in_session":
+      return { bg: "bg-purple-50 border-purple-200", accent: "bg-purple-500", text: "text-purple-900", label: "In Session" };
+    case "needs_signature":
+      return { bg: "bg-amber-50 border-amber-200", accent: "bg-amber-500", text: "text-amber-900", label: "Needs Sig." };
+    case "completed":
+      return { bg: "bg-gray-50 border-gray-200", accent: "bg-gray-500", text: "text-gray-900", label: "Completed" };
+    case "no_show":
+      return { bg: "bg-rose-50 border-rose-200", accent: "bg-rose-500", text: "text-rose-900", label: "No Show" };
+    case "cancelled":
+      return { bg: "bg-gray-100 border-gray-300", accent: "bg-gray-400", text: "text-gray-600", label: "Cancelled" };
+    default:
+      return { bg: "bg-gray-50 border-gray-200", accent: "bg-gray-500", text: "text-gray-900", label: status };
+  }
+}
 
 function computeSummary(appts: ScheduleAppointment[]) {
   return {
@@ -308,24 +308,35 @@ function computeSummary(appts: ScheduleAppointment[]) {
   };
 }
 
+/* ─── Timeline constants ──────────────────────────────────────────────────── */
+
+const START_HOUR = 8;
+const END_HOUR = 18; // 6 PM (covers 4:38 PM end times)
+const MINS_IN_DAY = (END_HOUR - START_HOUR) * 60;
+const PIXELS_PER_MINUTE = 2.5;
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 
 export default function ScheduleClient() {
-  const [view, setView] = useState<ViewMode>("day");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>("appt-a3");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dateLabels, setDateLabels] = useState<{ label: string; short: string }>({ label: "", short: "" });
   const [appointments, setAppointments] = useState<ScheduleAppointment[]>(APPOINTMENTS);
   const [isNewApptOpen, setIsNewApptOpen] = useState(false);
+  const [nowMinutes, setNowMinutes] = useState<number | null>(null);
   const organizationId = useMemo(() => getOrganizationId(), []);
 
   useEffect(() => {
     setDateLabels(computeDateLabels());
+    const now = new Date();
+    setNowMinutes(now.getHours() * 60 + now.getMinutes());
+    const interval = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60_000);
+    return () => clearInterval(interval);
   }, []);
-
-  const DATE_LABEL = dateLabels.label;
-  const DATE_SHORT = dateLabels.short;
 
   const summary = useMemo(() => computeSummary(appointments), [appointments]);
 
@@ -348,69 +359,119 @@ export default function ScheduleClient() {
     return list;
   }, [appointments, search, filter]);
 
-  const selected = useMemo(() => appointments.find((a) => a.id === selectedId) ?? null, [appointments, selectedId]);
+  const selectedAppt = useMemo(
+    () => appointments.find((a) => a.id === selectedId) ?? null,
+    [appointments, selectedId],
+  );
 
   const handleAppointmentCreated = (created: ScheduleAppointment) => {
     setAppointments((prev) =>
-      [...prev, created].sort((a, b) => {
-        const toMin = (t: string) => {
-          const [hm, p] = t.split(" ");
-          const [hh, mm] = hm.split(":").map((n) => parseInt(n, 10));
-          const h24 = p === "PM" && hh !== 12 ? hh + 12 : p === "AM" && hh === 12 ? 0 : hh;
-          return h24 * 60 + mm;
-        };
-        return toMin(a.timeStart) - toMin(b.timeStart);
-      }),
+      [...prev, created].sort((a, b) => parseTimeToMinutes(a.timeStart) - parseTimeToMinutes(b.timeStart)),
     );
     setSelectedId(created.id);
     setIsNewApptOpen(false);
   };
 
+  const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+  const nowInRange =
+    nowMinutes !== null && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60;
+  const nowTop = nowInRange ? (nowMinutes! - START_HOUR * 60) * PIXELS_PER_MINUTE : 0;
+  const nowLabel = nowInRange
+    ? (() => {
+        const h = Math.floor(nowMinutes! / 60);
+        const m = nowMinutes! % 60;
+        const period = h >= 12 ? "PM" : "AM";
+        const h12 = h % 12 === 0 ? 12 : h % 12;
+        return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+      })()
+    : "";
+
   return (
-    <div className={styles.page}>
-      {/* ── Header ─── */}
-      <header className={styles.header}>
-        <div className={styles.headerDate}>
-          <div className={styles.headerDateDay}>{DATE_SHORT}</div>
-          <div className={styles.headerDateSub}>{DATE_LABEL.split(", ").slice(1).join(", ")}</div>
+    <div className="flex flex-col bg-slate-50 font-sans text-slate-900" style={{ height: "calc(100dvh - var(--nav-height, 44px))" }}>
+      {/* Top Header */}
+      <header className="bg-white border-b border-slate-200 z-20 shadow-sm shrink-0">
+        <div className="px-6 py-3 flex items-center gap-4">
+          <div className="bg-slate-100 p-2 rounded-lg text-slate-700">
+            <CalendarIcon className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 truncate">
+              {dateLabels.label || "\u00A0"}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">Timeline View</p>
+          </div>
+
+          <div className="flex-1" />
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search patients, type, CPT…"
+              className="w-72 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+
+          <div className="flex gap-5">
+            <div className="flex flex-col items-end">
+              <span className="text-xl font-bold leading-none text-slate-900">{summary.total}</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Total</span>
+            </div>
+            <div className="w-px h-8 bg-slate-200 self-center" />
+            <div className="flex flex-col items-end">
+              <span className="text-xl font-bold leading-none text-amber-600">{summary.unsigned}</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Unsigned</span>
+            </div>
+            <div className="w-px h-8 bg-slate-200 self-center" />
+            <div className="flex flex-col items-end">
+              <span className="text-xl font-bold leading-none text-rose-600">{summary.noShow}</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">No Show</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsNewApptOpen(true)}
+            className="bg-slate-900 text-white hover:bg-slate-800 rounded-full px-5 py-2 text-sm font-semibold transition-colors"
+          >
+            + New Appointment
+          </button>
         </div>
 
-        <div className={styles.headerSpacer} />
-
-        <div className={styles.searchWrap}>
-          <span className={styles.searchIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </span>
-          <input
-            className={styles.searchInput}
-            type="text"
-            placeholder="Search patients…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <div className={styles.filterRow}>
-          {(["all", "scheduled", "checked_in", "completed", "no_show"] as Filter[]).map((f) => (
+        {/* Filter chips row */}
+        <div className="px-6 pb-3 flex items-center gap-2">
+          {(
+            [
+              { id: "all", label: "All" },
+              { id: "scheduled", label: "Upcoming" },
+              { id: "checked_in", label: "Active" },
+              { id: "completed", label: "Done" },
+              { id: "no_show", label: "No Show" },
+            ] as { id: Filter; label: string }[]
+          ).map((f) => (
             <button
-              key={f}
+              key={f.id}
               type="button"
-              className={filter === f ? `${styles.filterChip} ${styles.filterChipActive}` : styles.filterChip}
-              onClick={() => setFilter(f)}
+              onClick={() => setFilter(f.id)}
+              className={cn(
+                "px-3 py-1 text-xs font-semibold rounded-full border transition-colors",
+                filter === f.id
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50",
+              )}
             >
-              {f === "all" ? "All" : f === "checked_in" ? "Active" : f === "no_show" ? "No Show" : f === "scheduled" ? "Upcoming" : "Done"}
+              {f.label}
             </button>
           ))}
+          <div className="flex-1" />
+          {filtered.length !== appointments.length ? (
+            <span className="text-xs text-slate-500">
+              Showing {filtered.length} of {appointments.length}
+            </span>
+          ) : null}
         </div>
-
-        <button type="button" className={styles.newApptBtn} onClick={() => setIsNewApptOpen(true)}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New Appointment
-        </button>
       </header>
 
       {isNewApptOpen ? (
@@ -421,216 +482,158 @@ export default function ScheduleClient() {
         />
       ) : null}
 
-      {/* ── Summary Strip ─── */}
-      <div className={styles.summaryStrip}>
-        <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{summary.total}</span>
-          <span className={styles.summaryLabel}>Today's Appointments</span>
-        </div>
-        <div className={styles.summaryItem}>
-          <span className={`${styles.summaryValue} ${styles.summaryValueAmber}`}>{summary.unsigned}</span>
-          <span className={styles.summaryLabel}>Unsigned Notes</span>
-        </div>
-        <div className={styles.summaryItem}>
-          <span className={`${styles.summaryValue} ${styles.summaryValueAmber}`}>{summary.pending}</span>
-          <span className={styles.summaryLabel}>Pending Alerts</span>
-        </div>
-        <div className={styles.summaryItem}>
-          <span className={`${styles.summaryValue} ${styles.summaryValueRed}`}>{summary.noShow}</span>
-          <span className={styles.summaryLabel}>No Show</span>
-        </div>
-        <div className={styles.summaryItem}>
-          <span className={`${styles.summaryValue} ${styles.summaryValueBlue}`}>{summary.messages}</span>
-          <span className={styles.summaryLabel}>Messages</span>
-        </div>
-      </div>
-
-      {/* ── Body ─── */}
-      <div className={styles.body}>
-        {/* Left: Schedule */}
-        <div className={styles.scheduleCol}>
-          {/* View toggles */}
-          <div className={styles.viewBar}>
-            <div className={styles.viewToggleGroup}>
-              {(["day", "week", "provider", "location"] as ViewMode[]).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={view === v ? `${styles.viewToggle} ${styles.viewToggleActive}` : styles.viewToggle}
-                  onClick={() => setView(v)}
-                >
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-              ))}
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Timeline */}
+        <div className="flex-1 overflow-y-auto relative bg-white">
+          {filtered.length === 0 ? (
+            <div className="text-center text-slate-400 text-sm py-16">
+              No appointments match the current filter.
             </div>
-            <div className={styles.viewBarSpacer} />
-            <span className={styles.viewBarDate}>{DATE_LABEL}</span>
-          </div>
-
-          {/* Appointment cards */}
-          <div className={styles.appointmentList}>
-            {filtered.length === 0 ? (
-              <div style={{ color: "#94A3B8", fontSize: 13, textAlign: "center", padding: "40px 0" }}>
-                No appointments match the current filter.
-              </div>
-            ) : null}
-
-            {filtered.map((appt, idx) => {
-              const prev = filtered[idx - 1];
-              const showLunchDivider = prev && prev.timeEnd === "12:00 PM" && appt.timeStart === "1:00 PM";
+          ) : null}
+          <div
+            className="relative min-w-[600px] px-6"
+            style={{ height: `${MINS_IN_DAY * PIXELS_PER_MINUTE + 100}px`, marginTop: 20 }}
+          >
+            {/* Time grid lines */}
+            {hours.map((hour) => {
+              const displayHour = hour > 12 ? hour - 12 : hour;
+              const ampm = hour >= 12 ? "PM" : "AM";
+              const top = (hour * 60 - START_HOUR * 60) * PIXELS_PER_MINUTE;
               return (
-                <div key={appt.id}>
-                  {showLunchDivider ? (
-                    <div className={styles.listDivider}>
-                      <div className={styles.listDividerLine} />
-                      <span className={styles.listDividerLabel}>12:00 – 1:00 PM · Lunch</span>
-                      <div className={styles.listDividerLine} />
-                    </div>
-                  ) : null}
-                  <AppointmentCard
-                    appt={appt}
-                    isSelected={selectedId === appt.id}
-                    onSelect={() => setSelectedId(appt.id === selectedId ? null : appt.id)}
-                  />
+                <div key={hour} className="absolute left-0 right-6 flex items-start" style={{ top: `${top}px` }}>
+                  <div className="w-20 pr-4 text-right -translate-y-2.5">
+                    <span className="text-xs font-semibold text-slate-400">
+                      {displayHour} {ampm}
+                    </span>
+                  </div>
+                  <div className="flex-1 border-t border-slate-100" />
                 </div>
               );
             })}
-          </div>
-        </div>
 
-        {/* Right: Context Panel */}
-        <aside className={styles.contextPanel}>
-          {selected ? (
-            <ContextPanel appt={selected} />
-          ) : (
-            <div className={styles.contextEmpty}>
-              <div className={styles.contextEmptyIcon}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+            {/* Now line */}
+            {nowInRange ? (
+              <div
+                className="absolute left-20 right-6 flex items-center z-10 pointer-events-none"
+                style={{ top: `${nowTop}px` }}
+              >
+                <div className="w-2 h-2 rounded-full bg-rose-500 -translate-x-1" />
+                <div className="flex-1 border-t-2 border-rose-500 opacity-50" />
+                <div className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">
+                  {nowLabel}
+                </div>
               </div>
-              <p className={styles.contextEmptyText}>
-                Select an appointment to view patient details, alerts, and quick actions.
-              </p>
-            </div>
-          )}
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Appointment Card ────────────────────────────────────────────────────── */
-
-function AppointmentCard({
-  appt,
-  isSelected,
-  onSelect,
-}: {
-  appt: ScheduleAppointment;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  const isTelehealth = appt.location === "Telehealth";
-  const showTelehealth = isTelehealth && (appt.status === "scheduled" || appt.status === "in_session" || appt.status === "checked_in");
-
-  return (
-    <div
-      className={`${styles.card} ${isSelected ? styles.cardSelected : ""}`}
-      onClick={onSelect}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
-      aria-selected={isSelected}
-    >
-      {/* Accent strip */}
-      <div className={`${styles.cardAccent} ${statusAccentClass(appt)}`} />
-
-      {/* Time */}
-      <div className={styles.cardTime}>
-        <div className={styles.cardTimeStart}>{appt.timeStart}</div>
-        <div className={styles.cardTimeEnd}>{appt.timeEnd}</div>
-        <div className={styles.cardDuration}>{appt.durationMin} min</div>
-      </div>
-
-      {/* Main content */}
-      <div className={styles.cardMain}>
-        <div className={styles.cardTopRow}>
-          <span className={styles.cardPatient}>{appt.patientName}</span>
-          <div className={styles.cardBadges}>
-            {isTelehealth ? (
-              <span className={`${styles.badge} ${styles.badgeTelehealth}`}>Telehealth</span>
             ) : null}
-            <span className={`${styles.badge} ${statusBadgeClass(appt.status)}`}>
-              {STATUS_LABEL[appt.status]}
-            </span>
+
+            {/* Appointment cards */}
+            <div className="absolute left-20 right-6 bottom-0" style={{ top: 0 }}>
+              {filtered.map((appt) => {
+                const startMin = parseTimeToMinutes(appt.timeStart);
+                const top = (startMin - START_HOUR * 60) * PIXELS_PER_MINUTE;
+                const height = Math.max(appt.durationMin * PIXELS_PER_MINUTE, 50);
+                const isSelected = selectedId === appt.id;
+                const statusConfig = getStatusConfig(appt.status);
+                return (
+                  <div
+                    key={appt.id}
+                    onClick={() => setSelectedId(isSelected ? null : appt.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedId(isSelected ? null : appt.id);
+                      }
+                    }}
+                    className={cn(
+                      "absolute left-4 right-4 rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden group shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
+                      statusConfig.bg,
+                      isSelected ? "ring-2 ring-slate-400 ring-offset-2 z-10" : "z-0",
+                    )}
+                    style={{ top: `${top}px`, height: `${height}px` }}
+                    aria-selected={isSelected}
+                  >
+                    <div className={cn("absolute left-0 top-0 bottom-0 w-1.5", statusConfig.accent)} />
+                    <div className="p-3 pl-4 flex flex-col h-full relative">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <h3 className={cn("font-bold text-[15px] leading-tight mb-1 truncate", statusConfig.text)}>
+                            {appt.patientName}
+                          </h3>
+                          <p className={cn("text-xs font-medium opacity-80 flex items-center gap-1 flex-wrap", statusConfig.text)}>
+                            {appt.timeStart} – {appt.timeEnd}
+                            <span className="opacity-50 mx-1">•</span>
+                            {appt.type}
+                            {appt.cpt ? (
+                              <>
+                                <span className="opacity-50 mx-1">•</span>
+                                {appt.cpt}
+                              </>
+                            ) : null}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {appt.location === "Telehealth" ? (
+                            <div className="bg-purple-100 text-purple-700 p-1.5 rounded-md" title="Telehealth">
+                              <Video className="w-3.5 h-3.5" />
+                            </div>
+                          ) : (
+                            <div className="bg-slate-100 text-slate-600 p-1.5 rounded-md" title="In Office">
+                              <MapPin className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-white/60",
+                              statusConfig.text,
+                            )}
+                          >
+                            {statusConfig.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      {height > 70 ? (
+                        <div className="mt-auto flex items-end justify-between gap-2">
+                          <div className="flex gap-2 flex-wrap">
+                            {appt.alerts.length > 0 ? (
+                              <div className="flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-100/70 px-2 py-1 rounded-md">
+                                <AlertCircle className="w-3 h-3" />
+                                {appt.alerts.length} {appt.alerts.length === 1 ? "Alert" : "Alerts"}
+                              </div>
+                            ) : null}
+                          </div>
+                          <span className={cn("text-[11px] font-medium opacity-60 truncate", statusConfig.text)}>
+                            {appt.provider}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className={styles.cardMeta}>
-          <span className={styles.cardMetaItem}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-            </svg>
-            {appt.type} · {appt.cpt}
-          </span>
-          <span className={styles.cardMetaItem}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            {appt.insurance}
-          </span>
-          <span className={styles.cardMetaItem}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-            </svg>
-            {appt.provider.split(",")[0]}
-          </span>
-        </div>
-
-        {appt.alerts.length > 0 ? (
-          <div className={styles.cardAlerts}>
-            {appt.alerts.map((al) => (
-              <span key={al.text} className={alertClass(al.tone)}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                {al.text}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        <div className={styles.cardActions} onClick={(e) => e.stopPropagation()} role="presentation">
-          <Link className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} href={`/clients/${appt.clientId}`}>
-            Open Chart
-          </Link>
-          {appt.status === "checked_in" || appt.status === "in_session" ? (
-            <Link className={`${styles.actionBtn} ${styles.actionBtnGreen}`} href={`/encounters/new?clientId=${appt.clientId}`}>
-              Start Note
-            </Link>
-          ) : null}
-          {appt.status === "scheduled" ? (
-            <button type="button" className={`${styles.actionBtn} ${styles.actionBtnGreen}`}>Check In</button>
-          ) : null}
-          {showTelehealth && appt.telehealthUrl ? (
-            <a className={styles.actionBtn} href={appt.telehealthUrl} target="_blank" rel="noopener noreferrer">
-              Join Telehealth
-            </a>
-          ) : null}
-          {appt.status === "needs_signature" ? (
-            <Link className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} href={`/clients/${appt.clientId}/notes`}>
-              Sign Note
-            </Link>
-          ) : null}
-          {appt.copay ? (
-            <button type="button" className={styles.actionBtn}>Collect {appt.copay}</button>
-          ) : null}
-          {appt.status !== "no_show" && appt.status !== "cancelled" && appt.status !== "completed" && appt.status !== "needs_signature" ? (
-            <button type="button" className={`${styles.actionBtn} ${styles.actionBtnRed}`}>No Show</button>
-          ) : null}
-        </div>
+        {/* Context Side Panel */}
+        {selectedAppt ? (
+          <ContextPanel
+            key={selectedAppt.id}
+            appt={selectedAppt}
+            onClose={() => setSelectedId(null)}
+          />
+        ) : (
+          <aside className="hidden lg:flex w-[360px] border-l border-slate-200 bg-slate-50 flex-col items-center justify-center text-center px-8">
+            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+              <User className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-slate-500">
+              Select an appointment to view patient details, alerts, and quick actions.
+            </p>
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -649,17 +652,11 @@ type EligibilityRunResult = {
   message?: string | null;
 };
 
-function money(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
-}
-
-function ContextPanel({ appt }: { appt: ScheduleAppointment }) {
+function ContextPanel({ appt, onClose }: { appt: ScheduleAppointment; onClose: () => void }) {
   const [eligibilityRunning, setEligibilityRunning] = useState(false);
   const [eligibilityError, setEligibilityError] = useState<string | null>(null);
   const [eligibilityResult, setEligibilityResult] = useState<EligibilityRunResult | null>(null);
 
-  // Reset eligibility panel state whenever the selected appointment changes
   useEffect(() => {
     setEligibilityRunning(false);
     setEligibilityError(null);
@@ -673,10 +670,7 @@ function ContextPanel({ appt }: { appt: ScheduleAppointment }) {
       const res = await fetch("/api/clearinghouse/eligibility/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          patientId: appt.clientId,
-          appointmentId: appt.id,
-        }),
+        body: JSON.stringify({ patientId: appt.clientId, appointmentId: appt.id }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -701,158 +695,299 @@ function ContextPanel({ appt }: { appt: ScheduleAppointment }) {
     }
   };
 
+  const primaryCta = (() => {
+    if (appt.status === "scheduled") {
+      return { label: "Check In", className: "bg-emerald-600 hover:bg-emerald-700", href: null };
+    }
+    if (appt.status === "checked_in") {
+      return {
+        label: "Start Session",
+        className: "bg-purple-600 hover:bg-purple-700",
+        href: `/encounters/new?clientId=${appt.clientId}`,
+      };
+    }
+    if (appt.status === "in_session") {
+      return {
+        label: "Continue Note",
+        className: "bg-purple-600 hover:bg-purple-700",
+        href: `/encounters/new?clientId=${appt.clientId}`,
+      };
+    }
+    if (appt.status === "needs_signature") {
+      return {
+        label: "Sign Note",
+        className: "bg-amber-600 hover:bg-amber-700",
+        href: `/clients/${appt.clientId}/notes`,
+      };
+    }
+    return {
+      label: "Open Chart",
+      className: "bg-slate-900 hover:bg-slate-800",
+      href: `/clients/${appt.clientId}`,
+    };
+  })();
+
+  const eligibilityToneClass =
+    eligibilityResult?.status === "active"
+      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+      : eligibilityResult?.status === "inactive"
+        ? "bg-rose-50 border-rose-200 text-rose-900"
+        : "bg-amber-50 border-amber-200 text-amber-900";
+
   return (
-    <>
-      <div className={styles.contextHeader}>
-        <div className={styles.contextPatientName}>{appt.patientName}</div>
-        <div className={styles.contextPatientMeta}>
-          <span>{formatDob(appt.dob)}</span>
-          <span className={styles.contextPatientMetaDot}>·</span>
-          <span>{appt.insurance}</span>
+    <aside className="w-[400px] border-l border-slate-200 bg-slate-50 flex flex-col shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-20 shrink-0">
+      <div className="p-5 border-b border-slate-200 bg-white">
+        <div className="flex justify-between items-start mb-4 gap-2">
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-slate-900 truncate">{appt.patientName}</h2>
+            <p className="text-xs text-slate-500 font-medium mt-1 truncate">
+              {appt.dob ? `DOB: ${formatDob(appt.dob)}` : null}
+              {appt.dob && appt.insurance ? " • " : ""}
+              {appt.insurance || null}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close patient panel"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex gap-2">
+          {primaryCta.href ? (
+            <Link
+              href={primaryCta.href}
+              className={cn(
+                "flex-1 text-center text-white font-semibold text-sm py-2 rounded-lg transition-colors",
+                primaryCta.className,
+              )}
+            >
+              {primaryCta.label}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className={cn(
+                "flex-1 text-white font-semibold text-sm py-2 rounded-lg transition-colors",
+                primaryCta.className,
+              )}
+            >
+              {primaryCta.label}
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="More actions"
+            className="shrink-0 w-9 h-9 inline-flex items-center justify-center border border-slate-200 rounded-lg bg-white hover:bg-slate-50"
+          >
+            <MoreVertical className="w-4 h-4 text-slate-600" />
+          </button>
         </div>
       </div>
 
-      <div className={styles.contextBody}>
-        {/* Appointment Info */}
-        <div className={styles.contextSection}>
-          <div className={styles.contextSectionLabel}>Today's Appointment</div>
-          <div className={styles.contextRow}>
-            <span className={styles.contextRowLabel}>Time</span>
-            <span className={styles.contextRowValue}>{appt.timeStart} – {appt.timeEnd}</span>
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Appointment details */}
+        <section className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-slate-400" /> Appointment Details
+          </h4>
+          <div className="border border-slate-200 rounded-xl bg-white p-3 space-y-2">
+            <Row label="Time" value={`${appt.timeStart} – ${appt.timeEnd}`} />
+            <Row label="Type" value={appt.type} />
+            <Row label="CPT" value={appt.cpt} />
+            <Row label="Location" value={appt.location} />
+            <Row label="Provider" value={appt.provider} />
+            {appt.copay ? (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Copay</span>
+                <span className="text-xs font-bold text-emerald-600">{appt.copay}</span>
+              </div>
+            ) : null}
           </div>
-          <div className={styles.contextRow}>
-            <span className={styles.contextRowLabel}>Type</span>
-            <span className={styles.contextRowValue}>{appt.type}</span>
-          </div>
-          <div className={styles.contextRow}>
-            <span className={styles.contextRowLabel}>CPT</span>
-            <span className={styles.contextRowValue}>{appt.cpt}</span>
-          </div>
-          <div className={styles.contextRow}>
-            <span className={styles.contextRowLabel}>Location</span>
-            <span className={styles.contextRowValue}>{appt.location}</span>
-          </div>
-          <div className={styles.contextRow}>
-            <span className={styles.contextRowLabel}>Provider</span>
-            <span className={styles.contextRowValue}>{appt.provider}</span>
-          </div>
-          {appt.copay ? (
-            <div className={styles.contextRow}>
-              <span className={styles.contextRowLabel}>Copay</span>
-              <span className={styles.contextRowValue}>{appt.copay}</span>
-            </div>
-          ) : null}
-        </div>
+        </section>
 
         {/* Alerts */}
         {appt.alerts.length > 0 ? (
-          <div className={styles.contextAlerts}>
-            {appt.alerts.map((al) => (
-              <div key={al.text} className={`${styles.contextAlert} ${al.tone === "blue" || al.tone === "purple" ? styles.contextAlertBlue : ""}`}>
-                <span className={styles.contextAlertIcon}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                </span>
-                <span className={styles.contextAlertText}>{al.text}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Diagnoses */}
-        <div className={styles.contextSection}>
-          <div className={styles.contextSectionLabel}>Diagnosis</div>
-          {appt.diagnoses.map((dx) => (
-            <div key={dx} className={styles.contextRow}>
-              <span className={styles.contextRowValue} style={{ textAlign: "left", maxWidth: "100%", fontSize: 12.5 }}>{dx}</span>
+          <section className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 text-slate-400" /> Active Alerts
+            </h4>
+            <div className="space-y-2">
+              {appt.alerts.map((alert) => {
+                const tone =
+                  alert.tone === "red"
+                    ? "bg-rose-50 border-rose-200 text-rose-900"
+                    : alert.tone === "amber"
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : alert.tone === "purple"
+                        ? "bg-purple-50 border-purple-200 text-purple-900"
+                        : "bg-blue-50 border-blue-200 text-blue-900";
+                const icon =
+                  alert.tone === "red"
+                    ? "text-rose-500"
+                    : alert.tone === "amber"
+                      ? "text-amber-500"
+                      : alert.tone === "purple"
+                        ? "text-purple-500"
+                        : "text-blue-500";
+                return (
+                  <div
+                    key={alert.text}
+                    className={cn("p-3 rounded-lg flex items-start gap-3 border", tone)}
+                  >
+                    <AlertCircle className={cn("w-4 h-4 mt-0.5 shrink-0", icon)} />
+                    <span className="text-xs font-medium">{alert.text}</span>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-
-        {/* Recent Note */}
-        {appt.recentNote ? (
-          <div className={styles.contextNote}>
-            <div className={styles.contextNoteLabel}>Most Recent Note</div>
-            <div className={styles.contextNoteText}>{appt.recentNote}</div>
-          </div>
+          </section>
         ) : null}
 
         {/* Tasks */}
         {appt.tasks.length > 0 ? (
-          <div className={styles.contextTasks}>
-            <div className={styles.contextSectionLabel}>Upcoming Tasks</div>
-            {appt.tasks.map((t) => (
-              <div key={t.text} className={styles.contextTask}>
-                <span className={styles.contextTaskDot} style={{ background: t.color }} />
-                {t.text}
-              </div>
-            ))}
-          </div>
+          <section className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" /> Tasks
+            </h4>
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white divide-y divide-slate-100">
+              {appt.tasks.map((task) => (
+                <div
+                  key={task.text}
+                  className="p-3 flex items-start gap-3 hover:bg-slate-50 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                    aria-label={task.text}
+                  />
+                  <p className="text-xs font-medium text-slate-800 leading-snug flex-1">{task.text}</p>
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0 mt-1.5"
+                    style={{ background: task.color }}
+                    aria-hidden="true"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
         ) : null}
 
-        {/* Eligibility (real-time 270/271) */}
-        <div className={styles.contextSection}>
-          <div className={styles.contextSectionLabel}>Real-time eligibility</div>
+        {/* Real-time eligibility */}
+        <section className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Bell className="w-3.5 h-3.5 text-slate-400" /> Real-time Eligibility
+          </h4>
           <button
             type="button"
-            className={styles.contextActionSecondary}
             onClick={runEligibility}
             disabled={eligibilityRunning}
-            style={{ width: "100%" }}
+            className="w-full text-sm font-semibold py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 disabled:cursor-wait transition-colors"
           >
             {eligibilityRunning ? "Checking eligibility…" : "Check eligibility"}
           </button>
           {eligibilityError ? (
-            <div style={{ marginTop: 8, padding: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, color: "#991b1b", fontSize: 12.5 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Check failed</div>
-              <div style={{ marginBottom: 6 }}>{eligibilityError}</div>
+            <div className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-900 text-xs space-y-2">
+              <div className="font-semibold">Check failed</div>
+              <div>{eligibilityError}</div>
               <button
                 type="button"
                 onClick={runEligibility}
                 disabled={eligibilityRunning}
-                style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #fca5a5", background: "white", borderRadius: 4, cursor: "pointer", color: "#991b1b" }}
+                className="px-2 py-1 rounded border border-rose-300 bg-white text-rose-900 font-semibold hover:bg-rose-50 disabled:opacity-60"
               >
                 Retry
               </button>
             </div>
           ) : null}
           {eligibilityResult ? (
-            <div style={{ marginTop: 8, padding: 8, background: eligibilityResult.status === "active" ? "#ecfdf5" : eligibilityResult.status === "inactive" ? "#fef2f2" : "#fffbeb", border: `1px solid ${eligibilityResult.status === "active" ? "#a7f3d0" : eligibilityResult.status === "inactive" ? "#fecaca" : "#fde68a"}`, borderRadius: 6, fontSize: 12.5 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4, textTransform: "uppercase" }}>{eligibilityResult.status}</div>
+            <div className={cn("p-3 rounded-lg border text-xs space-y-1", eligibilityToneClass)}>
+              <div className="font-bold uppercase tracking-wider text-[11px]">{eligibilityResult.status}</div>
               {eligibilityResult.payerName ? <div>Payer: {eligibilityResult.payerName}</div> : null}
               {eligibilityResult.planName ? <div>Plan: {eligibilityResult.planName}</div> : null}
               <div>Copay: {money(eligibilityResult.copayAmount)}</div>
               <div>Deductible remaining: {money(eligibilityResult.deductibleRemaining)}</div>
               {eligibilityResult.effectiveDate || eligibilityResult.terminationDate ? (
-                <div>Coverage: {eligibilityResult.effectiveDate ?? "—"} → {eligibilityResult.terminationDate ?? "—"}</div>
+                <div>
+                  Coverage: {eligibilityResult.effectiveDate ?? "—"} → {eligibilityResult.terminationDate ?? "—"}
+                </div>
               ) : null}
-              {eligibilityResult.message ? <div style={{ marginTop: 4, fontStyle: "italic" }}>{eligibilityResult.message}</div> : null}
+              {eligibilityResult.message ? (
+                <div className="italic mt-1">{eligibilityResult.message}</div>
+              ) : null}
             </div>
           ) : null}
-        </div>
+        </section>
 
-        {/* Footer Actions */}
-        <div className={styles.contextFooter}>
-          <Link className={styles.contextActionPrimary} href={`/clients/${appt.clientId}`}>
-            Open Chart
-          </Link>
-          <div className={styles.contextActionRow}>
-            {appt.status === "checked_in" || appt.status === "in_session" ? (
-              <Link className={styles.contextActionSecondary} href={`/encounters/new?clientId=${appt.clientId}`}>
-                Start Session
-              </Link>
+        {/* Clinical context */}
+        <section className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <FileText className="w-3.5 h-3.5 text-slate-400" /> Clinical Context
+          </h4>
+          <div className="space-y-2">
+            {appt.diagnoses.map((dx) => (
+              <div
+                key={dx}
+                className="text-xs font-medium text-slate-700 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200"
+              >
+                {dx}
+              </div>
+            ))}
+            {appt.recentNote ? (
+              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-blue-900 uppercase tracking-wider mb-1">Most Recent Note</p>
+                <p className="text-xs text-blue-900/80 italic leading-relaxed">&ldquo;{appt.recentNote}&rdquo;</p>
+              </div>
             ) : null}
-            {appt.status === "needs_signature" ? (
-              <Link className={styles.contextActionSecondary} href={`/clients/${appt.clientId}/notes`}>
-                Sign Note
-              </Link>
-            ) : null}
-            <button type="button" className={styles.contextActionSecondary}>Send Message</button>
           </div>
-        </div>
+        </section>
+
+        {/* Secondary actions */}
+        <section className="pt-2 border-t border-slate-200 space-y-2">
+          <Link
+            href={`/clients/${appt.clientId}`}
+            className="w-full inline-flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium text-slate-800"
+          >
+            Open full chart
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </Link>
+          {appt.telehealthUrl &&
+          (appt.status === "scheduled" || appt.status === "checked_in" || appt.status === "in_session") ? (
+            <a
+              href={appt.telehealthUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-between px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-sm font-semibold text-purple-900"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Video className="w-4 h-4" /> Join Telehealth
+              </span>
+              <ChevronRight className="w-4 h-4 text-purple-400" />
+            </a>
+          ) : null}
+          {appt.copay ? (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium text-slate-800"
+            >
+              Collect copay {appt.copay}
+            </button>
+          ) : null}
+        </section>
       </div>
-    </>
+    </aside>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center gap-3">
+      <span className="text-xs text-slate-500 shrink-0">{label}</span>
+      <span className="text-xs font-semibold text-slate-900 text-right truncate">{value}</span>
+    </div>
   );
 }
 
