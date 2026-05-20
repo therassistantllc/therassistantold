@@ -795,8 +795,67 @@ function NewAppointmentModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newDob, setNewDob] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [newClientError, setNewClientError] = useState<string | null>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clientReqSeqRef = useRef(0);
+
+  const handleCreateClient = async () => {
+    setNewClientError(null);
+    if (!newFirstName.trim() || !newLastName.trim()) {
+      setNewClientError("First and last name are required");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDob)) {
+      setNewClientError("Date of birth is required");
+      return;
+    }
+    if (!newPhone.trim()) {
+      setNewClientError("Primary phone is required");
+      return;
+    }
+    setCreatingClient(true);
+    try {
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          firstName: newFirstName.trim(),
+          lastName: newLastName.trim(),
+          dateOfBirth: newDob,
+          phone: newPhone.trim(),
+          email: newEmail.trim() || undefined,
+        }),
+      });
+      const json = (await response.json()) as { success?: boolean; error?: string; client?: { id: string; name: string } };
+      if (!response.ok || !json.success || !json.client) {
+        throw new Error(json.error || `Failed to create client (${response.status})`);
+      }
+      const created: ClientOption = { id: String(json.client.id), name: String(json.client.name) };
+      setSelectedClient(created);
+      setClientQuery(created.name);
+      setClientResults([created]);
+      setClientDropdownOpen(false);
+      setShowNewClient(false);
+      setNewFirstName("");
+      setNewLastName("");
+      setNewDob("");
+      setNewPhone("");
+      setNewEmail("");
+    } catch (err) {
+      setNewClientError(err instanceof Error ? err.message : "Failed to create client");
+    } finally {
+      setCreatingClient(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1099,15 +1158,97 @@ function NewAppointmentModal({
                 )}
               </div>
             ) : null}
-            {selectedClient ? (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#1a7f3c" }}>
-                ✓ Linked to chart {selectedClient.id.slice(0, 8)}…
+            <div style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              {selectedClient ? (
+                <div style={{ fontSize: 11, color: "#1a7f3c" }}>
+                  ✓ Linked to chart {selectedClient.id.slice(0, 8)}…
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: "#5c6e82" }}>
+                  Select an existing chart, or add a new one below.
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowNewClient((v) => !v)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#10243f",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {showNewClient ? "Cancel new client" : "Can't find them? + Add new client"}
+              </button>
+            </div>
+            {showNewClient ? (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  border: "1px dashed #c8d3df",
+                  borderRadius: 4,
+                  background: "#f8fafc",
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                {newClientError ? (
+                  <div style={{ background: "#fff1f1", border: "1px solid #f4c7c7", color: "#b02020", padding: "6px 8px", borderRadius: 4, fontSize: 11 }}>
+                    {newClientError}
+                  </div>
+                ) : null}
+                <div style={row}>
+                  <div>
+                    <label style={label}>First name</label>
+                    <input style={input} type="text" value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={label}>Last name</label>
+                    <input style={input} type="text" value={newLastName} onChange={(e) => setNewLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div style={row}>
+                  <div>
+                    <label style={label}>Date of birth</label>
+                    <input style={input} type="date" value={newDob} onChange={(e) => setNewDob(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={label}>Primary phone</label>
+                    <input style={input} type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="(555) 123-4567" />
+                  </div>
+                </div>
+                <div>
+                  <label style={label}>Email (optional)</label>
+                  <input style={input} type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateClient}
+                    disabled={creatingClient}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      border: "1px solid #10243f",
+                      background: "#10243f",
+                      color: "#fff",
+                      cursor: creatingClient ? "wait" : "pointer",
+                      opacity: creatingClient ? 0.6 : 1,
+                    }}
+                  >
+                    {creatingClient ? "Creating…" : "Create client & select"}
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#5c6e82" }}>
-                Must select an existing chart. New patients should be added via Clients → New Client first.
-              </div>
-            )}
+            ) : null}
           </div>
           <div style={row}>
             <div>

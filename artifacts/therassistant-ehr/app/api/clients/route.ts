@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { enforceOrganizationInRoute, requireAuthentication } from "@/lib/rbac/middleware";
 
 type Row = Record<string, unknown>;
 
@@ -14,6 +15,96 @@ function nameOf(row: Row) {
 function amount(input: unknown) {
   const numberValue = Number(input ?? 0);
   return Number.isFinite(numberValue) ? Math.round(numberValue * 100) / 100 : 0;
+}
+
+function isValidCalendarDate(iso: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export async function POST(request: Request) {
+  try {
+    const authOrError = await requireAuthentication();
+    if (authOrError instanceof NextResponse) return authOrError;
+    const { organizationId: userOrganizationId, staffId } = authOrError;
+
+    const supabase = createServerSupabaseAdminClient();
+    if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
+
+    const payload = (await request.json().catch(() => null)) as Row | null;
+    if (!payload) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+
+    const requestedOrganizationId = value(payload.organizationId) || userOrganizationId;
+    const orgMismatch = enforceOrganizationInRoute(requestedOrganizationId, userOrganizationId);
+    if (orgMismatch) return orgMismatch;
+    const organizationId = userOrganizationId;
+
+    const firstName = value(payload.firstName);
+    const lastName = value(payload.lastName);
+    const dateOfBirth = value(payload.dateOfBirth);
+    const phone = value(payload.phone);
+    const email = value(payload.email);
+
+    if (!firstName) return NextResponse.json({ success: false, error: "First name is required" }, { status: 400 });
+    if (!lastName) return NextResponse.json({ success: false, error: "Last name is required" }, { status: 400 });
+    if (!dateOfBirth || !isValidCalendarDate(dateOfBirth)) {
+      return NextResponse.json({ success: false, error: "Date of birth must be a valid YYYY-MM-DD date" }, { status: 400 });
+    }
+    const dobDate = new Date(`${dateOfBirth}T00:00:00Z`);
+    if (dobDate.getTime() > Date.now()) {
+      return NextResponse.json({ success: false, error: "Date of birth cannot be in the future" }, { status: 400 });
+    }
+    if (!phone) return NextResponse.json({ success: false, error: "Primary phone is required" }, { status: 400 });
+
+    const { data: inserted, error } = await supabase
+      .from("clients")
+      .insert({
+        organization_id: organizationId,
+        first_name: firstName,
+        last_name: lastName,
+        date_of_birth: dateOfBirth,
+        phone,
+        email: email || null,
+        created_by_user_id: staffId,
+        updated_by_user_id: staffId,
+      })
+      .select("id, first_name, last_name, preferred_name, email, phone, date_of_birth")
+      .single();
+
+    if (error) throw error;
+    if (!inserted) throw new Error("Insert returned no row");
+
+    const row = inserted as Row;
+    return NextResponse.json({
+      success: true,
+      client: {
+        id: value(row.id),
+        name: nameOf(row),
+        preferredName: row.preferred_name ?? null,
+        email: row.email ?? null,
+        phone: row.phone ?? null,
+        dateOfBirth: row.date_of_birth ?? null,
+        status: "active",
+        intakeStatus: null,
+        openBalance: 0,
+      },
+    });
+  } catch (error) {
+    console.error("Clients create API error:", error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to create client" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function GET(request: Request) {
