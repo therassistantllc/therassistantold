@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import ClaimSubmissionReadinessPanel from "@/components/claim/ClaimSubmissionReadinessPanel";
 
 type DiagnosisRow = {
   diagnosisCode: string;
@@ -166,6 +167,8 @@ export default function BillingDetailsClient({ encounterId }: { encounterId: str
 
       {message ? <div className="empty-state success-panel">{message}</div> : null}
       {error ? <div className="alert-panel">{error}</div> : null}
+
+      <ClaimSubmissionReadinessPanel organizationId={organizationId} claimLabel={`Encounter ${encounterId.slice(0, 8)}`} />
 
       <section className="panel form-panel">
         <h2>Diagnoses</h2>
