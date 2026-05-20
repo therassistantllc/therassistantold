@@ -30,6 +30,9 @@ type ApiItem = {
   serviceDate?: string | null;
   chargeStatus?: string | null;
   totalCharge: number;
+  cptCodes?: string[];
+  providerName?: string | null;
+  payerName?: string | null;
   blockers: Array<{ field?: string; message?: string }>;
 };
 
@@ -74,16 +77,19 @@ function mapApiItem(item: ApiItem): ChargeRow {
   const blockerMessages = item.blockers.map((b) =>
     [b.field, b.message].filter(Boolean).join(": ") || "Needs review",
   );
+  const cptCodes = item.cptCodes ?? [];
+  const primaryCpt = cptCodes[0] ?? "—";
+  const cptDesc = cptCodes.length > 1 ? `+${cptCodes.length - 1} more (${cptCodes.slice(1).join(", ")})` : "";
   return {
     id: item.chargeCaptureId,
     clientId: item.clientId,
     patient: item.patientName,
     dob: item.dateOfBirth ? new Date(item.dateOfBirth).toLocaleDateString() : "—",
     dos: item.serviceDate ? new Date(item.serviceDate).toLocaleDateString() : "—",
-    cpt: "—",
-    cptDesc: "—",
-    provider: "—",
-    insurance: "—",
+    cpt: primaryCpt,
+    cptDesc,
+    provider: item.providerName?.trim() ? item.providerName : "—",
+    insurance: item.payerName?.trim() ? item.payerName : "—",
     charge: item.totalCharge,
     status: mapApiStatus(item.chargeStatus),
     blockers: blockerMessages,
