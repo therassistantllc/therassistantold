@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { getOrgIdFromRequest } from "@/lib/config";
+import { ORGANIZATION_ID } from "@/lib/config";
 
 type DbRow = Record<string, unknown>;
 
@@ -36,7 +36,11 @@ export async function GET(request: Request) {
     const includeRetired = searchParams.get("includeRetired") === "true";
     const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 200);
     const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
-    const organizationId = getOrgIdFromRequest({ url: request.url });
+    // Org scope is intentionally NOT taken from query params here — we don't want
+    // a caller to spoof another org's local dictionary. We use the server-side
+    // ORGANIZATION_ID (configured per deployment). Once user auth lands, swap
+    // this for the authenticated user's org from their session.
+    const organizationId = ORGANIZATION_ID;
 
     // Visibility: global dictionary (created_by_organization_id IS NULL) plus
     // anything created by the caller's org. Other orgs' local concepts are hidden.

@@ -97,7 +97,16 @@ alter table public.concept_answers enable row level security;
 
 drop policy if exists concepts_read on public.concepts;
 create policy concepts_read on public.concepts
-  for select to authenticated using (true);
+  for select to authenticated using (
+    -- Global dictionary (NULL org) is visible to everyone.
+    created_by_organization_id is null
+    -- Org-local concepts are only visible to members of that org.
+    or created_by_organization_id::text = coalesce(
+      auth.jwt() ->> 'organization_id',
+      auth.jwt() -> 'app_metadata' ->> 'organization_id',
+      ''
+    )
+  );
 
 drop policy if exists concepts_write on public.concepts;
 create policy concepts_write on public.concepts

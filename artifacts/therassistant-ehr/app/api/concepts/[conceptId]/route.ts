@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { getOrgIdFromRequest } from "@/lib/config";
+import { ORGANIZATION_ID } from "@/lib/config";
 
 type DbRow = Record<string, unknown>;
 
@@ -23,7 +23,7 @@ function rowToConcept(row: DbRow) {
   };
 }
 
-export async function GET(request: Request, context: { params: Promise<{ conceptId: string }> }) {
+export async function GET(_request: Request, context: { params: Promise<{ conceptId: string }> }) {
   try {
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
@@ -32,7 +32,10 @@ export async function GET(request: Request, context: { params: Promise<{ concept
 
     const { conceptId } = await context.params;
     if (!conceptId) return NextResponse.json({ success: false, error: "conceptId is required" }, { status: 400 });
-    const organizationId = getOrgIdFromRequest({ url: request.url });
+    // Org scope is server-side only — not taken from query params — so callers
+    // cannot spoof another org's local concepts. Swap for the authenticated
+    // user's org once user auth lands.
+    const organizationId = ORGANIZATION_ID;
 
     // Single round-trip: concept + names + mappings + answers (+ each answer's
     // concept) + set members (+ each member concept). Org visibility is enforced
