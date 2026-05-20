@@ -116,6 +116,12 @@ type IntakeLink = {
   createdAt: string | null;
   usedAt: string | null;
   submissionId: string | null;
+  deliveryMethod?: string | null;
+  deliveredToEmail?: string | null;
+  deliveredAt?: string | null;
+  deliveryError?: string | null;
+  deliveryStatus?: string | null;
+  deliveryStatusAt?: string | null;
 };
 
 type IntakeSubmission = {
@@ -287,27 +293,32 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
     }
   }
 
-  async function handleCreateIntakeLink() {
+  async function handleCreateIntakeLink(delivery: "clipboard" | "email") {
     setIntakeBusy(true);
     setIntakeMessage(null);
     try {
       const response = await fetch(`/api/intake/links`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, delivery }),
       });
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to create intake link");
       const url = typeof window !== "undefined" ? `${window.location.origin}${json.link.url}` : json.link.url;
-      try {
-        if (typeof navigator !== "undefined" && navigator.clipboard) {
-          await navigator.clipboard.writeText(url);
-          setIntakeMessage(`Intake link copied to clipboard: ${url}`);
-        } else {
+      if (delivery === "email") {
+        const to = json.email?.to ?? "the patient";
+        setIntakeMessage(`Intake link emailed to ${to}.`);
+      } else {
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard) {
+            await navigator.clipboard.writeText(url);
+            setIntakeMessage(`Intake link copied to clipboard: ${url}`);
+          } else {
+            setIntakeMessage(`Intake link: ${url}`);
+          }
+        } catch {
           setIntakeMessage(`Intake link: ${url}`);
         }
-      } catch {
-        setIntakeMessage(`Intake link: ${url}`);
       }
       await reloadIntake();
     } catch (linkError) {
@@ -426,10 +437,19 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
           <button
             type="button"
             className="button"
-            onClick={handleCreateIntakeLink}
+            onClick={() => handleCreateIntakeLink("email")}
+            disabled={intakeBusy || !patient.email}
+            title={patient.email ? `Email link to ${patient.email}` : "No email on file for this client"}
+          >
+            {intakeBusy ? "Sending…" : "Email intake link"}
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => handleCreateIntakeLink("clipboard")}
             disabled={intakeBusy}
           >
-            {intakeBusy ? "Generating…" : "Send intake link"}
+            {intakeBusy ? "Generating…" : "Copy intake link"}
           </button>
         </div>
       </section>
@@ -558,16 +578,45 @@ export default function PatientChartClient({ clientId }: { clientId: string }) {
         {intakeLinks.length > 0 ? (
           <div className="stack-list" style={{ marginTop: "12px" }}>
             <p className="muted" style={{ margin: 0 }}>Recent intake links</p>
-            {intakeLinks.slice(0, 5).map((link) => (
-              <div className="stack-item stack-row" key={link.id}>
-                <div>
-                  <strong>{link.status}</strong>
-                  <span>Created: {formatDate(link.createdAt)} · Expires: {formatDate(link.expiresAt)}</span>
-                  {link.usedAt ? <span>Used: {formatDate(link.usedAt)}</span> : null}
+            {intakeLinks.slice(0, 5).map((link) => {
+              const method = (link.deliveryMethod ?? "clipboard").toLowerCase();
+              const deliveryStatus = (link.deliveryStatus ?? "").toLowerCase();
+              const deliveryLabel =
+                method === "email"
+                  ? link.deliveredAt
+                    ? `Emailed to ${link.deliveredToEmail ?? "patient"} on ${formatDate(link.deliveredAt)}`
+                    : `Email queued${link.deliveredToEmail ? ` to ${link.deliveredToEmail}` : ""}`
+                  : "Copied to clipboard";
+              let statusBadge: { className: string; text: string } | null = null;
+              if (method === "email") {
+                if (deliveryStatus === "delivered") {
+                  statusBadge = { className: "status status-green", text: `Delivered ${formatDate(link.deliveryStatusAt)}` };
+                } else if (deliveryStatus === "bounced") {
+                  statusBadge = { className: "status status-red", text: `Bounced ${formatDate(link.deliveryStatusAt)}` };
+                } else if (deliveryStatus === "complained") {
+                  statusBadge = { className: "status status-red", text: `Marked as spam ${formatDate(link.deliveryStatusAt)}` };
+                } else if (deliveryStatus === "failed") {
+                  statusBadge = { className: "status status-red", text: `Send failed ${formatDate(link.deliveryStatusAt)}` };
+                } else if (deliveryStatus === "sent") {
+                  statusBadge = { className: "status status-yellow", text: "Sent, awaiting delivery" };
+                }
+              }
+              return (
+                <div className="stack-item stack-row" key={link.id}>
+                  <div>
+                    <strong>{link.status}</strong>
+                    <span>Created: {formatDate(link.createdAt)} · Expires: {formatDate(link.expiresAt)}</span>
+                    <span>{deliveryLabel}</span>
+                    {statusBadge ? <span className={statusBadge.className}>{statusBadge.text}</span> : null}
+                    {link.usedAt ? <span>Used: {formatDate(link.usedAt)}</span> : null}
+                    {link.deliveryError ? (
+                      <span className="status status-red">Email error: {link.deliveryError}</span>
+                    ) : null}
+                  </div>
+                  <Link className="button button-secondary" href={link.url} target="_blank">Open link</Link>
                 </div>
-                <Link className="button button-secondary" href={link.url} target="_blank">Open link</Link>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </section>
