@@ -1,8 +1,29 @@
 import Link from "next/link";
 import AppSidebarNav from "./AppSidebarNav";
 import styles from "./AppShell.module.css";
+import { ORGANIZATION_ID } from "@/lib/config";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+async function fetchOrgName(): Promise<string | null> {
+  if (!ORGANIZATION_ID) return null;
+  const supabase = createServerSupabaseAdminClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", ORGANIZATION_ID)
+      .maybeSingle();
+    if (error) return null;
+    const name = (data as { name?: string | null } | null)?.name;
+    return typeof name === "string" && name.trim().length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function AppShell({ children }: { children: React.ReactNode }) {
+  const orgName = await fetchOrgName();
   return (
     <div className={styles.frame}>
       {/* Top utility bar */}
@@ -11,9 +32,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className={styles.brandName}>THERASSISTANT</span>
           <span className={styles.brandTag}>EHR</span>
         </Link>
+        {orgName ? (
+          <span className={styles.orgName} title="Active clinic">
+            {orgName}
+          </span>
+        ) : null}
         <div className={styles.topbarSpacer} />
         <div className={styles.topbarRight}>
-          <span className={styles.orgName}>Therassistant Demo</span>
           <span className={styles.userAvatar} aria-label="User menu">TA</span>
         </div>
       </header>
