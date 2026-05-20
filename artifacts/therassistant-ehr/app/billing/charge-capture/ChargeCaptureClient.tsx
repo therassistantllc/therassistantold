@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import styles from "./charge-capture.module.css";
 
-type ChargeStatus = "ready" | "unsigned" | "missing_dx" | "hold";
+type ChargeStatus = "ready" | "unsigned" | "missing_dx" | "hold" | "released";
 
 interface ChargeRow {
   id: string;
@@ -61,9 +61,10 @@ function getOrganizationId() {
 function mapApiStatus(chargeStatus?: string | null): ChargeStatus {
   switch (chargeStatus) {
     case "ready_for_claim":
+      return "ready";
     case "claim_created":
     case "ready_for_batch":
-      return "ready";
+      return "released";
     case "blocked":
       return "hold";
     case "validation_failed":
@@ -112,6 +113,7 @@ const STATUS_LABELS: Record<ChargeStatus, string> = {
   unsigned: "Unsigned",
   missing_dx: "Missing DX",
   hold: "Hold",
+  released: "Released",
 };
 
 const STATUS_CLASS: Record<ChargeStatus, string> = {
@@ -119,6 +121,7 @@ const STATUS_CLASS: Record<ChargeStatus, string> = {
   unsigned: styles.statusUnsigned,
   missing_dx: styles.statusMissingDx,
   hold: styles.statusHold,
+  released: styles.statusReleased,
 };
 
 type FilterType = "all" | ChargeStatus;
@@ -134,15 +137,19 @@ export default function ChargeCaptureClient() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [releasing, setReleasing] = useState(false);
+  const [releaseMessage, setReleaseMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!organizationId) { setLoading(false); return; }
+    setLoading(true);
     fetch(`/api/billing/claim-readiness?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" })
       .then((res) => res.json() as Promise<ApiPayload>)
       .then((json) => { if (json.success) setApiPayload(json); })
       .catch(() => { })
       .finally(() => setLoading(false));
-  }, [organizationId]);
+  }, [organizationId, reloadKey]);
 
   const apiItems = apiPayload?.items ?? [];
   const charges: ChargeRow[] = apiItems.length > 0 ? apiItems.map(mapApiItem) : DEMO_CHARGES;
@@ -151,11 +158,13 @@ export default function ChargeCaptureClient() {
   const apiMetrics = apiPayload?.metrics;
   const counts = useMemo(() => {
     if (apiMetrics && !usingDemo) {
-      const ready = apiMetrics.readyForClaim + apiMetrics.claimCreated + apiMetrics.readyForBatch;
+      const released = apiMetrics.claimCreated + apiMetrics.readyForBatch;
+      const ready = apiMetrics.readyForClaim;
       return {
         total: apiMetrics.total,
         ready,
-        unsigned: apiMetrics.total - apiMetrics.blocked - ready - apiMetrics.validationFailed,
+        released,
+        unsigned: apiMetrics.total - apiMetrics.blocked - ready - released - apiMetrics.validationFailed,
         missing_dx: apiMetrics.validationFailed,
         hold: apiMetrics.blocked,
         totalCharge: charges.reduce((s, c) => s + c.charge, 0),
@@ -164,6 +173,7 @@ export default function ChargeCaptureClient() {
     return {
       total: charges.length,
       ready: charges.filter((c) => c.status === "ready").length,
+      released: charges.filter((c) => c.status === "released").length,
       unsigned: charges.filter((c) => c.status === "unsigned").length,
       missing_dx: charges.filter((c) => c.status === "missing_dx").length,
       hold: charges.filter((c) => c.status === "hold").length,
@@ -206,6 +216,46 @@ export default function ChargeCaptureClient() {
 
   const allChecked = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
 
+  async function releaseSelected() {
+    if (releasing) return;
+    const ids = readySelected.map((c) => c.id);
+    if (ids.length === 0) return;
+    if (usingDemo) {
+      setReleaseMessage({ tone: "error", text: "Cannot release demo charges. Connect a real organization to release to billing." });
+      return;
+    }
+    setReleasing(true);
+    setReleaseMessage(null);
+    try {
+      const res = await fetch(`/api/billing/charge-capture/release`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organizationId, chargeCaptureIds: ids }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Release to billing failed");
+      }
+      const succeeded = Number(json.succeeded ?? 0);
+      const failed = Number(json.failed ?? 0);
+      if (failed === 0) {
+        setReleaseMessage({ tone: "success", text: `Released ${succeeded} charge${succeeded === 1 ? "" : "s"} to billing.` });
+      } else {
+        const firstError = json.results?.find?.((r: { ok: boolean; errors?: Array<{ message?: string }> }) => !r.ok)?.errors?.[0]?.message;
+        setReleaseMessage({
+          tone: "error",
+          text: `Released ${succeeded} of ${succeeded + failed}. ${failed} failed${firstError ? `: ${firstError}` : "."}`,
+        });
+      }
+      setSelected(new Set());
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      setReleaseMessage({ tone: "error", text: error instanceof Error ? error.message : "Release to billing failed" });
+    } finally {
+      setReleasing(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       {/* Header */}
@@ -221,17 +271,39 @@ export default function ChargeCaptureClient() {
           <input className={styles.searchInput} placeholder="Search patient, CPT, provider…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className={styles.filterRow}>
-          {(["all", "ready", "unsigned", "missing_dx", "hold"] as FilterType[]).map((f) => (
+          {(["all", "ready", "released", "unsigned", "missing_dx", "hold"] as FilterType[]).map((f) => (
             <button key={f} type="button" className={filter === f ? `${styles.filterBtn} ${styles.filterBtnActive}` : styles.filterBtn} onClick={() => setFilter(f)}>
               {f === "all" ? "All" : f === "missing_dx" ? "Missing DX" : f.charAt(0).toUpperCase() + f.slice(1)}
               {f !== "all" ? ` (${counts[f]})` : ""}
             </button>
           ))}
         </div>
-        <button type="button" className={styles.releaseBtn} disabled={readySelected.length === 0}>
-          Release {readySelected.length > 0 ? `${readySelected.length} ` : ""}to Billing
+        <button
+          type="button"
+          className={styles.releaseBtn}
+          disabled={readySelected.length === 0 || releasing}
+          onClick={releaseSelected}
+        >
+          {releasing ? "Releasing…" : `Release ${readySelected.length > 0 ? `${readySelected.length} ` : ""}to Billing`}
         </button>
       </header>
+
+      {releaseMessage ? (
+        <div
+          role="status"
+          style={{
+            margin: "8px 16px 0",
+            padding: "8px 12px",
+            borderRadius: 6,
+            fontSize: 13,
+            background: releaseMessage.tone === "success" ? "#ecfdf5" : "#fef2f2",
+            color: releaseMessage.tone === "success" ? "#065f46" : "#991b1b",
+            border: `1px solid ${releaseMessage.tone === "success" ? "#a7f3d0" : "#fecaca"}`,
+          }}
+        >
+          {releaseMessage.text}
+        </div>
+      ) : null}
 
       {/* Summary */}
       <div className={styles.summaryStrip}>
