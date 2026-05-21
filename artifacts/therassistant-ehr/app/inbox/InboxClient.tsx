@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Mail } from "lucide-react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import styles from "./inbox.module.css";
+import {
+  InboxConnectModal,
+  InboxEmptyOnboarding,
+  InboxSyncChip,
+  type ConnectedAccount,
+} from "./InboxEmailConnect";
+
+type ProviderKey = "google" | "microsoft" | "other";
+const CONNECTED_STORAGE_KEY = "therassistant.inbox.connectedAccount";
 
 type WorkqueueClientInfo = {
   id: string;
@@ -74,6 +85,29 @@ export default function InboxClient() {
   const [comment, setComment] = useState("");
   const [acting, setActing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [connected, setConnected] = useState<ConnectedAccount | null>(null);
+  const [modalProvider, setModalProvider] = useState<ProviderKey | null>(null);
+
+  // Restore "connected email" state from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(CONNECTED_STORAGE_KEY);
+      if (raw) setConnected(JSON.parse(raw) as ConnectedAccount);
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+
+  function handleConnected(account: ConnectedAccount) {
+    setConnected(account);
+    try {
+      window.localStorage.setItem(CONNECTED_STORAGE_KEY, JSON.stringify(account));
+    } catch {
+      /* ignore quota / private-mode */
+    }
+    setModalProvider(null);
+  }
 
   const selected = items.find((i) => i.id === selectedId) ?? items[0] ?? null;
 
@@ -158,16 +192,26 @@ export default function InboxClient() {
     <main className="app-shell">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Clinician Inbox</p>
-          <h1>Your inbox</h1>
+          <p className="eyebrow">Clinical Mailbox</p>
+          <h1>Inbox</h1>
           <p className="hero-copy">
-            Clinical-only items: documentation, signatures, co-signs, chart questions, and items routed to you for
-            clinical review. Operations work (eligibility, denials, AR, ERA) lives in Billing &gt; Workqueues.
+            One place for clinical email and tasks — documentation requests,
+            signature follow-ups, co-signs, chart questions, and patient-related
+            messages routed from your synced mailbox.
           </p>
         </div>
-        <div className="hero-actions">
+        <div className="hero-actions" style={{ alignItems: "center", gap: 10 }}>
+          {connected ? <InboxSyncChip account={connected} /> : null}
           <Link className="button button-secondary" href="/calendar">Schedule</Link>
           <Link className="button button-secondary" href="/workqueue">Operations Workqueues</Link>
+          <button
+            type="button"
+            className={`${styles.headerCta} ${connected ? styles.headerCtaGhost : ""}`.trim()}
+            onClick={() => setModalProvider(connected ? connected.provider : "google")}
+          >
+            <Mail size={14} />
+            {connected ? "Manage email" : "Connect Email"}
+          </button>
         </div>
       </section>
 
@@ -232,8 +276,14 @@ export default function InboxClient() {
       <section className="workqueue-layout">
         <div className="workqueue-list panel">
           {loading ? <div className="empty-state">Loading…</div> : null}
-          {!loading && items.length === 0 ? (
-            <div className="empty-state">Inbox zero. Nothing needs your clinical attention.</div>
+          {!loading && items.length === 0 && !connected ? (
+            <InboxEmptyOnboarding onProviderPick={(p) => setModalProvider(p)} />
+          ) : null}
+          {!loading && items.length === 0 && connected ? (
+            <div className="empty-state">
+              Inbox zero. Syncing <strong>{connected.email}</strong> — nothing
+              needs your clinical attention right now.
+            </div>
           ) : null}
           {items.map((item) => (
             <div
@@ -302,6 +352,14 @@ export default function InboxClient() {
           ) : null}
         </div>
       </section>
+
+      {modalProvider ? (
+        <InboxConnectModal
+          provider={modalProvider}
+          onClose={() => setModalProvider(null)}
+          onConnected={handleConnected}
+        />
+      ) : null}
     </main>
   );
 }
