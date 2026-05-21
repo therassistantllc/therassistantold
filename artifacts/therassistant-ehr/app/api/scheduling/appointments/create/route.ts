@@ -202,23 +202,14 @@ export async function POST(request: Request) {
         appointment_status: "scheduled",
         appointment_type: appointmentType,
         reason,
-        service_location: serviceLocation,
-        internal_note: body.internalNote ?? null,
-        reminder_email_enabled: reminderEmailEnabled,
-        reminder_sms_enabled: reminderSmsEnabled,
-        reminder_portal_enabled: reminderPortalEnabled,
-        reminder_lead_hours: reminderLeadHours,
-        telehealth_session_token: teleToken,
         telehealth_url: teleUrl,
-        series_id: seriesId,
-        recurrence_index: index + 1,
-        recurrence_frequency: recurrenceFrequency === "none" ? null : recurrenceFrequency,
         created_at: now,
         updated_at: now,
       };
 
       const { error: appointmentError } = await supabase.from("appointments").insert(appointmentPayload);
       if (appointmentError) throw appointmentError;
+      void teleToken;
 
       createdRows.push({ id: appointmentId, scheduled_start_at: startAt.toISOString() });
 
@@ -261,6 +252,7 @@ export async function POST(request: Request) {
       appointments: createdRows,
     });
   } catch (error) {
+    console.error("[POST /api/scheduling/appointments/create]", error);
     return NextResponse.json(
       {
         success: false,
