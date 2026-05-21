@@ -1,3 +1,4 @@
+import { CORE_STC_BY_CODE, describeServiceTypeCode, isCoreServiceTypeCode } from "./coreServiceTypeCodes";
 import type {
   Availity270ValidationError,
   Availity270ValidationResult,
@@ -6,33 +7,6 @@ import type {
 
 const NPI_REGEX = /^\d{10}$/;
 const DOB_REGEX = /^(\d{8}|\d{4}-\d{2}-\d{2})$/;
-
-// CAQH CORE Eligibility & Benefits Data Content Rule vEB.2.1 Appendix Table 1:
-// CORE-required Service Type Codes (Generic + Explicit Inquiry). Used here for
-// a warning-only signal; the canonical list lives in coreServiceTypeCodes.ts
-// once Phase 3 lands. Until then, this minimal set covers the most common
-// behavioral-health inquiries plus the Generic Inquiry code.
-const CORE_KNOWN_STC = new Set<string>([
-  "30", // Health Benefit Plan Coverage (Generic Inquiry)
-  "1",  // Medical Care
-  "33", // Chiropractic
-  "35", // Dental Care
-  "47", // Hospital
-  "48", // Hospital - Inpatient
-  "50", // Hospital - Outpatient
-  "86", // Emergency Services
-  "88", // Pharmacy
-  "98", // Professional (Physician) Visit - Office
-  "AL", // Vision (Optometry)
-  "MH", // Mental Health
-  "UC", // Urgent Care
-  "A4", // Psychiatric
-  "A6", // Psychotherapy
-  "A7", // Psychiatric - Inpatient
-  "A8", // Psychiatric - Outpatient
-  "AI", // Substance Abuse
-  "BG", // Cognitive Therapy
-]);
 
 export function validateEligibility270Input(
   input: Eligibility270Input,
@@ -167,15 +141,32 @@ export function validateEligibility270Input(
       segment: "EQ01",
     });
   } else {
+    // CAQH CORE Data Content Rule vEB.2.1 Appendix Table 1: warn (not error)
+    // when a request includes an STC outside the CORE-required set.
+    // Payers may accept non-CORE codes, but they have no CORE-mandated
+    // obligation to return the structured response shape (financial
+    // responsibility / remaining-coverage benefits / etc.) for them.
     for (const stc of input.serviceTypeCodes) {
-      if (!CORE_KNOWN_STC.has(stc)) {
+      const upper = (stc ?? "").toUpperCase();
+      if (!isCoreServiceTypeCode(upper)) {
         warnings.push({
           field: "serviceTypeCodes",
-          message: `Service type code "${stc}" is not in the known CORE / behavioral-health set. The payer may reject the request or return only a generic eligibility response.`,
+          message: `Service type code "${stc}" is not in the CAQH CORE Required STC set (vEB.2.1 Appendix Table 1). The payer is under no CORE-mandated obligation to return structured benefits for it — expect generic eligibility only or, worst case, a rejection.`,
           severity: "warning",
           loop: "2110C",
           segment: "EQ01",
         });
+      } else {
+        const meta = CORE_STC_BY_CODE.get(upper);
+        if (meta && !meta.generic && !meta.explicit) {
+          warnings.push({
+            field: "serviceTypeCodes",
+            message: `Service type code "${stc}" (${describeServiceTypeCode(upper)}) is a CORE-recognized code but neither Generic nor Explicit Inquiry — verify the payer supports it.`,
+            severity: "warning",
+            loop: "2110C",
+            segment: "EQ01",
+          });
+        }
       }
     }
   }

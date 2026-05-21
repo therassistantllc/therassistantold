@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import {
+  isCoreServiceTypeCode,
+  listCoreServiceTypeCodes,
+} from "@/lib/edi/availity270/coreServiceTypeCodes";
 
 type Connection = {
   id: string;
@@ -278,7 +282,31 @@ export default function ClearinghouseSettingsClient() {
                   </select>
                 </label>
                 {fieldStr("X12 Version", form.x12_version, f("x12_version"))}
-                {fieldStr("Eligibility Service Type Code", form.eligibility_service_type_code, f("eligibility_service_type_code"), "(98 = mental health)")}
+                <label className="field-label">
+                  Eligibility Service Type Code
+                  <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)", marginLeft: "4px" }}>
+                    (CAQH CORE Required STC list; non-CORE codes are still accepted but flagged)
+                  </span>
+                  <input
+                    list="core-stc-options"
+                    value={form.eligibility_service_type_code}
+                    onChange={(e) => setForm((p) => ({ ...p, eligibility_service_type_code: e.target.value.toUpperCase() }))}
+                    placeholder="98"
+                  />
+                  <datalist id="core-stc-options">
+                    {listCoreServiceTypeCodes().map((stc) => (
+                      <option key={`${stc.code}-${stc.description}`} value={stc.code}>
+                        {stc.code} — {stc.description}
+                      </option>
+                    ))}
+                  </datalist>
+                  {form.eligibility_service_type_code &&
+                    !isCoreServiceTypeCode(form.eligibility_service_type_code) && (
+                      <span style={{ color: "var(--color-warning, #b45309)", fontSize: "var(--text-xs)" }}>
+                        Non-CORE code — payer is under no CORE obligation to return structured benefits.
+                      </span>
+                    )}
+                </label>
                 {fieldStr("Eligibility Transaction Set", form.eligibility_transaction_set, f("eligibility_transaction_set"))}
               </div>
 
