@@ -52,25 +52,26 @@ export async function POST(req: NextRequest) {
     }
 
     const mimeType =
-      clean((mailroomItem as Record<string, unknown>).mime_type) ||
-      clean((mailroomItem as Record<string, unknown>).file_mime_type) ||
-      "application/pdf";
+      clean((mailroomItem as Record<string, unknown>).mime_type) || "application/pdf";
 
+    // documents.document_scope check constraint allows: encounter, claim, other
     const scope =
-      filing_destination === "patient_chart" ? "client"
-      : filing_destination === "claim" ? "claim"
+      filing_destination === "claim" ? "claim"
       : filing_destination === "encounter" ? "encounter"
-      : "practice";
+      : "other";
+
+    const fileName = clean((mailroomItem as Record<string, unknown>).file_name) || "mailroom_document";
 
     // Create document record using actual schema columns
     const documentData: Record<string, unknown> = {
       organization_id,
       mailroom_item_id,
+      title: fileName,
       document_scope: scope,
       document_type: clean((mailroomItem as Record<string, unknown>).document_type) || "other",
-      file_name: clean((mailroomItem as Record<string, unknown>).file_name) || "mailroom_document",
+      file_name: fileName,
       mime_type: mimeType,
-      storage_bucket: clean((mailroomItem as Record<string, unknown>).storage_bucket) || null,
+      storage_bucket: "mailroom-documents",
       storage_path: clean((mailroomItem as Record<string, unknown>).storage_path) || null,
       uploaded_by_user_id: (mailroomItem as Record<string, unknown>).uploaded_by_user_id || null,
       filed_at: new Date().toISOString(),

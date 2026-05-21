@@ -14,7 +14,7 @@ function itemDto(row: DbRow) {
     organizationId: clean(row.organization_id),
     clientId: clean(row.client_id),
     fileName: clean(row.file_name),
-    mimeType: clean(row.mime_type) || clean(row.file_mime_type),
+    mimeType: clean(row.mime_type),
     storagePath: clean(row.storage_path),
     status: clean(row.status),
     documentType: clean(row.document_type),
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("mailroom_items")
-      .select("id, organization_id, client_id, file_name, mime_type, file_mime_type, storage_bucket, storage_path, status, document_type, source, notes, admin_comments, uploaded_by_user_id, created_at, updated_at")
+      .select("id, organization_id, client_id, file_name, mime_type, storage_path, status, document_type, source, notes, admin_comments, uploaded_by_user_id, created_at, updated_at")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(limit);

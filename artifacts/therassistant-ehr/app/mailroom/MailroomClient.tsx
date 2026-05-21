@@ -236,32 +236,46 @@ export default function MailroomClient() {
     e.preventDefault();
     setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) simulateUpload(files[0]);
+    if (files.length > 0) void uploadFile(files[0]);
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) simulateUpload(file);
+    if (file) void uploadFile(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function simulateUpload(file: File) {
+  async function uploadFile(file: File) {
     setUploading(true);
-    setTimeout(() => {
-      const newDoc: MailroomDoc = {
-        id: `doc-upload-${Date.now()}`,
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-        documentType: "other",
-        status: "new",
-        notes: "",
-        createdAt: new Date().toISOString(),
-        source: "uploaded",
-      };
-      setDocs((prev) => [newDoc, ...prev]);
-      setSelectedId(newDoc.id);
-      setUploading(false);
-    }, 800);
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      fd.append("organizationId", orgId);
+      const res = await fetch("/api/mailroom/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { success?: boolean; error?: string; item?: Record<string, unknown> };
+      if (!res.ok || !json.success || !json.item) {
+        window.alert(json.error || "Upload failed.");
+      } else {
+        const it = json.item;
+        const newDoc: MailroomDoc = {
+          id: String(it.id ?? ""),
+          fileName: String(it.fileName ?? file.name),
+          mimeType: String(it.mimeType ?? file.type ?? "application/octet-stream"),
+          documentType: String(it.documentType ?? "other"),
+          status: (String(it.status ?? "needs_review")) as DocStatus,
+          clientId: it.clientId ? String(it.clientId) : undefined,
+          notes: String(it.notes ?? ""),
+          createdAt: String(it.createdAt ?? new Date().toISOString()),
+          source: String(it.source ?? "uploaded"),
+          storagePath: it.storagePath ? String(it.storagePath) : undefined,
+        };
+        setDocs((prev) => [newDoc, ...prev]);
+        setSelectedId(newDoc.id);
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Upload failed.");
+    }
+    setUploading(false);
   }
 
   return (

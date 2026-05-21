@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
 
     const { data: item, error } = await supabase
       .from("mailroom_items")
-      .select("id, organization_id, file_name, mime_type, file_mime_type, storage_bucket, storage_path")
+      .select("id, organization_id, file_name, mime_type, storage_path")
       .eq("id", itemId)
       .eq("organization_id", organizationId)
       .maybeSingle();
@@ -34,9 +34,7 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
     const path = clean((item as Record<string, unknown>).storage_path);
     if (!path) return NextResponse.json({ success: false, error: "No file on this mailroom item" }, { status: 404 });
 
-    const bucket = clean((item as Record<string, unknown>).storage_bucket) || DEFAULT_BUCKET;
-
-    const { data: blob, error: dlErr } = await supabase.storage.from(bucket).download(path);
+    const { data: blob, error: dlErr } = await supabase.storage.from(DEFAULT_BUCKET).download(path);
     if (dlErr || !blob) {
       return NextResponse.json(
         { success: false, error: dlErr?.message || "File not available in storage" },
@@ -47,7 +45,6 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
     const buffer = Buffer.from(await blob.arrayBuffer());
     const mime =
       clean((item as Record<string, unknown>).mime_type) ||
-      clean((item as Record<string, unknown>).file_mime_type) ||
       blob.type ||
       "application/octet-stream";
     const fileName = clean((item as Record<string, unknown>).file_name) || "mailroom-document";
