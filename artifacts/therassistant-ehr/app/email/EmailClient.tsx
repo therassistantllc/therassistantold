@@ -171,19 +171,23 @@ export default function EmailClient() {
     setActing(false);
   }
 
-  function connectGmail() {
+  function connectProvider(provider: "gmail" | "outlook") {
     setConnecting(true);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
     if (!supabaseUrl) {
-      setError("Cannot start Gmail connect: NEXT_PUBLIC_SUPABASE_URL is not configured.");
+      setError(`Cannot start ${provider} connect: NEXT_PUBLIC_SUPABASE_URL is not configured.`);
       setConnecting(false);
       return;
     }
-    const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/gmail-oauth-start?organization_id=${encodeURIComponent(organizationId)}`;
+    const fn = provider === "gmail" ? "gmail-oauth-start" : "outlook-oauth-start";
+    const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}?organization_id=${encodeURIComponent(organizationId)}`;
     window.location.href = url;
   }
 
   const gmailConn = connections.find((c) => c.integrationType === "gmail");
+  const outlookConn = connections.find(
+    (c) => c.integrationType === "outlook" || c.integrationType === "microsoft365",
+  );
 
   return (
     <main className="app-shell">
@@ -204,13 +208,25 @@ export default function EmailClient() {
               {gmailConn.lastSyncAt ? ` · last sync ${formatDateTime(gmailConn.lastSyncAt)}` : ""}
             </span>
           ) : (
-            <button className="button" type="button" onClick={connectGmail} disabled={connecting}>
+            <button className="button" type="button" onClick={() => connectProvider("gmail")} disabled={connecting}>
               {connecting ? "Redirecting…" : "Connect Gmail"}
             </button>
           )}
-          <button className="button button-secondary" type="button" disabled title="Outlook integration not configured yet">
-            Connect Outlook (soon)
-          </button>
+          {outlookConn && outlookConn.connectionStatus === "connected" ? (
+            <span className="muted-text">
+              Outlook: {outlookConn.externalAccountEmail || outlookConn.displayName || "Connected"}
+              {outlookConn.lastSyncAt ? ` · last sync ${formatDateTime(outlookConn.lastSyncAt)}` : ""}
+            </span>
+          ) : (
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => connectProvider("outlook")}
+              disabled={connecting}
+            >
+              {connecting ? "Redirecting…" : "Connect Outlook"}
+            </button>
+          )}
         </div>
       </section>
 
@@ -266,9 +282,9 @@ export default function EmailClient() {
           {loading ? <div className="empty-state">Loading…</div> : null}
           {!loading && messages.length === 0 ? (
             <div className="empty-state">
-              {gmailConn?.connectionStatus === "connected"
+              {gmailConn?.connectionStatus === "connected" || outlookConn?.connectionStatus === "connected"
                 ? "No emails match the current filter."
-                : "No emails yet. Connect Gmail to start receiving patient mail."}
+                : "No emails yet. Connect Gmail or Outlook to start receiving patient mail."}
             </div>
           ) : null}
           {messages.map((m) => (

@@ -84,13 +84,13 @@ export function buildHomeDashboardPayload(role: string) {
       {
         key: "clients",
         label: "Clients",
-        value: Math.max(data.appointments.length, 12),
+        value: data.appointments.length,
         href: "/clients",
       },
       {
         key: "encounters",
         label: "Encounters",
-        value: Math.max(data.appointments.length, 9),
+        value: data.appointments.length,
         href: "/encounters",
       },
       {
@@ -172,7 +172,7 @@ function buildRevenueCycleSnapshot(claims: any[]) {
     {
       key: "payment_imports",
       label: "Payment imports",
-      value: 3,
+      value: 0,
       href: "/billing/payment-imports",
     },
   ];

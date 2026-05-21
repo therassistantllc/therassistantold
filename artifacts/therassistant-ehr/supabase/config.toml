@@ -53,3 +53,21 @@ entrypoint = "./functions/parse-835-batch/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/parse-835-batch/*.html" ]
+
+[functions.outlook-oauth-start]
+enabled = true
+verify_jwt = true
+import_map = "./functions/outlook-oauth-start/deno.json"
+entrypoint = "./functions/outlook-oauth-start/index.ts"
+
+[functions.outlook-oauth-callback]
+enabled = true
+verify_jwt = true
+import_map = "./functions/outlook-oauth-callback/deno.json"
+entrypoint = "./functions/outlook-oauth-callback/index.ts"
+
+[functions.outlook-poll-inbox]
+enabled = true
+verify_jwt = true
+import_map = "./functions/outlook-poll-inbox/deno.json"
+entrypoint = "./functions/outlook-poll-inbox/index.ts"
