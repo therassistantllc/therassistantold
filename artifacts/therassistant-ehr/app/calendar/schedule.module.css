@@ -18,6 +18,10 @@
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .headerDate {
@@ -144,6 +148,10 @@
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   overflow-x: auto;
+  position: sticky;
+  top: 58px;
+  z-index: 19;
+  scrollbar-width: thin;
 }
 
 .summaryItem {
@@ -789,8 +797,203 @@
   font-weight: 500;
 }
 
+/* ── Tablet & Mobile ──────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
-  .contextPanel {
-    display: none;
+  .page {
+    height: auto;
+    min-height: calc(100dvh - 44px);
+    overflow: visible;
   }
+
+  .header {
+    padding: 10px 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .headerDateDay {
+    font-size: 18px;
+  }
+
+  .searchWrap {
+    flex: 1 1 100%;
+    order: 99;
+  }
+
+  .searchInput {
+    width: 100%;
+  }
+
+  .summaryStrip {
+    top: auto;
+    position: static;
+    gap: 8px;
+    padding: 8px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .summaryItem {
+    padding: 6px 12px 6px 0;
+    margin-right: 8px;
+    min-width: auto;
+  }
+
+  .summaryValue {
+    font-size: 18px;
+  }
+
+  .body {
+    flex-direction: column;
+  }
+
+  .scheduleCol {
+    border-right: none;
+    overflow: visible;
+  }
+
+  .viewBar {
+    padding: 8px 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .viewBar::-webkit-scrollbar { display: none; }
+
+  .filterRow {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    order: 50;
+  }
+
+  .filterRow::-webkit-scrollbar { display: none; }
+
+  .filterChip {
+    height: 44px;
+    padding: 0 16px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .newApptBtn {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+
+  .appointmentList {
+    padding: 12px 12px 96px; /* leave room above the FAB */
+    gap: 10px;
+  }
+
+  .card {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .cardTime {
+    width: 60px;
+  }
+
+  .actionBtn {
+    height: 44px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  /* Context panel becomes a slide-up bottom sheet on mobile.
+     It mounts when an appointment is selected; we animate it in,
+     give it a drag handle, and let the page beneath remain visible. */
+  .contextPanel {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 82vh;
+    max-height: 82dvh;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.18);
+    z-index: 70;
+    transform: translateY(0);
+    animation: scheduleSheetIn 0.24s ease;
+  }
+
+  .contextPanel::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    border-radius: 4px;
+    background: #CBD5E1;
+  }
+
+  .contextHeader {
+    padding: 22px 18px 12px;
+  }
+
+  .contextSection,
+  .contextAlerts,
+  .contextTasks {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .contextNote {
+    margin-left: 18px;
+    margin-right: 18px;
+  }
+
+  .contextFooter {
+    padding: 14px 18px max(14px, env(safe-area-inset-bottom));
+    background: #ffffff;
+    border-top: 1px solid #F1F5F9;
+  }
+
+  .contextActionPrimary {
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .contextActionSecondary {
+    height: 44px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .headerDateDay {
+    font-size: 16px;
+  }
+
+  .headerDateSub {
+    font-size: 11px;
+  }
+
+  .cardPatient {
+    font-size: 14px;
+  }
+
+  .summaryItem {
+    padding: 6px 10px 6px 0;
+    margin-right: 6px;
+  }
+}
+
+@keyframes scheduleSheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }

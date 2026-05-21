@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppSidebarNav from "./AppSidebarNav";
+import MobileNavButton from "./MobileNavButton";
 import styles from "./AppShell.module.css";
 import { ORGANIZATION_ID } from "@/lib/config";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
@@ -28,6 +29,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
     <div className={styles.frame}>
       {/* Top utility bar */}
       <header className={styles.topbar}>
+        <MobileNavButton />
         <Link className={styles.brand} href="/">
           <span className={styles.brandName}>THERASSISTANT</span>
           <span className={styles.brandTag}>EHR</span>
@@ -49,7 +51,12 @@ export default async function AppShell({ children }: { children: React.ReactNode
 
       {/* Body: sidebar + content */}
       <div className={styles.body}>
-        <aside className={styles.sidebar} aria-label="Application navigation">
+        <aside
+          id="app-sidebar"
+          data-app-sidebar
+          className={styles.sidebar}
+          aria-label="Application navigation"
+        >
           <AppSidebarNav />
         </aside>
         <div className={styles.content}>
