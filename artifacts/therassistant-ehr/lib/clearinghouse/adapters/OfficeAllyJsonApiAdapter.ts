@@ -24,6 +24,7 @@ type ApiRequestOptions = {
   clientId?: string | null;
   claimId?: string | null;
   ediTransactionId?: string | null;
+  idempotencyKey?: string | null;
 };
 
 type HealthCheckResult = {
@@ -55,12 +56,22 @@ function uuid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function buildHeaders(accept: string, contentType: "application/json" | "text/plain") {
-  return {
+function buildHeaders(
+  accept: string,
+  contentType: "application/json" | "text/plain",
+  idempotencyKey?: string | null,
+) {
+  const headers: Record<string, string> = {
     [getApiKeyHeaderName()]: getApiKey(),
     Accept: accept,
     "Content-Type": contentType,
   };
+  if (idempotencyKey) {
+    // Common idempotency header conventions vary by clearinghouse; send both.
+    headers["Idempotency-Key"] = idempotencyKey;
+    headers["X-Idempotency-Key"] = idempotencyKey;
+  }
+  return headers;
 }
 
 function serializeBody(body: unknown, contentType: "application/json" | "text/plain") {
@@ -404,7 +415,7 @@ export class OfficeAllyJsonApiAdapter {
     try {
       const response = await fetch(endpointUrl, {
         method,
-        headers: buildHeaders(accept, contentType),
+        headers: buildHeaders(accept, contentType, options.idempotencyKey),
         body: method === "GET" ? undefined : bodyText,
       });
       const rawText = await response.text();
@@ -606,13 +617,14 @@ export class OfficeAllyJsonApiAdapter {
     return response.data;
   }
 
-  async submitProfessionalX12(params: { organizationId: string; x12: string }) {
+  async submitProfessionalX12(params: { organizationId: string; x12: string; idempotencyKey?: string | null }) {
     return this.request({
       organizationId: params.organizationId,
       operation: "Claim_SubmitProfessionalX12",
       path: "/v1/claims/professional/x12",
       body: params.x12,
       contentType: "text/plain",
+      idempotencyKey: params.idempotencyKey ?? null,
     });
   }
 
