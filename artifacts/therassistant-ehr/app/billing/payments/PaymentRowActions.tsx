@@ -22,7 +22,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type ActionKind = "refund" | "reverse" | "void" | "recoup" | "confirm-refund";
+type ActionKind =
+  | "refund"
+  | "reverse"
+  | "void"
+  | "recoup"
+  | "confirm-refund"
+  | "cancel-refund";
 
 interface RowSummary {
   id: string; // composite (era:|cp:|mi: + uuid)
@@ -189,6 +195,14 @@ export default function PaymentRowActions({
                 setActive("confirm-refund");
               }}
             />
+            <MenuItem
+              label="Cancel pending refund…"
+              hint="Close out a pending insurance refund opened in error"
+              onClick={() => {
+                setOpen(false);
+                setActive("cancel-refund");
+              }}
+            />
           </div>
         </>
       ) : null}
@@ -252,6 +266,19 @@ export default function PaymentRowActions({
       ) : null}
       {active === "confirm-refund" ? (
         <ConfirmRefundModal
+          row={row}
+          orgId={orgId}
+          onClose={close}
+          onDone={(msg) => {
+            onFlash("ok", msg);
+            onChanged();
+            close();
+          }}
+          onError={(msg) => onFlash("err", msg)}
+        />
+      ) : null}
+      {active === "cancel-refund" ? (
+        <CancelRefundModal
           row={row}
           orgId={orgId}
           onClose={close}
@@ -1589,6 +1616,151 @@ function ConfirmRefundModal({
             </button>
             <button onClick={submit} style={primaryBtn} disabled={submitting || !refundId}>
               {submitting ? "Confirming…" : "Confirm as issued"}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cancel-pending-refund modal — pick a pending insurance refund and cancel it
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CancelRefundModal({
+  row,
+  orgId,
+  onClose,
+  onDone,
+  onError,
+}: {
+  row: RowSummary;
+  orgId: string;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const { detail, loading, error: loadError } = useDetail(row.id, orgId);
+  // Only pending insurance refunds are cancellable. Once a refund flips to
+  // `issued` money has moved and the right tool is reverse/recoup, not cancel.
+  const pending = useMemo(
+    () =>
+      (detail?.refunds ?? []).filter(
+        (r) => r.refund_type === "insurance" && r.refund_status === "pending",
+      ),
+    [detail],
+  );
+  const [refundId, setRefundId] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pending.length > 0 && !refundId) setRefundId(pending[0].id);
+  }, [pending, refundId]);
+
+  const submit = async () => {
+    if (!refundId) {
+      setError("Pick a pending refund to cancel.");
+      return;
+    }
+    if (!reason.trim()) {
+      setError("A cancellation reason is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/billing/payments/posted/${encodeURIComponent(row.id)}/cancel-refund`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId: orgId,
+            refundId,
+            reason: reason.trim(),
+          }),
+        },
+      );
+      const j = await r.json();
+      if (!r.ok || !j?.success) {
+        const msg =
+          (j?.errors?.[0]?.message as string | undefined) ?? j?.error ?? "Cancellation failed";
+        throw new Error(msg);
+      }
+      onDone(`Refund ${refundId.slice(0, 8)} cancelled.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Cancellation failed";
+      setError(msg);
+      onError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal title="Cancel pending insurance refund" onClose={onClose}>
+      <ErrorBanner message={error ?? loadError} />
+      {loading ? (
+        <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>Loading refunds…</div>
+      ) : pending.length === 0 ? (
+        <>
+          <p style={{ fontSize: 13, color: "#374151", marginTop: 0 }}>
+            No pending insurance refunds are linked to this payment. Already-issued refunds
+            cannot be cancelled — reverse the payment or record a recoupment instead.
+          </p>
+          <div style={{ marginTop: 16, textAlign: "right" }}>
+            <button onClick={onClose} style={secondaryBtn}>
+              Close
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 13, color: "#374151", marginTop: 0 }}>
+            Cancelling marks the refund as <code>cancelled</code>, archives the row so
+            dashboard totals stop counting it, and closes the linked workqueue item. No
+            money moves and no ledger entry is posted.
+          </p>
+          <div style={{ display: "grid", gap: 10 }}>
+            <label style={fieldLabel}>
+              <span>Pending refund</span>
+              <select
+                value={refundId}
+                onChange={(e) => setRefundId(e.target.value)}
+                style={fieldInput}
+              >
+                {pending.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {fmtMoney(Number(r.amount))} — {r.reason?.slice(0, 60) || "(no reason)"} —{" "}
+                    {r.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={fieldLabel}>
+              <span>Cancellation reason (required)</span>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                style={{ ...fieldInput, resize: "vertical" }}
+                placeholder="Why is this pending refund being cancelled?"
+              />
+            </label>
+          </div>
+          <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button onClick={onClose} style={secondaryBtn} disabled={submitting}>
+              Close
+            </button>
+            <button
+              onClick={submit}
+              style={dangerBtn}
+              disabled={submitting || !refundId || !reason.trim()}
+            >
+              {submitting ? "Cancelling…" : "Cancel refund"}
             </button>
           </div>
         </>

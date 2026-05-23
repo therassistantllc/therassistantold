@@ -24,6 +24,7 @@ export type PaymentAuditAction =
   | "recoupment_recorded"
   | "refund_requested"
   | "refund_issued"
+  | "refund_cancelled"
   | "unapplied_credit_recorded";
 
 export type PaymentAuditObjectType =

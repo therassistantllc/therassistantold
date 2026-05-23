@@ -1992,6 +1992,148 @@ export async function confirmInsuranceRefund(
   return result;
 }
 
+/**
+ * Cancel a pending insurance refund (Task #169).
+ *
+ * If a biller opens a pending insurance refund in error, this lets them
+ * close it out cleanly without ever moving money:
+ *   - payment_refunds.refund_status pending → cancelled
+ *   - archived_at stamped so dashboard totals stop counting it
+ *   - note stamped with the cancellation reason
+ *   - linked workqueue item closed (status='cancelled')
+ *
+ * Concurrency-safe: only succeeds when the row is still pending+unarchived
+ * and refund_type='insurance'. Already-issued refunds cannot be cancelled
+ * — by then money has moved and the right tool is reverse/recoup, not
+ * cancel.
+ *
+ * NO ledger writes happen: a pending insurance refund never posted a
+ * compensating ledger entry in the first place (that only happens when
+ * confirmInsuranceRefund flips it to 'issued'), so cancellation is a
+ * pure metadata flip.
+ */
+export interface CancelPendingRefundInput {
+  organizationId: string;
+  refundId: string;
+  reason: string;
+  actor: PostingActor;
+}
+
+export interface CancelPendingRefundResult {
+  ok: boolean;
+  refundId: string | null;
+  refundStatus: "cancelled" | null;
+  workqueueItemClosed: boolean;
+  auditLogIds: string[];
+  errors: Array<{ field: string; message: string }>;
+}
+
+export async function cancelPendingRefund(
+  input: CancelPendingRefundInput,
+  injectedSupabase?: SupabaseAdmin,
+): Promise<CancelPendingRefundResult> {
+  const result: CancelPendingRefundResult = {
+    ok: false,
+    refundId: null,
+    refundStatus: null,
+    workqueueItemClosed: false,
+    auditLogIds: [],
+    errors: [],
+  };
+  if (!input.reason || !input.reason.trim()) {
+    result.errors.push({ field: "reason", message: "Cancellation reason is required." });
+    return result;
+  }
+  const supabase = injectedSupabase ?? createServerSupabaseAdminClient();
+  if (!supabase) {
+    result.errors.push({ field: "system", message: "Database connection not available" });
+    return result;
+  }
+
+  const now = new Date().toISOString();
+  // Concurrency-safe state flip: only succeeds while still pending+unarchived.
+  // Filtering refund_type='insurance' here is what makes a same-id call
+  // against a patient refund return "not found" rather than silently mutate.
+  const { data: claimed, error: claimErr } = await supabase
+    .from("payment_refunds")
+    .update({
+      refund_status: "cancelled",
+      archived_at: now,
+      note: input.reason.trim(),
+      updated_at: now,
+    })
+    .eq("id", input.refundId)
+    .eq("organization_id", input.organizationId)
+    .eq("refund_status", "pending")
+    .eq("refund_type", "insurance")
+    .is("archived_at", null)
+    .select(
+      "id, amount, professional_claim_id, source_era_claim_payment_id, source_insurance_manual_payment_id, workqueue_item_id",
+    );
+  if (claimErr) {
+    result.errors.push({ field: "payment_refunds", message: claimErr.message });
+    return result;
+  }
+  const row = Array.isArray(claimed) ? (claimed[0] as Record<string, unknown> | undefined) : null;
+  if (!row) {
+    result.errors.push({
+      field: "refund_status",
+      message:
+        "Refund could not be cancelled — not found, already issued/cancelled, not an insurance refund, or wrong org.",
+    });
+    return result;
+  }
+
+  result.refundId = input.refundId;
+  result.refundStatus = "cancelled";
+
+  // Close the linked workqueue item so the AR team's queue doesn't keep
+  // showing "issue payer refund". Best-effort: a workqueue failure must
+  // NOT roll back the cancellation — the refund row is already settled.
+  const wqId = (row.workqueue_item_id as string | null) ?? null;
+  if (wqId) {
+    const { error: wqErr } = await supabase
+      .from("workqueue_items")
+      .update({
+        status: "cancelled",
+        resolved_at: now,
+        resolution_notes: `Pending refund cancelled: ${input.reason.trim()}`,
+        updated_at: now,
+      })
+      .eq("id", wqId)
+      .eq("organization_id", input.organizationId);
+    if (!wqErr) {
+      result.workqueueItemClosed = true;
+    } else {
+      console.warn("[reversal.cancelPendingRefund] workqueue close failed", wqErr.message);
+    }
+  }
+
+  const amount = round2(Number(row.amount ?? 0));
+  const claimId = (row.professional_claim_id as string | null) ?? null;
+  const audit = await writePaymentAuditLog(supabase, {
+    organizationId: input.organizationId,
+    actor: input.actor,
+    action: "refund_cancelled",
+    objectType: "payment_refund",
+    objectId: input.refundId,
+    claimId,
+    workqueueItemId: wqId,
+    beforeValue: { refund_status: "pending" },
+    afterValue: {
+      refund_status: "cancelled",
+      cancelled_at: now,
+      cancellation_reason: input.reason.trim(),
+      amount,
+    },
+    summary: `Pending insurance refund ${amount.toFixed(2)} cancelled: ${input.reason.trim()}`,
+  });
+  if (audit) result.auditLogIds.push(audit.id);
+
+  result.ok = true;
+  return result;
+}
+
 export function recordPatientRefund(
   input: RecordRefundInput,
   injectedSupabase?: SupabaseAdmin,

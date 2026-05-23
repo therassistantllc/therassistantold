@@ -16,6 +16,7 @@ import {
   recordInsuranceRefund,
   recordPatientRefund,
   confirmInsuranceRefund,
+  cancelPendingRefund,
   validateReversalRequest,
   validateRefundAmount,
 } from "../reversal";
@@ -634,6 +635,121 @@ describe("confirmInsuranceRefund (two-step issuance)", () => {
     assert.match(r.errors[0].message, /not found, already issued|already issued/i);
     // No ledger row posted.
     assert.equal(fake.tables.era_posting_ledger_entries.length, 0);
+  });
+});
+
+describe("cancelPendingRefund (Task #169)", () => {
+  it("flips pending→cancelled, archives the row, closes workqueue, writes audit", async () => {
+    const refundId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1";
+    const wqId = "wq-cancel-1";
+    const fake = makeFakeSupabase({
+      payment_refunds: [
+        {
+          id: refundId,
+          organization_id: ORG,
+          refund_type: "insurance",
+          amount: 80,
+          refund_status: "pending",
+          source_era_claim_payment_id: "era-cancel-1",
+          source_client_payment_id: null,
+          source_insurance_manual_payment_id: null,
+          professional_claim_id: "claim-cancel-1",
+          client_id: "c-1",
+          workqueue_item_id: wqId,
+          archived_at: null,
+        },
+      ],
+      workqueue_items: [
+        { id: wqId, organization_id: ORG, status: "open", resolved_at: null },
+      ],
+    });
+    const r = await cancelPendingRefund(
+      { organizationId: ORG, refundId, reason: "Opened in error", actor: ACTOR },
+      fake.client,
+    );
+    assert.equal(r.ok, true, r.errors.map((e) => e.message).join("; "));
+    assert.equal(r.refundStatus, "cancelled");
+    assert.equal(r.workqueueItemClosed, true);
+    const refundRow = fake.tables.payment_refunds[0] as Record<string, unknown>;
+    assert.equal(refundRow.refund_status, "cancelled");
+    assert.ok(refundRow.archived_at, "archived_at must be stamped");
+    assert.equal(refundRow.note, "Opened in error");
+    // No ledger entry was posted — cancellation is a metadata-only flip.
+    assert.equal(fake.tables.era_posting_ledger_entries.length, 0);
+    // Workqueue item closed.
+    const wq = fake.tables.workqueue_items[0] as Record<string, unknown>;
+    assert.equal(wq.status, "cancelled");
+    assert.ok(wq.resolved_at);
+    // Audit row written with refund_cancelled action.
+    assert.equal(fake.tables.audit_logs.length, 1);
+    assert.equal(
+      (fake.tables.audit_logs[0] as Record<string, unknown>).action,
+      "refund_cancelled",
+    );
+  });
+
+  it("requires a non-blank reason", async () => {
+    const fake = makeFakeSupabase({});
+    const r = await cancelPendingRefund(
+      { organizationId: ORG, refundId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1", reason: "  ", actor: ACTOR },
+      fake.client,
+    );
+    assert.equal(r.ok, false);
+    assert.equal(r.errors[0].field, "reason");
+  });
+
+  it("refuses to cancel an already-issued refund", async () => {
+    const refundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+    const fake = makeFakeSupabase({
+      payment_refunds: [
+        {
+          id: refundId,
+          organization_id: ORG,
+          refund_type: "insurance",
+          amount: 50,
+          refund_status: "issued",
+          source_era_claim_payment_id: "era-x",
+          professional_claim_id: "claim-x",
+          client_id: "c-1",
+          archived_at: null,
+        },
+      ],
+    });
+    const r = await cancelPendingRefund(
+      { organizationId: ORG, refundId, reason: "too late", actor: ACTOR },
+      fake.client,
+    );
+    assert.equal(r.ok, false);
+    assert.equal(r.errors[0].field, "refund_status");
+    // Row was NOT mutated.
+    const row = fake.tables.payment_refunds[0] as Record<string, unknown>;
+    assert.equal(row.refund_status, "issued");
+    assert.equal(row.archived_at, null);
+  });
+
+  it("refuses to cancel a patient refund", async () => {
+    const refundId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    const fake = makeFakeSupabase({
+      payment_refunds: [
+        {
+          id: refundId,
+          organization_id: ORG,
+          refund_type: "patient",
+          amount: 50,
+          refund_status: "pending",
+          source_client_payment_id: "cp-1",
+          client_id: "c-1",
+          archived_at: null,
+        },
+      ],
+    });
+    const r = await cancelPendingRefund(
+      { organizationId: ORG, refundId, reason: "nope", actor: ACTOR },
+      fake.client,
+    );
+    assert.equal(r.ok, false);
+    const row = fake.tables.payment_refunds[0] as Record<string, unknown>;
+    assert.equal(row.refund_status, "pending");
   });
 });
 
