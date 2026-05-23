@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
+import {
+  isValidStateCode,
+  isValidSexAtBirth,
+  isValidGenderIdentity,
+  isValidPreferredLanguage,
+} from "@/lib/demographics/options";
 
 function extractMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -90,6 +96,20 @@ function validate(updates: Record<string, string | null>): string | null {
   if (updates.postal_code && !/^[A-Za-z0-9 \-]{3,12}$/.test(updates.postal_code)) {
     return "Postal code is not valid.";
   }
+  if (updates.state) {
+    if (!isValidStateCode(updates.state)) {
+      return "State must be a valid US state code (e.g. CA, NY).";
+    }
+  }
+  if (updates.sex_at_birth && !isValidSexAtBirth(updates.sex_at_birth)) {
+    return "Sex at birth must be one of the allowed values.";
+  }
+  if (updates.gender_identity && !isValidGenderIdentity(updates.gender_identity)) {
+    return "Gender identity must be one of the allowed values (or other:<text>).";
+  }
+  if (updates.preferred_language && !isValidPreferredLanguage(updates.preferred_language)) {
+    return "Preferred language must be one of the allowed values (or other:<text>).";
+  }
   return null;
 }
 
@@ -131,8 +151,11 @@ export async function PATCH(
       [keyof IncomingUpdates, string]
     >) {
       if (!(key in incoming)) continue;
-      const normalized = normalizeString(incoming[key]);
+      let normalized = normalizeString(incoming[key]);
       if (normalized === undefined) continue;
+      if (column === "state" && typeof normalized === "string") {
+        normalized = normalized.toUpperCase();
+      }
       allowed[column] = normalized;
     }
 

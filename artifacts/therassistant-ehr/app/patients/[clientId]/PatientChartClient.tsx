@@ -3,7 +3,85 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import {
+  US_STATE_OPTIONS,
+  US_STATE_CODES,
+  SEX_AT_BIRTH_OPTIONS,
+  SEX_AT_BIRTH_VALUES,
+  GENDER_IDENTITY_OPTIONS,
+  GENDER_IDENTITY_VALUES,
+  GENDER_IDENTITY_FREE_TEXT_PREFIX,
+  PREFERRED_LANGUAGE_OPTIONS,
+  PREFERRED_LANGUAGE_VALUES,
+  PREFERRED_LANGUAGE_FREE_TEXT_PREFIX,
+} from "@/lib/demographics/options";
 import CasesPanel from "./CasesPanel";
+
+function splitPickerValue(
+  raw: string | null | undefined,
+  allowed: ReadonlySet<string>,
+  freeTextPrefix: string,
+): { choice: string; other: string } {
+  const value = (raw ?? "").trim();
+  if (!value) return { choice: "", other: "" };
+  if (allowed.has(value)) return { choice: value, other: "" };
+  if (value.startsWith(freeTextPrefix)) {
+    return { choice: "other", other: value.slice(freeTextPrefix.length).trim() };
+  }
+  return { choice: "other", other: value };
+}
+
+function combinePickerValue(choice: string, other: string, freeTextPrefix: string): string {
+  if (choice !== "other") return choice;
+  const trimmed = other.trim();
+  return trimmed ? `${freeTextPrefix}${trimmed}` : "";
+}
+
+function formatSexAtBirth(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  const match = SEX_AT_BIRTH_OPTIONS.find((o) => o.value === value);
+  return match ? match.label : value;
+}
+
+function formatGenderIdentity(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  if (value.startsWith(GENDER_IDENTITY_FREE_TEXT_PREFIX)) {
+    const rest = value.slice(GENDER_IDENTITY_FREE_TEXT_PREFIX.length).trim();
+    return rest || null;
+  }
+  const match = GENDER_IDENTITY_OPTIONS.find((o) => o.value === value);
+  return match ? match.label : value;
+}
+
+function formatPreferredLanguage(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  if (value.startsWith(PREFERRED_LANGUAGE_FREE_TEXT_PREFIX)) {
+    const rest = value.slice(PREFERRED_LANGUAGE_FREE_TEXT_PREFIX.length).trim();
+    return rest || null;
+  }
+  const match = PREFERRED_LANGUAGE_OPTIONS.find((o) => o.value === value);
+  return match ? match.label : value;
+}
+
+function formatStateForDisplay(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  const upper = value.toUpperCase();
+  if (US_STATE_CODES.has(upper)) return upper;
+  return value;
+}
+
+function normalizeStateInput(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  const upper = value.toUpperCase();
+  if (US_STATE_CODES.has(upper)) return upper;
+  const match = US_STATE_OPTIONS.find((s) => s.name.toLowerCase() === value.toLowerCase());
+  return match ? match.code : "";
+}
 
 type InsurancePolicySummary = {
   id: string;
@@ -266,6 +344,7 @@ export default function PatientChartClient({
   const [demoError, setDemoError] = useState<string | null>(null);
   const [demoMessage, setDemoMessage] = useState<string | null>(null);
   const [demoDraft, setDemoDraft] = useState<Record<string, string>>({});
+  const [demoOriginal, setDemoOriginal] = useState<Record<string, string>>({});
   const organizationId = useMemo(
     () => resolveOrganizationId(initialOrganizationId),
     [initialOrganizationId],
@@ -274,24 +353,48 @@ export default function PatientChartClient({
   function startDemoEdit() {
     if (!summary?.patient) return;
     const p = summary.patient;
-    setDemoDraft({
+    const rawSex = (p.sexAtBirth ?? "").trim();
+    const rawGender = (p.genderIdentity ?? "").trim();
+    const rawLang = (p.preferredLanguage ?? "").trim();
+    const rawState = (p.state ?? "").trim();
+    // Coerce legacy values so the dropdowns show something sensible and the
+    // drafted value will pass server-side validation if saved unchanged.
+    const sexAtBirth = SEX_AT_BIRTH_VALUES.has(rawSex) ? rawSex : "";
+    const genderIdentity = !rawGender
+      ? ""
+      : GENDER_IDENTITY_VALUES.has(rawGender)
+        ? rawGender
+        : rawGender.startsWith(GENDER_IDENTITY_FREE_TEXT_PREFIX)
+          ? rawGender
+          : `${GENDER_IDENTITY_FREE_TEXT_PREFIX}${rawGender}`;
+    const preferredLanguage = !rawLang
+      ? ""
+      : PREFERRED_LANGUAGE_VALUES.has(rawLang)
+        ? rawLang
+        : rawLang.startsWith(PREFERRED_LANGUAGE_FREE_TEXT_PREFIX)
+          ? rawLang
+          : `${PREFERRED_LANGUAGE_FREE_TEXT_PREFIX}${rawLang}`;
+    const state = rawState ? normalizeStateInput(rawState) : "";
+    const initial = {
       preferredName: p.preferredName ?? "",
       mrn: p.mrn ?? "",
       firstName: p.firstName ?? "",
       lastName: p.lastName ?? "",
       middleName: p.middleName ?? "",
       dateOfBirth: p.dateOfBirth ?? "",
-      sexAtBirth: p.sexAtBirth ?? "",
-      genderIdentity: p.genderIdentity ?? "",
+      sexAtBirth,
+      genderIdentity,
       addressLine1: p.addressLine1 ?? "",
       addressLine2: p.addressLine2 ?? "",
       city: p.city ?? "",
-      state: p.state ?? "",
+      state,
       postalCode: p.postalCode ?? "",
       phone: p.phone ?? "",
       email: p.email ?? "",
-      preferredLanguage: p.preferredLanguage ?? "",
-    });
+      preferredLanguage,
+    };
+    setDemoDraft(initial);
+    setDemoOriginal(initial);
     setDemoError(null);
     setDemoMessage(null);
     setDemoEditing(true);
@@ -301,6 +404,7 @@ export default function PatientChartClient({
     setDemoEditing(false);
     setDemoError(null);
     setDemoDraft({});
+    setDemoOriginal({});
   }
 
   function setDemoField(field: string, value: string) {
@@ -313,10 +417,27 @@ export default function PatientChartClient({
     setDemoError(null);
     setDemoMessage(null);
     try {
+      // Only send fields the user actually changed. This avoids re-submitting
+      // legacy values for constrained fields (state, sex_at_birth, etc.) that
+      // would otherwise be rejected by server validation, and prevents silently
+      // clearing a field the user never touched.
+      const changed: Record<string, string> = {};
+      for (const [field, value] of Object.entries(demoDraft)) {
+        if ((demoOriginal[field] ?? "") !== (value ?? "")) {
+          changed[field] = value;
+        }
+      }
+      if (Object.keys(changed).length === 0) {
+        setDemoMessage("No changes to save.");
+        setDemoEditing(false);
+        setDemoDraft({});
+        setDemoOriginal({});
+        return;
+      }
       const response = await fetch(`/api/patients/${clientId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: demoDraft }),
+        body: JSON.stringify({ updates: changed }),
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) {
@@ -332,6 +453,7 @@ export default function PatientChartClient({
       }
       setDemoEditing(false);
       setDemoDraft({});
+      setDemoOriginal({});
       setDemoMessage("Demographics saved.");
     } catch (err) {
       setDemoError(err instanceof Error ? err.message : "Failed to save demographics");
@@ -565,7 +687,7 @@ export default function PatientChartClient({
   const hasAnyTotalInput =
     copay !== null || deductibleRemaining !== null || previousBalance !== null;
   const cityStateZip = [
-    [patient.city, patient.state].filter(Boolean).join(", "),
+    [patient.city, formatStateForDisplay(patient.state)].filter(Boolean).join(", "),
     patient.postalCode ?? "",
   ]
     .filter(Boolean)
@@ -724,22 +846,58 @@ export default function PatientChartClient({
                 </div>
                 <div className="summary-field">
                   <label htmlFor="demo-sexAtBirth">Sex at birth</label>
-                  <input
+                  <select
                     id="demo-sexAtBirth"
-                    type="text"
-                    value={demoDraft.sexAtBirth ?? ""}
+                    value={SEX_AT_BIRTH_VALUES.has(demoDraft.sexAtBirth ?? "") ? demoDraft.sexAtBirth ?? "" : ""}
                     onChange={(e) => setDemoField("sexAtBirth", e.target.value)}
-                  />
+                  >
+                    <option value="">—</option>
+                    {SEX_AT_BIRTH_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="summary-field">
-                  <label htmlFor="demo-genderIdentity">Gender</label>
-                  <input
-                    id="demo-genderIdentity"
-                    type="text"
-                    value={demoDraft.genderIdentity ?? ""}
-                    onChange={(e) => setDemoField("genderIdentity", e.target.value)}
-                  />
-                </div>
+                {(() => {
+                  const split = splitPickerValue(
+                    demoDraft.genderIdentity,
+                    GENDER_IDENTITY_VALUES,
+                    GENDER_IDENTITY_FREE_TEXT_PREFIX,
+                  );
+                  return (
+                    <div className="summary-field">
+                      <label htmlFor="demo-genderIdentity">Gender</label>
+                      <select
+                        id="demo-genderIdentity"
+                        value={split.choice}
+                        onChange={(e) =>
+                          setDemoField(
+                            "genderIdentity",
+                            combinePickerValue(e.target.value, split.other, GENDER_IDENTITY_FREE_TEXT_PREFIX),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {GENDER_IDENTITY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      {split.choice === "other" ? (
+                        <input
+                          type="text"
+                          placeholder="Please specify"
+                          value={split.other}
+                          onChange={(e) =>
+                            setDemoField(
+                              "genderIdentity",
+                              combinePickerValue("other", e.target.value, GENDER_IDENTITY_FREE_TEXT_PREFIX),
+                            )
+                          }
+                          style={{ marginTop: 4 }}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })()}
                 <div className="summary-field summary-field-wide">
                   <label htmlFor="demo-addressLine1">Address line 1</label>
                   <input
@@ -769,12 +927,16 @@ export default function PatientChartClient({
                 </div>
                 <div className="summary-field">
                   <label htmlFor="demo-state">State</label>
-                  <input
+                  <select
                     id="demo-state"
-                    type="text"
-                    value={demoDraft.state ?? ""}
+                    value={US_STATE_CODES.has((demoDraft.state ?? "").toUpperCase()) ? (demoDraft.state ?? "").toUpperCase() : ""}
                     onChange={(e) => setDemoField("state", e.target.value)}
-                  />
+                  >
+                    <option value="">—</option>
+                    {US_STATE_OPTIONS.map((opt) => (
+                      <option key={opt.code} value={opt.code}>{opt.code} — {opt.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="summary-field">
                   <label htmlFor="demo-postalCode">Postal code</label>
@@ -803,15 +965,47 @@ export default function PatientChartClient({
                     onChange={(e) => setDemoField("email", e.target.value)}
                   />
                 </div>
-                <div className="summary-field">
-                  <label htmlFor="demo-preferredLanguage">Language</label>
-                  <input
-                    id="demo-preferredLanguage"
-                    type="text"
-                    value={demoDraft.preferredLanguage ?? ""}
-                    onChange={(e) => setDemoField("preferredLanguage", e.target.value)}
-                  />
-                </div>
+                {(() => {
+                  const split = splitPickerValue(
+                    demoDraft.preferredLanguage,
+                    PREFERRED_LANGUAGE_VALUES,
+                    PREFERRED_LANGUAGE_FREE_TEXT_PREFIX,
+                  );
+                  return (
+                    <div className="summary-field">
+                      <label htmlFor="demo-preferredLanguage">Language</label>
+                      <select
+                        id="demo-preferredLanguage"
+                        value={split.choice}
+                        onChange={(e) =>
+                          setDemoField(
+                            "preferredLanguage",
+                            combinePickerValue(e.target.value, split.other, PREFERRED_LANGUAGE_FREE_TEXT_PREFIX),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {PREFERRED_LANGUAGE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      {split.choice === "other" ? (
+                        <input
+                          type="text"
+                          placeholder="Please specify"
+                          value={split.other}
+                          onChange={(e) =>
+                            setDemoField(
+                              "preferredLanguage",
+                              combinePickerValue("other", e.target.value, PREFERRED_LANGUAGE_FREE_TEXT_PREFIX),
+                            )
+                          }
+                          style={{ marginTop: 4 }}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })()}
                 <div className="summary-field">
                   <label>Client ID</label>
                   <span>{patient.id}</span>
@@ -845,11 +1039,11 @@ export default function PatientChartClient({
                 </div>
                 <div className="summary-field">
                   <label>Sex at birth</label>
-                  <span>{dashIfNullish(patient.sexAtBirth)}</span>
+                  <span>{dashIfNullish(formatSexAtBirth(patient.sexAtBirth))}</span>
                 </div>
                 <div className="summary-field">
                   <label>Gender</label>
-                  <span>{dashIfNullish(patient.genderIdentity ?? patient.pronouns)}</span>
+                  <span>{dashIfNullish(formatGenderIdentity(patient.genderIdentity) ?? patient.pronouns)}</span>
                 </div>
                 <div className="summary-field summary-field-wide">
                   <label>Address</label>
@@ -865,7 +1059,7 @@ export default function PatientChartClient({
                 </div>
                 <div className="summary-field">
                   <label>Language</label>
-                  <span>{dashIfNullish(patient.preferredLanguage)}</span>
+                  <span>{dashIfNullish(formatPreferredLanguage(patient.preferredLanguage))}</span>
                 </div>
                 <div className="summary-field">
                   <label>Client ID</label>
