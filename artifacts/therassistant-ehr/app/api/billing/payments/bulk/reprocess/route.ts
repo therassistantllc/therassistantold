@@ -13,14 +13,20 @@
  *
  * Only era_claim_payments and insurance_manual_payments are eligible
  * (patient_payments don't have the underpayment/denial signal).
+ *
+ * The per-target loop lives in `lib/payments/bulkReprocess.ts` so it can
+ * be stress-tested end-to-end against a fake Supabase — see
+ * `lib/payments/__tests__/bulkReprocessStress.test.ts`.
  */
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAuthenticatedPaymentPoster } from "@/lib/payments/postingEngine";
-import { applyWorkqueueRules } from "@/lib/payments/postingEngine/workqueueRules";
 import { matchProfessionalClaim } from "@/lib/payments/era835IntakeService";
-import { writePaymentAuditLog } from "@/lib/payments/postingEngine/audit";
 import { parseTargets } from "../_shared";
+import {
+  reprocessBulkTargets,
+  type BulkReprocessTarget,
+} from "@/lib/payments/bulkReprocess";
 
 export const runtime = "nodejs";
 
@@ -53,173 +59,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
   }
 
-  const summary = {
-    reprocessed: 0,
-    itemsCreated: 0,
-    errors: [] as Array<{ id: string; message: string }>,
-  };
-
-  for (const t of targets) {
-    try {
-      if (t.kind === "era_835") {
-        const { data } = await supabase
-          .from("era_claim_payments")
-          .select(
-            "id, professional_claim_id, client_id, claim_match_status, clp01_claim_control_number, clp03_total_charge, clp04_payment_amount, cas_adjustments",
-          )
-          .eq("organization_id", organizationId)
-          .eq("id", t.id)
-          .is("archived_at", null)
-          .maybeSingle();
-        if (!data) continue;
-        const row = data as Record<string, unknown>;
-
-        // PP-1 intake step: if the row is unmatched, re-run the same
-        // claim matcher used by the live ERA intake path. If a match
-        // is now found (e.g. the claim was created after intake), write
-        // it back so downstream rules + the dashboard reflect reality.
-        let claimMatchStatus = (row.claim_match_status as string | null) ?? null;
-        let professionalClaimId = (row.professional_claim_id as string | null) ?? null;
-        let clientId = (row.client_id as string | null) ?? null;
-        if (claimMatchStatus !== "matched") {
-          const ccn = (row.clp01_claim_control_number as string | null) ?? null;
-          if (ccn) {
-            try {
-              const match = await matchProfessionalClaim(organizationId, ccn);
-              if (match) {
-                await supabase
-                  .from("era_claim_payments")
-                  .update({
-                    professional_claim_id: match.id,
-                    client_id: match.patient_id,
-                    claim_match_status: "matched",
-                    posting_status: "ready",
-                  })
-                  .eq("organization_id", organizationId)
-                  .eq("id", t.id);
-                claimMatchStatus = "matched";
-                professionalClaimId = match.id;
-                clientId = match.patient_id ?? clientId;
-              }
-            } catch {
-              // Match attempt is best-effort; fall through to rule re-eval.
-            }
-          }
-        }
-        const cas =
-          (row.cas_adjustments as Array<{
-            amount?: number;
-            groupCode?: string;
-            group_code?: string;
-          }> | null) ?? [];
-        const totalCharge = Number(row.clp03_total_charge ?? 0);
-        // Match the live commit path (sumContractualAdjustments in
-        // postingEngine/index.ts): only CO-group CAS rows count toward the
-        // contractual write-off used for the allowed-amount derivation.
-        // Otherwise underpayment outcomes drift between post and reprocess.
-        const adj = cas
-          .filter(
-            (c) =>
-              ((c.groupCode ?? c.group_code ?? "").toString().toUpperCase()) === "CO",
-          )
-          .reduce((s, c) => s + Number(c.amount ?? 0), 0);
-        // Resolve the claim's payer_profile_id so cob_issue +
-        // eligibility_issue rules can fire on ERA reprocess (rule engine
-        // gates those on a non-null postedPayerProfileId).
-        let postedPayerProfileId: string | null = null;
-        if (professionalClaimId) {
-          try {
-            const { data: claim } = await supabase
-              .from("professional_claims")
-              .select("payer_profile_id")
-              .eq("id", professionalClaimId)
-              .eq("organization_id", organizationId)
-              .maybeSingle();
-            postedPayerProfileId =
-              (claim as { payer_profile_id: string | null } | null)?.payer_profile_id ?? null;
-          } catch {
-            // best-effort.
-          }
-        }
-        const r = await applyWorkqueueRules(supabase, {
-          organizationId,
-          sourceObjectType: "era_claim_payment",
-          sourceObjectId: t.id,
-          professionalClaimId,
-          clientId,
-          insurancePaymentAmount: Number(row.clp04_payment_amount ?? 0),
-          allowedAmount: totalCharge > 0 ? totalCharge - adj : null,
-          totalChargeAmount: totalCharge,
-          casAdjustments: cas as never,
-          claimMatchStatus,
-          sourceKind: "era_835",
-          postedPayerProfileId,
-          actor,
-        });
-        summary.reprocessed++;
-        summary.itemsCreated += r.itemsCreated;
-        await writePaymentAuditLog(supabase, {
-          organizationId,
-          actor,
-          action: "payment_adjusted",
-          objectType: "era_claim_payment",
-          objectId: t.id,
-          claimId: professionalClaimId,
-          afterValue: {
-            claim_match_status: claimMatchStatus,
-            workqueue_items_created: r.itemsCreated,
-          },
-          summary: `Bulk reprocess (ERA): ${r.itemsCreated} workqueue item(s) emitted`,
-          metadata: { source: "bulk_reprocess" },
-        });
-      } else if (t.kind === "insurance_manual") {
-        const { data } = await supabase
-          .from("insurance_manual_payments")
-          .select(
-            "id, claim_id, client_id, paid_amount, allowed_amount, adjustment_amount, payer_profile_id",
-          )
-          .eq("organization_id", organizationId)
-          .eq("id", t.id)
-          .is("archived_at", null)
-          .maybeSingle();
-        if (!data) continue;
-        const row = data as Record<string, unknown>;
-        const allowed = Number(row.allowed_amount ?? 0);
-        const r = await applyWorkqueueRules(supabase, {
-          organizationId,
-          sourceObjectType: "insurance_manual_payment",
-          sourceObjectId: t.id,
-          professionalClaimId: (row.claim_id as string | null) ?? null,
-          clientId: (row.client_id as string | null) ?? null,
-          insurancePaymentAmount: Number(row.paid_amount ?? 0),
-          allowedAmount: allowed > 0 ? allowed : null,
-          totalChargeAmount: null,
-          casAdjustments: null,
-          sourceKind: "manual_insurance",
-          postedPayerProfileId: (row.payer_profile_id as string | null) ?? null,
-          actor,
-        });
-        summary.reprocessed++;
-        summary.itemsCreated += r.itemsCreated;
-        await writePaymentAuditLog(supabase, {
-          organizationId,
-          actor,
-          action: "payment_adjusted",
-          objectType: "insurance_manual_payment",
-          objectId: t.id,
-          claimId: (row.claim_id as string | null) ?? null,
-          afterValue: { workqueue_items_created: r.itemsCreated },
-          summary: `Bulk reprocess (manual): ${r.itemsCreated} workqueue item(s) emitted`,
-          metadata: { source: "bulk_reprocess" },
-        });
-      }
-    } catch (err) {
-      summary.errors.push({
-        id: `${t.kind}:${t.id}`,
-        message: err instanceof Error ? err.message : "reprocess failed",
-      });
-    }
-  }
+  const summary = await reprocessBulkTargets({
+    supabase,
+    organizationId,
+    actor,
+    targets: targets.map((t) => ({ kind: t.kind, id: t.id }) as BulkReprocessTarget),
+    deps: { matchClaim: matchProfessionalClaim },
+  });
 
   return NextResponse.json({ ok: summary.errors.length === 0, parseErrors, ...summary });
 }
