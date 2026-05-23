@@ -37,6 +37,11 @@ export interface Availity270Subscriber {
   memberId: string;
   dob: string;
   gender?: "M" | "F" | "U" | null;
+  /**
+   * Payer-issued Group #. When set, the generator emits a Loop 2100C
+   * `REF*1L*<group>~` (Group or Policy Number) per X12 005010X279A1.
+   */
+  groupNumber?: string | null;
 }
 
 export interface Eligibility270Input {

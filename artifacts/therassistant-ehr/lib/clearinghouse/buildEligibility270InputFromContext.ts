@@ -41,6 +41,12 @@ export interface BuilderPolicy {
   subscriber_id?: string | null;
   policy_number?: string | null;
   /**
+   * Payer-issued Group #. When present, the 270 generator emits a
+   * Loop 2100C `REF*1L*<group>~` (Group or Policy Number) so the
+   * payer can disambiguate the member's plan.
+   */
+  group_number?: string | null;
+  /**
    * If the subscriber differs from the patient, the caller is
    * responsible for passing the subscriber identity here. When omitted,
    * we assume self-coverage and project the patient identity into the
@@ -177,6 +183,7 @@ export function buildEligibility270InputFromContext(args: {
       memberId,
       dob: subscriberDob,
       gender: subscriberGender,
+      groupNumber: policy.group_number?.trim() || null,
     },
     serviceTypeCodes: serviceTypeCodes.length ? serviceTypeCodes : ["98"],
     serviceDate: serviceDate ?? null,

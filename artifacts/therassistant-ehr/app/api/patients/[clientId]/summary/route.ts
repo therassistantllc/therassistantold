@@ -61,7 +61,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
     const { data: policiesRaw } = await supabase
       .from("insurance_policies")
       .select(
-        "id, plan_name, policy_number, priority, active_flag, effective_date, termination_date, payer_id, copay_amount, insurance_payers(payer_name)",
+        "id, plan_name, policy_number, group_number, priority, active_flag, effective_date, termination_date, payer_id, copay_amount, insurance_payers(payer_name)",
       )
       .eq("organization_id", organizationId)
       .eq("client_id", clientId)
@@ -74,6 +74,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
         id: p.id,
         plan_name: p.plan_name,
         policy_number: p.policy_number,
+        group_number: p.group_number ?? null,
         priority: p.priority,
         active_flag: p.active_flag,
         effective_date: p.effective_date,
@@ -117,6 +118,25 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const balance = await getOpenBalance(organizationId, clientId);
 
+    // Sum unapplied client credits as "Credit on account". The
+    // client_credits table may not exist in older environments — treat
+    // any error as a zero balance so the Summary card never blows up.
+    let creditOnAccount: number | null = null;
+    {
+      const { data: credits, error: creditsErr } = await supabase
+        .from("client_credits")
+        .select("balance_amount")
+        .eq("organization_id", organizationId)
+        .eq("client_id", clientId)
+        .is("archived_at", null);
+      if (!creditsErr) {
+        creditOnAccount = (credits ?? []).reduce(
+          (sum: number, row: DbRow) => sum + Number(row.balance_amount ?? 0),
+          0,
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       organizationId,
@@ -146,6 +166,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
         latestEligibility: eligibility ?? null,
       },
       balance,
+      creditOnAccount,
       encounters: encounters ?? [],
       workqueueItems: workqueueItems ?? [],
     });

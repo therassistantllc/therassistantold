@@ -32,6 +32,7 @@ interface InsurancePolicy {
   plan_name?: string | null;
   subscriber_id?: string | null;
   policy_number?: string | null;
+  group_number?: string | null;
 }
 
 interface AppClaim {
@@ -196,6 +197,7 @@ export class ClearinghouseService {
         plan_name: policy.plan_name ?? null,
         subscriber_id: policy.subscriber_id ?? null,
         policy_number: policy.policy_number ?? null,
+        group_number: policy.group_number ?? null,
       },
       serviceTypeCodes: [input.serviceTypeCode ?? "98"],
     });

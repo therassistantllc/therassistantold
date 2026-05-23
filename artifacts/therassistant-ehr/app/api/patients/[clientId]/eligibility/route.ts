@@ -22,6 +22,7 @@ function policyDto(policy: DbRow) {
     id: asString(policy.id),
     planName: asString(policy.plan_name),
     policyNumber: asString(policy.policy_number),
+    groupNumber: asString(policy.group_number),
     priority: asString(policy.priority),
     active: Boolean(policy.active_flag),
     effectiveDate: asString(policy.effective_date),
@@ -126,7 +127,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { data: policies, error: policiesError } = await supabase
       .from("insurance_policies")
-      .select("id, plan_name, policy_number, priority, active_flag, effective_date, termination_date, payer_id, insurance_payers:payer_id(payer_name, clearinghouse_payer_id)")
+      .select("id, plan_name, policy_number, group_number, priority, active_flag, effective_date, termination_date, payer_id, insurance_payers:payer_id(payer_name, clearinghouse_payer_id)")
       .eq("organization_id", organizationId)
       .eq("client_id", clientId)
       .is("archived_at", null)

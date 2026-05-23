@@ -333,6 +333,14 @@ export function buildAvaility270(input: Eligibility270Input): Generated270Reques
   );
   stInternalCount += 1;
 
+  // 2100C REF*1L — Group or Policy Number (optional but required by
+  // many payers when the member's plan is identified by a Group #).
+  const groupNumber = sanitizeAlphanum(input.subscriber.groupNumber ?? "");
+  if (groupNumber) {
+    segments.push(buildSegment(["REF", "1L", groupNumber]));
+    stInternalCount += 1;
+  }
+
   // 2100C DMG — Subscriber demographics
   const gender = input.subscriber.gender ?? "U";
   segments.push(buildSegment(["DMG", "D8", normalizeDob(input.subscriber.dob), gender]));

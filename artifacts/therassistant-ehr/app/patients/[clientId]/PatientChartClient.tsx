@@ -9,6 +9,7 @@ type InsurancePolicySummary = {
   id: string;
   plan_name?: string | null;
   policy_number?: string | null;
+  group_number?: string | null;
   priority?: string | null;
   active_flag?: boolean | null;
   payer_name?: string | null;
@@ -91,6 +92,7 @@ type PatientSummary = {
     total: number;
     invoices: InvoiceSummary[];
   };
+  creditOnAccount?: number | null;
   encounters?: EncounterSummary[];
   workqueueItems?: WorkqueueSummary[];
 };
@@ -557,7 +559,7 @@ export default function PatientChartClient({
   const copay = eligibilityCopay ?? policyCopay;
   const deductibleRemaining = numOrNull(latestEligibility?.deductible_remaining);
   const previousBalance = numOrNull(summary?.balance?.total);
-  const creditOnAccount: number | null = null; // Not tracked yet — show em-dash.
+  const creditOnAccount = numOrNull(summary?.creditOnAccount);
   const totalDue =
     (copay ?? 0) + (deductibleRemaining ?? 0) + (previousBalance ?? 0) - (creditOnAccount ?? 0);
   const hasAnyTotalInput =
@@ -911,7 +913,7 @@ export default function PatientChartClient({
                         </td>
                         <td>{primary?.payerName ?? primary?.planName ?? dash}</td>
                         <td>{primary?.policyNumber ?? dash}</td>
-                        <td>{dash}</td>
+                        <td>{dashIfNullish(matchingPolicy?.group_number ?? null)}</td>
                         <td>{formatMoneyOrDash(matchingPolicy?.copay_amount ?? null)}</td>
                         <td>
                           <span className={c.activeFlag ? "status status-green" : "status status-yellow"}>
