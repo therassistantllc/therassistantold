@@ -119,6 +119,18 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
+function apptTypeLabel(
+  appt: { appointmentType: string | null; cptCode: string | null },
+): string | null {
+  const raw = (appt.appointmentType ?? "").trim();
+  if (!raw) return null;
+  // Legacy rows stashed the CPT code in appointment_type. Don't echo it
+  // back as the appointment type label.
+  if (/^9\d{4}$/.test(raw)) return null;
+  if (appt.cptCode && raw === appt.cptCode) return null;
+  return raw;
+}
+
 function chipClassFor(status: string): string {
   switch (status) {
     case "completed":
@@ -441,17 +453,37 @@ export default function MonthCalendarClient() {
                 className={`${styles.cell} ${inMonth ? "" : styles.cellOther} ${isToday ? styles.cellToday : ""}`}
               >
                 <span className={styles.dayNum}>{day.getDate()}</span>
-                {visible.map((appt) => (
-                  <div
-                    key={appt.id}
-                    className={`${styles.chip} ${chipClassFor(appt.status)}`}
-                    onClick={() => setSelectedId(appt.id)}
-                    title={`${fmtTime(appt.scheduledStartAt)} ${appt.clientName} — ${appt.providerName}`}
-                  >
-                    <strong>{fmtTime(appt.scheduledStartAt)}</strong>{" "}
-                    {appt.clientName}
-                  </div>
-                ))}
+                {visible.map((appt) => {
+                  const typeLabel = apptTypeLabel(appt);
+                  const cpt = appt.cptCode;
+                  const titleParts = [
+                    `${fmtTime(appt.scheduledStartAt)} ${appt.clientName}`,
+                    appt.providerName,
+                    typeLabel,
+                    cpt,
+                  ].filter(Boolean);
+                  return (
+                    <div
+                      key={appt.id}
+                      className={`${styles.chip} ${chipClassFor(appt.status)}`}
+                      onClick={() => setSelectedId(appt.id)}
+                      title={titleParts.join(" — ")}
+                    >
+                      <strong>{fmtTime(appt.scheduledStartAt)}</strong>{" "}
+                      {appt.clientName}
+                      {typeLabel || cpt ? (
+                        <div className={styles.chipMeta}>
+                          <span className={styles.chipMetaPrimary}>
+                            {typeLabel ?? "—"}
+                          </span>
+                          {cpt ? (
+                            <span className={styles.chipCpt}>{cpt}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
                 {overflow > 0 ? (
                   <div
                     className={styles.overflow}
@@ -537,35 +569,45 @@ export default function MonthCalendarClient() {
                     <div className={styles.sectionValue}>
                       {detail.appointment.providerName}
                     </div>
-                    {detail.appointment.appointmentType ? (
+                    {detail.appointment.serviceLocation ? (
                       <div className={styles.sectionMuted}>
-                        {detail.appointment.appointmentType}
-                        {detail.appointment.serviceLocation
-                          ? ` · ${detail.appointment.serviceLocation}`
-                          : ""}
+                        {detail.appointment.serviceLocation}
                       </div>
                     ) : null}
                   </div>
 
-                  <div className={styles.section}>
-                    <div className={styles.sectionLabel}>CPT code</div>
-                    <select
-                      className={styles.select}
-                      value={cptDraft}
-                      onChange={(e) => setCptDraft(e.target.value)}
-                    >
-                      {CPT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                      {cptFallback &&
-                      !CPT_OPTIONS.some((o) => o.value === cptFallback) ? (
-                        <option value={cptFallback}>
-                          {cptFallback} — existing
-                        </option>
-                      ) : null}
-                    </select>
+                  <div className={styles.row}>
+                    <div className={styles.section}>
+                      <div className={styles.sectionLabel}>Appointment type</div>
+                      {(() => {
+                        const typeLabel = apptTypeLabel(detail.appointment);
+                        return (
+                          <div className={styles.sectionValue}>
+                            {typeLabel ?? "—"}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className={styles.section}>
+                      <div className={styles.sectionLabel}>CPT code</div>
+                      <select
+                        className={styles.select}
+                        value={cptDraft}
+                        onChange={(e) => setCptDraft(e.target.value)}
+                      >
+                        {CPT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                        {cptFallback &&
+                        !CPT_OPTIONS.some((o) => o.value === cptFallback) ? (
+                          <option value={cptFallback}>
+                            {cptFallback} — existing
+                          </option>
+                        ) : null}
+                      </select>
+                    </div>
                   </div>
 
                   <div className={styles.section}>

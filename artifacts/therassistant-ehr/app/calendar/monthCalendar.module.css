@@ -128,6 +128,34 @@
 }
 .chip:hover { background: #dde6ff; }
 .chip strong { font-weight: 600; }
+.chipMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #5a6677;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chipMetaPrimary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chipCpt {
+  display: inline-block;
+  background: rgba(44, 108, 246, 0.12);
+  color: #1a3fa0;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
 
 .chipCompleted { background: #e6f5ec; border-left-color: #28a745; }
 .chipCancelled { background: #f0f1f3; border-left-color: #98a0ad; color: #5a6677; text-decoration: line-through; }
