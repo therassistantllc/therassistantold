@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import EntityPicker, { type EntityResult, type EntityType } from "./EntityPicker";
 
 type MailroomItem = {
   id: string;
@@ -21,6 +22,14 @@ type MailroomItem = {
 
 type DetailResponse = { success?: boolean; item?: MailroomItem; error?: string };
 
+type FilingDestination = "patient_chart" | "claim" | "encounter" | "practice_documents";
+
+const DESTINATION_TO_ENTITY: Record<Exclude<FilingDestination, "practice_documents">, EntityType> = {
+  patient_chart: "patient",
+  claim: "claim",
+  encounter: "encounter",
+};
+
 function getOrganizationId() {
   if (typeof window === "undefined") return process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
   return new URLSearchParams(window.location.search).get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
@@ -36,13 +45,16 @@ function formatDate(value: string) {
 export default function MailroomItemClient({ itemId }: { itemId: string }) {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [item, setItem] = useState<MailroomItem | null>(null);
-  const [filingDestination, setFilingDestination] = useState("patient_chart");
-  const [targetId, setTargetId] = useState("");
+  const [filingDestination, setFilingDestination] = useState<FilingDestination>("patient_chart");
+  const [selectedEntity, setSelectedEntity] = useState<EntityResult | null>(null);
   const [adminComments, setAdminComments] = useState("");
   const [loading, setLoading] = useState(true);
   const [filing, setFiling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const requiresTarget = filingDestination !== "practice_documents";
+  const entityType: EntityType | null = requiresTarget ? DESTINATION_TO_ENTITY[filingDestination] : null;
 
   async function loadItem() {
     setLoading(true);
@@ -53,7 +65,6 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
       setError(json.error || "Unable to load mailroom item.");
     } else {
       setItem(json.item);
-      setTargetId(json.item.clientId || "");
       setAdminComments(json.item.adminComments || "");
     }
     setLoading(false);
@@ -69,6 +80,12 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, itemId]);
 
+  // Clear the picked entity whenever the user switches filing destination —
+  // a claim ID is not interchangeable with a patient or encounter ID.
+  useEffect(() => {
+    setSelectedEntity(null);
+  }, [filingDestination]);
+
   async function fileDocument() {
     setFiling(true);
     setError(null);
@@ -81,7 +98,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
         organization_id: organizationId,
         mailroom_item_id: itemId,
         filing_destination: filingDestination,
-        target_id: targetId || null,
+        target_id: selectedEntity?.id ?? null,
         admin_comments: adminComments,
       }),
     });
@@ -91,10 +108,13 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
       setError(json.error || "Unable to file document.");
     } else {
       setMessage(json.message || "Document filed successfully.");
+      setSelectedEntity(null);
       await loadItem();
     }
     setFiling(false);
   }
+
+  const canFile = !filing && item?.status !== "filed" && (!requiresTarget || !!selectedEntity);
 
   return (
     <main className="app-shell">
@@ -135,7 +155,7 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
             </div>
             <div className="section-actions">
               {item.clientId ? <Link className="button button-secondary" href={`/clients/${item.clientId}`}>Open Client Chart</Link> : null}
-              {filingDestination === "encounter" && targetId ? <Link className="button button-secondary" href={`/encounters/${targetId}`}>Open Encounter</Link> : null}
+              {filingDestination === "encounter" && selectedEntity ? <Link className="button button-secondary" href={`/encounters/${selectedEntity.id}`}>Open Encounter</Link> : null}
             </div>
           </div>
 
@@ -143,24 +163,42 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
             <h2>File document</h2>
             <label className="field-label">
               Filing destination
-              <select value={filingDestination} onChange={(event) => setFilingDestination(event.target.value)}>
+              <select
+                value={filingDestination}
+                onChange={(event) => setFilingDestination(event.target.value as FilingDestination)}
+              >
                 <option value="patient_chart">Patient chart</option>
                 <option value="claim">Claim</option>
                 <option value="encounter">Encounter</option>
                 <option value="practice_documents">Practice-level documents</option>
               </select>
             </label>
-            <label className="field-label">
-              Target ID
-              <input value={targetId} onChange={(event) => setTargetId(event.target.value)} placeholder="Client, claim, or encounter UUID; leave blank for practice documents" />
-            </label>
+            {requiresTarget && entityType ? (
+              <div className="field-label">
+                <span>
+                  {entityType === "patient" ? "Patient" : entityType === "claim" ? "Claim" : "Encounter"}
+                </span>
+                <EntityPicker
+                  entityType={entityType}
+                  organizationId={organizationId}
+                  value={selectedEntity}
+                  onChange={setSelectedEntity}
+                  disabled={filing}
+                />
+              </div>
+            ) : (
+              <p className="muted-text">No target needed — this document will be filed at the practice level.</p>
+            )}
             <label className="field-label">
               Filing notes
               <textarea value={adminComments} onChange={(event) => setAdminComments(event.target.value)} placeholder="Add filing notes or payer correspondence summary..." />
             </label>
-            <button className="button" type="button" onClick={fileDocument} disabled={filing || item.status === "filed"}>
+            <button className="button" type="button" onClick={fileDocument} disabled={!canFile}>
               {filing ? "Filing…" : item.status === "filed" ? "Already Filed" : "File Document"}
             </button>
+            {requiresTarget && !selectedEntity ? (
+              <p className="muted-text">Search and select a {entityType} before filing.</p>
+            ) : null}
           </div>
         </section>
       ) : null}
