@@ -36,6 +36,19 @@ export * from "./types";
 export * from "./roleGuard";
 export { validateEra835Posting, isAlreadyPosted, POSTING_BALANCE_TOLERANCE } from "./validation";
 export { writePaymentAuditLog } from "./audit";
+export {
+  commitManualInsurancePosting,
+  validateManualInsurancePosting,
+} from "./manualInsurance";
+export {
+  commitPatientPayment,
+  validatePatientPayment,
+  applyClientCredit,
+  type CommitPatientPaymentInput,
+  type ApplyClientCreditInput,
+  type PatientPaymentApplyTo,
+  type PatientPaymentMethod,
+} from "./patientPayment";
 
 /** Default actor used when an internal service caller doesn't supply one. */
 const SYSTEM_ACTOR: PostingActor = {
@@ -77,16 +90,37 @@ function emptyResult(): CommitPostingResult {
 export async function commitPosting(
   input: CommitPostingInput,
 ): Promise<CommitPostingResult> {
-  if (input.source.type !== "era_835") {
-    const result = emptyResult();
-    result.errors.push({
-      field: "source.type",
-      message: `Posting source "${input.source.type}" is not implemented in Foundation phase. See Tasks #109 / #110.`,
-    });
-    return result;
+  const actor = input.actor ?? SYSTEM_ACTOR;
+  if (input.source.type === "era_835") {
+    return commitEra835Posting(input, input.source.eraClaimPaymentId);
   }
-
-  return commitEra835Posting(input, input.source.eraClaimPaymentId);
+  if (input.source.type === "manual_insurance") {
+    const { commitManualInsurancePosting } = await import("./manualInsurance");
+    return commitManualInsurancePosting(input.organizationId, input.source, actor, input.dryRun);
+  }
+  if (input.source.type === "patient_payment") {
+    const { commitPatientPayment } = await import("./patientPayment");
+    const r = await commitPatientPayment({
+      organizationId: input.organizationId,
+      clientId: input.source.clientId,
+      amount: input.source.amount,
+      method: input.source.method as never,
+      applyTo: input.source.patientInvoiceId
+        ? { kind: "invoice", patientInvoiceId: input.source.patientInvoiceId }
+        : { kind: "none" },
+      referenceNumber: input.source.reference ?? null,
+      paymentDate: input.source.paymentDate,
+      actor,
+      dryRun: input.dryRun,
+    });
+    return r;
+  }
+  const result = emptyResult();
+  result.errors.push({
+    field: "source.type",
+    message: `Posting source "${input.source.type}" is not implemented yet. See Task #110.`,
+  });
+  return result;
 }
 
 async function commitEra835Posting(
@@ -301,6 +335,8 @@ async function createLedgerEntry(
   const { error } = await supabase.from("era_posting_ledger_entries").insert({
     organization_id: organizationId,
     era_claim_payment_id: payment.id,
+    source_type: "era_835",
+    source_id: payment.id,
     professional_claim_id: payment.professional_claim_id,
     client_id: payment.client_id,
     entry_type: effect.entryType,

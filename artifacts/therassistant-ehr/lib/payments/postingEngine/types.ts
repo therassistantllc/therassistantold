@@ -46,7 +46,6 @@ export type PostingSource =
     }
   | {
       type: "manual_insurance";
-      /** TODO: shape filled in by Task #109. */
       professionalClaimId: string;
       payerPaymentAmount: number;
       patientResponsibilityAmount: number;
@@ -54,14 +53,28 @@ export type PostingSource =
       checkOrEftNumber: string | null;
       paymentDate: string;
       clientId: string | null;
+      totalChargeAmount?: number | null;
+      eobReference?: string | null;
+      mailroomItemId?: string | null;
+      payerProfileId?: string | null;
+      note?: string | null;
     }
   | {
       type: "patient_payment";
-      /** TODO: shape filled in by Task #109. */
       clientId: string;
       patientInvoiceId: string | null;
       amount: number;
-      method: "cash" | "check" | "card" | "ach" | "other";
+      method:
+        | "cash"
+        | "check"
+        | "credit_card"
+        | "debit_card"
+        | "stripe"
+        | "external_card"
+        | "refund"
+        | "unapplied_credit"
+        | "transferred_balance"
+        | "other";
       reference: string | null;
       paymentDate: string;
     }
