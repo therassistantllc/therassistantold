@@ -146,7 +146,8 @@ export type FindOrCreateNoteResult =
 
 export type NoteDefaults = {
   subjective?: string;
-  interventions?: string;
+  objective?: string;
+  assessment?: string;
   plan?: string;
 };
 
@@ -186,7 +187,8 @@ export async function findOrCreateNote(
       provider_id: providerId,
       note_status: "draft",
       subjective: defaults.subjective ?? "",
-      interventions: defaults.interventions ?? "",
+      objective: defaults.objective ?? "",
+      assessment: defaults.assessment ?? "",
       plan: defaults.plan ?? "",
       signed_at: null,
       signed_by_user_id: null,

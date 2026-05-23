@@ -3783,7 +3783,6 @@ export type Database = {
           created_at: string
           encounter_id: string
           id: string
-          interventions: string | null
           note_status: string
           objective: string | null
           organization_id: string
@@ -3803,7 +3802,6 @@ export type Database = {
           created_at?: string
           encounter_id: string
           id?: string
-          interventions?: string | null
           note_status?: string
           objective?: string | null
           organization_id: string
@@ -3823,7 +3821,6 @@ export type Database = {
           created_at?: string
           encounter_id?: string
           id?: string
-          interventions?: string | null
           note_status?: string
           objective?: string | null
           organization_id?: string

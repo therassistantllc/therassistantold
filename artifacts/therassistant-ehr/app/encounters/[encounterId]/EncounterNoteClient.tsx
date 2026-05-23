@@ -16,10 +16,7 @@ type EncounterSummary = {
   encounter?: { id: string; encounter_status?: string | null; service_date?: string | null; started_at?: string | null; ended_at?: string | null };
   appointment?: { appointment_type?: string | null; scheduled_start_at?: string | null; scheduled_end_at?: string | null; service_location?: string | null; telehealth_url?: string | null } | null;
   diagnoses?: Array<{ id: string; diagnosis_code?: string | null; diagnosis_description?: string | null; is_primary?: boolean | null }>;
-  // The DB column for the middle SOAP slot is `interventions` — the editor
-  // surfaces it under the "Objective" label, so we translate at the client
-  // boundary: load interventions -> objective, save objective -> interventions.
-  clinicalNote?: { id: string; note_status?: string | null; subjective?: string | null; interventions?: string | null; objective?: string | null; assessment?: string | null; plan?: string | null; signed_at?: string | null } | null;
+  clinicalNote?: { id: string; note_status?: string | null; subjective?: string | null; objective?: string | null; assessment?: string | null; plan?: string | null; signed_at?: string | null } | null;
   serviceLines?: Array<{ id: string; cpt_hcpcs_code?: string | null; service_date?: string | null; units?: number | null; charge_amount?: number | null; modifier_1?: string | null; modifier_2?: string | null; modifier_3?: string | null; modifier_4?: string | null; place_of_service_code?: string | null }>;
 };
 
@@ -55,7 +52,8 @@ type NoteTemplate = {
   service_type: string | null;
   cpt_code: string | null;
   default_subjective: string;
-  default_interventions: string;
+  default_objective: string;
+  default_assessment: string;
   default_plan: string;
   is_default: boolean;
   provider_id: string | null;
@@ -126,9 +124,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
       setSummary(json);
       setSoapNote({
         subjective: json.clinicalNote?.subjective ?? "",
-        // DB column is `interventions`; surface it under the "Objective" slot
-        // until the editor labels are aligned with the schema.
-        objective: json.clinicalNote?.interventions ?? json.clinicalNote?.objective ?? "",
+        objective: json.clinicalNote?.objective ?? "",
         assessment: json.clinicalNote?.assessment ?? "",
         plan: json.clinicalNote?.plan ?? "",
       });
@@ -223,7 +219,8 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
     const filled: string[] = [];
     const slots: Array<{ key: keyof SoapNoteData; label: string; content: string }> = [
       { key: "subjective", label: "Subjective", content: template.default_subjective ?? "" },
-      { key: "objective", label: "Interventions", content: template.default_interventions ?? "" },
+      { key: "objective", label: "Objective", content: template.default_objective ?? "" },
+      { key: "assessment", label: "Assessment", content: template.default_assessment ?? "" },
       { key: "plan", label: "Plan", content: template.default_plan ?? "" },
     ];
     for (const slot of slots) {
@@ -309,7 +306,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           organizationId,
           action: "save",
           subjective: soapNote.subjective || "",
-          interventions: soapNote.objective || "",
+          objective: soapNote.objective || "",
           assessment: soapNote.assessment || "",
           plan: soapNote.plan || "",
         }),
@@ -337,7 +334,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           organizationId,
           action: "sign",
           subjective: soapNote.subjective || "",
-          interventions: soapNote.objective || "",
+          objective: soapNote.objective || "",
           assessment: soapNote.assessment || "",
           plan: soapNote.plan || "",
           userId: null,

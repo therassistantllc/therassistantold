@@ -15,6 +15,10 @@
 --     created org automatically gets the starter set.
 --   - Backfills any existing organization that currently has zero active
 --     note templates.
+--
+-- Schema note: this migration runs after 20260530010000_clinical_notes_soap_alignment.sql,
+-- which renamed default_interventions -> default_objective and added
+-- default_assessment, so we seed all four SOAP sections directly.
 
 create or replace function public.seed_default_note_templates(org_id uuid)
 returns void
@@ -40,16 +44,17 @@ begin
   -- nothing else is already flagged default for this org.
   insert into public.note_templates (
     organization_id, name, service_type, cpt_code,
-    default_subjective, default_interventions, default_plan, is_default
+    default_subjective, default_objective, default_assessment, default_plan, is_default
   )
   select
     org_id,
     'Intake / Diagnostic Evaluation',
     'Intake',
     '90791',
-    E'Chief complaint / reason for referral:\n\nHistory of presenting problem (onset, course, severity, triggers):\n\nRelevant psychiatric, medical, family, social, and developmental history:\n\nCurrent medications and substance use:\n\nMental status exam (appearance, mood/affect, thought process, cognition, risk):\n',
-    E'Clinical interview and biopsychosocial assessment completed. Reviewed presenting concerns, gathered history, and discussed treatment options and expectations. Provided psychoeducation on diagnosis and treatment approach. Established initial therapeutic rapport.\n',
-    E'Diagnosis / impression:\n\nRecommended treatment modality and frequency:\n\nInitial goals:\n\nReferrals / collateral contacts:\n\nNext appointment:\n',
+    E'Chief complaint / reason for referral:\n\nHistory of presenting problem (onset, course, severity, triggers):\n\nRelevant psychiatric, medical, family, social, and developmental history:\n\nCurrent medications and substance use:\n',
+    E'Mental status exam (appearance, behavior, mood/affect, thought process, cognition, insight/judgment):\n\nRisk screen (SI/HI/self-harm): denies\n\nClinical interview and biopsychosocial assessment completed. Reviewed presenting concerns and gathered history.\n',
+    E'Diagnosis / impression:\n\nClinical formulation (predisposing, precipitating, perpetuating, protective factors):\n\nMedical necessity for proposed treatment:\n',
+    E'Recommended treatment modality and frequency:\n\nInitial goals:\n\nReferrals / collateral contacts:\n\nNext appointment:\n',
     not has_default
   where not exists (
     select 1 from public.note_templates t
@@ -59,7 +64,7 @@ begin
   -- Individual psychotherapy, 45 minutes (90834).
   insert into public.note_templates (
     organization_id, name, service_type, cpt_code,
-    default_subjective, default_interventions, default_plan, is_default
+    default_subjective, default_objective, default_assessment, default_plan, is_default
   )
   select
     org_id,
@@ -67,7 +72,8 @@ begin
     'Individual',
     '90834',
     E'Client report since last session (mood, sleep, appetite, stressors, wins):\n\nProgress on between-session work / homework:\n\nCurrent symptoms and severity:\n\nRisk assessment (SI/HI/self-harm): denies\n',
-    E'Therapeutic modality: \n\nInterventions used this session (e.g., cognitive restructuring, behavioral activation, exposure, mindfulness, motivational interviewing):\n\nClient response to interventions:\n',
+    E'Therapeutic modality: \n\nInterventions used this session (e.g., cognitive restructuring, behavioral activation, exposure, mindfulness, motivational interviewing):\n\nClient response to interventions (engagement, affect, skills practiced in-session):\n',
+    E'Progress toward treatment goals:\n\nDiagnosis / clinical impression today:\n\nMedical necessity for continued treatment:\n',
     E'Treatment goals addressed:\n\nBetween-session work / homework assigned:\n\nNext session focus:\n\nNext appointment:\n',
     false
   where not exists (
@@ -78,7 +84,7 @@ begin
   -- Individual psychotherapy, 60 minutes (90837).
   insert into public.note_templates (
     organization_id, name, service_type, cpt_code,
-    default_subjective, default_interventions, default_plan, is_default
+    default_subjective, default_objective, default_assessment, default_plan, is_default
   )
   select
     org_id,
@@ -86,7 +92,8 @@ begin
     'Individual',
     '90837',
     E'Client report since last session (mood, sleep, appetite, stressors, wins):\n\nProgress on between-session work / homework:\n\nCurrent symptoms and severity (justification for extended session):\n\nRisk assessment (SI/HI/self-harm): denies\n',
-    E'Therapeutic modality: \n\nInterventions used this session (e.g., trauma processing, prolonged exposure, EMDR, in-depth cognitive restructuring):\n\nMedical necessity for 60-minute session:\n\nClient response to interventions:\n',
+    E'Therapeutic modality: \n\nInterventions used this session (e.g., trauma processing, prolonged exposure, EMDR, in-depth cognitive restructuring):\n\nClient response to interventions (engagement, affect, in-session skills practice):\n',
+    E'Progress toward treatment goals:\n\nDiagnosis / clinical impression today:\n\nMedical necessity for 60-minute session:\n',
     E'Treatment goals addressed:\n\nBetween-session work / homework assigned:\n\nNext session focus:\n\nNext appointment:\n',
     false
   where not exists (
@@ -97,7 +104,7 @@ begin
   -- Family psychotherapy with patient present (90847).
   insert into public.note_templates (
     organization_id, name, service_type, cpt_code,
-    default_subjective, default_interventions, default_plan, is_default
+    default_subjective, default_objective, default_assessment, default_plan, is_default
   )
   select
     org_id,
@@ -106,6 +113,7 @@ begin
     '90847',
     E'Family members present:\n\nIdentified patient and family report since last session:\n\nCurrent family stressors, conflicts, and dynamics observed:\n\nProgress on prior between-session work:\n\nRisk assessment (SI/HI/safety concerns): denies\n',
     E'Therapeutic modality (e.g., structural family therapy, emotionally focused therapy, Bowenian):\n\nInterventions (e.g., communication coaching, boundary setting, reframing, enactments):\n\nFamily response to interventions:\n',
+    E'Progress toward family treatment goals:\n\nClinical impression of family functioning today:\n\nMedical necessity for continued family work:\n',
     E'Treatment goals addressed:\n\nBetween-session assignments for family:\n\nNext session focus / who will attend:\n\nNext appointment:\n',
     false
   where not exists (
@@ -116,7 +124,7 @@ begin
   -- Group psychotherapy (90853).
   insert into public.note_templates (
     organization_id, name, service_type, cpt_code,
-    default_subjective, default_interventions, default_plan, is_default
+    default_subjective, default_objective, default_assessment, default_plan, is_default
   )
   select
     org_id,
@@ -125,6 +133,7 @@ begin
     '90853',
     E'Group topic / theme:\n\nClient''s participation level and presentation in group:\n\nIssues raised by client this session:\n\nClient''s interactions with other group members:\n\nRisk assessment (SI/HI/self-harm): denies\n',
     E'Group modality and structure (e.g., CBT skills group, process group, DBT skills):\n\nFacilitator interventions directed at this client:\n\nClient response and skills practiced:\n',
+    E'Progress toward this client''s treatment goals in the group context:\n\nClinical impression today:\n\nMedical necessity for continued group participation:\n',
     E'Treatment goals addressed:\n\nBetween-session skill practice assigned:\n\nNext group focus:\n\nNext appointment:\n',
     false
   where not exists (

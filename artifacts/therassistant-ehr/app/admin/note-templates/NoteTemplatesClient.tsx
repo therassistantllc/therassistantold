@@ -11,7 +11,8 @@ type NoteTemplate = {
   service_type: string | null;
   cpt_code: string | null;
   default_subjective: string;
-  default_interventions: string;
+  default_objective: string;
+  default_assessment: string;
   default_plan: string;
   is_default: boolean;
   created_at?: string;
@@ -23,7 +24,8 @@ type DraftTemplate = {
   service_type: string;
   cpt_code: string;
   default_subjective: string;
-  default_interventions: string;
+  default_objective: string;
+  default_assessment: string;
   default_plan: string;
   is_default: boolean;
 };
@@ -33,7 +35,8 @@ const EMPTY_DRAFT: DraftTemplate = {
   service_type: "",
   cpt_code: "",
   default_subjective: "",
-  default_interventions: "",
+  default_objective: "",
+  default_assessment: "",
   default_plan: "",
   is_default: false,
 };
@@ -89,7 +92,8 @@ export default function NoteTemplatesClient() {
       service_type: template.service_type ?? "",
       cpt_code: template.cpt_code ?? "",
       default_subjective: template.default_subjective ?? "",
-      default_interventions: template.default_interventions ?? "",
+      default_objective: template.default_objective ?? "",
+      default_assessment: template.default_assessment ?? "",
       default_plan: template.default_plan ?? "",
       is_default: template.is_default,
     });
@@ -158,7 +162,7 @@ export default function NoteTemplatesClient() {
           <h1>Note Templates</h1>
           <p className="hero-copy">
             Per-organization note scaffolding. When a clinician checks in an appointment, the matching template
-            pre-populates the draft note&apos;s subjective, interventions, and plan.
+            pre-populates the draft note&apos;s subjective, objective, assessment, and plan sections.
           </p>
         </div>
         <div className="hero-actions">
@@ -223,12 +227,22 @@ export default function NoteTemplatesClient() {
           </label>
 
           <label>
-            <span><strong>Default interventions</strong></span>
+            <span><strong>Default objective</strong></span>
             <textarea
-              value={draft.default_interventions}
-              onChange={(e) => setDraft({ ...draft, default_interventions: e.target.value })}
+              value={draft.default_objective}
+              onChange={(e) => setDraft({ ...draft, default_objective: e.target.value })}
               rows={6}
-              placeholder="Techniques used, clinical observations…"
+              placeholder="Observations, mental status, vital signs, exam findings…"
+            />
+          </label>
+
+          <label>
+            <span><strong>Default assessment</strong></span>
+            <textarea
+              value={draft.default_assessment}
+              onChange={(e) => setDraft({ ...draft, default_assessment: e.target.value })}
+              rows={6}
+              placeholder="Clinical assessment, diagnosis, impression…"
             />
           </label>
 

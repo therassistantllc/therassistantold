@@ -73,7 +73,7 @@ export async function GET(request: Request, context: { params: Promise<{ encount
 
     const { data: clinicalNote } = await supabase
       .from("encounter_clinical_notes")
-      .select("id, note_status, subjective, interventions, plan, signed_at, signed_by_user_id, updated_at")
+      .select("id, note_status, subjective, objective, assessment, plan, signed_at, signed_by_user_id, updated_at")
       .eq("organization_id", organizationId)
       .eq("encounter_id", encounterId)
       .is("archived_at", null)

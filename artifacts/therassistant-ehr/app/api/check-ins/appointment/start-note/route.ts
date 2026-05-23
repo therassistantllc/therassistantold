@@ -21,11 +21,12 @@ const ADVANCEABLE_STATUSES = new Set(["scheduled"]);
 
 type TemplateDefaults = {
   subjective: string;
-  interventions: string;
+  objective: string;
+  assessment: string;
   plan: string;
 };
 
-const EMPTY_TEMPLATE: TemplateDefaults = { subjective: "", interventions: "", plan: "" };
+const EMPTY_TEMPLATE: TemplateDefaults = { subjective: "", objective: "", assessment: "", plan: "" };
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseAdminClient>;
 
@@ -39,7 +40,7 @@ async function pickTemplateDefaults(
   // so we never want them to silently win the auto-fill at check-in time.
   const { data, error } = await supabase
     .from("note_templates")
-    .select("service_type, cpt_code, is_default, default_subjective, default_interventions, default_plan")
+    .select("service_type, cpt_code, is_default, default_subjective, default_objective, default_assessment, default_plan")
     .eq("organization_id", organizationId)
     .is("provider_id", null)
     .is("archived_at", null);
@@ -53,7 +54,8 @@ async function pickTemplateDefaults(
     cpt_code: string | null;
     is_default: boolean | null;
     default_subjective: string | null;
-    default_interventions: string | null;
+    default_objective: string | null;
+    default_assessment: string | null;
     default_plan: string | null;
   };
 
@@ -72,7 +74,8 @@ async function pickTemplateDefaults(
 
   return {
     subjective: match.default_subjective ?? "",
-    interventions: match.default_interventions ?? "",
+    objective: match.default_objective ?? "",
+    assessment: match.default_assessment ?? "",
     plan: match.default_plan ?? "",
   };
 }

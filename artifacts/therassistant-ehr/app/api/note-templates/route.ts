@@ -4,7 +4,7 @@ import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 
 const SELECT =
-  "id, organization_id, provider_id, name, service_type, cpt_code, default_subjective, default_interventions, default_plan, is_default, created_at, updated_at";
+  "id, organization_id, provider_id, name, service_type, cpt_code, default_subjective, default_objective, default_assessment, default_plan, is_default, created_at, updated_at";
 
 type Ctx = {
   organizationId: string;
@@ -165,7 +165,8 @@ export async function POST(request: NextRequest) {
         service_type: optionalString(body.service_type),
         cpt_code: optionalString(body.cpt_code),
         default_subjective: cleanString(body.default_subjective),
-        default_interventions: cleanString(body.default_interventions),
+        default_objective: cleanString(body.default_objective),
+        default_assessment: cleanString(body.default_assessment),
         default_plan: cleanString(body.default_plan),
         is_default: isDefault,
         created_at: now,
@@ -230,7 +231,8 @@ export async function PATCH(request: NextRequest) {
     if ("service_type" in body) updates.service_type = optionalString(body.service_type);
     if ("cpt_code" in body) updates.cpt_code = optionalString(body.cpt_code);
     if ("default_subjective" in body) updates.default_subjective = cleanString(body.default_subjective);
-    if ("default_interventions" in body) updates.default_interventions = cleanString(body.default_interventions);
+    if ("default_objective" in body) updates.default_objective = cleanString(body.default_objective);
+    if ("default_assessment" in body) updates.default_assessment = cleanString(body.default_assessment);
     if ("default_plan" in body) updates.default_plan = cleanString(body.default_plan);
 
     const now = new Date().toISOString();
