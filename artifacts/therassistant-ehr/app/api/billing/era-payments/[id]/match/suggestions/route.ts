@@ -8,6 +8,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { findCandidatesForEraClaimPayment } from "@/lib/payments/assistedMatchingService";
+import {
+  PaymentPostingForbiddenError,
+  PaymentPostingUnauthenticatedError,
+  requireAuthenticatedPaymentPoster,
+} from "@/lib/payments/postingEngine";
 
 function n(v: unknown): number {
   const x = Number(v ?? 0);
@@ -38,6 +43,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
+    await requireAuthenticatedPaymentPoster(organizationId);
 
     const { data: payment } = await supabase
       .from("era_claim_payments")
@@ -78,6 +84,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
+    if (error instanceof PaymentPostingUnauthenticatedError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+    }
+    if (error instanceof PaymentPostingForbiddenError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Match suggestions failed" },
       { status: 500 },

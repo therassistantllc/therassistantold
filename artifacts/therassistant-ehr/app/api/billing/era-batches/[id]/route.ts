@@ -11,7 +11,13 @@
  */
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { validateEra835Posting, type EraClaimPaymentRow } from "@/lib/payments/postingEngine";
+import {
+  PaymentPostingForbiddenError,
+  PaymentPostingUnauthenticatedError,
+  requireAuthenticatedPaymentPoster,
+  validateEra835Posting,
+  type EraClaimPaymentRow,
+} from "@/lib/payments/postingEngine";
 import {
   generatePostingSuggestions,
   detectDuplicatePostingSuggestion,
@@ -93,6 +99,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     if (!id) {
       return NextResponse.json({ success: false, error: "Batch id is required" }, { status: 400 });
     }
+    await requireAuthenticatedPaymentPoster(organizationId);
 
     const { data: batch, error: batchErr } = await supabase
       .from("era_import_batches")
@@ -317,6 +324,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
       adjustments,
     });
   } catch (error) {
+    if (error instanceof PaymentPostingUnauthenticatedError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+    }
+    if (error instanceof PaymentPostingForbiddenError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
     console.error("ERA batch detail API error:", error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "ERA batch detail failed" },

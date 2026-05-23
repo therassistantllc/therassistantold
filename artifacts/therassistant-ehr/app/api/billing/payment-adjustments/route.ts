@@ -92,6 +92,7 @@ export async function GET(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
+    await requireAuthenticatedPaymentPoster(organizationId);
 
     let query = supabase
       .from("payment_adjustments")
@@ -119,6 +120,12 @@ export async function GET(request: Request) {
       items: ((data ?? []) as AdjustmentRow[]).map(shape),
     });
   } catch (error) {
+    if (error instanceof PaymentPostingUnauthenticatedError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+    }
+    if (error instanceof PaymentPostingForbiddenError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "List adjustments failed" },
       { status: 500 },

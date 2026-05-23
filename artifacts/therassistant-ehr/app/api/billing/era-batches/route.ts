@@ -8,6 +8,11 @@
  */
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import {
+  PaymentPostingForbiddenError,
+  PaymentPostingUnauthenticatedError,
+  requireAuthenticatedPaymentPoster,
+} from "@/lib/payments/postingEngine";
 
 type ParsedSummary = Record<string, unknown> | null;
 
@@ -63,6 +68,7 @@ export async function GET(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
+    await requireAuthenticatedPaymentPoster(organizationId);
     const includeArchivedParam = searchParams.get("includeArchived");
     const includeArchived = includeArchivedParam === "1" || includeArchivedParam === "true";
 
@@ -190,6 +196,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, organizationId, items });
   } catch (error) {
+    if (error instanceof PaymentPostingUnauthenticatedError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+    }
+    if (error instanceof PaymentPostingForbiddenError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
     console.error("ERA batches API error:", error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "ERA batches API failed" },

@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
   type ChangeEvent,
+  type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import {
@@ -656,6 +657,17 @@ export default function EraPosterClient({ batchId }: { batchId: string }) {
                         onChange={(ev: ChangeEvent<HTMLInputElement>) =>
                           updateEdit(row.id, "paymentAmount", Number(ev.target.value))
                         }
+                        onKeyDown={(ev: KeyboardEvent<HTMLInputElement>) => {
+                          if (ev.key === "Enter") {
+                            ev.preventDefault();
+                            (ev.target as HTMLInputElement).blur();
+                            setFlash(`Committed paymentAmount for ${rawRow.clp01ClaimControlNumber}.`);
+                          } else if (ev.key === "Escape") {
+                            ev.preventDefault();
+                            resetEdit(rawRow.id);
+                            (ev.target as HTMLInputElement).blur();
+                          }
+                        }}
                       />
                     </td>
                     <td className={styles.numCell}>
@@ -670,6 +682,17 @@ export default function EraPosterClient({ batchId }: { batchId: string }) {
                         onChange={(ev: ChangeEvent<HTMLInputElement>) =>
                           updateEdit(row.id, "patientResponsibility", Number(ev.target.value))
                         }
+                        onKeyDown={(ev: KeyboardEvent<HTMLInputElement>) => {
+                          if (ev.key === "Enter") {
+                            ev.preventDefault();
+                            (ev.target as HTMLInputElement).blur();
+                            setFlash(`Committed patientResponsibility for ${rawRow.clp01ClaimControlNumber}.`);
+                          } else if (ev.key === "Escape") {
+                            ev.preventDefault();
+                            resetEdit(rawRow.id);
+                            (ev.target as HTMLInputElement).blur();
+                          }
+                        }}
                       />
                     </td>
                     <td className={styles.mono} style={{ fontSize: 10 }}>
