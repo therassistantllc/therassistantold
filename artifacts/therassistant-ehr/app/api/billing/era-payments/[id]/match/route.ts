@@ -55,9 +55,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ success: false, error: `No claim found with number "${claimNumber}" in this organization.` }, { status: 404 });
       }
       claimId = String(claim.id);
+    } else {
+      // CRITICAL: caller-supplied claim IDs must be re-verified to belong
+      // to the same organization, otherwise a biller in org A could bind
+      // an ERA payment to an out-of-org claim (cross-tenant FK injection).
+      const { data: ownClaim, error: ownErr } = await supabase
+        .from("professional_claims")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("id", claimId)
+        .maybeSingle();
+      if (ownErr) throw ownErr;
+      if (!ownClaim?.id) {
+        return NextResponse.json(
+          { success: false, error: "Professional claim not found in this organization." },
+          { status: 404 },
+        );
+      }
     }
 
     const clientIdInput = typeof body.clientId === "string" ? body.clientId.trim() : "";
+    if (clientIdInput) {
+      // Same cross-tenant guard for clientId.
+      const { data: ownClient, error: ownClientErr } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("id", clientIdInput)
+        .maybeSingle();
+      if (ownClientErr) throw ownClientErr;
+      if (!ownClient?.id) {
+        return NextResponse.json(
+          { success: false, error: "Client not found in this organization." },
+          { status: 404 },
+        );
+      }
+    }
     const updatePayload: Record<string, unknown> = {
       professional_claim_id: claimId,
       claim_match_status: "matched",

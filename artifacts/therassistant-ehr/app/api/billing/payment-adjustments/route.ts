@@ -163,6 +163,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
     }
 
+    // Cross-tenant FK guard: any caller-supplied foreign key must resolve to
+    // a row in the same organization, otherwise we'd let org A attach an
+    // adjustment to org B's batch/claim/client by id-guessing.
+    const fkChecks: Array<{ key: string; table: string; id: string }> = [];
+    if (typeof body.eraImportBatchId === "string" && body.eraImportBatchId)
+      fkChecks.push({ key: "eraImportBatchId", table: "era_import_batches", id: body.eraImportBatchId });
+    if (typeof body.eraClaimPaymentId === "string" && body.eraClaimPaymentId)
+      fkChecks.push({ key: "eraClaimPaymentId", table: "era_claim_payments", id: body.eraClaimPaymentId });
+    if (typeof body.professionalClaimId === "string" && body.professionalClaimId)
+      fkChecks.push({ key: "professionalClaimId", table: "professional_claims", id: body.professionalClaimId });
+    if (typeof body.clientId === "string" && body.clientId)
+      fkChecks.push({ key: "clientId", table: "clients", id: body.clientId });
+    for (const fk of fkChecks) {
+      const { data: own, error: ownErr } = await supabase
+        .from(fk.table)
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("id", fk.id)
+        .maybeSingle();
+      if (ownErr) {
+        return NextResponse.json({ success: false, error: ownErr.message }, { status: 500 });
+      }
+      if (!own?.id) {
+        return NextResponse.json(
+          { success: false, error: `${fk.key} not found in this organization.` },
+          { status: 404 },
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const insertRow = {
       organization_id: organizationId,
