@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
-import { loadAuthForProvider } from "@/lib/telehealth/connections";
+import { loadAuthForProvider, markConnectionNeedsReconnect } from "@/lib/telehealth/connections";
 import { pickAdapter } from "@/lib/telehealth/adapters";
 import { isTelehealthPlatform, type TelehealthPlatform } from "@/lib/telehealth/config";
 
@@ -50,6 +50,27 @@ export async function POST(
     .limit(1)
     .maybeSingle();
 
+  // Resolve provider->auth_user_id mapping early so we can authorize host_url access.
+  let providerAuthUserIdEarly: string | null = null;
+  if (appt.provider_id) {
+    const { data: pcp } = await supabase
+      .from("provider_credentialing_profiles")
+      .select("staff_id")
+      .eq("organization_id", ctx.organizationId)
+      .eq("id", appt.provider_id)
+      .maybeSingle();
+    const sid = (pcp as any)?.staff_id as string | null | undefined;
+    if (sid) {
+      const { data: staff } = await supabase
+        .from("staff_profiles")
+        .select("auth_user_id")
+        .eq("id", sid)
+        .maybeSingle();
+      providerAuthUserIdEarly = (staff as any)?.auth_user_id ?? null;
+    }
+  }
+  const callerIsProvider = providerAuthUserIdEarly !== null && providerAuthUserIdEarly === ctx.userId;
+
   if (existing?.meeting_url) {
     return NextResponse.json({
       success: true,
@@ -57,7 +78,9 @@ export async function POST(
       sessionId: existing.id,
       platform: existing.telehealth_vendor,
       joinUrl: existing.meeting_url,
-      hostUrl: existing.host_url ?? null,
+      // Host URL is privileged. Only the provider whose account hosts the
+      // meeting may receive it; other staff get the join URL only.
+      hostUrl: callerIsProvider ? existing.host_url ?? null : null,
     });
   }
 
@@ -77,15 +100,8 @@ export async function POST(
     providerStaffId = (profile as any)?.staff_id ?? null;
   }
 
-  let providerAuthUserId: string | null = null;
-  if (providerStaffId) {
-    const { data: staffRow } = await supabase
-      .from("staff_profiles")
-      .select("auth_user_id")
-      .eq("id", providerStaffId)
-      .maybeSingle();
-    providerAuthUserId = (staffRow as any)?.auth_user_id ?? null;
-  }
+  const providerAuthUserId = providerAuthUserIdEarly ?? null;
+  void providerStaffId;
   const ownerUserIdForAuth = providerAuthUserId ?? ctx.userId;
 
   if (!platform) {
@@ -149,37 +165,65 @@ export async function POST(
       durationMinutes: durationMinutes(appt.scheduled_start_at, appt.scheduled_end_at),
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Meeting creation failed", platform },
-      { status: 502 },
-    );
+    const msg = e instanceof Error ? e.message : "Meeting creation failed";
+    // Treat 401/invalid_grant style errors as a credential failure and prompt reconnect.
+    if (/401|unauthor|invalid[_ ]grant|expired|revoked/i.test(msg)) {
+      await markConnectionNeedsReconnect(supabase as any, {
+        organizationId: ctx.organizationId,
+        ownerUserId: ownerUserIdForAuth,
+        platform,
+        error: msg.slice(0, 500),
+      });
+      return NextResponse.json(
+        { error: `${platform} credentials are no longer valid. Please reconnect in Settings → Providers.`, platform, requiresConnect: true },
+        { status: 401 },
+      );
+    }
+    return NextResponse.json({ error: msg, platform }, { status: 502 });
   }
 
-  const { data: session, error: sessErr } = await supabase
+  const sessionRow: Record<string, unknown> = {
+    organization_id: ctx.organizationId,
+    appointment_id: appointmentId,
+    provider_id: appt.provider_id,
+    scheduled_start_at: appt.scheduled_start_at,
+    telehealth_vendor: platform,
+    meeting_url: created.joinUrl,
+    host_url: created.hostUrl,
+    session_status: "scheduled",
+    external_meeting_id: created.externalMeetingId ?? null,
+  };
+  let sessionInsert = await supabase
     .from("telehealth_sessions")
-    .insert({
-      organization_id: ctx.organizationId,
-      appointment_id: appointmentId,
-      provider_id: appt.provider_id,
-      scheduled_start_at: appt.scheduled_start_at,
-      telehealth_vendor: platform,
-      meeting_url: created.joinUrl,
-      host_url: created.hostUrl,
-      session_status: "scheduled",
-    } as any)
+    .insert(sessionRow as any)
     .select("id")
     .single();
-  if (sessErr) {
-    console.error("[telehealth/join] failed to persist session", sessErr);
+  if (sessionInsert.error) {
+    const code = (sessionInsert.error as { code?: string }).code ?? "";
+    const msg = String(sessionInsert.error.message ?? "");
+    if (code === "42703" && /external_meeting_id/i.test(msg)) {
+      // Migration not yet applied — retry without the new column.
+      const { external_meeting_id: _drop, ...legacyRow } = sessionRow as Record<string, unknown>;
+      void _drop;
+      sessionInsert = await supabase
+        .from("telehealth_sessions")
+        .insert(legacyRow as any)
+        .select("id")
+        .single();
+    }
+  }
+  if (sessionInsert.error) {
+    console.error("[telehealth/join] failed to persist session", sessionInsert.error);
   }
 
   return NextResponse.json({
     success: true,
     source: "created",
-    sessionId: session?.id ?? null,
+    sessionId: sessionInsert.data?.id ?? null,
     platform,
     externalMeetingId: created.externalMeetingId,
     joinUrl: created.joinUrl,
-    hostUrl: created.hostUrl,
+    // Host URL is privileged — only the provider gets it.
+    hostUrl: callerIsProvider ? created.hostUrl : null,
   });
 }

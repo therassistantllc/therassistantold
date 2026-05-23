@@ -137,6 +137,8 @@ export default function ClinicianAgendaClient() {
       if (json.warning) {
         setTelehealthMessages((prev) => ({ ...prev, [item.appointmentId]: json.warning! }));
       }
+      // Host URL is only returned to the provider whose account hosts the meeting;
+      // other staff get the join URL. The API enforces this — we just honor it here.
       const url = json.hostUrl ?? json.joinUrl;
       if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {

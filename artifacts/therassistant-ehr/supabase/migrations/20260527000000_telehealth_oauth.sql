@@ -28,3 +28,13 @@ CREATE TABLE IF NOT EXISTS telehealth_oauth_tokens (
 
 CREATE INDEX IF NOT EXISTS telehealth_oauth_tokens_org_owner_idx
   ON telehealth_oauth_tokens (organization_id, owner_user_id, platform);
+
+-- Persist the platform-side meeting identity so a meeting can be looked up
+-- across re-joins, reschedules, and platform API calls (Zoom meeting id,
+-- Google Calendar event id, etc.).
+ALTER TABLE telehealth_sessions
+  ADD COLUMN IF NOT EXISTS external_meeting_id text;
+
+CREATE INDEX IF NOT EXISTS telehealth_sessions_external_meeting_idx
+  ON telehealth_sessions (telehealth_vendor, external_meeting_id)
+  WHERE external_meeting_id IS NOT NULL;

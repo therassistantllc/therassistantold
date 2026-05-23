@@ -205,6 +205,28 @@ export async function loadAuthForProvider(
           updated_at: new Date().toISOString(),
         } as any)
         .eq("integration_connection_id", conn.id);
+      // Promote connection back to active if a prior failure had marked it.
+      await supabase
+        .from("integration_connections")
+        .update({ connection_status: "active", updated_at: new Date().toISOString() } as any)
+        .eq("id", conn.id);
+    } else {
+      // Refresh failed (revoked/invalid_grant). Mark connection as needs_reconnect
+      // and persist the last_error so the UI can prompt the clinician to reconnect.
+      const errMsg = `Token refresh failed for ${params.platform} at ${new Date().toISOString()}`;
+      await supabase
+        .from("telehealth_oauth_tokens")
+        .update({ last_error: errMsg, updated_at: new Date().toISOString() } as any)
+        .eq("integration_connection_id", conn.id);
+      await supabase
+        .from("integration_connections")
+        .update({
+          connection_status: "needs_reconnect",
+          last_error: errMsg,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", conn.id);
+      return null;
     }
   }
 
@@ -214,6 +236,32 @@ export async function loadAuthForProvider(
     expiresAt,
     accountEmail: (conn as any).external_account_email ?? tok.account_email ?? null,
   };
+}
+
+export async function markConnectionNeedsReconnect(
+  supabase: DbAny,
+  params: { organizationId: string; ownerUserId: string; platform: TelehealthPlatform; error: string },
+): Promise<void> {
+  const { data: conn } = await supabase
+    .from("integration_connections")
+    .select("id")
+    .eq("organization_id", params.organizationId)
+    .eq("owner_user_id", params.ownerUserId)
+    .eq("integration_type", params.platform)
+    .maybeSingle();
+  if (!conn) return;
+  await supabase
+    .from("integration_connections")
+    .update({
+      connection_status: "needs_reconnect",
+      last_error: params.error,
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq("id", conn.id);
+  await supabase
+    .from("telehealth_oauth_tokens")
+    .update({ last_error: params.error, updated_at: new Date().toISOString() } as any)
+    .eq("integration_connection_id", conn.id);
 }
 
 async function refreshAccessToken(
