@@ -25,6 +25,8 @@ type AuditRow = {
   user_id: string | null;
   user_role: string | null;
   action: string | null;
+  object_type: string | null;
+  object_id: string | null;
   before_value: Record<string, unknown> | null;
   after_value: Record<string, unknown> | null;
   event_summary: string | null;
@@ -41,6 +43,22 @@ function pickFieldValue(payload: Record<string, unknown> | null): {
   const [field, raw] = entries[0];
   return { field, value: raw == null ? null : String(raw) };
 }
+
+const SECTION_BY_OBJECT_TYPE: Record<string, string> = {
+  client: "Demographics",
+  insurance_policy: "Insurance policy",
+  client_case: "Case",
+};
+
+const TRACKED_ACTIONS = [
+  "demographic_field_updated",
+  "insurance_policy_created",
+  "insurance_policy_updated",
+  "insurance_policy_archived",
+  "client_case_created",
+  "client_case_updated",
+  "client_case_archived",
+];
 
 export async function GET(
   request: Request,
@@ -73,15 +91,18 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? "50") || 50, 1), 200);
 
+    // Pull every audit row tied to this patient across the chart-tracked
+    // object types (demographics, insurance policy, case). The route filters
+    // by patient_id which is set on every row we write, so policy/case rows
+    // surface here even though their object_type is not 'client'.
     const { data, error } = await supabase
       .from("audit_logs")
       .select(
-        "id, created_at, user_id, user_role, action, before_value, after_value, event_summary, event_metadata",
+        "id, created_at, user_id, user_role, action, object_type, object_id, before_value, after_value, event_summary, event_metadata",
       )
       .eq("organization_id", organizationId)
-      .eq("object_type", "client")
-      .eq("object_id", clientId)
-      .eq("action", "demographic_field_updated")
+      .eq("patient_id", clientId)
+      .in("action", TRACKED_ACTIONS)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) throw error;
@@ -122,6 +143,12 @@ export async function GET(
       const actorEmail =
         staff?.email ??
         (typeof metadata.actor_email === "string" ? (metadata.actor_email as string) : null);
+      const objectType = row.object_type ?? "client";
+      const objectLabel =
+        (typeof metadata.object_label === "string" ? (metadata.object_label as string) : null) ??
+        SECTION_BY_OBJECT_TYPE[objectType] ??
+        objectType;
+      const section = SECTION_BY_OBJECT_TYPE[objectType] ?? objectType;
       return {
         id: row.id,
         createdAt: row.created_at,
@@ -132,6 +159,11 @@ export async function GET(
         actorName,
         actorEmail,
         userRole: row.user_role,
+        objectType,
+        objectId: row.object_id,
+        objectLabel,
+        section,
+        action: row.action,
       };
     });
 

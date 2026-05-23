@@ -58,10 +58,12 @@ export default function CasesPanel({
   clientId,
   organizationId,
   availablePolicies,
+  onMutate,
 }: {
   clientId: string;
   organizationId: string;
   availablePolicies: PolicyOption[];
+  onMutate?: () => void;
 }) {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,7 @@ export default function CasesPanel({
         throw new Error(msg);
       }
       await load();
+      onMutate?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed");
     } finally {

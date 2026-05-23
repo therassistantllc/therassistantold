@@ -1,4 +1,15 @@
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { writeChartObjectAuditLogs } from "@/lib/audit/chartObjectAudit";
+
+const IMPORT_POLICY_COLUMN_LABELS: Record<string, string> = {
+  plan_name: "Plan name",
+  policy_number: "Policy number",
+  priority: "Priority",
+  payer_id: "Payer",
+  subscriber_id: "Subscriber",
+  effective_date: "Effective date",
+  active_flag: "Active",
+};
 
 type ImportRowRecord = {
   id: string;
@@ -229,6 +240,47 @@ async function ensurePrimaryInsurancePolicy(params: {
 
   if (insertPolicyError || !insertedPolicy) {
     return null;
+  }
+
+  // Best-effort audit of the new policy. Promotion is a system-driven flow
+  // (mailroom / CSV import), so we record with staff=null. Logged loudly on
+  // failure so a missed audit row doesn't silently disappear.
+  try {
+    await writeChartObjectAuditLogs({
+      supabase,
+      organizationId: params.organizationId,
+      patientId: params.clientId,
+      staff: null,
+      objectType: "insurance_policy",
+      objectId: insertedPolicy.id,
+      action: "insurance_policy_created",
+      objectLabel: "Insurance policy",
+      before: {
+        plan_name: null,
+        policy_number: null,
+        priority: null,
+        payer_id: null,
+        subscriber_id: null,
+        effective_date: null,
+        active_flag: null,
+      },
+      after: {
+        plan_name: policyPayload.plan_name,
+        policy_number: policyPayload.policy_number,
+        priority: policyPayload.priority,
+        payer_id: policyPayload.payer_id,
+        subscriber_id: policyPayload.subscriber_id,
+        effective_date: policyPayload.effective_date,
+        active_flag: "true",
+      },
+      columnLabels: IMPORT_POLICY_COLUMN_LABELS,
+      contextMetadata: { source: "client_import_promotion" },
+    });
+  } catch (auditError) {
+    console.error(
+      "[clientImportPromotion] audit log insert failed after policy create",
+      auditError instanceof Error ? auditError.message : auditError,
+    );
   }
 
   return insertedPolicy.id;

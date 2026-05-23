@@ -353,6 +353,11 @@ type DemographicAuditEntry = {
   actorName: string | null;
   actorEmail: string | null;
   userRole: string | null;
+  objectType?: string;
+  objectId?: string | null;
+  objectLabel?: string;
+  section?: string;
+  action?: string | null;
 };
 
 async function fetchList<T>(url: string, field: string): Promise<T[]> {
@@ -795,6 +800,7 @@ export default function PatientChartClient({
         throw new Error(json.error ?? "Failed to update group number");
       }
       await refreshSummary();
+      void reloadDemoAudit();
       setGroupEditPolicyId(null);
       setGroupEditDraft("");
     } catch (err) {
@@ -1444,7 +1450,7 @@ export default function PatientChartClient({
               {auditExpanded ? (
                 auditEntries.length === 0 && !auditLoading ? (
                   <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-                    No demographic changes recorded yet.
+                    No chart changes recorded yet.
                   </p>
                 ) : (
                   <table className="summary-cases-table" style={{ marginTop: 8 }}>
@@ -1452,6 +1458,7 @@ export default function PatientChartClient({
                       <tr>
                         <th>When</th>
                         <th>Who</th>
+                        <th>Section</th>
                         <th>Field</th>
                         <th>Before</th>
                         <th>After</th>
@@ -1463,10 +1470,12 @@ export default function PatientChartClient({
                           entry.actorName ||
                           entry.actorEmail ||
                           (entry.userRole ? `(${entry.userRole})` : "System");
+                        const section = entry.section ?? entry.objectLabel ?? "Demographics";
                         return (
                           <tr key={entry.id}>
                             <td>{formatDateTime(entry.createdAt)}</td>
                             <td>{actor}</td>
+                            <td>{section}</td>
                             <td>{entry.fieldLabel}</td>
                             <td>{entry.beforeValue ?? dash}</td>
                             <td>{entry.afterValue ?? dash}</td>
@@ -2167,6 +2176,7 @@ export default function PatientChartClient({
             priority: p.priority ?? null,
             payer_name: p.payer_name ?? null,
           }))}
+          onMutate={() => void reloadDemoAudit()}
         />
       </section>
     </>

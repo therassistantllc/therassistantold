@@ -7,8 +7,45 @@ import {
   phq9Severity,
   scoreAnswers,
 } from "@/lib/intake/scoring";
+import { writeChartObjectAuditLogs } from "@/lib/audit/chartObjectAudit";
 
 type Row = Record<string, unknown>;
+
+const INTAKE_POLICY_COLUMN_LABELS: Record<string, string> = {
+  plan_name: "Plan name",
+  policy_number: "Policy number",
+  group_number: "Group number",
+  subscriber_relationship: "Subscriber relationship",
+  priority: "Priority",
+  active_flag: "Active",
+};
+
+function policySnapshot(row: Row | null): Record<string, string | null> {
+  if (!row) {
+    return {
+      plan_name: null,
+      policy_number: null,
+      group_number: null,
+      subscriber_relationship: null,
+      priority: null,
+      active_flag: null,
+    };
+  }
+  const asNullableString = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "boolean") return v ? "true" : "false";
+    const s = String(v).trim();
+    return s.length > 0 ? s : null;
+  };
+  return {
+    plan_name: asNullableString(row.plan_name),
+    policy_number: asNullableString(row.policy_number),
+    group_number: asNullableString(row.group_number),
+    subscriber_relationship: asNullableString(row.subscriber_relationship),
+    priority: asNullableString(row.priority),
+    active_flag: asNullableString(row.active_flag),
+  };
+}
 
 function value(input: unknown) {
   return String(input ?? "").trim();
@@ -339,7 +376,9 @@ export async function POST(
     if (planName && policyNumber) {
       const { data: existing } = await supabase!
         .from("insurance_policies")
-        .select("id")
+        .select(
+          "id, plan_name, policy_number, group_number, subscriber_relationship, priority, active_flag",
+        )
         .eq("client_id", clientId)
         .eq("priority", "primary")
         .maybeSingle();
@@ -353,13 +392,65 @@ export async function POST(
         subscriber_relationship: value(insurance.subscriberRelationship) || "self",
         active_flag: true,
       };
+      const afterSnapshot = policySnapshot(policyRow);
       if (existing && (existing as Row).id) {
+        const policyId = value((existing as Row).id);
+        const beforeSnapshot = policySnapshot(existing as Row);
         await supabase!
           .from("insurance_policies")
           .update(policyRow)
-          .eq("id", value((existing as Row).id));
+          .eq("id", policyId);
+        try {
+          await writeChartObjectAuditLogs({
+            supabase: supabase!,
+            organizationId,
+            patientId: clientId,
+            staff: null,
+            objectType: "insurance_policy",
+            objectId: policyId,
+            action: "insurance_policy_updated",
+            objectLabel: "Insurance policy",
+            before: beforeSnapshot,
+            after: afterSnapshot,
+            columnLabels: INTAKE_POLICY_COLUMN_LABELS,
+            contextMetadata: { source: "intake_form" },
+          });
+        } catch (auditError) {
+          console.error(
+            "[intake.submit] audit log insert failed after policy update",
+            auditError instanceof Error ? auditError.message : auditError,
+          );
+        }
       } else {
-        await supabase!.from("insurance_policies").insert(policyRow);
+        const { data: inserted } = await supabase!
+          .from("insurance_policies")
+          .insert(policyRow)
+          .select("id")
+          .single();
+        const policyId = inserted ? value((inserted as Row).id) : null;
+        if (policyId) {
+          try {
+            await writeChartObjectAuditLogs({
+              supabase: supabase!,
+              organizationId,
+              patientId: clientId,
+              staff: null,
+              objectType: "insurance_policy",
+              objectId: policyId,
+              action: "insurance_policy_created",
+              objectLabel: "Insurance policy",
+              before: policySnapshot(null),
+              after: afterSnapshot,
+              columnLabels: INTAKE_POLICY_COLUMN_LABELS,
+              contextMetadata: { source: "intake_form" },
+            });
+          } catch (auditError) {
+            console.error(
+              "[intake.submit] audit log insert failed after policy create",
+              auditError instanceof Error ? auditError.message : auditError,
+            );
+          }
+        }
       }
     }
 

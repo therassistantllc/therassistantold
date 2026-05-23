@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
+import { writeChartObjectAuditLogs } from "@/lib/audit/chartObjectAudit";
+
+const POLICY_COLUMN_LABELS: Record<string, string> = {
+  group_number: "Group number",
+  plan_name: "Plan name",
+  policy_number: "Policy number",
+  subscriber_id: "Subscriber ID",
+  archived_at: "Archived",
+};
 
 export async function PATCH(
   request: Request,
@@ -60,7 +69,7 @@ export async function PATCH(
 
     const { data: existing, error: fetchError } = await supabase
       .from("insurance_policies")
-      .select("id, organization_id, client_id, archived_at")
+      .select("id, organization_id, client_id, archived_at, group_number")
       .eq("id", policyId)
       .eq("organization_id", organizationId)
       .eq("client_id", clientId)
@@ -78,6 +87,26 @@ export async function PATCH(
         { success: false, error: "Policy not found" },
         { status: 404 },
       );
+    }
+
+    const priorGroup = (existing as { group_number?: string | null }).group_number ?? null;
+
+    // Write audit FIRST so a failure refuses the mutation, matching the
+    // demographics pattern (HIPAA — no silent un-audited PHI edits).
+    if (priorGroup !== nextValue) {
+      await writeChartObjectAuditLogs({
+        supabase,
+        organizationId,
+        patientId: clientId,
+        staff: ctx,
+        objectType: "insurance_policy",
+        objectId: policyId,
+        action: "insurance_policy_updated",
+        objectLabel: "Insurance policy",
+        before: { group_number: priorGroup },
+        after: { group_number: nextValue },
+        columnLabels: POLICY_COLUMN_LABELS,
+      });
     }
 
     const { error: updateError } = await supabase
