@@ -512,6 +512,14 @@ export async function applyWorkqueueRules(
         .select("id")
         .single();
       if (error) {
+        // 23505 = unique_violation. The partial unique index
+        // uq_workqueue_items_open_source_dedupe guarantees only one
+        // open item per (org, source_object_type, source_object_id,
+        // work_type). A concurrent committer beat us to the insert —
+        // treat as a successful dedupe, not an error.
+        if ((error as { code?: string }).code === "23505") {
+          continue;
+        }
         result.errors.push({ rule: em.ruleKind, message: error.message });
         continue;
       }

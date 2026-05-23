@@ -48,10 +48,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabase = createServerSupabaseAdminClient();
-  if (!supabase) {
+  const supabaseMaybe = createServerSupabaseAdminClient();
+  if (!supabaseMaybe) {
     return Response.json({ error: "Database unavailable" }, { status: 503 });
   }
+  const supabase = supabaseMaybe;
 
   const header = [
     "id",

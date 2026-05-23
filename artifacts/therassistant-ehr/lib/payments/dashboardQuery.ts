@@ -226,6 +226,17 @@ async function loadManualRows(
 ): Promise<DashboardRow[]> {
   if (!wantSource(filters, "manual_insurance")) return [];
   if (providerClaimIds && providerClaimIds.length === 0) return [];
+  // Manual rows are always "posted" the moment they're inserted (there's
+  // no staged/unmatched intermediate state). If the caller restricts
+  // postingStatus to anything that excludes 'posted', no manual rows
+  // can match by definition.
+  if (
+    filters.postingStatus &&
+    filters.postingStatus.length > 0 &&
+    !filters.postingStatus.includes("posted")
+  ) {
+    return [];
+  }
   let q = supabase
     .from("insurance_manual_payments")
     .select(
@@ -402,6 +413,16 @@ async function loadTotals(
   };
 
   const manualScoped = (q: any) => {
+    // Manual rows are always "posted"; if postingStatus is restricted to
+    // a set that excludes 'posted', short-circuit by adding an
+    // impossible predicate so this branch contributes nothing to totals.
+    if (
+      filters.postingStatus &&
+      filters.postingStatus.length > 0 &&
+      !filters.postingStatus.includes("posted")
+    ) {
+      return q.eq("organization_id", "00000000-0000-0000-0000-000000000000").eq("id", "00000000-0000-0000-0000-000000000000");
+    }
     let r = q
       .eq("organization_id", filters.organizationId)
       .is("archived_at", null);

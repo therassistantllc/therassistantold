@@ -19,6 +19,7 @@ import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAuthenticatedPaymentPoster } from "@/lib/payments/postingEngine";
 import { applyWorkqueueRules } from "@/lib/payments/postingEngine/workqueueRules";
 import { matchProfessionalClaim } from "@/lib/payments/era835IntakeService";
+import { writePaymentAuditLog } from "@/lib/payments/postingEngine/audit";
 import { parseTargets } from "../_shared";
 
 export const runtime = "nodejs";
@@ -157,6 +158,20 @@ export async function POST(req: Request) {
         });
         summary.reprocessed++;
         summary.itemsCreated += r.itemsCreated;
+        await writePaymentAuditLog(supabase, {
+          organizationId,
+          actor,
+          action: "payment_adjusted",
+          objectType: "era_claim_payment",
+          objectId: t.id,
+          claimId: professionalClaimId,
+          afterValue: {
+            claim_match_status: claimMatchStatus,
+            workqueue_items_created: r.itemsCreated,
+          },
+          summary: `Bulk reprocess (ERA): ${r.itemsCreated} workqueue item(s) emitted`,
+          metadata: { source: "bulk_reprocess" },
+        });
       } else if (t.kind === "insurance_manual") {
         const { data } = await supabase
           .from("insurance_manual_payments")
@@ -186,6 +201,17 @@ export async function POST(req: Request) {
         });
         summary.reprocessed++;
         summary.itemsCreated += r.itemsCreated;
+        await writePaymentAuditLog(supabase, {
+          organizationId,
+          actor,
+          action: "payment_adjusted",
+          objectType: "insurance_manual_payment",
+          objectId: t.id,
+          claimId: (row.claim_id as string | null) ?? null,
+          afterValue: { workqueue_items_created: r.itemsCreated },
+          summary: `Bulk reprocess (manual): ${r.itemsCreated} workqueue item(s) emitted`,
+          metadata: { source: "bulk_reprocess" },
+        });
       }
     } catch (err) {
       summary.errors.push({
