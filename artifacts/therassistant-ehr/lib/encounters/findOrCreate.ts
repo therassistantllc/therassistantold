@@ -144,6 +144,12 @@ export type FindOrCreateNoteResult =
   | { ok: true; noteId: string; created: boolean }
   | { ok: false; status: number; error: string };
 
+export type NoteDefaults = {
+  subjective?: string;
+  interventions?: string;
+  plan?: string;
+};
+
 export async function findOrCreateNote(
   supabase: EncountersSupabase,
   organizationId: string,
@@ -151,6 +157,7 @@ export async function findOrCreateNote(
   clientId: string,
   providerId: string | null,
   nowIso: string,
+  defaults: NoteDefaults = {},
 ): Promise<FindOrCreateNoteResult> {
   const selectExisting = () =>
     supabase
@@ -178,9 +185,9 @@ export async function findOrCreateNote(
       client_id: clientId,
       provider_id: providerId,
       note_status: "draft",
-      subjective: "",
-      interventions: "",
-      plan: "",
+      subjective: defaults.subjective ?? "",
+      interventions: defaults.interventions ?? "",
+      plan: defaults.plan ?? "",
       signed_at: null,
       signed_by_user_id: null,
       created_at: nowIso,

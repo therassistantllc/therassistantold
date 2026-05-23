@@ -42,6 +42,11 @@ const SETTINGS_SECTIONS = [
     description: "Default diagnosis codes, fee schedules, and billing rules.",
   },
   {
+    label: "Note Templates",
+    href: "/admin/note-templates",
+    description: "Pre-populated note scaffolding per service type or CPT so clinicians don't start from blank.",
+  },
+  {
     label: "Security",
     href: "/settings/security",
     description: "Password policy, two-factor authentication, and audit logs.",

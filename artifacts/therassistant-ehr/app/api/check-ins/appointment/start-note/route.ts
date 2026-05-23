@@ -14,9 +14,64 @@ type AppointmentRow = {
   scheduled_start_at: string | null;
   scheduled_end_at: string | null;
   appointment_status: string | null;
+  appointment_type: string | null;
 };
 
 const ADVANCEABLE_STATUSES = new Set(["scheduled"]);
+
+type TemplateDefaults = {
+  subjective: string;
+  interventions: string;
+  plan: string;
+};
+
+const EMPTY_TEMPLATE: TemplateDefaults = { subjective: "", interventions: "", plan: "" };
+
+type SupabaseClient = ReturnType<typeof createServerSupabaseAdminClient>;
+
+async function pickTemplateDefaults(
+  supabase: NonNullable<SupabaseClient>,
+  organizationId: string,
+  appointmentType: string | null,
+): Promise<TemplateDefaults> {
+  const { data, error } = await supabase
+    .from("note_templates")
+    .select("service_type, cpt_code, is_default, default_subjective, default_interventions, default_plan")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+
+  if (error || !Array.isArray(data) || data.length === 0) {
+    return EMPTY_TEMPLATE;
+  }
+
+  type Row = {
+    service_type: string | null;
+    cpt_code: string | null;
+    is_default: boolean | null;
+    default_subjective: string | null;
+    default_interventions: string | null;
+    default_plan: string | null;
+  };
+
+  const rows = data as Row[];
+  const needle = (appointmentType ?? "").trim().toLowerCase();
+  let match: Row | undefined;
+  if (needle) {
+    match = rows.find(
+      (row) =>
+        (row.service_type ?? "").trim().toLowerCase() === needle ||
+        (row.cpt_code ?? "").trim().toLowerCase() === needle,
+    );
+  }
+  if (!match) match = rows.find((row) => row.is_default === true);
+  if (!match) return EMPTY_TEMPLATE;
+
+  return {
+    subjective: match.default_subjective ?? "",
+    interventions: match.default_interventions ?? "",
+    plan: match.default_plan ?? "",
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +96,7 @@ export async function POST(request: Request) {
 
     const { data: appointment, error: appointmentError } = await supabase
       .from("appointments")
-      .select("id, organization_id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status")
+      .select("id, organization_id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status, appointment_type")
       .eq("organization_id", organizationId)
       .eq("id", appointmentId)
       .is("archived_at", null)
@@ -78,6 +133,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const templateDefaults = await pickTemplateDefaults(
+      supabase,
+      organizationId,
+      appt.appointment_type,
+    );
+
     const noteResult = await findOrCreateNote(
       supabase as unknown as EncountersSupabase,
       organizationId,
@@ -85,6 +146,7 @@ export async function POST(request: Request) {
       encounterResult.clientId,
       encounterResult.providerId,
       nowIso,
+      templateDefaults,
     );
     if (!noteResult.ok) {
       return NextResponse.json(

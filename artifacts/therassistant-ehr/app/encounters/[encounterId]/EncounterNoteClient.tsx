@@ -16,7 +16,10 @@ type EncounterSummary = {
   encounter?: { id: string; encounter_status?: string | null; service_date?: string | null; started_at?: string | null; ended_at?: string | null };
   appointment?: { appointment_type?: string | null; scheduled_start_at?: string | null; scheduled_end_at?: string | null; service_location?: string | null; telehealth_url?: string | null } | null;
   diagnoses?: Array<{ id: string; diagnosis_code?: string | null; diagnosis_description?: string | null; is_primary?: boolean | null }>;
-  clinicalNote?: { id: string; note_status?: string | null; subjective?: string | null; objective?: string | null; assessment?: string | null; plan?: string | null; signed_at?: string | null } | null;
+  // The DB column for the middle SOAP slot is `interventions` — the editor
+  // surfaces it under the "Objective" label, so we translate at the client
+  // boundary: load interventions -> objective, save objective -> interventions.
+  clinicalNote?: { id: string; note_status?: string | null; subjective?: string | null; interventions?: string | null; objective?: string | null; assessment?: string | null; plan?: string | null; signed_at?: string | null } | null;
   serviceLines?: Array<{ id: string; cpt_hcpcs_code?: string | null; service_date?: string | null; units?: number | null; charge_amount?: number | null; modifier_1?: string | null; modifier_2?: string | null; modifier_3?: string | null; modifier_4?: string | null; place_of_service_code?: string | null }>;
 };
 
@@ -46,6 +49,17 @@ function statusClass(value: string | null | undefined): string {
   return "status";
 }
 
+type NoteTemplate = {
+  id: string;
+  name: string;
+  service_type: string | null;
+  cpt_code: string | null;
+  default_subjective: string;
+  default_interventions: string;
+  default_plan: string;
+  is_default: boolean;
+};
+
 export default function EncounterNoteClient({ encounterId }: { encounterId: string }) {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [summary, setSummary] = useState<EncounterSummary | null>(null);
@@ -57,6 +71,8 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<NoteTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
   const finalized = useMemo(
     () => summary?.encounter?.encounter_status === "signed" || summary?.clinicalNote?.note_status === "signed",
@@ -87,7 +103,9 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
       setSummary(json);
       setSoapNote({
         subjective: json.clinicalNote?.subjective ?? "",
-        objective: json.clinicalNote?.objective ?? "",
+        // DB column is `interventions`; surface it under the "Objective" slot
+        // until the editor labels are aligned with the schema.
+        objective: json.clinicalNote?.interventions ?? json.clinicalNote?.objective ?? "",
         assessment: json.clinicalNote?.assessment ?? "",
         plan: json.clinicalNote?.plan ?? "",
       });
@@ -126,6 +144,67 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, organizationId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTemplates() {
+      if (!organizationId) return;
+      try {
+        const response = await fetch(
+          `/api/note-templates?organizationId=${encodeURIComponent(organizationId)}`,
+          { cache: "no-store" },
+        );
+        const json = (await response.json()) as { success?: boolean; templates?: NoteTemplate[] };
+        if (cancelled) return;
+        if (json.success && Array.isArray(json.templates)) setTemplates(json.templates);
+      } catch {
+        /* templates are optional — silently ignore */
+      }
+    }
+    loadTemplates();
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  function applyTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+    // Merge: only fill sections the clinician hasn't typed into, so we never
+    // overwrite work in progress.
+    const next: SoapNoteData = { ...soapNote };
+    const skipped: string[] = [];
+    const filled: string[] = [];
+    const slots: Array<{ key: keyof SoapNoteData; label: string; content: string }> = [
+      { key: "subjective", label: "Subjective", content: template.default_subjective ?? "" },
+      { key: "objective", label: "Interventions", content: template.default_interventions ?? "" },
+      { key: "plan", label: "Plan", content: template.default_plan ?? "" },
+    ];
+    for (const slot of slots) {
+      if (!slot.content) continue;
+      const current = (next[slot.key] ?? "").trim();
+      if (current.length === 0) {
+        next[slot.key] = slot.content;
+        filled.push(slot.label);
+      } else {
+        skipped.push(slot.label);
+      }
+    }
+    setSoapNote(next);
+    if (skipped.length === 0 && filled.length > 0) {
+      setMessage(`Applied template "${template.name}".`);
+    } else if (skipped.length > 0 && filled.length > 0) {
+      setMessage(
+        `Applied template "${template.name}" to empty sections. Kept your existing ${skipped.join(", ")} content.`,
+      );
+    } else if (skipped.length > 0 && filled.length === 0) {
+      setMessage(
+        `Template "${template.name}" not applied — every section already has content.`,
+      );
+    }
+  }
+
   async function saveNote() {
     setSaving(true);
     setError(null);
@@ -138,7 +217,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           organizationId,
           action: "save",
           subjective: soapNote.subjective || "",
-          objective: soapNote.objective || "",
+          interventions: soapNote.objective || "",
           assessment: soapNote.assessment || "",
           plan: soapNote.plan || "",
         }),
@@ -166,7 +245,7 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           organizationId,
           action: "sign",
           subjective: soapNote.subjective || "",
-          objective: soapNote.objective || "",
+          interventions: soapNote.objective || "",
           assessment: soapNote.assessment || "",
           plan: soapNote.plan || "",
           userId: null,
@@ -265,6 +344,34 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
         </aside>
 
         <main className="workspace-main">
+          {templates.length > 0 ? (
+            <article className="panel template-picker-panel">
+              <div className="template-picker-row">
+                <label htmlFor="note-template-picker">
+                  <strong>Note template</strong>
+                  <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.875rem" }}>
+                    Applies to empty sections only — anything you&apos;ve typed is kept.
+                  </span>
+                </label>
+                <select
+                  id="note-template-picker"
+                  value={selectedTemplateId}
+                  onChange={(e) => applyTemplate(e.target.value)}
+                  disabled={finalized || saving}
+                >
+                  <option value="">Choose a template…</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                      {template.is_default ? " (default)" : ""}
+                      {template.service_type ? ` · ${template.service_type}` : ""}
+                      {template.cpt_code ? ` · ${template.cpt_code}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </article>
+          ) : null}
           <SoapNoteEditor data={soapNote} onChange={setSoapNote} disabled={finalized} />
           <DiagnosisPicker diagnoses={diagnoses} onChange={setDiagnoses} disabled={finalized} />
           <CptCodePanel serviceLines={serviceLines} onChange={setServiceLines} disabled={finalized} serviceDate={encounter.service_date || undefined} />
