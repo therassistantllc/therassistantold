@@ -2,19 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  CalendarDays,
-  CreditCard,
-  FileWarning,
-  Inbox,
-  MoreVertical,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  Stethoscope,
-} from "lucide-react";
+import { CalendarDays, MoreVertical, Search } from "lucide-react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import styles from "./roster.module.css";
 
@@ -247,107 +235,10 @@ export default function PatientsRosterClient({
     { key: "open-workqueue",     label: "Has open WQ",        count: metrics.openWorkqueue },
   ];
 
-  // ── Critical alerts (red) and warning (amber) bubble to the top.
-  const alerts: { key: NeedsFilter; tone: "red" | "amber"; headline: string; sub: string; icon: React.ReactNode }[] = [];
-  if (metrics.claimIssues > 0) {
-    alerts.push({
-      key: "claim-issues",
-      tone: "red",
-      headline: `${metrics.claimIssues} claim${metrics.claimIssues === 1 ? "" : "s"} need attention`,
-      sub: "Resolve denials, rejections, and missing data",
-      icon: <FileWarning size={18} />,
-    });
-  }
-  if (metrics.needsEligibility > 0) {
-    alerts.push({
-      key: "needs-eligibility",
-      tone: metrics.needsEligibility > 25 ? "red" : "amber",
-      headline: `${metrics.needsEligibility} patient${metrics.needsEligibility === 1 ? "" : "s"} need eligibility`,
-      sub: "Verify coverage before next visit",
-      icon: <ShieldAlert size={18} />,
-    });
-  }
-  if (metrics.intakeIncomplete > 0) {
-    alerts.push({
-      key: "intake-incomplete",
-      tone: "amber",
-      headline: `${metrics.intakeIncomplete} intake form${metrics.intakeIncomplete === 1 ? "" : "s"} incomplete`,
-      sub: "Send reminders or finish in person",
-      icon: <AlertTriangle size={18} />,
-    });
-  }
-  const visibleAlerts = alerts.slice(0, 3);
-
-  // ── Action-queue cards. Severity color comes from the volume + kind of work.
-  const queueCards: {
-    key: NeedsFilter;
-    label: string;
-    value: number;
-    icon: React.ReactNode;
-    tone: "red" | "amber" | "teal" | "blue" | "slate";
-    cta: string;
-  }[] = [
-    {
-      key: "needs-eligibility",
-      label: "Needs eligibility",
-      value: metrics.needsEligibility,
-      icon: <ShieldAlert size={16} />,
-      tone: metrics.needsEligibility > 0 ? "red" : "slate",
-      cta: "Verify queue",
-    },
-    {
-      key: "stale-eligibility",
-      label: "Stale eligibility",
-      value: metrics.staleEligibility,
-      icon: <ShieldCheck size={16} />,
-      tone: metrics.staleEligibility > 0 ? "amber" : "slate",
-      cta: "Recheck",
-    },
-    {
-      key: "intake-incomplete",
-      label: "Intake incomplete",
-      value: metrics.intakeIncomplete,
-      icon: <Stethoscope size={16} />,
-      tone: metrics.intakeIncomplete > 0 ? "amber" : "slate",
-      cta: "Send reminders",
-    },
-    {
-      key: "balance-due",
-      label: "Balance due",
-      value: metrics.withBalance,
-      icon: <CreditCard size={16} />,
-      tone: metrics.withBalance > 0 ? "amber" : "slate",
-      cta: "Collect",
-    },
-    {
-      key: "claim-issues",
-      label: "Claim issues",
-      value: metrics.claimIssues,
-      icon: <FileWarning size={16} />,
-      tone: metrics.claimIssues > 0 ? "red" : "slate",
-      cta: "Open queue",
-    },
-    {
-      key: "open-workqueue",
-      label: "Open workqueue",
-      value: metrics.openWorkqueue,
-      icon: <Inbox size={16} />,
-      tone: metrics.openWorkqueue > 0 ? "blue" : "slate",
-      cta: "Triage",
-    },
-  ];
-
   return (
     <main className={styles.page}>
       {/* ── Header ── */}
       <header className={styles.header}>
-        <div className={styles.headerTitleWrap}>
-          <p className={styles.eyebrow}>Patient Operations</p>
-          <h1 className={styles.title}>Patient Operations Workspace</h1>
-          <p className={styles.subtitle}>
-            Drive intake, eligibility, balances, claims, and workqueue items across every patient.
-          </p>
-        </div>
         <div className={styles.headerActions}>
           <Link className={styles.headerBtn} href="/clinician/agenda">
             <CalendarDays size={14} /> Agenda
@@ -384,62 +275,7 @@ export default function PatientsRosterClient({
 
       {error ? <div className={styles.errorBanner} role="alert">{error}</div> : null}
 
-      {/* ── 1. Critical alerts ── */}
-      {!loading && visibleAlerts.length > 0 ? (
-        <div className={styles.alertsStrip} aria-label="Critical alerts">
-          {visibleAlerts.map((a) => (
-            <button
-              key={a.key}
-              type="button"
-              className={`${styles.alertCard} ${a.tone === "amber" ? styles.alertCardAmber : ""}`.trim()}
-              onClick={() => setNeedsFilter(a.key)}
-              aria-label={`${a.headline}. Filter the roster.`}
-            >
-              <span className={styles.alertIcon}>{a.icon}</span>
-              <span className={styles.alertBody}>
-                <span className={styles.alertHeadline}>{a.headline}</span>
-                <span className={styles.alertSub}>{a.sub}</span>
-              </span>
-              <ArrowRight size={16} className={styles.alertArrow} />
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {/* ── 2. Action queue (severity-coded with CTA) ── */}
-      <div className={styles.queueGrid} aria-label="Action queues">
-        {queueCards.map((q) => {
-          const active = needsFilter === q.key;
-          const toneClass =
-            q.tone === "red"   ? styles.queueRed   :
-            q.tone === "amber" ? styles.queueAmber :
-            q.tone === "teal"  ? styles.queueTeal  :
-            q.tone === "blue"  ? styles.queueBlue  : styles.queueSlate;
-          return (
-            <button
-              key={q.key}
-              type="button"
-              className={`${styles.queueCard} ${toneClass} ${active ? styles.queueCardActive : ""}`.trim()}
-              onClick={() => setNeedsFilter(q.key)}
-              aria-pressed={active}
-            >
-              <div className={styles.queueTopRow}>
-                <span className={styles.queueLabel}>{q.label}</span>
-                <span className={styles.queueIcon}>{q.icon}</span>
-              </div>
-              <div className={styles.queueValueRow}>
-                <span className={styles.queueValue}>{loading ? "—" : q.value}</span>
-                <span className={styles.queueUnit}>{q.value === 1 ? "patient" : "patients"}</span>
-              </div>
-              <span className={styles.queueCta}>
-                {q.cta} <ArrowRight size={12} />
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── 3. Filter chips ── */}
+      {/* ── Filter chips ── */}
       <div className={styles.chipRow} role="tablist" aria-label="Roster filters">
         {chips.map((chip) => {
           const active = needsFilter === chip.key;
