@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export type CodeOption = { code: string; description: string; code_system?: string };
+export type CodeOption = {
+  code: string;
+  description: string;
+  code_system?: string;
+  is_active?: boolean;
+  expiration_date?: string | null;
+};
+
+export type CodeValidation =
+  | { status: "active"; option: CodeOption }
+  | { status: "header"; option: CodeOption; reason: string }
+  | { status: "retired"; option: CodeOption; expirationDate: string | null; reason: string }
+  | { status: "unknown"; reason: string };
 
 type Props = {
   kind: "diagnosis" | "procedure";
@@ -21,39 +33,70 @@ const ENDPOINT: Record<Props["kind"], string> = {
   procedure: "/api/billing/codes/procedures",
 };
 
-// Per-kind in-memory cache of validated codes (this session only).
-const validCache: Record<Props["kind"], Map<string, CodeOption>> = {
+// Per-kind in-memory cache of validation results (this session only).
+const validationCache: Record<Props["kind"], Map<string, CodeValidation>> = {
   diagnosis: new Map(),
   procedure: new Map(),
 };
-const invalidCache: Record<Props["kind"], Set<string>> = {
-  diagnosis: new Set(),
-  procedure: new Set(),
-};
+
+function classifyOption(kind: Props["kind"], opt: CodeOption): CodeValidation {
+  if (opt.is_active !== false) return { status: "active", option: opt };
+  // Retired if we have an expiration date.
+  if (opt.expiration_date) {
+    return {
+      status: "retired",
+      option: opt,
+      expirationDate: opt.expiration_date,
+      reason: `${opt.code} was retired on ${opt.expiration_date}`,
+    };
+  }
+  // No expiration date + inactive → ICD-10 header / non-billable parent.
+  if (kind === "diagnosis") {
+    return {
+      status: "header",
+      option: opt,
+      reason: `${opt.code} is a header — pick a more specific child code`,
+    };
+  }
+  // Procedure with no expiration date but inactive — treat as non-billable.
+  return {
+    status: "header",
+    option: opt,
+    reason: `${opt.code} is not billable`,
+  };
+}
+
+export function describeValidation(v: CodeValidation): string {
+  if (v.status === "active") return "";
+  return v.reason;
+}
 
 export async function validateCode(
   kind: Props["kind"],
   code: string,
-): Promise<CodeOption | null> {
+): Promise<CodeValidation> {
   const upper = code.trim().toUpperCase();
-  if (!upper) return null;
-  if (validCache[kind].has(upper)) return validCache[kind].get(upper)!;
-  if (invalidCache[kind].has(upper)) return null;
+  if (!upper) return { status: "unknown", reason: "Empty code" };
+  const cached = validationCache[kind].get(upper);
+  if (cached) return cached;
   try {
-    const res = await fetch(`${ENDPOINT[kind]}?q=${encodeURIComponent(upper)}&limit=10`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${ENDPOINT[kind]}?q=${encodeURIComponent(upper)}&limit=10&includeInactive=1`,
+      { cache: "no-store" },
+    );
     const json = await res.json();
     const items: CodeOption[] = json?.items ?? [];
     const match = items.find((it) => it.code.toUpperCase() === upper);
-    if (match) {
-      validCache[kind].set(upper, match);
-      return match;
+    let result: CodeValidation;
+    if (!match) {
+      result = { status: "unknown", reason: `${upper} not found in ${kind === "diagnosis" ? "ICD-10" : "CPT/HCPCS"} reference` };
+    } else {
+      result = classifyOption(kind, match);
     }
-    invalidCache[kind].add(upper);
-    return null;
+    validationCache[kind].set(upper, result);
+    return result;
   } catch {
-    return null;
+    return { status: "unknown", reason: "Lookup failed" };
   }
 }
 
@@ -91,18 +134,14 @@ export default function CodeCombobox({
       setResolvedDescription(null);
       return;
     }
-    const cached = validCache[kind].get(upper);
-    if (cached) {
-      setResolvedDescription(cached.description);
-      return;
-    }
-    if (invalidCache[kind].has(upper)) {
-      setResolvedDescription(null);
-      return;
-    }
     let cancelled = false;
-    void validateCode(kind, upper).then((opt) => {
-      if (!cancelled) setResolvedDescription(opt ? opt.description : null);
+    void validateCode(kind, upper).then((v) => {
+      if (cancelled) return;
+      if (v.status === "unknown") {
+        setResolvedDescription(null);
+      } else {
+        setResolvedDescription(v.option.description);
+      }
     });
     return () => {
       cancelled = true;
@@ -127,16 +166,19 @@ export default function CodeCombobox({
     setLoading(true);
     const handle = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${ENDPOINT[kind]}?q=${encodeURIComponent(q)}&limit=20`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `${ENDPOINT[kind]}?q=${encodeURIComponent(q)}&limit=20&includeInactive=1`,
+          { cache: "no-store" },
+        );
         const json = await res.json();
         if (id !== reqIdRef.current) return;
         const items: CodeOption[] = json?.items ?? [];
         setOptions(items);
         setHighlight(0);
-        // Warm validity cache from search results so onBlur is fast.
-        for (const it of items) validCache[kind].set(it.code.toUpperCase(), it);
+        // Warm validation cache from search results so onBlur is fast.
+        for (const it of items) {
+          validationCache[kind].set(it.code.toUpperCase(), classifyOption(kind, it));
+        }
       } catch {
         if (id === reqIdRef.current) setOptions([]);
       } finally {
@@ -149,8 +191,7 @@ export default function CodeCombobox({
   const commitSelection = useCallback(
     (opt: CodeOption) => {
       const upper = opt.code.toUpperCase();
-      validCache[kind].set(upper, opt);
-      invalidCache[kind].delete(upper);
+      validationCache[kind].set(upper, classifyOption(kind, opt));
       setQuery(upper);
       onChange(upper);
       setOpen(false);
@@ -174,7 +215,6 @@ export default function CodeCombobox({
     } else if (e.key === "Escape") {
       setOpen(false);
     } else if (e.key === "Tab") {
-      // Pick highlighted on tab if dropdown showing a unique exact match.
       const upper = query.trim().toUpperCase();
       const exact = options.find((o) => o.code.toUpperCase() === upper);
       if (exact) commitSelection(exact);
@@ -256,39 +296,66 @@ export default function CodeCombobox({
               {query.trim() ? "No matches" : "Type to search…"}
             </div>
           ) : (
-            options.map((opt, i) => (
-              <div
-                key={`${opt.code_system ?? ""}:${opt.code}`}
-                role="option"
-                aria-selected={i === highlight}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  commitSelection(opt);
-                }}
-                onMouseEnter={() => setHighlight(i)}
-                style={{
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  background: i === highlight ? "#EFF6FF" : "transparent",
-                  borderBottom: "1px solid #F1F5F9",
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "baseline",
-                }}
-              >
-                <span
+            options.map((opt, i) => {
+              const classification = classifyOption(kind, opt);
+              const inactive = classification.status !== "active";
+              const reason = classification.status === "active" ? null : classification.reason;
+              return (
+                <div
+                  key={`${opt.code_system ?? ""}:${opt.code}`}
+                  role="option"
+                  aria-selected={i === highlight}
+                  aria-disabled={inactive ? true : undefined}
+                  title={reason ?? undefined}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    commitSelection(opt);
+                  }}
+                  onMouseEnter={() => setHighlight(i)}
                   style={{
-                    fontFamily: "ui-monospace, monospace",
-                    fontWeight: 600,
-                    color: "#0F172A",
-                    minWidth: 64,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    background: i === highlight ? "#EFF6FF" : "transparent",
+                    borderBottom: "1px solid #F1F5F9",
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "baseline",
+                    opacity: inactive ? 0.55 : 1,
                   }}
                 >
-                  {opt.code}
-                </span>
-                <span style={{ color: "#475569", flex: 1 }}>{opt.description}</span>
-              </div>
-            ))
+                  <span
+                    style={{
+                      fontFamily: "ui-monospace, monospace",
+                      fontWeight: 600,
+                      color: inactive ? "#64748B" : "#0F172A",
+                      minWidth: 64,
+                      textDecoration: inactive ? "line-through" : undefined,
+                    }}
+                  >
+                    {opt.code}
+                  </span>
+                  <span style={{ color: "#475569", flex: 1 }}>
+                    {opt.description}
+                    {reason ? (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 10.5,
+                          color: "#B45309",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        ({classification.status === "retired"
+                          ? `retired ${classification.expirationDate ?? ""}`.trim()
+                          : classification.status === "header"
+                            ? (kind === "diagnosis" ? "header — not billable" : "not billable")
+                            : ""})
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
       ) : null}

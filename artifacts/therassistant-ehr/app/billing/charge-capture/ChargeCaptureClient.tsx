@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import styles from "./charge-capture.module.css";
 import CodeCombobox, { validateCode } from "./CodeCombobox";
+import type { CodeValidation } from "./CodeCombobox";
 
 type ChargeStatus = "ready" | "unsigned" | "missing_dx" | "hold" | "released";
 
@@ -189,8 +190,8 @@ export default function ChargeCaptureClient() {
   const [releasing, setReleasing] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [invalidDx, setInvalidDx] = useState<Set<string>>(new Set());
-  const [invalidProc, setInvalidProc] = useState<Set<string>>(new Set());
+  const [invalidDx, setInvalidDx] = useState<Map<string, CodeValidation>>(new Map());
+  const [invalidProc, setInvalidProc] = useState<Map<string, CodeValidation>>(new Map());
 
   // Load workqueue list
   useEffect(() => {
@@ -298,24 +299,30 @@ export default function ChargeCaptureClient() {
     const procCodes = detail.serviceLines
       .map((l) => l.procedureCode.trim().toUpperCase())
       .filter(Boolean);
-    const dxBad = new Set<string>();
-    const procBad = new Set<string>();
+    const dxBad = new Map<string, CodeValidation>();
+    const procBad = new Map<string, CodeValidation>();
     await Promise.all([
       ...dxCodes.map(async (c) => {
-        const hit = await validateCode("diagnosis", c);
-        if (!hit) dxBad.add(c);
+        const v = await validateCode("diagnosis", c);
+        if (v.status !== "active") dxBad.set(c, v);
       }),
       ...procCodes.map(async (c) => {
-        const hit = await validateCode("procedure", c);
-        if (!hit) procBad.add(c);
+        const v = await validateCode("procedure", c);
+        if (v.status !== "active") procBad.set(c, v);
       }),
     ]);
     setInvalidDx(dxBad);
     setInvalidProc(procBad);
     if (dxBad.size === 0 && procBad.size === 0) return { ok: true };
+    const describe = (code: string, v: CodeValidation): string => {
+      if (v.status === "unknown") return `${code} (not found)`;
+      if (v.status === "retired") return `${code} (retired${v.expirationDate ? ` ${v.expirationDate}` : ""})`;
+      if (v.status === "header") return `${code} (header — not billable)`;
+      return code;
+    };
     const parts: string[] = [];
-    if (dxBad.size) parts.push(`Unknown ICD-10: ${[...dxBad].join(", ")}`);
-    if (procBad.size) parts.push(`Unknown CPT/HCPCS: ${[...procBad].join(", ")}`);
+    if (dxBad.size) parts.push(`ICD-10: ${[...dxBad.entries()].map(([c, v]) => describe(c, v)).join(", ")}`);
+    if (procBad.size) parts.push(`CPT/HCPCS: ${[...procBad.entries()].map(([c, v]) => describe(c, v)).join(", ")}`);
     return { ok: false, reason: parts.join(" · ") };
   }, [detail]);
 
@@ -552,7 +559,11 @@ export default function ChargeCaptureClient() {
                 <div className={styles.dxGrid}>
                   {dxSlots.map((code, idx) => {
                     const upper = code.trim().toUpperCase();
-                    const bad = upper.length > 0 && invalidDx.has(upper);
+                    const badEntry = upper.length > 0 ? invalidDx.get(upper) : undefined;
+                    const bad = Boolean(badEntry);
+                    const badTitle = badEntry && badEntry.status !== "active"
+                      ? badEntry.reason
+                      : "Code not found in ICD-10 reference";
                     return (
                       <div className={styles.dxCell} key={idx}>
                         <label>{`D${idx + 1}${idx === 0 ? "*" : ""}`}</label>
@@ -563,7 +574,7 @@ export default function ChargeCaptureClient() {
                             updateDiagnosis(idx, next);
                             if (invalidDx.size) {
                               setInvalidDx((prev) => {
-                                const n = new Set(prev);
+                                const n = new Map(prev);
                                 n.delete(upper);
                                 return n;
                               });
@@ -572,7 +583,7 @@ export default function ChargeCaptureClient() {
                           placeholder={idx === 0 ? "F41.1" : ""}
                           ariaLabel={`Diagnosis ${idx + 1}`}
                           invalid={bad}
-                          invalidTitle="Code not found in ICD-10 reference"
+                          invalidTitle={badTitle}
                         />
                       </div>
                     );
@@ -614,6 +625,11 @@ export default function ChargeCaptureClient() {
                       {detail.serviceLines.map((line, idx) => {
                         const lineTotal = (line.chargeAmount || 0) * (line.units || 0);
                         const mods = [0, 1, 2, 3].map((i) => line.modifiers[i] ?? "");
+                        const procUpper = line.procedureCode.trim().toUpperCase();
+                        const procBadEntry = procUpper.length > 0 ? invalidProc.get(procUpper) : undefined;
+                        const procBadTitle = procBadEntry && procBadEntry.status !== "active"
+                          ? procBadEntry.reason
+                          : "Code not found in CPT/HCPCS reference";
                         return (
                           <tr key={idx}>
                             <td style={{ minWidth: 90 }}>
@@ -624,8 +640,8 @@ export default function ChargeCaptureClient() {
                                   updateLine(idx, { procedureCode: next });
                                   if (invalidProc.size) {
                                     setInvalidProc((prev) => {
-                                      const n = new Set(prev);
-                                      n.delete(line.procedureCode.trim().toUpperCase());
+                                      const n = new Map(prev);
+                                      n.delete(procUpper);
                                       return n;
                                     });
                                   }
@@ -633,11 +649,8 @@ export default function ChargeCaptureClient() {
                                 className={styles.cellInput}
                                 placeholder="90837"
                                 ariaLabel={`Procedure code line ${idx + 1}`}
-                                invalid={
-                                  line.procedureCode.trim().length > 0 &&
-                                  invalidProc.has(line.procedureCode.trim().toUpperCase())
-                                }
-                                invalidTitle="Code not found in CPT/HCPCS reference"
+                                invalid={Boolean(procBadEntry)}
+                                invalidTitle={procBadTitle}
                               />
                             </td>
                             <td><input className={styles.cellInput} type="date" value={line.serviceDateFrom ?? ""} onChange={(e) => updateLine(idx, { serviceDateFrom: e.target.value || null })} /></td>
