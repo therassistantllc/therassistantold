@@ -310,3 +310,57 @@ test("transferred_balance writes payment_transfers row and restores source balan
   assert.equal(Number(dst.balance_amount), 0);
   assert.equal((dst.invoice_status as string), "paid");
 });
+
+test("transferred_balance rejects a source invoice belonging to a different client", async () => {
+  const fake = makeFakeSupabase();
+  const OTHER_CLIENT = "client-OTHER";
+  // Source invoice owned by a DIFFERENT client in the same org.
+  fake._tables.patient_invoices.push(
+    {
+      id: "inv-other",
+      organization_id: ORG,
+      client_id: OTHER_CLIENT,
+      balance_amount: 0,
+      paid_amount: 60,
+      invoice_status: "paid",
+      archived_at: null,
+    },
+    {
+      id: "inv-dst2",
+      organization_id: ORG,
+      client_id: CLIENT,
+      balance_amount: 60,
+      paid_amount: 0,
+      invoice_status: "open",
+      archived_at: null,
+    },
+  );
+
+  const r2 = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 60,
+    method: "transferred_balance",
+    applyTo: { kind: "invoice", patientInvoiceId: "inv-dst2" },
+    transferFrom: { fromInvoiceId: "inv-other" },
+    transferReason: "Should be blocked",
+    actor: ACTOR,
+  }, asClient(fake));
+  assert.equal(r2.ok, false, "expected cross-client transfer to be rejected");
+  assert.ok(
+    r2.errors.some((e) => /does not belong to this patient/.test(e.message)),
+    `expected cross-client error, got: ${JSON.stringify(r2.errors)}`,
+  );
+  // No transfer row, no payment row, no application row was written.
+  assert.equal(fake._tables.payment_transfers.length, 0);
+  assert.equal(fake._tables.client_payments.length, 0);
+  assert.equal(fake._tables.payment_applications.length, 0);
+  // Source invoice on the OTHER client is untouched.
+  const otherSrc = fake._tables.patient_invoices.find((i) => i.id === "inv-other") as Row;
+  assert.equal(Number(otherSrc.balance_amount), 0);
+  assert.equal(Number(otherSrc.paid_amount), 60);
+  // Destination invoice on THIS client is untouched (no partial mutation).
+  const dst2 = fake._tables.patient_invoices.find((i) => i.id === "inv-dst2") as Row;
+  assert.equal(Number(dst2.balance_amount), 60);
+  assert.equal(Number(dst2.paid_amount), 0);
+});

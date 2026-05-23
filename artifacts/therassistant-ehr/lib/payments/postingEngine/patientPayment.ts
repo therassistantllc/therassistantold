@@ -257,6 +257,44 @@ export async function commitPatientPayment(
 
   const unapplied = round2(amount - applyAmount);
 
+  // Object-level authorization for transferred_balance: source invoice/claim
+  // MUST belong to the same client as input.clientId (the destination patient).
+  // Without this, a biller could move balance off another patient's invoice
+  // because route-level FK ownership only enforces org scope.
+  if (input.method === "transferred_balance" && input.transferFrom) {
+    const tf = input.transferFrom;
+    if (tf.fromInvoiceId) {
+      const { data: srcInvAuth } = await supabase
+        .from("patient_invoices")
+        .select("id, client_id")
+        .eq("organization_id", input.organizationId)
+        .eq("id", tf.fromInvoiceId)
+        .maybeSingle();
+      if (!srcInvAuth || String((srcInvAuth as { client_id: unknown }).client_id) !== String(input.clientId)) {
+        result.errors.push({
+          field: "transferFrom.fromInvoiceId",
+          message: "Transfer source invoice does not belong to this patient.",
+        });
+        return result;
+      }
+    }
+    if (tf.fromClaimId) {
+      const { data: srcClmAuth } = await supabase
+        .from("professional_claims")
+        .select("id, patient_id")
+        .eq("organization_id", input.organizationId)
+        .eq("id", tf.fromClaimId)
+        .maybeSingle();
+      if (!srcClmAuth || String((srcClmAuth as { patient_id: unknown }).patient_id) !== String(input.clientId)) {
+        result.errors.push({
+          field: "transferFrom.fromClaimId",
+          message: "Transfer source claim does not belong to this patient.",
+        });
+        return result;
+      }
+    }
+  }
+
   if (dryRun) {
     result.ok = true;
     result.appliedAmount = applyAmount;
@@ -418,6 +456,7 @@ export async function commitPatientPayment(
     // decreases at the same time the destination credit is applied above.
     if (input.method === "transferred_balance" && input.transferFrom && applyAmount > 0) {
       const tf = input.transferFrom;
+
       const transferId = genId();
       const { error: tErr } = await supabase.from("payment_transfers").insert({
         id: transferId,

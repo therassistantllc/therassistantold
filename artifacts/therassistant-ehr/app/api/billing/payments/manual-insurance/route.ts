@@ -85,6 +85,47 @@ export async function POST(request: Request) {
       mailroomItemId = String(mr!.id);
     }
 
+    let serviceLineAllocations:
+      | Array<{
+          serviceLineId: string;
+          chargeAmount?: number;
+          paidAmount: number;
+          adjustmentAmount: number;
+          patientResponsibilityAmount: number;
+        }>
+      | undefined;
+    if (Array.isArray(body.serviceLineAllocations) && body.serviceLineAllocations.length > 0) {
+      const ids = (body.serviceLineAllocations as Array<{ serviceLineId?: string }>)
+        .map((a) => String(a?.serviceLineId ?? "").trim())
+        .filter(Boolean);
+      if (ids.length > 0) {
+        // Object-level auth: every supplied service-line id must belong to
+        // THIS claim (not just this org). Otherwise a biller could spread
+        // allocations onto unrelated service lines they happen to know.
+        const { data: ownedLines } = await supabase
+          .from("professional_claim_service_lines")
+          .select("id, claim_id")
+          .eq("claim_id", professionalClaimId)
+          .in("id", ids);
+        const owned = new Set((ownedLines ?? []).map((r) => String((r as { id: string }).id)));
+        for (const id of ids) {
+          if (!owned.has(id)) {
+            return NextResponse.json(
+              { ok: false, error: `Service line ${id} does not belong to claim ${professionalClaimId}` },
+              { status: 404 },
+            );
+          }
+        }
+      }
+      serviceLineAllocations = (body.serviceLineAllocations as Array<Record<string, unknown>>).map((a) => ({
+        serviceLineId: String(a.serviceLineId ?? "").trim(),
+        chargeAmount: a.chargeAmount != null ? toAmount(a.chargeAmount) : undefined,
+        paidAmount: toAmount(a.paidAmount),
+        adjustmentAmount: toAmount(a.adjustmentAmount),
+        patientResponsibilityAmount: toAmount(a.patientResponsibilityAmount),
+      }));
+    }
+
     const result = await commitPosting({
       organizationId,
       actor,
@@ -102,6 +143,7 @@ export async function POST(request: Request) {
         mailroomItemId,
         payerProfileId: body.payerProfileId ? String(body.payerProfileId) : null,
         note: body.note ? String(body.note) : null,
+        serviceLineAllocations,
       },
       dryRun: Boolean(body.dryRun),
     });
