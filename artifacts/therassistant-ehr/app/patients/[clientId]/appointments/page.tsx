@@ -92,6 +92,7 @@ export default function VisitsAppointmentsPage() {
               <tr>
                 <th>Date / Time</th>
                 <th>Type</th>
+                <th>Memo</th>
                 <th>Status</th>
                 <th>Check-in</th>
                 <th>Encounter</th>
@@ -103,6 +104,25 @@ export default function VisitsAppointmentsPage() {
                 <tr key={appt.id}>
                   <td>{formatDate(appt.scheduledStart)}</td>
                   <td>{appt.type ?? "—"}</td>
+                  <td>
+                    {appt.memo ? (
+                      <span
+                        title={appt.memo}
+                        style={{
+                          display: "inline-block",
+                          maxWidth: "260px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          verticalAlign: "bottom",
+                        }}
+                      >
+                        {appt.memo}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td><span className={statusClass(appt.status)}>{appt.status ?? "—"}</span></td>
                   <td>{appt.checkedInAt ? formatDate(appt.checkedInAt) : "—"}</td>
                   <td>
