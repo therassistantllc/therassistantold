@@ -1,5 +1,10 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import {
+  PaymentPostingForbiddenError,
+  PaymentPostingUnauthenticatedError,
+  requireAuthenticatedPaymentPoster,
+} from "@/lib/payments/postingEngine";
 
 function errMsg(e: unknown) {
   if (e instanceof Error) return e.message;
@@ -8,8 +13,11 @@ function errMsg(e: unknown) {
 }
 
 /**
- * POST { organizationId, claimNumber?, claimId? }
- * Manually attaches a professional_claim to an ERA payment row.
+ * POST { organizationId, professionalClaimId? | claimId? | claimNumber?, clientId? }
+ * Manually binds a professional_claim (and optionally a client) to an ERA
+ * claim-payment row. Sets claim_match_status='matched' and posting_status='ready'.
+ *
+ * Requires an authenticated payment poster (role guard).
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -20,12 +28,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try { body = (await req.json()) as Record<string, unknown>; } catch { /* allow empty */ }
   const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
   const claimNumber = typeof body.claimNumber === "string" ? body.claimNumber.trim() : "";
-  const claimIdInput = typeof body.claimId === "string" ? body.claimId.trim() : "";
+  const claimIdInput =
+    (typeof body.professionalClaimId === "string" && body.professionalClaimId.trim()) ||
+    (typeof body.claimId === "string" && body.claimId.trim()) ||
+    "";
 
   if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-  if (!claimNumber && !claimIdInput) return NextResponse.json({ success: false, error: "claimNumber or claimId is required" }, { status: 400 });
+  if (!claimNumber && !claimIdInput)
+    return NextResponse.json(
+      { success: false, error: "professionalClaimId, claimId, or claimNumber is required" },
+      { status: 400 },
+    );
 
   try {
+    await requireAuthenticatedPaymentPoster(organizationId);
     let claimId = claimIdInput;
     if (!claimId) {
       const { data: claim, error: claimErr } = await supabase
@@ -41,21 +57,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       claimId = String(claim.id);
     }
 
+    const clientIdInput = typeof body.clientId === "string" ? body.clientId.trim() : "";
+    const updatePayload: Record<string, unknown> = {
+      professional_claim_id: claimId,
+      claim_match_status: "matched",
+      posting_status: "ready",
+      updated_at: new Date().toISOString(),
+    };
+    if (clientIdInput) updatePayload.client_id = clientIdInput;
+
     const { data, error } = await supabase
-      .from("era_payments")
-      .update({
-        professional_claim_id: claimId,
-        claim_match_status: "matched",
-        updated_at: new Date().toISOString(),
-      })
+      .from("era_claim_payments")
+      .update(updatePayload)
       .eq("id", id)
       .eq("organization_id", organizationId)
-      .select("id, professional_claim_id, claim_match_status")
+      .select("id, professional_claim_id, client_id, claim_match_status, posting_status")
       .single();
     if (error) throw error;
 
     return NextResponse.json({ success: true, payment: data });
   } catch (e) {
+    if (e instanceof PaymentPostingUnauthenticatedError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 401 });
+    }
+    if (e instanceof PaymentPostingForbiddenError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 403 });
+    }
     return NextResponse.json({ success: false, error: errMsg(e) }, { status: 500 });
   }
 }

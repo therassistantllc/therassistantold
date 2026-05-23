@@ -5,11 +5,20 @@ import {
   PaymentPostingUnauthenticatedError,
   requireAuthenticatedPaymentPoster,
 } from "@/lib/payments/postingEngine";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+
+interface PostBody {
+  organizationId?: string;
+  overrides?: {
+    paymentAmount?: number;
+    patientResponsibility?: number;
+  };
+}
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const body = (await request.json().catch(() => ({}))) as { organizationId?: string };
+    const body = (await request.json().catch(() => ({}))) as PostBody;
     const organizationId = body.organizationId ? String(body.organizationId) : "";
 
     if (!organizationId) {
@@ -20,6 +29,40 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     const actor = await requireAuthenticatedPaymentPoster(organizationId);
+
+    // Persist biller inline edits (yellow-modified fields) before posting so
+    // the commitPosting engine reads the corrected values. This makes the
+    // poster's edit -> Post round-trip honest end-to-end.
+    if (body.overrides && (body.overrides.paymentAmount !== undefined || body.overrides.patientResponsibility !== undefined)) {
+      const supabase = createServerSupabaseAdminClient();
+      if (!supabase) {
+        return NextResponse.json(
+          { success: false, error: "Database connection not available" },
+          { status: 500 },
+        );
+      }
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (typeof body.overrides.paymentAmount === "number" && Number.isFinite(body.overrides.paymentAmount)) {
+        update.clp04_payment_amount = +body.overrides.paymentAmount.toFixed(2);
+      }
+      if (
+        typeof body.overrides.patientResponsibility === "number" &&
+        Number.isFinite(body.overrides.patientResponsibility)
+      ) {
+        update.clp05_patient_responsibility = +body.overrides.patientResponsibility.toFixed(2);
+      }
+      const { error: editErr } = await supabase
+        .from("era_claim_payments")
+        .update(update)
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+      if (editErr) {
+        return NextResponse.json(
+          { success: false, error: `Failed to persist edits: ${editErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
 
     const result = await postSingleEra835ClaimPayment({
       organizationId,
