@@ -572,23 +572,12 @@ async function loadTotals(
     // best-effort
   }
 
-  // Provider-scoped denied claim count: use the claim-level signal in
-  // addition to row-derived denied so this KPI tracks both AR-side
-  // denials and zero-pay ERA rows.
-  try {
-    let q = supabase
-      .from("professional_claims")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", filters.organizationId)
-      .eq("claim_status", "denied");
-    if (providerClaimIds) q = q.in("id", providerClaimIds);
-    const { count: deniedClaims } = await q;
-    if (typeof deniedClaims === "number") {
-      totals.denied = Math.max(totals.denied, deniedClaims);
-    }
-  } catch {
-    // ignore
-  }
+  // NOTE: An earlier revision merged in a claim-level "denied claims"
+  // count from professional_claims here. That count ignored the active
+  // dashboard filter set (payer / client / dates / source / etc.) and
+  // could inflate the denied KPI past what the visible rows justified.
+  // Denied is now derived solely from the filter-scoped eraDeniedZero
+  // query above so the KPI moves in lockstep with the filter bar.
 
   return totals;
 }
