@@ -7,6 +7,7 @@ import {
   PaymentPostingForbiddenError,
   PaymentPostingUnauthenticatedError,
 } from "@/lib/payments/postingEngine";
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 
 type ClaimUpdate = Database["public"]["Tables"]["claims"]["Update"];
 
@@ -39,29 +40,6 @@ function isMissingRelation(message: string) {
   return text.includes("does not exist") || text.includes("schema cache") || text.includes("insurance_manual_payments") || text.includes("payment_applications");
 }
 
-async function resolveOrganizationId(
-  supabase: NonNullable<ReturnType<typeof createServerSupabaseServiceRoleClient>>,
-  submittedOrganizationId?: string | null,
-) {
-  const submitted = String(submittedOrganizationId ?? "").trim();
-  if (submitted && isUuid(submitted)) return submitted;
-
-  const envOrganizationId = String(process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "").trim();
-  if (envOrganizationId && isUuid(envOrganizationId)) return envOrganizationId;
-
-  const { data, error } = await supabase
-    .from("organizations")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  const resolvedId = data?.id;
-  if (typeof resolvedId === "string" && isUuid(resolvedId)) return resolvedId;
-  return null;
-}
-
 export async function POST(request: Request) {
   try {
     const supabase = createServerSupabaseServiceRoleClient();
@@ -86,10 +64,11 @@ export async function POST(request: Request) {
       note?: string;
     };
 
-    const organizationId = await resolveOrganizationId(supabase, body.organizationId);
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "No organization found for payment posting." }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     // Task #112 — POST_PAYMENTS gate.
     try {

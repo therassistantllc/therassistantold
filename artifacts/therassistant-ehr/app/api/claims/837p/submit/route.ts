@@ -3,22 +3,27 @@ import {
   mark837PBatchSubmitted,
   mark837PBatchSubmissionFailed,
 } from "@/lib/claims/edi837pSubmissionService";
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    if (!body.organizationId || !body.batchId) {
-      return NextResponse.json({ success: false, error: "organizationId and batchId are required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    if (!body.batchId) {
+      return NextResponse.json({ success: false, error: "batchId is required" }, { status: 400 });
     }
 
     const result = body.status === "failed"
       ? await mark837PBatchSubmissionFailed({
-          organizationId: String(body.organizationId),
+          organizationId: guard.organizationId,
           batchId: String(body.batchId),
           reason: String(body.reason ?? "837P submission failed"),
         })
       : await mark837PBatchSubmitted({
-          organizationId: String(body.organizationId),
+          organizationId: guard.organizationId,
           batchId: String(body.batchId),
           availityFileId: body.availityFileId ?? null,
           submittedAt: body.submittedAt ?? null,

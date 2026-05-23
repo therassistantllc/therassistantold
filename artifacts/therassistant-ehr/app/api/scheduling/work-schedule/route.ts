@@ -1,8 +1,9 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { resolveOrganizationId } from "@/lib/scheduling/core";
 
+
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 function generateUuid() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -26,10 +27,11 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const organizationId = await resolveOrganizationId(supabase, url.searchParams.get("organizationId"));
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "No organization found." }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: url.searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const providerId = String(url.searchParams.get("providerId") ?? "").trim();
     const start = String(url.searchParams.get("start") ?? "").trim();
@@ -109,10 +111,11 @@ export async function POST(request: Request) {
       endsAt?: string;
     };
 
-    const organizationId = await resolveOrganizationId(supabase, body.organizationId);
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "No organization found." }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const now = new Date().toISOString();
 

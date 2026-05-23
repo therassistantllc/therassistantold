@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbRow = Record<string, any>;
 
@@ -11,8 +12,11 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { clientId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const { data: documents, error } = await supabase
       .from("documents")

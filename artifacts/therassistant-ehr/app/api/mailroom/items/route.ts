@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type DbRow = Record<string, unknown>;
 
 function clean(value: unknown) {
@@ -38,17 +37,15 @@ export async function GET(request: Request) {
     // Per-clinician scoping: signed-in staff see only their own email-derived
     // mailroom items, plus any org-scoped items (owner_user_id IS NULL) such
     // as manually uploaded documents that aren't tied to a clinician.
-    const ctx = await requireAuthenticatedStaff();
-    const organizationId =
-      ctx?.organizationId ||
-      searchParams.get("organizationId") ||
-      process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-      DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
+    const ctx = { userId: guard.userId };
     const status = searchParams.get("status") || "active";
     const clientId = searchParams.get("clientId") || null;
     const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 100);
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     let query = supabase
       .from("mailroom_items")
@@ -81,15 +78,17 @@ export async function POST(request: Request) {
     if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
 
     const body = await request.json();
-    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: clean(body.organizationId),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const fileName = clean(body.fileName) || "uploaded-mailroom-document";
     const mimeType = clean(body.mimeType) || "application/pdf";
     const storagePath = clean(body.storagePath) || `manual-mailroom/${Date.now()}-${fileName}`;
     const clientId = clean(body.clientId) || null;
     const documentType = clean(body.documentType) || "payer_correspondence";
     const notes = clean(body.notes) || "Mailroom document routed for billing/admin review.";
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     const { data, error } = await supabase
       .from("mailroom_items")

@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestEligibilityForPatient } from "@/lib/eligibility/latestEligibilityService";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function GET(req: NextRequest) {
   try {
-    const organizationId = req.nextUrl.searchParams.get("organization_id");
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: req.nextUrl.searchParams.get("organization_id"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const patientId = req.nextUrl.searchParams.get("patient_id");
     const payerId = req.nextUrl.searchParams.get("payer_id");
 
-    if (!organizationId || !patientId) {
+    if (!patientId) {
       return NextResponse.json(
-        { error: "organization_id and patient_id are required" },
+        { error: "patient_id is required" },
         { status: 400 }
       );
     }

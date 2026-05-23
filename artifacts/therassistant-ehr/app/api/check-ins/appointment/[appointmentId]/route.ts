@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type DbRow = Record<string, unknown>;
 
 function clean(value: unknown) {
@@ -51,9 +51,11 @@ export async function GET(request: Request, context: { params: Promise<{ appoint
 
     const { appointmentId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const appointment = await loadAppointment(organizationId, appointmentId);
     if (!appointment) return NextResponse.json({ success: false, error: "Appointment not found" }, { status: 404 });
@@ -84,10 +86,12 @@ export async function POST(request: Request, context: { params: Promise<{ appoin
 
     const { appointmentId } = await context.params;
     const body = await request.json();
-    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: clean(body.organizationId),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const status = clean(body.status) || "submitted";
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     const appointment = await loadAppointment(organizationId, appointmentId);
     if (!appointment) return NextResponse.json({ success: false, error: "Appointment not found" }, { status: 404 });

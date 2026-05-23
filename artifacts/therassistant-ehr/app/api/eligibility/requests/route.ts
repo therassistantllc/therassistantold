@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 function parseLimit(value: string | null): number {
   const parsed = Number.parseInt(value || "25", 10);
   if (Number.isNaN(parsed) || parsed <= 0) {
@@ -11,19 +12,16 @@ function parseLimit(value: string | null): number {
 
 export async function GET(req: NextRequest) {
   try {
-    const organizationId = req.nextUrl.searchParams.get("organization_id");
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: req.nextUrl.searchParams.get("organization_id"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const patientId = req.nextUrl.searchParams.get("patient_id");
     const payerId = req.nextUrl.searchParams.get("payer_id");
     const status = req.nextUrl.searchParams.get("status");
     const eligibilityStatus = req.nextUrl.searchParams.get("eligibility_status");
     const limit = parseLimit(req.nextUrl.searchParams.get("limit"));
-
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: "organization_id is required" },
-        { status: 400 }
-      );
-    }
 
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {

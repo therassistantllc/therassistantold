@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 const DEFAULT_BUCKET = "mailroom-documents";
 
 function clean(value: unknown) {
@@ -51,8 +51,11 @@ async function probe(
 export async function GET(request: Request, context: { params: Promise<{ itemId: string }> }) {
   const { itemId } = await context.params;
   const { searchParams } = new URL(request.url);
-  const organizationId =
-    searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
   const isProbe = searchParams.get("probe") === "1";
   const bucket = DEFAULT_BUCKET;
 
@@ -63,9 +66,6 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
         { success: false, error: "Database connection not available", bucket },
         { status: 500 },
       );
-    }
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required", bucket }, { status: 400 });
     }
     if (!itemId) {
       return NextResponse.json({ success: false, error: "itemId is required", bucket }, { status: 400 });

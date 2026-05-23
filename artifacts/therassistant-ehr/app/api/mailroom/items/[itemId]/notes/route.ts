@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type DbRow = Record<string, unknown>;
 
 function clean(value: unknown) {
@@ -41,8 +41,11 @@ export async function GET(request: Request, context: { params: Promise<{ itemId:
 
     const { itemId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     if (!itemId) return NextResponse.json({ success: false, error: "itemId is required" }, { status: 400 });
 
     const allowed = await ensureItemInOrg(supabase, itemId, organizationId);
@@ -70,12 +73,15 @@ export async function POST(request: Request, context: { params: Promise<{ itemId
 
     const { itemId } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const organizationId = clean(body.organizationId) || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: clean(body.organizationId),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const text = clean(body.body);
     const authorName = clean(body.authorName) || "Staff";
     const authorUserId = clean(body.authorUserId) || null;
 
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     if (!itemId) return NextResponse.json({ success: false, error: "itemId is required" }, { status: 400 });
     if (!text) return NextResponse.json({ success: false, error: "Note body is required" }, { status: 400 });
 

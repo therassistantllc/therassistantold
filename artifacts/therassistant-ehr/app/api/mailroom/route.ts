@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type Row = Record<string, unknown>;
 
 function value(input: unknown) {
@@ -27,12 +27,14 @@ export async function GET(request: Request) {
     // Per-clinician scoping: signed-in staff see their own email-derived
     // mailroom items plus any org-scoped (owner_user_id IS NULL) items such
     // as paper-mail uploads that don't belong to a single clinician.
-    const ctx = await requireAuthenticatedStaff();
-    const organizationId = ctx?.organizationId || searchParams.get("organizationId");
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
+    const ctx = { userId: guard.userId };
     const status = value(searchParams.get("status"));
     const clientId = value(searchParams.get("clientId"));
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     let query = supabase
       .from("mailroom_items")
@@ -115,8 +117,11 @@ export async function POST(request: Request) {
     if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
 
     const body = await request.json();
-    const organizationId = value(body.organizationId);
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: value(body.organizationId),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const now = new Date().toISOString();
     const title = value(body.title) || "Uploaded mail item";

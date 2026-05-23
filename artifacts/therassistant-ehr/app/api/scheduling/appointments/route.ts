@@ -1,42 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
-import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type Row = Record<string, unknown>;
-
-/**
- * Resolve the organization for a scheduling read. In production an
- * authenticated staff context is required and the resolved org always
- * comes from auth — any caller-supplied orgId that disagrees is
- * rejected. A non-production dev fallback to DEFAULT_ORG_ID exists
- * solely so the local seed environment (which has no Supabase auth
- * session) can still render the calendar; production builds NEVER hit
- * that path.
- */
-async function resolveOrgForRead(
-  requestedOrgId: string | null,
-): Promise<
-  | { ok: true; organizationId: string }
-  | { ok: false; status: number; error: string }
-> {
-  const staff = await requireAuthenticatedStaff();
-  if (staff) {
-    const orgId = staff.organizationId;
-    if (requestedOrgId && requestedOrgId !== orgId) {
-      return { ok: false, status: 403, error: "Organization mismatch" };
-    }
-    return { ok: true, organizationId: orgId };
-  }
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, status: 401, error: "Authentication required" };
-  }
-  const fallback = DEFAULT_ORG_ID;
-  if (requestedOrgId && requestedOrgId !== fallback) {
-    return { ok: false, status: 401, error: "Authentication required" };
-  }
-  return { ok: true, organizationId: fallback };
-}
 
 export async function GET(request: Request) {
   try {
@@ -49,16 +15,11 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const orgResolution = await resolveOrgForRead(
-      searchParams.get("organizationId"),
-    );
-    if (!orgResolution.ok) {
-      return NextResponse.json(
-        { success: false, error: orgResolution.error },
-        { status: orgResolution.status },
-      );
-    }
-    const organizationId = orgResolution.organizationId;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 

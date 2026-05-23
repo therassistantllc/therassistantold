@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { runTestClaimSimulation } from "@/lib/validation/simulation";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /**
  * POST /api/settings/system-readiness/simulate
  *
@@ -14,12 +15,12 @@ import { runTestClaimSimulation } from "@/lib/validation/simulation";
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const organizationId =
-      typeof body?.organizationId === "string" ? body.organizationId.trim() : "";
-
-    if (!organizationId) {
-      return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId:
+        typeof body?.organizationId === "string" ? body.organizationId.trim() : null,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {

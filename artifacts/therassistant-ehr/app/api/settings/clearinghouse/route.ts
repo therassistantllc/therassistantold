@@ -2,14 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { storeClearinghouseApiKey } from "@/lib/clearinghouse/credentials";
 
-function getOrgId(req: NextRequest) {
-  return (
-    req.nextUrl.searchParams.get("organizationId") ||
-    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-    ""
-  );
-}
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /** Never return encrypted_credentials or vault_secret_id to the client; instead expose
  *  a derived `has_credentials` flag plus a `credential_source` hint so the UI can warn
  *  when a connection is still on legacy plaintext storage. */
@@ -28,10 +22,11 @@ function sanitizeConnection(row: Record<string, unknown>) {
 }
 
 export async function GET(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -65,10 +60,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -156,10 +152,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {

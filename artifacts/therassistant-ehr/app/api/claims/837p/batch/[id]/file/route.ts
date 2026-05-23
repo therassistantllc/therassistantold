@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const supabase = createServerSupabaseAdminClient();
@@ -9,8 +9,11 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
     const { id } = await ctx.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const { data, error } = await supabase
       .from("claim_837p_batches")

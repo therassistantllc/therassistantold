@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { archiveCase, getCaseById, updateCase, type CaseType } from "@/lib/cases/clientCasesService";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string; caseId: string }> },
@@ -8,10 +9,11 @@ export async function GET(
   try {
     const { caseId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const c = await getCaseById({ organizationId, caseId });
     if (!c) return NextResponse.json({ success: false, error: "Case not found" }, { status: 404 });
     return NextResponse.json({ success: true, case: c });
@@ -37,11 +39,12 @@ export async function PATCH(
       activeFlag?: boolean;
       isDefault?: boolean;
     };
-    if (!body.organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
     const result = await updateCase({
-      organizationId: body.organizationId,
+      organizationId: guard.organizationId,
       caseId,
       name: body.name,
       caseType: body.caseType,
@@ -66,11 +69,11 @@ export async function DELETE(
   try {
     const { caseId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-    }
-    const result = await archiveCase({ organizationId, caseId });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const result = await archiveCase({ organizationId: guard.organizationId, caseId });
     if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     return NextResponse.json({ success: true });
   } catch (error) {

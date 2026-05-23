@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-function getOrgId(req: NextRequest) {
-  return (
-    req.nextUrl.searchParams.get("organizationId") ||
-    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-    ""
-  );
-}
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function GET(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -39,10 +34,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -92,10 +88,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 import { requireAuthenticatedStaff, type StaffAuthContext } from "@/lib/rbac/auth";
 import {
   isValidStateCode,
@@ -8,22 +7,11 @@ import {
   isValidGenderIdentity,
   isValidPreferredLanguage,
 } from "@/lib/demographics/options";
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 
 function extractMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Patient update failed";
-}
-
-async function resolveOrgForMutation(): Promise<
-  | { ok: true; organizationId: string; staff: StaffAuthContext | null }
-  | { ok: false; status: number; error: string }
-> {
-  const staff = await requireAuthenticatedStaff();
-  if (staff) return { ok: true, organizationId: staff.organizationId, staff };
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, status: 401, error: "Authentication required" };
-  }
-  return { ok: true, organizationId: DEFAULT_ORG_ID, staff: null };
 }
 
 type IncomingUpdates = {
@@ -211,15 +199,10 @@ export async function PATCH(
       );
     }
 
-    const orgResolution = await resolveOrgForMutation();
-    if (!orgResolution.ok) {
-      return NextResponse.json(
-        { success: false, error: orgResolution.error },
-        { status: orgResolution.status },
-      );
-    }
-    const organizationId = orgResolution.organizationId;
-    const staff = orgResolution.staff;
+    const guard = await requireOrgAccess();
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
+    const staff: StaffAuthContext | null = await requireAuthenticatedStaff();
 
     const body = (await request.json().catch(() => ({}))) as {
       updates?: IncomingUpdates;

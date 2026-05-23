@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /**
  * Returns 999/277CA acknowledgements for a claim_837p_batches row.
  * We bridge to edi_acknowledgements by matching on batch_number (also used as
@@ -14,9 +14,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
     const { id } = await ctx.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const type = (searchParams.get("type") || "").trim();
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     // Confirm the claim batch exists and belongs to this org.
     const { data: batch, error: batchErr } = await supabase

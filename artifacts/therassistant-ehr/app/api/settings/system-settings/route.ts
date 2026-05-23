@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-function getOrgId(req: NextRequest) {
-  return (
-    req.nextUrl.searchParams.get("organizationId") ||
-    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-    ""
-  );
-}
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /** GET /api/settings/system-settings?organizationId=...&key=... */
 export async function GET(req: NextRequest) {
-  const organizationId = getOrgId(req);
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
   const key = req.nextUrl.searchParams.get("key");
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
   if (!key) {
     return NextResponse.json({ error: "key is required" }, { status: 400 });
   }
@@ -45,10 +40,11 @@ export async function GET(req: NextRequest) {
 
 /** PUT /api/settings/system-settings?organizationId=...  body: { key, value } */
 export async function PUT(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {

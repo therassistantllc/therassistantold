@@ -4,6 +4,7 @@ import {
   reorderCasePolicies,
   type PolicyPriority,
 } from "@/lib/cases/clientCasesService";
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 
 export async function POST(
   request: Request,
@@ -16,14 +17,18 @@ export async function POST(
       policyId?: string;
       priority?: PolicyPriority;
     };
-    if (!body.organizationId || !body.policyId || !body.priority) {
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    if (!body.policyId || !body.priority) {
       return NextResponse.json(
-        { success: false, error: "organizationId, policyId, and priority are required" },
+        { success: false, error: "policyId and priority are required" },
         { status: 400 },
       );
     }
     const result = await attachPolicyToCase({
-      organizationId: body.organizationId,
+      organizationId: guard.organizationId,
       caseId,
       policyId: body.policyId,
       priority: body.priority,
@@ -48,14 +53,18 @@ export async function PATCH(
       organizationId?: string;
       ordered?: Array<{ policyId: string; priority: PolicyPriority }>;
     };
-    if (!body.organizationId || !Array.isArray(body.ordered)) {
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    if (!Array.isArray(body.ordered)) {
       return NextResponse.json(
-        { success: false, error: "organizationId and ordered are required" },
+        { success: false, error: "ordered is required" },
         { status: 400 },
       );
     }
     const result = await reorderCasePolicies({
-      organizationId: body.organizationId,
+      organizationId: guard.organizationId,
       caseId,
       ordered: body.ordered,
     });

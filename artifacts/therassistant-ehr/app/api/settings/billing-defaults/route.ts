@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 const BILLING_DEFAULTS_KEY = "billing.defaults";
 
-function getOrgId(req: NextRequest) {
-  return (
-    req.nextUrl.searchParams.get("organizationId") ||
-    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-    ""
-  );
-}
 
 const DEFAULTS = {
   claim_frequency_code: "1",
@@ -23,10 +17,11 @@ const DEFAULTS = {
 };
 
 export async function GET(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -54,10 +49,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
 
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { enforceOrganizationInRoute, requireAuthentication } from "@/lib/rbac/middleware";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 type Row = Record<string, unknown>;
 
 const ELIGIBILITY_STALE_DAYS = 30;
@@ -152,10 +153,12 @@ export async function GET(request: Request) {
     if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
 
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const q = value(searchParams.get("q")).toLowerCase();
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
 
     const baseColumns = "id, first_name, last_name, preferred_name, email, phone, archived_at, deceased_at, updated_at";
     const fullColumns = `${baseColumns}, intake_status`;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 function value(input: unknown) {
   return String(input ?? "").trim();
 }
@@ -16,9 +17,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ itemI
 
     const { itemId } = await context.params;
     const body = await request.json();
-    const organizationId = value(body.organizationId);
-
-    if (!organizationId) return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: value(body.organizationId),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const { data: current, error: currentError } = await supabase
       .from("mailroom_items")

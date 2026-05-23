@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { checkProviderAvailability, resolveOrganizationId } from "@/lib/scheduling/core";
+import { checkProviderAvailability } from "@/lib/scheduling/core";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function POST(request: Request) {
   try {
     const supabase = createServerSupabaseServiceRoleClient();
@@ -20,10 +21,11 @@ export async function POST(request: Request) {
       location?: "office" | "telehealth" | "any";
     };
 
-    const organizationId = await resolveOrganizationId(supabase, body.organizationId);
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "No organization found." }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const providerId = String(body.providerId ?? "").trim();
     const startAt = String(body.startAt ?? "").trim();

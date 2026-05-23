@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createCase, listCasesForClient, type CaseType } from "@/lib/cases/clientCasesService";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -8,10 +9,11 @@ export async function GET(
   try {
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const includeArchived = searchParams.get("includeArchived") === "true";
     const cases = await listCasesForClient({ organizationId, clientId: id, includeArchived });
     return NextResponse.json({ success: true, cases });
@@ -37,11 +39,12 @@ export async function POST(
       activeFlag?: boolean;
       isDefault?: boolean;
     };
-    if (!body.organizationId) {
-      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId,
+    });
+    if (guard instanceof NextResponse) return guard;
     const result = await createCase({
-      organizationId: body.organizationId,
+      organizationId: guard.organizationId,
       clientId: id,
       name: body.name ?? "",
       caseType: body.caseType,

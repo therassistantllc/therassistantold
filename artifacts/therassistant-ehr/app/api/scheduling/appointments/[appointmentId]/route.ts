@@ -1,30 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
-import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 function extractMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Appointment update failed";
-}
-
-/**
- * Resolve the org allowed to mutate appointments. Production requires an
- * authenticated staff session and uses their org. Dev (no auth session)
- * falls back to DEFAULT_ORG_ID only — never an arbitrary caller-supplied
- * org. The returned org is then enforced on every appointments query
- * below so a caller cannot mutate a row in another tenant.
- */
-async function resolveOrgForMutation(): Promise<
-  | { ok: true; organizationId: string }
-  | { ok: false; status: number; error: string }
-> {
-  const staff = await requireAuthenticatedStaff();
-  if (staff) return { ok: true, organizationId: staff.organizationId };
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, status: 401, error: "Authentication required" };
-  }
-  return { ok: true, organizationId: DEFAULT_ORG_ID };
 }
 
 export async function PATCH(
@@ -43,14 +23,9 @@ export async function PATCH(
       );
     }
 
-    const orgResolution = await resolveOrgForMutation();
-    if (!orgResolution.ok) {
-      return NextResponse.json(
-        { success: false, error: orgResolution.error },
-        { status: orgResolution.status },
-      );
-    }
-    const organizationId = orgResolution.organizationId;
+    const guard = await requireOrgAccess();
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const body = (await request.json()) as {
       scope?: "single" | "series";

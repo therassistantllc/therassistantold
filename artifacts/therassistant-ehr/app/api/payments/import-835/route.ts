@@ -1,3 +1,4 @@
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 // File: app/api/payments/import-835/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
@@ -33,35 +34,6 @@ function extractErrorMessage(error: unknown) {
   }
 }
 
-async function resolveOrganizationId(
-  supabase: NonNullable<ReturnType<typeof createServerSupabaseServiceRoleClient>>,
-  submittedOrganizationId: string,
-) {
-  if (submittedOrganizationId && isUuid(submittedOrganizationId)) {
-    return submittedOrganizationId;
-  }
-
-  const envOrganizationId = String(process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "").trim();
-  if (envOrganizationId && isUuid(envOrganizationId)) {
-    return envOrganizationId;
-  }
-
-  const { data: firstOrganization, error: orgLookupError } = await supabase
-    .from("organizations")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (orgLookupError) throw orgLookupError;
-
-  if (!firstOrganization?.id || typeof firstOrganization.id !== "string") {
-    return null;
-  }
-
-  return firstOrganization.id;
-}
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -85,14 +57,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const organizationId = await resolveOrganizationId(supabase, submittedOrganizationId);
-
-    if (!organizationId) {
-      return NextResponse.json(
-        { success: false, error: "Create an organization before importing 835 files." },
-        { status: 400 },
-      );
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: submittedOrganizationId || null,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     // Task #112 — POST_PAYMENTS gate on 835 ingest.
     try {

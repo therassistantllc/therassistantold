@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /**
  * Per-payer trading-partner enrollment tracker (Availity Phase 1, T003).
  *
@@ -17,13 +18,6 @@ type TransactionType = (typeof TRANSACTION_TYPES)[number];
 type Environment = (typeof ENVIRONMENTS)[number];
 type Status = (typeof STATUSES)[number];
 
-function getOrgId(req: NextRequest) {
-  return (
-    req.nextUrl.searchParams.get("organizationId") ||
-    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
-    ""
-  );
-}
 
 function isOneOf<T extends string>(value: unknown, options: readonly T[]): value is T {
   return typeof value === "string" && (options as readonly string[]).includes(value);
@@ -83,10 +77,11 @@ function parseBody(body: Record<string, unknown>) {
 }
 
 export async function GET(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Database connection not available" }, { status: 503 });
@@ -125,10 +120,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const organizationId = getOrgId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Database connection not available" }, { status: 503 });
@@ -208,11 +204,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const organizationId = getOrgId(req);
+  const guard = await requireOrgAccess({
+    requestedOrganizationId: req.nextUrl.searchParams.get("organizationId"),
+  });
+  if (guard instanceof NextResponse) return guard;
+  const organizationId = guard.organizationId;
   const enrollmentId = req.nextUrl.searchParams.get("id");
-  if (!organizationId) {
-    return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
-  }
   if (!enrollmentId) {
     return NextResponse.json({ error: "?id=<enrollmentId> is required" }, { status: 400 });
   }

@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { addMonthsKeepingClock, checkProviderAvailability, resolveOrganizationId } from "@/lib/scheduling/core";
+import { addMonthsKeepingClock, checkProviderAvailability } from "@/lib/scheduling/core";
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 import { getDefaultCaseForClient } from "@/lib/cases/clientCasesService";
 
 type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
@@ -95,10 +96,11 @@ export async function POST(request: Request) {
       };
     };
 
-    const organizationId = await resolveOrganizationId(supabase, body.organizationId);
-    if (!organizationId) {
-      return NextResponse.json({ success: false, error: "Create an organization before scheduling." }, { status: 400 });
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: body.organizationId ?? null,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const clientId = String(body.clientId ?? "").trim();
     const providerId = String(body.providerId ?? "").trim();

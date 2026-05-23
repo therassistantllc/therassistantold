@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { DEFAULT_ORG_ID } from "@/lib/config";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 const BUCKET = "mailroom-documents";
 
 function logCtx(label: string, ctx: Record<string, unknown>) {
@@ -49,7 +49,11 @@ export async function POST(req: NextRequest) {
     if (!file || typeof file === "string") {
       return NextResponse.json({ success: false, error: "file is required" }, { status: 400 });
     }
-    const organizationId = String(form.get("organizationId") || "").trim() || DEFAULT_ORG_ID;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: String(form.get("organizationId") || "").trim() || null,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
     const clientId = String(form.get("clientId") || "").trim() || null;
     const documentType = String(form.get("documentType") || "").trim() || "other";
 

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 interface PayerConfig {
   id: string;
   organization_id: string;
@@ -19,7 +20,11 @@ interface PayerConfig {
 
 export async function GET(req: NextRequest) {
   try {
-    const organizationId = req.nextUrl.searchParams.get("organization_id") || null;
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: req.nextUrl.searchParams.get("organization_id"),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const supabase = await createServerSupabaseAdminClient();
     if (!supabase) {
@@ -35,9 +40,7 @@ export async function GET(req: NextRequest) {
       .eq("is_active", true)
       .order("payer_name", { ascending: true });
 
-    if (organizationId) {
-      query = query.eq("organization_id", organizationId);
-    }
+    query = query.eq("organization_id", organizationId);
 
     const { data, error: dbError, count } = await query;
 
@@ -87,10 +90,15 @@ export async function POST(req: NextRequest) {
       notes,
     } = body;
 
-    // Validate required fields
-    if (!organization_id || !payer_id || !payer_name) {
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: organization_id,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const effectiveOrgId = guard.organizationId;
+
+    if (!payer_id || !payer_name) {
       return NextResponse.json(
-        { error: "Missing required fields: organization_id, payer_id, payer_name" },
+        { error: "Missing required fields: payer_id, payer_name" },
         { status: 400 }
       );
     }
@@ -107,7 +115,7 @@ export async function POST(req: NextRequest) {
     const { data: existing, error: checkError } = await supabase
       .from("payer_configurations")
       .select("id")
-      .eq("organization_id", organization_id)
+      .eq("organization_id", effectiveOrgId)
       .eq("payer_id", payer_id)
       .maybeSingle();
 
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
     const { data, error: insertError } = await supabase
       .from("payer_configurations")
       .insert({
-        organization_id,
+        organization_id: effectiveOrgId,
         payer_id,
         payer_name,
         payer_aliases: payer_aliases ?? [],

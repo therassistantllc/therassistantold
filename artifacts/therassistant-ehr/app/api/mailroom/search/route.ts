@@ -1,3 +1,4 @@
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 /**
  * GET /api/mailroom/search?organizationId=&type=patient|claim|encounter&q=
  *
@@ -11,7 +12,6 @@
 
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
-import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 import {
   isMailroomSearchType,
   searchMailroomEntities,
@@ -39,27 +39,11 @@ export async function GET(request: Request) {
     }
     const type: MailroomSearchType = rawType;
 
-    const ctx = await requireAuthenticatedStaff();
-    if (!ctx) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-    if (!ctx.organizationId) {
-      return NextResponse.json(
-        { success: false, error: "Authenticated user has no organization" },
-        { status: 403 },
-      );
-    }
-    const organizationId = ctx.organizationId;
-    const requestedOrganizationId = text(searchParams.get("organizationId"));
-    if (requestedOrganizationId && requestedOrganizationId !== organizationId) {
-      return NextResponse.json(
-        { success: false, error: "Organization mismatch" },
-        { status: 403 },
-      );
-    }
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: text(searchParams.get("organizationId")),
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
 
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {

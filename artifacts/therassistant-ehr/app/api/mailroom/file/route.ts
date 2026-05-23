@@ -1,3 +1,4 @@
+import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 // File: app/api/mailroom/file/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -29,9 +30,15 @@ export async function POST(req: NextRequest) {
       organization_id,
     } = body;
 
-    if (!mailroom_item_id || !filing_destination || !organization_id) {
+    const guard = await requireOrgAccess({
+      requestedOrganizationId: organization_id,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const effectiveOrgId = guard.organizationId;
+
+    if (!mailroom_item_id || !filing_destination) {
       return NextResponse.json(
-        { error: "Missing required fields: mailroom_item_id, filing_destination, organization_id" },
+        { error: "Missing required fields: mailroom_item_id, filing_destination" },
         { status: 400 }
       );
     }
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
       .from("mailroom_items")
       .select("*")
       .eq("id", mailroom_item_id)
-      .eq("organization_id", organization_id)
+      .eq("organization_id", effectiveOrgId)
       .single();
 
     if (mailroomError || !mailroomItem) {
@@ -64,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     // Create document record using actual schema columns
     const documentData: Record<string, unknown> = {
-      organization_id,
+      organization_id: effectiveOrgId,
       mailroom_item_id,
       title: fileName,
       document_scope: scope,
@@ -109,7 +116,7 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", mailroom_item_id)
-      .eq("organization_id", organization_id);
+      .eq("organization_id", effectiveOrgId);
 
     if (updateError) {
       return NextResponse.json(
