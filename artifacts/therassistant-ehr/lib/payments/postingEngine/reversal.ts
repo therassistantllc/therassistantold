@@ -103,12 +103,30 @@ export interface ReversalResult {
   preview?: ReversalPreview;
 }
 
+/**
+ * Shape returned in dry-run mode so the UI can render exactly what a
+ * live void would do. Void never moves money — the preview just confirms
+ * the engine *would* accept the flip and lists the audit row it'd write.
+ */
+export interface VoidPreview {
+  source: { kind: PostedPaymentKind; id: string; label: string };
+  currentPostingStatus: string;
+  /** True when the row is already voided — live call would be a no-op. */
+  alreadyVoided: boolean;
+  /** Count of non-archived ledger entries on this payment; void requires 0. */
+  ledgerEntryCount: number;
+  /** What the row would flip to. Always 'voided' when the live call would proceed. */
+  newPostingStatus: "voided";
+}
+
 export interface VoidResult {
   ok: boolean;
   voided: boolean;
   alreadyVoided: boolean;
   auditLogIds: string[];
   errors: Array<{ field: string; message: string }>;
+  /** Populated only when input.dryRun === true and validation passed. */
+  preview?: VoidPreview;
 }
 
 export interface RecordRecoupmentInput {
@@ -1078,6 +1096,7 @@ export async function voidPostedPayment(
   // Void is reserved for data-entry mistakes caught BEFORE balances post.
   // If the payment is already posted and any ledger entries exist, the
   // caller MUST use reversal — voiding would orphan financial state.
+  let ledgerEntryCount = 0;
   if (payment.postingStatus === "posted") {
     const { count } = await supabase
       .from("era_posting_ledger_entries")
@@ -1085,13 +1104,28 @@ export async function voidPostedPayment(
       .eq("organization_id", input.organizationId)
       .eq("source_id", payment.id)
       .is("archived_at", null);
-    if ((count ?? 0) > 0) {
+    ledgerEntryCount = count ?? 0;
+    if (ledgerEntryCount > 0) {
       result.errors.push({
         field: "posting_status",
         message: "Cannot void a posted payment with ledger impact. Use reversal instead.",
       });
       return result;
     }
+  }
+
+  // Dry-run preview: all validation has passed; describe the row flip the
+  // live call would perform without actually writing it.
+  if (input.dryRun) {
+    result.ok = true;
+    result.preview = {
+      source: { kind: payment.kind, id: payment.id, label: payment.rawSourceLabel },
+      currentPostingStatus: payment.postingStatus,
+      alreadyVoided: false,
+      ledgerEntryCount,
+      newPostingStatus: "voided",
+    };
+    return result;
   }
 
   const now = new Date().toISOString();

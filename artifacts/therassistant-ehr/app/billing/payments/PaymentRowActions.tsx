@@ -30,7 +30,7 @@ type ActionKind =
   | "confirm-refund"
   | "cancel-refund";
 
-interface RowSummary {
+export interface RowSummary {
   id: string; // composite (era:|cp:|mi: + uuid)
   paymentType: "insurance" | "patient";
   postingStatus: string;
@@ -514,7 +514,7 @@ interface RefundPreviewShape {
   };
 }
 
-function RefundModal({
+export function RefundModal({
   row,
   orgId,
   onClose,
@@ -936,7 +936,7 @@ interface ReversalPreviewShape {
   workqueueItemsToClose: number;
 }
 
-function ReverseModal({
+export function ReverseModal({
   row,
   orgId,
   onClose,
@@ -1266,7 +1266,15 @@ function ReverseModal({
 // Simple reason-only modal (void)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SimpleReasonModal({
+interface VoidPreviewShape {
+  source: { kind: string; id: string; label: string };
+  currentPostingStatus: string;
+  alreadyVoided: boolean;
+  ledgerEntryCount: number;
+  newPostingStatus: "voided";
+}
+
+export function SimpleReasonModal({
   title,
   intro,
   submitLabel,
@@ -1292,20 +1300,16 @@ function SimpleReasonModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const submit = async () => {
-    if (!reason.trim()) {
-      setError("A reason is required.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
+  const [preview, setPreview] = useState<VoidPreviewShape | null>(null);
+
+  const callApi = useCallback(
+    async (dryRun: boolean) => {
       const r = await fetch(
         `/api/billing/payments/posted/${encodeURIComponent(row.id)}/${path}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ organizationId: orgId, reason: reason.trim() }),
+          body: JSON.stringify({ organizationId: orgId, reason: reason.trim(), dryRun }),
         },
       );
       const j = await r.json();
@@ -1313,6 +1317,36 @@ function SimpleReasonModal({
         const msg = (j?.errors?.[0]?.message as string | undefined) ?? j?.error ?? "Action failed";
         throw new Error(msg);
       }
+      return j;
+    },
+    [row.id, orgId, path, reason],
+  );
+
+  const requestPreview = useCallback(async () => {
+    if (!reason.trim()) {
+      setError("A reason is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const j = await callApi(true);
+      if (!j.preview) throw new Error("Server did not return a preview");
+      setPreview(j.preview as VoidPreviewShape);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Preview failed";
+      setError(msg);
+      onError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [reason, callApi, onError]);
+
+  const confirmLive = useCallback(async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const j = await callApi(false);
       onDone(j.alreadyVoided ? "Payment was already voided." : `${submitLabel} succeeded.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Action failed";
@@ -1321,7 +1355,54 @@ function SimpleReasonModal({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [callApi, onDone, onError, submitLabel]);
+
+  if (preview) {
+    return (
+      <Modal title={`Confirm ${title.toLowerCase()}`} onClose={onClose}>
+        <ErrorBanner message={error} />
+        <div
+          style={{
+            padding: 10,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            borderRadius: 6,
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          <strong>Preview — nothing has been written yet.</strong> Void never moves money;
+          confirming flips the posting status only.
+        </div>
+        <InfoLine label="Source" value={preview.source.label} />
+        <InfoLine
+          label="Posting status"
+          value={
+            <>
+              <code>{preview.currentPostingStatus}</code> →{" "}
+              <code>{preview.newPostingStatus}</code>
+            </>
+          }
+        />
+        <InfoLine label="Ledger entries" value={`${preview.ledgerEntryCount} (must be 0)`} />
+        <InfoLine label="Reason" value={reason} />
+        <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={() => setPreview(null)} style={secondaryBtn} disabled={submitting}>
+            Back
+          </button>
+          <button
+            onClick={confirmLive}
+            style={danger ? dangerBtn : primaryBtn}
+            disabled={submitting}
+          >
+            {submitting ? "Submitting…" : `Confirm & ${submitLabel.toLowerCase()}`}
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={title} onClose={onClose}>
       <ErrorBanner message={error} />
@@ -1340,11 +1421,11 @@ function SimpleReasonModal({
           Cancel
         </button>
         <button
-          onClick={submit}
-          style={danger ? dangerBtn : primaryBtn}
+          onClick={requestPreview}
+          style={primaryBtn}
           disabled={submitting || !reason.trim()}
         >
-          {submitting ? "Submitting…" : submitLabel}
+          {submitting ? "Loading preview…" : `Preview ${path}`}
         </button>
       </div>
     </Modal>
@@ -1378,7 +1459,7 @@ interface RecoupmentPreviewShape {
   };
 }
 
-function RecoupModal({
+export function RecoupModal({
   row,
   orgId,
   onClose,
@@ -1639,15 +1720,17 @@ function RecoupPreviewPanel({
 // Confirm-refund modal — pick a pending insurance refund and mark issued
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ConfirmRefundModal({
+export function ConfirmRefundModal({
   row,
   orgId,
+  presetRefundId,
   onClose,
   onDone,
   onError,
 }: {
   row: RowSummary;
   orgId: string;
+  presetRefundId?: string;
   onClose: () => void;
   onDone: (msg: string) => void;
   onError: (msg: string) => void;
@@ -1660,15 +1743,20 @@ function ConfirmRefundModal({
       ),
     [detail],
   );
-  const [refundId, setRefundId] = useState<string>("");
+  const [refundId, setRefundId] = useState<string>(presetRefundId ?? "");
   const [externalRef, setExternalRef] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (pending.length > 0 && !refundId) setRefundId(pending[0].id);
-  }, [pending, refundId]);
+    if (refundId) return;
+    if (presetRefundId && pending.some((p) => p.id === presetRefundId)) {
+      setRefundId(presetRefundId);
+    } else if (pending.length > 0) {
+      setRefundId(pending[0].id);
+    }
+  }, [pending, refundId, presetRefundId]);
 
   const submit = async () => {
     if (!refundId) {
@@ -1783,15 +1871,17 @@ function ConfirmRefundModal({
 // Cancel-pending-refund modal — pick a pending insurance refund and cancel it
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CancelRefundModal({
+export function CancelRefundModal({
   row,
   orgId,
+  presetRefundId,
   onClose,
   onDone,
   onError,
 }: {
   row: RowSummary;
   orgId: string;
+  presetRefundId?: string;
   onClose: () => void;
   onDone: (msg: string) => void;
   onError: (msg: string) => void;
@@ -1806,14 +1896,19 @@ function CancelRefundModal({
       ),
     [detail],
   );
-  const [refundId, setRefundId] = useState<string>("");
+  const [refundId, setRefundId] = useState<string>(presetRefundId ?? "");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (pending.length > 0 && !refundId) setRefundId(pending[0].id);
-  }, [pending, refundId]);
+    if (refundId) return;
+    if (presetRefundId && pending.some((p) => p.id === presetRefundId)) {
+      setRefundId(presetRefundId);
+    } else if (pending.length > 0) {
+      setRefundId(pending[0].id);
+    }
+  }, [pending, refundId, presetRefundId]);
 
   const submit = async () => {
     if (!refundId) {

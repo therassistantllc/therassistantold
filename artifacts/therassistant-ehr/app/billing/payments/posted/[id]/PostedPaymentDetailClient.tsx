@@ -16,6 +16,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import {
+  CancelRefundModal,
+  ConfirmRefundModal,
+  RecoupModal,
+  RefundModal,
+  ReverseModal,
+  SimpleReasonModal,
+  type RowSummary,
+} from "../../PaymentRowActions";
 
 function getOrganizationId() {
   if (typeof window === "undefined") return DEFAULT_ORG_ID;
@@ -112,8 +121,16 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
   const [detail, setDetail] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [active, setActive] = useState<
+    | null
+    | { kind: "refund" }
+    | { kind: "reverse" }
+    | { kind: "void" }
+    | { kind: "recoup" }
+    | { kind: "confirm-refund"; refundId?: string }
+    | { kind: "cancel-refund"; refundId?: string }
+  >(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -141,72 +158,36 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
     reload();
   }, [reload]);
 
-  async function callAction(
-    action: "reverse" | "void" | "recoup" | "refund" | "confirm-refund",
-    body: Record<string, unknown>,
-  ) {
-    setActionBusy(action);
-    setActionMsg(null);
-    try {
-      const r = await fetch(
-        `/api/billing/payments/posted/${encodeURIComponent(compositeId)}/${action}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ organizationId, ...body }),
-        },
-      );
-      const j = (await r.json()) as { success: boolean; error?: string; errors?: Array<{ message: string }> };
-      if (!r.ok || !j.success) {
-        const msg =
-          j.error ||
-          (j.errors && j.errors.length ? j.errors.map((e) => e.message).join("; ") : "Action failed");
-        setActionMsg(`Failed: ${msg}`);
-      } else {
-        setActionMsg(`${action.charAt(0).toUpperCase() + action.slice(1)} succeeded.`);
-        await reload();
-      }
-    } catch (e) {
-      setActionMsg(`Failed: ${e instanceof Error ? e.message : "network error"}`);
-    } finally {
-      setActionBusy(null);
-    }
-  }
+  const rowSummary: RowSummary | null = useMemo(() => {
+    if (!detail) return null;
+    const source: RowSummary["source"] =
+      detail.kind === "era_835"
+        ? "era"
+        : detail.kind === "client_payment"
+          ? "patient"
+          : "manual_insurance";
+    return {
+      id: detail.compositeId,
+      paymentType: detail.kind === "client_payment" ? "patient" : "insurance",
+      postingStatus: detail.postingStatus,
+      amount: Number(detail.totalImpact ?? 0),
+      payerName: null,
+      source,
+    };
+  }, [detail]);
 
-  function handleReverse() {
-    const reason = window.prompt("Reversal reason (required):", "");
-    if (!reason || !reason.trim()) return;
-    void callAction("reverse", { reason });
-  }
-  function handleVoid() {
-    const reason = window.prompt("Void reason (required):", "");
-    if (!reason || !reason.trim()) return;
-    void callAction("void", { reason });
-  }
-  function handleRecoup() {
-    const amtStr = window.prompt("Recoupment amount:", "");
-    const amount = Number(amtStr);
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    const reason = window.prompt("Recoupment reason (required):", "");
-    if (!reason || !reason.trim()) return;
-    void callAction("recoup", { amount, reason });
-  }
-  function handleConfirmRefund(refundId: string, amount: number) {
-    const reason = window.prompt(
-      `Confirm insurance refund $${amount.toFixed(2)} as issued? Enter reference number / reason:`,
-      "",
-    );
-    if (reason === null) return;
-    void callAction("confirm-refund", { refundId, reason, externalReferenceNumber: reason });
-  }
-  function handleRefund(refundType: "insurance" | "patient") {
-    const amtStr = window.prompt(`${refundType === "insurance" ? "Insurance" : "Patient"} refund amount:`, "");
-    const amount = Number(amtStr);
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    const reason = window.prompt("Refund reason (required):", "");
-    if (!reason || !reason.trim()) return;
-    void callAction("refund", { amount, reason, refundType });
-  }
+  const closeModal = useCallback(() => setActive(null), []);
+  const onModalDone = useCallback(
+    (msg: string) => {
+      setActionMsg({ tone: "ok", text: msg });
+      setActive(null);
+      void reload();
+    },
+    [reload],
+  );
+  const onModalError = useCallback((msg: string) => {
+    setActionMsg({ tone: "err", text: msg });
+  }, []);
 
   if (loading) {
     return (
@@ -422,45 +403,35 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
         </p>
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <button
-            onClick={handleReverse}
-            disabled={!lifecycleOpen || actionBusy !== null}
+            onClick={() => setActive({ kind: "reverse" })}
+            disabled={!lifecycleOpen}
             style={btnStyle(!lifecycleOpen)}
           >
-            {actionBusy === "reverse" ? "Reversing…" : "Reverse"}
+            Reverse…
           </button>
           <button
-            onClick={handleVoid}
-            disabled={!lifecycleOpen || actionBusy !== null}
+            onClick={() => setActive({ kind: "void" })}
+            disabled={!lifecycleOpen}
             style={btnStyle(!lifecycleOpen)}
           >
-            {actionBusy === "void" ? "Voiding…" : "Void"}
+            Void…
           </button>
           {detail.kind !== "insurance_manual" ? (
             <button
-              onClick={handleRecoup}
-              disabled={!lifecycleOpen || actionBusy !== null}
+              onClick={() => setActive({ kind: "recoup" })}
+              disabled={!lifecycleOpen}
               style={btnStyle(!lifecycleOpen)}
             >
-              {actionBusy === "recoup" ? "Recording…" : "Record Recoupment"}
+              Record Recoupment…
             </button>
           ) : null}
-          {detail.kind === "client_payment" ? (
-            <button
-              onClick={() => handleRefund("patient")}
-              disabled={isVoided || actionBusy !== null}
-              style={btnStyle(isVoided)}
-            >
-              {actionBusy === "refund" ? "Refunding…" : "Refund Patient"}
-            </button>
-          ) : (
-            <button
-              onClick={() => handleRefund("insurance")}
-              disabled={isVoided || actionBusy !== null}
-              style={btnStyle(isVoided)}
-            >
-              {actionBusy === "refund" ? "Refunding…" : "Refund Insurance"}
-            </button>
-          )}
+          <button
+            onClick={() => setActive({ kind: "refund" })}
+            disabled={isVoided}
+            style={btnStyle(isVoided)}
+          >
+            {detail.kind === "client_payment" ? "Refund Patient…" : "Refund Insurance…"}
+          </button>
         </div>
         {isReversed ? (
           <p style={{ marginTop: 12, fontSize: 13, color: "#b45309" }}>
@@ -481,11 +452,73 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
           </p>
         ) : null}
         {actionMsg ? (
-          <p style={{ marginTop: 12, fontSize: 13, color: actionMsg.startsWith("Failed") ? "#b91c1c" : "#15803d" }}>
-            {actionMsg}
+          <p style={{ marginTop: 12, fontSize: 13, color: actionMsg.tone === "err" ? "#b91c1c" : "#15803d" }}>
+            {actionMsg.text}
           </p>
         ) : null}
       </section>
+
+      {rowSummary && active?.kind === "refund" ? (
+        <RefundModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "reverse" ? (
+        <ReverseModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "void" ? (
+        <SimpleReasonModal
+          title="Void payment"
+          intro={`Void this ${rowSummary.source} payment of $${rowSummary.amount.toFixed(2)}? Voiding is only allowed when no ledger entries exist (data-entry mistake caught early). It does NOT move money.`}
+          submitLabel="Void payment"
+          danger
+          row={rowSummary}
+          orgId={organizationId}
+          path="void"
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "recoup" ? (
+        <RecoupModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "confirm-refund" ? (
+        <ConfirmRefundModal
+          row={rowSummary}
+          orgId={organizationId}
+          presetRefundId={active.refundId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "cancel-refund" ? (
+        <CancelRefundModal
+          presetRefundId={active.refundId}
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
 
       {/* Ledger entries */}
       <Section title={`Posted ledger entries (${detail.ledgerEntries.length})`}>
@@ -514,8 +547,8 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
           <RefundTimeline
             refunds={detail.refunds}
             auditChain={detail.auditChain}
-            actionBusy={actionBusy}
-            onConfirm={handleConfirmRefund}
+            onConfirm={(refundId) => setActive({ kind: "confirm-refund", refundId })}
+            onCancel={(refundId) => setActive({ kind: "cancel-refund", refundId })}
           />
         )}
       </Section>
@@ -642,13 +675,13 @@ function Table({ cols, rows }: { cols: string[]; rows: Array<Array<string>> }) {
 function RefundTimeline({
   refunds,
   auditChain,
-  actionBusy,
   onConfirm,
+  onCancel,
 }: {
   refunds: Array<Record<string, unknown>>;
   auditChain: Array<Record<string, unknown>>;
-  actionBusy: string | null;
-  onConfirm: (refundId: string, amount: number) => void;
+  onConfirm: (refundId: string) => void;
+  onCancel: (refundId: string) => void;
 }) {
   // Build a quick { refundId -> { created, terminal } } index from the audit
   // chain so we don't repeat the .find() per render row.
@@ -735,16 +768,26 @@ function RefundTimeline({
                 </span>
               ) : null}
               {isPendingInsurance ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onConfirm(id, amount);
-                  }}
-                  disabled={actionBusy !== null}
-                  style={{ ...btnStyle(false), marginLeft: "auto", padding: "6px 12px" }}
-                >
-                  {actionBusy === "confirm-refund" ? "Confirming…" : "Confirm issued"}
-                </button>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConfirm(id);
+                    }}
+                    style={{ ...btnStyle(false), padding: "6px 12px" }}
+                  >
+                    Confirm issued…
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancel(id);
+                    }}
+                    style={{ ...btnStyle(false), padding: "6px 12px" }}
+                  >
+                    Cancel…
+                  </button>
+                </div>
               ) : null}
             </div>
 
