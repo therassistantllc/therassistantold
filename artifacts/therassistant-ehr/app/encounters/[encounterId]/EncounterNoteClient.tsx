@@ -58,6 +58,7 @@ type NoteTemplate = {
   default_interventions: string;
   default_plan: string;
   is_default: boolean;
+  provider_id: string | null;
 };
 
 type EncounterMailroomDocument = {
@@ -85,6 +86,16 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
   const [templates, setTemplates] = useState<NoteTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [mailroomDocs, setMailroomDocs] = useState<EncounterMailroomDocument[]>([]);
+  const [savingPersonal, setSavingPersonal] = useState(false);
+
+  const personalTemplates = useMemo(
+    () => templates.filter((t) => t.provider_id !== null),
+    [templates],
+  );
+  const orgTemplates = useMemo(
+    () => templates.filter((t) => t.provider_id === null),
+    [templates],
+  );
 
   const finalized = useMemo(
     () => summary?.encounter?.encounter_status === "signed" || summary?.clinicalNote?.note_status === "signed",
@@ -239,6 +250,53 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
     }
   }
 
+  async function saveAsPersonalTemplate() {
+    if (typeof window === "undefined") return;
+    const hasContent =
+      (soapNote.subjective ?? "").trim().length > 0 ||
+      (soapNote.objective ?? "").trim().length > 0 ||
+      (soapNote.plan ?? "").trim().length > 0;
+    if (!hasContent) {
+      setError("Add some content to the Subjective, Interventions, or Plan section before saving as a template.");
+      return;
+    }
+    const defaultName =
+      summary?.appointment?.appointment_type
+        ? `My ${summary.appointment.appointment_type} template`
+        : "My personal template";
+    const name = window.prompt("Name this template (only you will see it):", defaultName);
+    if (!name || !name.trim()) return;
+
+    setSavingPersonal(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/note-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          scope: "personal",
+          name: name.trim(),
+          service_type: summary?.appointment?.appointment_type ?? null,
+          default_subjective: soapNote.subjective ?? "",
+          default_interventions: soapNote.objective ?? "",
+          default_plan: soapNote.plan ?? "",
+        }),
+      });
+      const json = (await response.json()) as { success?: boolean; error?: string; template?: NoteTemplate };
+      if (!response.ok || !json.success || !json.template) {
+        throw new Error(json.error ?? "Failed to save personal template");
+      }
+      setTemplates((prev) => [...prev, json.template as NoteTemplate]);
+      setMessage(`Saved "${json.template.name}" to your personal templates.`);
+    } catch (templateError) {
+      setError(templateError instanceof Error ? templateError.message : "Failed to save personal template");
+    } finally {
+      setSavingPersonal(false);
+    }
+  }
+
   async function saveNote() {
     setSaving(true);
     setError(null);
@@ -378,34 +436,60 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
         </aside>
 
         <main className="workspace-main">
-          {templates.length > 0 ? (
-            <article className="panel template-picker-panel">
-              <div className="template-picker-row">
-                <label htmlFor="note-template-picker">
-                  <strong>Note template</strong>
-                  <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.875rem" }}>
-                    Applies to empty sections only — anything you&apos;ve typed is kept.
-                  </span>
-                </label>
+          <article className="panel template-picker-panel">
+            <div className="template-picker-row">
+              <label htmlFor="note-template-picker">
+                <strong>Note template</strong>
+                <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.875rem" }}>
+                  Applies to empty sections only — anything you&apos;ve typed is kept.
+                </span>
+              </label>
+              <div className="template-picker-controls">
                 <select
                   id="note-template-picker"
                   value={selectedTemplateId}
                   onChange={(e) => applyTemplate(e.target.value)}
-                  disabled={finalized || saving}
+                  disabled={finalized || saving || templates.length === 0}
                 >
-                  <option value="">Choose a template…</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                      {template.is_default ? " (default)" : ""}
-                      {template.service_type ? ` · ${template.service_type}` : ""}
-                      {template.cpt_code ? ` · ${template.cpt_code}` : ""}
-                    </option>
-                  ))}
+                  <option value="">
+                    {templates.length === 0 ? "No templates available" : "Choose a template…"}
+                  </option>
+                  {personalTemplates.length > 0 ? (
+                    <optgroup label="My personal templates">
+                      {personalTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                          {template.service_type ? ` · ${template.service_type}` : ""}
+                          {template.cpt_code ? ` · ${template.cpt_code}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {orgTemplates.length > 0 ? (
+                    <optgroup label="Organization templates">
+                      {orgTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                          {template.is_default ? " (default)" : ""}
+                          {template.service_type ? ` · ${template.service_type}` : ""}
+                          {template.cpt_code ? ` · ${template.cpt_code}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
                 </select>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={saveAsPersonalTemplate}
+                  disabled={finalized || saving || savingPersonal}
+                  title="Save the current note as a personal template only you can see."
+                >
+                  {savingPersonal ? "Saving…" : "Save as personal template"}
+                </button>
               </div>
-            </article>
-          ) : null}
+            </div>
+          </article>
           <article className="panel">
             <h2>Mailroom Documents</h2>
             {mailroomDocs.length === 0 ? (
@@ -475,6 +559,24 @@ export default function EncounterNoteClient({ encounterId }: { encounterId: stri
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
+        }
+
+        .template-picker-row {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .template-picker-controls {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .template-picker-controls select {
+          flex: 1 1 240px;
+          min-width: 0;
         }
 
         @media (max-width: 1024px) {

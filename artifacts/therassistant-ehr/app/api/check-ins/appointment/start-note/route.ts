@@ -34,10 +34,14 @@ async function pickTemplateDefaults(
   organizationId: string,
   appointmentType: string | null,
 ): Promise<TemplateDefaults> {
+  // Auto-pick at check-in only considers org-wide templates. Personal
+  // templates belong to a clinician and aren't part of the org default flow,
+  // so we never want them to silently win the auto-fill at check-in time.
   const { data, error } = await supabase
     .from("note_templates")
     .select("service_type, cpt_code, is_default, default_subjective, default_interventions, default_plan")
     .eq("organization_id", organizationId)
+    .is("provider_id", null)
     .is("archived_at", null);
 
   if (error || !Array.isArray(data) || data.length === 0) {
