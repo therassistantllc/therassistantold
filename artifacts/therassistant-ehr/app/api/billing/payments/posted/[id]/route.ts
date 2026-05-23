@@ -205,11 +205,65 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const wqSourceIds = [parsed.id, ...childSourceIds];
     const { data: workqueueItems } = await supabase
       .from("workqueue_items")
-      .select("id, work_type, queue_type, status, priority, title, description, created_at, resolved_at")
+      .select(
+        "id, work_type, queue_type, status, priority, title, description, context_payload, created_at, resolved_at",
+      )
       .eq("organization_id", organizationId)
       .in("source_object_id", wqSourceIds)
       .is("archived_at", null)
       .order("created_at", { ascending: false });
+
+    // ── Disputes / chargebacks ──────────────────────────────────────────────
+    // Stripe disputes are tracked as workqueue_items with
+    // work_type='stripe_dispute_review', anchored on the client_payment id.
+    // Surface them as a separate, first-class structure so the UI can render
+    // a banner with reason/status and a deep link to the matching WQ item.
+    type WqRow = {
+      id: string;
+      work_type?: string | null;
+      status?: string | null;
+      title?: string | null;
+      created_at?: string | null;
+      resolved_at?: string | null;
+      context_payload?: Record<string, unknown> | null;
+    };
+    const disputes = ((workqueueItems ?? []) as WqRow[])
+      .filter((w) => w.work_type === "stripe_dispute_review")
+      .map((w) => {
+        const ctx = (w.context_payload ?? {}) as Record<string, unknown>;
+        const amountCents = Number(ctx.amount_cents ?? 0);
+        return {
+          workqueueItemId: w.id,
+          status: w.status ?? null,
+          stripeDisputeId: (ctx.stripe_dispute_id as string | null) ?? null,
+          stripeChargeId: (ctx.stripe_charge_id as string | null) ?? null,
+          disputeReason: (ctx.dispute_reason as string | null) ?? null,
+          disputeStatus: (ctx.dispute_status as string | null) ?? null,
+          amount: Number.isFinite(amountCents) ? amountCents / 100 : null,
+          createdAt: w.created_at ?? null,
+          resolvedAt: w.resolved_at ?? null,
+          isActive: w.status !== "resolved" && w.status !== "closed",
+        };
+      });
+
+    // Remaining refundable: total impact minus the sum of non-cancelled,
+    // non-failed refund amounts. Reversed/voided payments expose $0
+    // remaining since the full impact has already been undone in ledger.
+    const refundsForMath = ((refundsRes.data ?? []) as Array<{
+      amount?: number | string | null;
+      refund_status?: string | null;
+    }>).filter((r) => {
+      const st = r.refund_status ?? "";
+      return st !== "cancelled" && st !== "failed";
+    });
+    const refundedTotal = refundsForMath.reduce(
+      (acc, r) => acc + Number(r.amount ?? 0),
+      0,
+    );
+    const lifecycleClosed = postingStatus === "reversed" || postingStatus === "voided";
+    const remainingRefundable = lifecycleClosed
+      ? 0
+      : Math.max(0, Math.round((totalImpact - refundedTotal) * 100) / 100);
 
     // Audit chain — payment object + child refund/recoupment audit rows +
     // any related claim. Refund/recoup audits are written keyed on the
@@ -313,6 +367,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       ledgerEntries: ledgerEntries ?? [],
       refunds: (refundsRes.data ?? []) as Array<Record<string, unknown>>,
       recoupments: (recoupsRes.data ?? []) as Array<Record<string, unknown>>,
+      disputes,
+      remainingRefundable,
       workqueueItems: workqueueItems ?? [],
       auditChain: auditRows ?? [],
       sourceLink,

@@ -37,6 +37,19 @@ type DetailResponse = {
   ledgerEntries: Array<Record<string, unknown>>;
   refunds: Array<Record<string, unknown>>;
   recoupments: Array<Record<string, unknown>>;
+  disputes?: Array<{
+    workqueueItemId: string;
+    status: string | null;
+    stripeDisputeId: string | null;
+    stripeChargeId: string | null;
+    disputeReason: string | null;
+    disputeStatus: string | null;
+    amount: number | null;
+    createdAt: string | null;
+    resolvedAt: string | null;
+    isActive: boolean;
+  }>;
+  remainingRefundable?: number;
   workqueueItems: Array<Record<string, unknown>>;
   auditChain: Array<Record<string, unknown>>;
   sourceLink?: { kind: string; id: string; label: string } | null;
@@ -228,8 +241,83 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
         </span>
       </header>
 
+      {/* Active dispute / chargeback banner (Stripe charge disputes) */}
+      {(detail.disputes ?? []).some((d) => d.isActive) ? (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 8,
+          }}
+          role="alert"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <strong style={{ color: "#991b1b", fontSize: 14 }}>
+              {(detail.disputes ?? []).filter((d) => d.isActive).length === 1
+                ? "Active chargeback / dispute"
+                : `${(detail.disputes ?? []).filter((d) => d.isActive).length} active chargebacks`}
+            </strong>
+          </div>
+          <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+            {(detail.disputes ?? [])
+              .filter((d) => d.isActive)
+              .map((d) => (
+                <div key={d.workqueueItemId} style={{ fontSize: 13, color: "#7f1d1d" }}>
+                  <div>
+                    <strong>Reason:</strong> {d.disputeReason ?? "—"}
+                    {" · "}
+                    <strong>Status:</strong> {d.disputeStatus ?? d.status ?? "—"}
+                    {d.amount != null ? (
+                      <>
+                        {" · "}
+                        <strong>Amount:</strong> {fmtCurrency(d.amount)}
+                      </>
+                    ) : null}
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12 }}>
+                    {d.stripeDisputeId ? (
+                      <>
+                        Stripe dispute <code>{d.stripeDisputeId}</code>
+                        {" · "}
+                      </>
+                    ) : null}
+                    Opened {fmtDate(d.createdAt)}
+                    {" · "}
+                    <Link
+                      href={`/billing/workqueue?organizationId=${encodeURIComponent(organizationId)}&itemId=${encodeURIComponent(d.workqueueItemId)}&status=all`}
+                      style={{ color: "#b91c1c", textDecoration: "underline" }}
+                    >
+                      Open workqueue item
+                    </Link>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Resolved disputes summary (kept compact, non-alarming) */}
+      {(detail.disputes ?? []).some((d) => !d.isActive) ? (
+        <p style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
+          {(detail.disputes ?? []).filter((d) => !d.isActive).length} resolved/closed dispute(s) on this charge.
+        </p>
+      ) : null}
+
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 16 }}>
         <Card label="Total impact" value={fmtCurrency(detail.totalImpact)} />
+        {typeof detail.remainingRefundable === "number" ? (
+          <Card
+            label="Remaining refundable"
+            value={fmtCurrency(detail.remainingRefundable)}
+            sub={
+              detail.refunds.length > 0
+                ? `${detail.refunds.length} refund${detail.refunds.length === 1 ? "" : "s"} on file`
+                : undefined
+            }
+          />
+        ) : null}
         <Card label="Source kind" value={detail.kind} />
         {detail.claim ? (
           <Card

@@ -49,6 +49,11 @@ function getOrganizationId() {
   return new URLSearchParams(window.location.search).get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
 }
 
+function getInitialUrlParam(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 function formatDate(value: string) {
   if (!value) return "—";
   const date = new Date(value);
@@ -63,10 +68,21 @@ function patientName(client: WorkqueueClientInfo) {
 
 export default function WorkqueueClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
-  const [status, setStatus] = useState("active");
+  // Deep-link support: pages like the posted-payment detail link here with
+  // `?itemId=<uuid>` (and may include `&status=all`) so an active chargeback
+  // banner can jump straight to the matching workqueue item. When itemId is
+  // present we widen the status filter to `all` so resolved/closed items
+  // remain visible, then preselect that id once loaded.
+  const initialItemId = useMemo(() => getInitialUrlParam("itemId"), []);
+  const initialStatus = useMemo(() => {
+    const fromUrl = getInitialUrlParam("status");
+    if (fromUrl) return fromUrl;
+    return initialItemId ? "all" : "active";
+  }, [initialItemId]);
+  const [status, setStatus] = useState(initialStatus);
   const [workType, setWorkType] = useState("");
   const [items, setItems] = useState<WorkqueueItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialItemId);
   const [selectedBulkIds, setSelectedBulkIds] = useState<Set<string>>(new Set());
   const [counts, setCounts] = useState<WorkqueueResponse["counts"] | null>(null);
   const [loading, setLoading] = useState(true);
