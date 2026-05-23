@@ -128,76 +128,6 @@ export async function getStaffContext(
 }
 
 /**
- * Check if a staff member has a specific permission
- */
-export async function hasPermission(
-  organizationId: string,
-  staffId: string,
-  requiredPermission: PermissionCode,
-): Promise<boolean> {
-  const context = await getStaffContext(organizationId, staffId);
-  return context ? context.permissions.includes(requiredPermission) : false;
-}
-
-/**
- * Check if a staff member has any of the required permissions
- */
-export async function hasAnyPermission(
-  organizationId: string,
-  staffId: string,
-  requiredPermissions: PermissionCode[],
-): Promise<boolean> {
-  const context = await getStaffContext(organizationId, staffId);
-  if (!context) return false;
-  return requiredPermissions.some((perm) => context.permissions.includes(perm));
-}
-
-/**
- * Check if a staff member has all of the required permissions
- */
-export async function hasAllPermissions(
-  organizationId: string,
-  staffId: string,
-  requiredPermissions: PermissionCode[],
-): Promise<boolean> {
-  const context = await getStaffContext(organizationId, staffId);
-  if (!context) return false;
-  return requiredPermissions.every((perm) => context.permissions.includes(perm));
-}
-
-/**
- * Check if a staff member has a specific role
- */
-export async function hasRole(
-  organizationId: string,
-  staffId: string,
-  requiredRole: StaffRoleCode,
-): Promise<boolean> {
-  const context = await getStaffContext(organizationId, staffId);
-  return context ? context.roles.includes(requiredRole) : false;
-}
-
-/**
- * Check if a staff member has any of the required roles
- */
-export async function hasAnyRole(
-  organizationId: string,
-  staffId: string,
-  requiredRoles: StaffRoleCode[],
-): Promise<boolean> {
-  const context = await getStaffContext(organizationId, staffId);
-  if (!context) return false;
-  return requiredRoles.some((role) => context.roles.includes(role));
-}
-
-/**
- * Check if a staff member is an admin
- */
-export async function isAdmin(organizationId: string, staffId: string): Promise<boolean> {
-  return hasRole(organizationId, staffId, "admin");
-}
-
-/**
  * Enforce permission check - throws error if permission denied
  * Use in API routes for middleware-style checks
  */
@@ -211,24 +141,6 @@ export async function enforcePermission(
 
   if (!context || !context.permissions.includes(requiredPermission)) {
     throw new Error(errorMessage || `Permission denied: ${requiredPermission}`);
-  }
-
-  return context;
-}
-
-/**
- * Enforce role check - throws error if role not found
- */
-export async function enforceRole(
-  organizationId: string,
-  staffId: string,
-  requiredRole: StaffRoleCode,
-  errorMessage?: string,
-): Promise<StaffContextData> {
-  const context = await getStaffContext(organizationId, staffId);
-
-  if (!context || !context.roles.includes(requiredRole)) {
-    throw new Error(errorMessage || `Role required: ${requiredRole}`);
   }
 
   return context;

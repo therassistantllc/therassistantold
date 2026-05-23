@@ -14,8 +14,7 @@
     "scripts/**/*.ts"
   ],
   "ignore": [
-    "supabase/functions/**",
-    "lib/rbac/index.ts"
+    "supabase/functions/**"
   ],
   "ignoreDependencies": [
     "@tailwindcss/postcss",

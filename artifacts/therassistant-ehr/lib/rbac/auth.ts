@@ -61,35 +61,6 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 }
 
 /**
- * Get the organization_id for an authenticated user
- * Looks up from auth metadata first, then falls back to staff_profiles table
- */
-export async function getUserOrganization(userId: string): Promise<string | null> {
-  const supabase = createServerSupabaseAdminClient();
-  if (!supabase) return null;
-
-  // First try user metadata (fast path — set at sign-up/invite)
-  try {
-    const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
-    if (!error && user?.user_metadata?.organization_id) {
-      return String(user.user_metadata.organization_id);
-    }
-  } catch {
-    // Fall through to staff_profiles lookup
-  }
-
-  // Fallback: look up from staff_profiles
-  const { data, error } = await supabase
-    .from("staff_profiles")
-    .select("organization_id")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data.organization_id ?? null;
-}
-
-/**
  * Get staff profile by auth user ID
  */
 export async function getStaffProfileByAuthUser(
@@ -303,34 +274,6 @@ export async function hasPermission(
 ): Promise<boolean> {
   const permissions = await getEffectivePermissions(staffId, organizationId);
   return permissions.includes(permissionCode);
-}
-
-/**
- * Check if a staff member has any of the provided permissions
- */
-export async function hasAnyPermission(
-  staffId: string,
-  organizationId: string,
-  permissionCodes: PermissionCode[],
-): Promise<boolean> {
-  if (permissionCodes.length === 0) return false;
-
-  const permissions = await getEffectivePermissions(staffId, organizationId);
-  return permissionCodes.some((code) => permissions.includes(code));
-}
-
-/**
- * Check if a staff member has all of the provided permissions
- */
-export async function hasAllPermissions(
-  staffId: string,
-  organizationId: string,
-  permissionCodes: PermissionCode[],
-): Promise<boolean> {
-  if (permissionCodes.length === 0) return true;
-
-  const permissions = await getEffectivePermissions(staffId, organizationId);
-  return permissionCodes.every((code) => permissions.includes(code));
 }
 
 /**

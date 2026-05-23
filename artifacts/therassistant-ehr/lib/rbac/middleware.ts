@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   requireAuthenticatedStaff,
   hasPermission,
-  hasAnyPermission,
   hasRole,
   assertStaffActive,
   assertSameOrganization,
@@ -56,47 +55,6 @@ export async function requirePermissionInRoute(
     context.staffId,
     context.organizationId,
     permissionCode,
-  );
-
-  if (!hasAccess) {
-    return NextResponse.json(
-      { error: "Insufficient permissions" },
-      { status: 403 },
-    );
-  }
-
-  return context;
-}
-
-/**
- * Check if user is authenticated and has any of the required permissions
- * Used in API routes
- */
-export async function requireAnyPermissionInRoute(
-  permissionCodes: PermissionCode[],
-): Promise<AuthenticatedRouteContext | NextResponse> {
-  const context = await requireAuthenticatedStaff();
-
-  if (!context) {
-    return NextResponse.json(
-      { error: "Not authenticated" },
-      { status: 401 },
-    );
-  }
-
-  try {
-    await assertStaffActive(context.staffId);
-  } catch {
-    return NextResponse.json(
-      { error: "Staff member is inactive" },
-      { status: 403 },
-    );
-  }
-
-  const hasAccess = await hasAnyPermission(
-    context.staffId,
-    context.organizationId,
-    permissionCodes,
   );
 
   if (!hasAccess) {
