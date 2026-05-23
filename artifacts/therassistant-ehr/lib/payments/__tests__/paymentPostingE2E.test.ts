@@ -311,6 +311,264 @@ test("transferred_balance writes payment_transfers row and restores source balan
   assert.equal((dst.invoice_status as string), "paid");
 });
 
+test("applyTo=claim posts against patient_responsibility and decrements it", async () => {
+  const fake = makeFakeSupabase();
+  fake._tables.professional_claims.push({
+    id: "pc-pr",
+    organization_id: ORG,
+    patient_id: CLIENT,
+    patient_responsibility_amount: 40,
+    archived_at: null,
+  });
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 40,
+    method: "cash",
+    applyTo: { kind: "claim", professionalClaimId: "pc-pr" },
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `commit failed: ${JSON.stringify(r.errors)}`);
+  assert.equal(r.appliedAmount, 40);
+  assert.equal(r.unappliedAmount, 0);
+  // PR balance reduced to zero on the claim.
+  const pc = fake._tables.professional_claims.find((c) => c.id === "pc-pr") as Row;
+  assert.equal(Number(pc.patient_responsibility_amount), 0);
+  // payment_applications row links to the claim.
+  assert.equal(fake._tables.payment_applications.length, 1);
+  assert.equal((fake._tables.payment_applications[0] as Row).claim_id, "pc-pr");
+  // Ledger entry is a negative insurance_payment against the claim.
+  const ledger = fake._tables.era_posting_ledger_entries.find(
+    (e) => e.professional_claim_id === "pc-pr" && e.source_type === "patient_payment",
+  ) as Row;
+  assert.ok(ledger);
+  assert.equal(Number(ledger.amount), -40);
+});
+
+test("applyTo=claim with amount > PR posts the cap and overflows the rest into client_credits", async () => {
+  const fake = makeFakeSupabase();
+  fake._tables.professional_claims.push({
+    id: "pc-cap",
+    organization_id: ORG,
+    patient_id: CLIENT,
+    patient_responsibility_amount: 30,
+    archived_at: null,
+  });
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 100,
+    method: "cash",
+    applyTo: { kind: "claim", professionalClaimId: "pc-cap" },
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `commit failed: ${JSON.stringify(r.errors)}`);
+  assert.equal(r.appliedAmount, 30);
+  assert.equal(r.unappliedAmount, 70);
+  // Claim PR drained.
+  const pc = fake._tables.professional_claims.find((c) => c.id === "pc-cap") as Row;
+  assert.equal(Number(pc.patient_responsibility_amount), 0);
+  // Overflow lands in client_credits.
+  assert.equal(fake._tables.client_credits.length, 1);
+  const credit = fake._tables.client_credits[0] as Row;
+  assert.equal(Number(credit.balance_amount), 70);
+  assert.equal(Number(credit.initial_amount), 70);
+  assert.equal(credit.client_id, CLIENT);
+  assert.equal(credit.source_payment_id, r.paymentId);
+});
+
+test("applyTo=encounter resolves the claim via appointment_id and posts to it", async () => {
+  const fake = makeFakeSupabase();
+  fake._tables.professional_claims.push({
+    id: "pc-enc",
+    organization_id: ORG,
+    patient_id: CLIENT,
+    appointment_id: "appt-1",
+    patient_responsibility_amount: 25,
+    archived_at: null,
+  });
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 25,
+    method: "cash",
+    applyTo: { kind: "encounter", appointmentId: "appt-1" },
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `commit failed: ${JSON.stringify(r.errors)}`);
+  assert.equal(r.appliedAmount, 25);
+  assert.equal((fake._tables.payment_applications[0] as Row).claim_id, "pc-enc");
+  const pc = fake._tables.professional_claims.find((c) => c.id === "pc-enc") as Row;
+  assert.equal(Number(pc.patient_responsibility_amount), 0);
+});
+
+test("applyTo=encounter with no matching claim parks the whole payment as unapplied credit", async () => {
+  const fake = makeFakeSupabase();
+  // No professional_claims row for appointment 'appt-orphan'.
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 60,
+    method: "cash",
+    applyTo: { kind: "encounter", appointmentId: "appt-orphan" },
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `commit failed: ${JSON.stringify(r.errors)}`);
+  assert.equal(r.appliedAmount, 0);
+  assert.equal(r.unappliedAmount, 60);
+  assert.equal(fake._tables.client_credits.length, 1);
+  assert.equal(Number((fake._tables.client_credits[0] as Row).balance_amount), 60);
+  assert.equal(fake._tables.payment_applications.length, 0);
+});
+
+test("applyTo=invoice with amount > invoice balance posts the cap and overflows into client_credits", async () => {
+  const fake = makeFakeSupabase();
+  fake._tables.patient_invoices.push({
+    id: "inv-small",
+    organization_id: ORG,
+    client_id: CLIENT,
+    balance_amount: 40,
+    paid_amount: 0,
+    invoice_status: "open",
+    archived_at: null,
+  });
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 100,
+    method: "cash",
+    applyTo: { kind: "invoice", patientInvoiceId: "inv-small" },
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `commit failed: ${JSON.stringify(r.errors)}`);
+  assert.equal(r.appliedAmount, 40);
+  assert.equal(r.unappliedAmount, 60);
+  // Invoice closed.
+  const inv = fake._tables.patient_invoices.find((i) => i.id === "inv-small") as Row;
+  assert.equal(Number(inv.balance_amount), 0);
+  assert.equal(inv.invoice_status, "paid");
+  // Overflow → client_credits.
+  assert.equal(fake._tables.client_credits.length, 1);
+  assert.equal(Number((fake._tables.client_credits[0] as Row).balance_amount), 60);
+});
+
+test("transferred_balance writes paired ledger entries (negative on destination, positive on source)", async () => {
+  const fake = makeFakeSupabase();
+  fake._tables.professional_claims.push(
+    {
+      id: "pc-src",
+      organization_id: ORG,
+      patient_id: CLIENT,
+      patient_responsibility_amount: 0,
+      archived_at: null,
+    },
+    {
+      id: "pc-dst",
+      organization_id: ORG,
+      patient_id: CLIENT,
+      patient_responsibility_amount: 50,
+      archived_at: null,
+    },
+  );
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 50,
+    method: "transferred_balance",
+    applyTo: { kind: "claim", professionalClaimId: "pc-dst" },
+    transferFrom: { fromClaimId: "pc-src" },
+    transferReason: "DOS correction",
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, true, `transfer failed: ${JSON.stringify(r.errors)}`);
+
+  // Destination side: negative insurance_payment ledger entry against pc-dst.
+  const dstLedger = fake._tables.era_posting_ledger_entries.find(
+    (e) => e.professional_claim_id === "pc-dst" && e.source_type === "patient_payment",
+  ) as Row;
+  assert.ok(dstLedger, "expected destination ledger entry");
+  assert.equal(Number(dstLedger.amount), -50);
+
+  // Source side: positive insurance_payment ledger entry against pc-src tied to the transfer.
+  const srcLedger = fake._tables.era_posting_ledger_entries.find(
+    (e) => e.professional_claim_id === "pc-src" && e.source_type === "payment_transfer",
+  ) as Row;
+  assert.ok(srcLedger, "expected paired source ledger entry");
+  assert.equal(Number(srcLedger.amount), 50);
+
+  // payment_transfers row records the move.
+  assert.equal(fake._tables.payment_transfers.length, 1);
+  const t = fake._tables.payment_transfers[0] as Row;
+  assert.equal(t.from_claim_id, "pc-src");
+  assert.equal(t.to_claim_id, "pc-dst");
+  assert.equal(Number(t.amount), 50);
+
+  // Source PR restored, destination PR drained.
+  const src = fake._tables.professional_claims.find((c) => c.id === "pc-src") as Row;
+  const dst = fake._tables.professional_claims.find((c) => c.id === "pc-dst") as Row;
+  assert.equal(Number(src.patient_responsibility_amount), 50);
+  assert.equal(Number(dst.patient_responsibility_amount), 0);
+});
+
+test("transferred_balance rejects a source claim belonging to a different client", async () => {
+  const fake = makeFakeSupabase();
+  const OTHER_CLIENT = "client-OTHER-2";
+  fake._tables.professional_claims.push(
+    {
+      id: "pc-src-other",
+      organization_id: ORG,
+      patient_id: OTHER_CLIENT,
+      patient_responsibility_amount: 0,
+      archived_at: null,
+    },
+    {
+      id: "pc-dst-mine",
+      organization_id: ORG,
+      patient_id: CLIENT,
+      patient_responsibility_amount: 45,
+      archived_at: null,
+    },
+  );
+
+  const r = await commitPatientPayment({
+    organizationId: ORG,
+    clientId: CLIENT,
+    amount: 45,
+    method: "transferred_balance",
+    applyTo: { kind: "claim", professionalClaimId: "pc-dst-mine" },
+    transferFrom: { fromClaimId: "pc-src-other" },
+    transferReason: "Should be blocked",
+    actor: ACTOR,
+  }, asClient(fake));
+
+  assert.equal(r.ok, false, "expected cross-client claim transfer to be rejected");
+  assert.ok(
+    r.errors.some((e) => /does not belong to this patient/.test(e.message)),
+    `expected cross-client error, got: ${JSON.stringify(r.errors)}`,
+  );
+  // No writes occurred.
+  assert.equal(fake._tables.payment_transfers.length, 0);
+  assert.equal(fake._tables.client_payments.length, 0);
+  assert.equal(fake._tables.payment_applications.length, 0);
+  // Neither claim mutated.
+  const otherSrc = fake._tables.professional_claims.find((c) => c.id === "pc-src-other") as Row;
+  const dst = fake._tables.professional_claims.find((c) => c.id === "pc-dst-mine") as Row;
+  assert.equal(Number(otherSrc.patient_responsibility_amount), 0);
+  assert.equal(Number(dst.patient_responsibility_amount), 45);
+});
+
 test("transferred_balance rejects a source invoice belonging to a different client", async () => {
   const fake = makeFakeSupabase();
   const OTHER_CLIENT = "client-OTHER";
