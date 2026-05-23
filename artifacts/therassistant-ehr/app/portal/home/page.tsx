@@ -1,9 +1,22 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import {
   clearPortalSessionCookie,
   getPortalSession,
 } from "@/lib/portal/session";
+import { startInvoiceCheckout } from "@/lib/portal/invoiceCheckout";
+
+async function resolveAppBaseUrl(): Promise<string> {
+  const env = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+  const replit = process.env.REPLIT_DEV_DOMAIN?.trim();
+  if (replit) return `https://${replit}`;
+  const hdrs = await headers();
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
+  return host ? `${proto}://${host}` : "";
+}
 
 type Row = Record<string, unknown>;
 
@@ -243,6 +256,41 @@ async function signOut() {
   redirect("/portal/signed-out");
 }
 
+async function payInvoiceAction(formData: FormData) {
+  "use server";
+  const session = await getPortalSession();
+  if (!session) {
+    redirect("/portal/signed-out");
+  }
+  const invoiceId = String(formData.get("invoiceId") ?? "").trim();
+  if (!invoiceId) {
+    redirect("/portal/payments/return?status=error&reason=missing_invoice");
+  }
+  const baseUrl = await resolveAppBaseUrl();
+  const result = await startInvoiceCheckout({
+    session: session!,
+    invoiceId,
+    baseUrl,
+  });
+  if (!result.ok) {
+    redirect(
+      `/portal/payments/return?status=error&reason=${encodeURIComponent(result.code)}&invoice=${encodeURIComponent(invoiceId)}`,
+    );
+  }
+  redirect(result.url);
+}
+
+const payBtn: React.CSSProperties = {
+  background: "#1d4ed8",
+  color: "#ffffff",
+  border: "none",
+  borderRadius: 6,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
 export default async function PatientPortalHomePage() {
   const session = await getPortalSession();
   if (!session) redirect("/portal/signed-out");
@@ -336,14 +384,17 @@ export default async function PatientPortalHomePage() {
                 {formatMoney(inv.amount)} billed · {formatMoney(inv.paid)} paid
               </div>
             </div>
-            <div style={{ fontWeight: 600 }}>{formatMoney(inv.balance)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontWeight: 600 }}>{formatMoney(inv.balance)}</div>
+              {inv.balance > 0 ? (
+                <form action={payInvoiceAction}>
+                  <input type="hidden" name="invoiceId" value={inv.id} />
+                  <button type="submit" style={payBtn}>Pay</button>
+                </form>
+              ) : null}
+            </div>
           </div>
         ))}
-        {balance.total > 0 ? (
-          <p style={{ ...mutedSmall, marginTop: 12 }}>
-            To pay your balance, please contact {practiceName}.
-          </p>
-        ) : null}
       </section>
 
       {/* Documents */}

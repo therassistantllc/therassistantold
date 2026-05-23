@@ -196,6 +196,67 @@ export async function createConnectPaymentIntent(input: {
   });
 }
 
+export interface StripeCheckoutSession {
+  id: string;
+  url: string | null;
+  payment_intent?: string | null;
+  status?: string | null;
+  amount_total?: number | null;
+  metadata?: Record<string, string>;
+}
+
+/**
+ * Create a Stripe Checkout Session on a connected Express account (Task #206).
+ *
+ * Used by the patient portal so patients can pay an open invoice with a
+ * Stripe-hosted checkout. Funds settle directly to the connected account
+ * (direct charge via Stripe-Account header — same model as
+ * createConnectPaymentIntent). The session-level metadata AND
+ * payment_intent_data.metadata both carry organization_id / client_id /
+ * patient_invoice_id so the existing stripe-webhook auto-posts the
+ * payment onto the patient ledger.
+ */
+export async function createConnectCheckoutSession(input: {
+  amountCents: number;
+  currency?: string;
+  connectedAccountId: string;
+  successUrl: string;
+  cancelUrl: string;
+  productName: string;
+  productDescription?: string | null;
+  metadata: Record<string, string>;
+  customerEmail?: string | null;
+  idempotencyKey?: string;
+}): Promise<StripeCheckoutSession> {
+  const params: Record<string, unknown> = {
+    mode: "payment",
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: (input.currency ?? "usd").toLowerCase(),
+          unit_amount: input.amountCents,
+          product_data: {
+            name: input.productName,
+            ...(input.productDescription ? { description: input.productDescription } : {}),
+          },
+        },
+      },
+    ],
+    metadata: input.metadata,
+    payment_intent_data: { metadata: input.metadata },
+  };
+  if (input.customerEmail) params.customer_email = input.customerEmail;
+
+  return stripeRequest<StripeCheckoutSession>("/checkout/sessions", {
+    stripeAccount: input.connectedAccountId,
+    idempotencyKey: input.idempotencyKey,
+    params,
+  });
+}
+
 /**
  * Map a Stripe account into a normalized status the EHR UI consumes.
  *   not_connected  — no account on file
