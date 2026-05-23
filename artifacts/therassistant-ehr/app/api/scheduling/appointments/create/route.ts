@@ -4,6 +4,7 @@ import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { addMonthsKeepingClock, checkProviderAvailability } from "@/lib/scheduling/core";
 import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 import { getDefaultCaseForClient } from "@/lib/cases/clientCasesService";
+import { ensureMeetingForAppointment } from "@/lib/telehealth/sessions";
 
 type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 type RecurrenceEndMode = "by_date" | "by_count";
@@ -184,7 +185,13 @@ export async function POST(request: Request) {
     const reminderSmsEnabled = Boolean(body.reminderSmsEnabled);
     const reminderPortalEnabled = body.reminderPortalEnabled !== false;
 
-    const createdRows: Array<{ id: string; scheduled_start_at: string }> = [];
+    const createdRows: Array<{
+      id: string;
+      scheduled_start_at: string;
+      telehealth_url?: string;
+      meeting_warning?: string;
+    }> = [];
+    const meetingWarnings: string[] = [];
 
     for (let index = 0; index < starts.length; index += 1) {
       const startAt = starts[index];
@@ -239,7 +246,58 @@ export async function POST(request: Request) {
       if (appointmentError) throw appointmentError;
       void teleToken;
 
-      createdRows.push({ id: appointmentId, scheduled_start_at: startAt.toISOString() });
+      // Best-effort: auto-create the telehealth meeting at booking time
+      // so the patient confirmation/reminder can include the real join URL.
+      // Booking succeeds even if this step fails — we fall back to the
+      // legacy static URL stored on the appointment.
+      let autoMeetingJoinUrl: string | null = null;
+      let autoMeetingWarning: string | null = null;
+      if (serviceLocation === "telehealth") {
+        try {
+          const outcome = await ensureMeetingForAppointment(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            supabase as any,
+            {
+              id: appointmentId,
+              organizationId,
+              providerId,
+              scheduledStartAt: startAt.toISOString(),
+              scheduledEndAt: endAt.toISOString(),
+              appointmentType,
+              telehealthUrl: teleUrl,
+            },
+            { fallbackOwnerUserId: guard.userId ?? null },
+          );
+          if (outcome.status === "created" || outcome.status === "existing") {
+            autoMeetingJoinUrl = outcome.joinUrl;
+            // Surface the real per-meeting link on the appointment so
+            // existing readers (reminders, FHIR export, calendar UI)
+            // pick it up without changes.
+            await supabase
+              .from("appointments")
+              .update({ telehealth_url: outcome.joinUrl, updated_at: new Date().toISOString() })
+              .eq("id", appointmentId)
+              .eq("organization_id", organizationId);
+          } else if (outcome.status === "fallback" || outcome.status === "skipped") {
+            autoMeetingWarning = outcome.warning;
+          } else if (outcome.status === "credential_error" || outcome.status === "adapter_error") {
+            autoMeetingWarning = `Could not auto-create ${outcome.platform} meeting: ${outcome.error}. Using the legacy URL; reconnect in Settings → Providers.`;
+            console.warn("[appointments/create] auto meeting failed", outcome);
+          }
+        } catch (e) {
+          autoMeetingWarning = e instanceof Error ? e.message : "Telehealth meeting auto-create failed";
+          console.warn("[appointments/create] ensureMeetingForAppointment threw", e);
+        }
+      }
+      void autoMeetingJoinUrl;
+
+      createdRows.push({
+        id: appointmentId,
+        scheduled_start_at: startAt.toISOString(),
+        ...(autoMeetingJoinUrl ? { telehealth_url: autoMeetingJoinUrl } : {}),
+        ...(autoMeetingWarning ? { meeting_warning: autoMeetingWarning } : {}),
+      });
+      if (autoMeetingWarning) meetingWarnings.push(autoMeetingWarning);
 
       const reminderChannels = [
         reminderEmailEnabled ? "email" : null,
@@ -278,6 +336,7 @@ export async function POST(request: Request) {
       seriesId,
       occurrencesCreated: createdRows.length,
       appointments: createdRows,
+      ...(meetingWarnings.length ? { meetingWarnings } : {}),
     });
   } catch (error) {
     console.error("[POST /api/scheduling/appointments/create]", error);

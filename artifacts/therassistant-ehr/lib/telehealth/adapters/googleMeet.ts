@@ -4,6 +4,8 @@ import type {
   CreateMeetingResult,
   GetMeetingResult,
   TelehealthAdapter,
+  UpdateMeetingInput,
+  UpdateMeetingResult,
 } from "./types";
 import { TelehealthAdapterError } from "./types";
 
@@ -52,6 +54,46 @@ export const googleMeetAdapter: TelehealthAdapter = {
     const joinUrl = json.hangoutLink ?? videoEntry?.uri ?? null;
     if (!joinUrl) {
       throw new TelehealthAdapterError("Google created event but returned no Meet link", "google_meet");
+    }
+    return {
+      externalMeetingId: json.id,
+      joinUrl,
+      hostUrl: null,
+      rawResponse: json,
+    };
+  },
+
+  async updateMeeting(
+    auth: AdapterAuth,
+    externalMeetingId: string,
+    input: UpdateMeetingInput,
+  ): Promise<UpdateMeetingResult> {
+    const body: Record<string, unknown> = {
+      start: { dateTime: input.startAt, timeZone: input.timezone ?? "UTC" },
+      end: { dateTime: isoEnd(input.startAt, input.durationMinutes), timeZone: input.timezone ?? "UTC" },
+    };
+    if (input.topic) body.summary = input.topic;
+    const res = await fetch(`${CAL_API}/${encodeURIComponent(externalMeetingId)}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new TelehealthAdapterError(`Google Calendar updateEvent failed: ${res.status} ${text}`, "google_meet");
+    }
+    const json = (await res.json()) as {
+      id: string;
+      hangoutLink?: string;
+      conferenceData?: { entryPoints?: Array<{ entryPointType?: string; uri?: string }> };
+    };
+    const videoEntry = json.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video");
+    const joinUrl = json.hangoutLink ?? videoEntry?.uri ?? null;
+    if (!joinUrl) {
+      throw new TelehealthAdapterError("Google updated event but returned no Meet link", "google_meet");
     }
     return {
       externalMeetingId: json.id,

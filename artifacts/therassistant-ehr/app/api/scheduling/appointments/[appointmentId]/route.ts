@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 
 import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
+import { ensureMeetingForAppointment, syncMeetingForAppointment } from "@/lib/telehealth/sessions";
 function extractMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Appointment update failed";
@@ -37,6 +38,8 @@ export async function PATCH(
         cpt_code?: string | null;
         memo?: string | null;
         case_id?: string | null;
+        scheduled_start_at?: string;
+        scheduled_end_at?: string;
       };
     };
 
@@ -68,6 +71,23 @@ export async function PATCH(
     }
     if ("case_id" in updates) {
       allowed.case_id = updates.case_id ?? null;
+    }
+    let scheduledTimeChanged = false;
+    if (typeof updates.scheduled_start_at === "string" && updates.scheduled_start_at.trim()) {
+      const startDate = new Date(updates.scheduled_start_at);
+      if (Number.isNaN(startDate.getTime())) {
+        return NextResponse.json({ success: false, error: "Invalid scheduled_start_at." }, { status: 400 });
+      }
+      allowed.scheduled_start_at = startDate.toISOString();
+      scheduledTimeChanged = true;
+    }
+    if (typeof updates.scheduled_end_at === "string" && updates.scheduled_end_at.trim()) {
+      const endDate = new Date(updates.scheduled_end_at);
+      if (Number.isNaN(endDate.getTime())) {
+        return NextResponse.json({ success: false, error: "Invalid scheduled_end_at." }, { status: 400 });
+      }
+      allowed.scheduled_end_at = endDate.toISOString();
+      scheduledTimeChanged = true;
     }
 
     if (Object.keys(allowed).length === 0) {
@@ -108,7 +128,78 @@ export async function PATCH(
 
       if (updateError) throw updateError;
 
-      return NextResponse.json({ success: true, scope: "single", updatedCount: 1 });
+      let meetingSyncWarning: string | null = null;
+      if (scheduledTimeChanged) {
+        try {
+          const { data: fresh } = await supabase
+            .from("appointments")
+            .select(
+              "id, organization_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_type, telehealth_url, service_location",
+            )
+            .eq("id", appointmentId)
+            .maybeSingle();
+          if (fresh && (fresh as any).service_location === "telehealth") {
+            const appt = {
+              id: (fresh as any).id,
+              organizationId: (fresh as any).organization_id,
+              providerId: (fresh as any).provider_id ?? null,
+              scheduledStartAt: (fresh as any).scheduled_start_at,
+              scheduledEndAt: (fresh as any).scheduled_end_at ?? null,
+              appointmentType: (fresh as any).appointment_type ?? null,
+              telehealthUrl: (fresh as any).telehealth_url ?? null,
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sb = supabase as any;
+            const outcome = await syncMeetingForAppointment(sb, appt, {
+              fallbackOwnerUserId: guard.userId ?? null,
+            });
+            const applyJoinUrl = async (joinUrl: string) => {
+              await supabase
+                .from("appointments")
+                .update({ telehealth_url: joinUrl, updated_at: new Date().toISOString() })
+                .eq("id", appointmentId)
+                .eq("organization_id", organizationId);
+            };
+            if (outcome.status === "updated" || outcome.status === "recreated") {
+              await applyJoinUrl(outcome.joinUrl);
+            } else if (outcome.status === "no_session") {
+              // No prior telehealth session — likely a legacy appointment or
+              // one whose initial create fell back. Best-effort: try to
+              // create one now so reminders for the new time carry a real
+              // link.
+              const ensure = await ensureMeetingForAppointment(sb, appt, {
+                fallbackOwnerUserId: guard.userId ?? null,
+              });
+              if (ensure.status === "created" || ensure.status === "existing") {
+                await applyJoinUrl(ensure.joinUrl);
+              } else if (ensure.status === "fallback" || ensure.status === "skipped") {
+                meetingSyncWarning = ensure.warning;
+              } else if (
+                ensure.status === "credential_error" ||
+                ensure.status === "adapter_error"
+              ) {
+                meetingSyncWarning = `Could not auto-create ${ensure.platform} meeting: ${ensure.error}.`;
+                console.warn("[appointments/PATCH] ensureMeeting failed", ensure);
+              }
+            } else if (outcome.status === "fallback" || outcome.status === "skipped") {
+              meetingSyncWarning = outcome.warning;
+            } else if (outcome.status === "credential_error" || outcome.status === "adapter_error") {
+              meetingSyncWarning = `Could not sync ${outcome.platform} meeting: ${outcome.error}.`;
+              console.warn("[appointments/PATCH] meeting sync failed", outcome);
+            }
+          }
+        } catch (e) {
+          meetingSyncWarning = e instanceof Error ? e.message : "Meeting sync failed";
+          console.warn("[appointments/PATCH] syncMeetingForAppointment threw", e);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        scope: "single",
+        updatedCount: 1,
+        ...(meetingSyncWarning ? { meetingSyncWarning } : {}),
+      });
     }
 
     const anchorSeriesId = (anchorAppointment as { series_id?: string | null })

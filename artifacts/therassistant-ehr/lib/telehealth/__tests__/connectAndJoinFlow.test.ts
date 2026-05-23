@@ -727,6 +727,11 @@ describe("regression: telehealth route wiring", () => {
     "app/api/telehealth/appointments/[id]/join/route.ts",
     "utf8",
   );
+  // The credential-error / needs-reconnect branch was hoisted into the
+  // shared booking-time helper (Task #155) so both the join route and
+  // the create/PATCH routes go through the same path. Pin the helper
+  // source instead of the route source for that assertion.
+  const sessionsHelperSrc = readFileSync("lib/telehealth/sessions.ts", "utf8");
   const disconnectSrc = readFileSync(
     "app/api/telehealth/oauth/[platform]/disconnect/route.ts",
     "utf8",
@@ -742,19 +747,25 @@ describe("regression: telehealth route wiring", () => {
   });
 
   it("join routes auth lookup through the provider's auth_user_id, not the caller", () => {
-    assert.match(joinSrc, /provider_credentialing_profiles/);
-    assert.match(joinSrc, /staff_profiles/);
-    assert.match(joinSrc, /providerAuthUserId\s*\?\?\s*ctx\.userId/);
+    // Provider resolution lives in the shared helper now; the route
+    // delegates via resolveProviderTelehealthContext +
+    // ensureMeetingForAppointment, and the helper does the
+    // provider-table lookup itself (with caller as fallback only).
+    assert.match(sessionsHelperSrc, /provider_credentialing_profiles/);
+    assert.match(sessionsHelperSrc, /staff_profiles/);
+    assert.match(sessionsHelperSrc, /providerAuthUserId\s*\?\?\s*[^;]*fallbackOwnerUserId/);
+    assert.match(joinSrc, /resolveProviderTelehealthContext\(/);
+    assert.match(joinSrc, /ensureMeetingForAppointment\(/);
   });
 
   it("join only returns host_url to the provider whose account is hosting", () => {
     assert.match(joinSrc, /callerIsProvider/);
-    assert.match(joinSrc, /callerIsProvider\s*\?\s*[^:]+:\s*null/);
+    assert.match(joinSrc, /callerIsProvider\s*\?\s*outcome\.hostUrl\s*:\s*null/);
   });
 
   it("join marks the connection needs_reconnect on 401/invalid_grant from the adapter", () => {
-    assert.match(joinSrc, /markConnectionNeedsReconnect\(/);
-    assert.match(joinSrc, /401\|unauthor\|invalid\[_ \]grant\|expired\|revoked/);
+    assert.match(sessionsHelperSrc, /markConnectionNeedsReconnect\(/);
+    assert.match(sessionsHelperSrc, /401\|unauthor\|invalid\[_ \]grant\|expired\|revoked/);
   });
 
   it("disconnect goes through deleteConnection (tokens + connection row both removed)", () => {
