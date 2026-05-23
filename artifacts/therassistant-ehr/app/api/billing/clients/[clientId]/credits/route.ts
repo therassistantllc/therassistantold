@@ -24,8 +24,9 @@ import { assertFkBelongsToOrg, FkOwnershipError } from "@/lib/payments/fkOwnersh
 
 type DbRow = Record<string, unknown>;
 
-export async function GET(request: Request, { params }: { params: { clientId: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
   try {
+    const { clientId } = await params;
     const url = new URL(request.url);
     const organizationId = url.searchParams.get("organizationId") ?? "";
     if (!organizationId) {
@@ -39,7 +40,7 @@ export async function GET(request: Request, { params }: { params: { clientId: st
       .from("client_credits")
       .select("id, client_id, source_payment_id, initial_amount, applied_amount, balance_amount, note, created_at")
       .eq("organization_id", organizationId)
-      .eq("client_id", params.clientId)
+      .eq("client_id", clientId)
       .is("archived_at", null)
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 422 });
@@ -99,8 +100,9 @@ export async function GET(request: Request, { params }: { params: { clientId: st
   }
 }
 
-export async function POST(request: Request, { params }: { params: { clientId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
   try {
+    const { clientId } = await params;
     const body = await request.json();
     const organizationId = String(body.organizationId ?? "").trim();
     if (!organizationId) return NextResponse.json({ ok: false, error: "organizationId is required" }, { status: 400 });
@@ -135,7 +137,7 @@ export async function POST(request: Request, { params }: { params: { clientId: s
         .maybeSingle();
       if (cErr) return NextResponse.json({ ok: false, error: cErr.message }, { status: 422 });
       if (!credit) return NextResponse.json({ ok: false, error: "Credit not found" }, { status: 404 });
-      if (credit.client_id !== params.clientId) {
+      if (credit.client_id !== clientId) {
         return NextResponse.json({ ok: false, error: "Credit belongs to a different patient" }, { status: 422 });
       }
       const available = Math.round(Number(credit.balance_amount ?? 0) * 100) / 100;
@@ -214,7 +216,7 @@ export async function POST(request: Request, { params }: { params: { clientId: s
       return NextResponse.json({ ok: false, error: "patientInvoiceId or professionalClaimId is required" }, { status: 400 });
     }
 
-    void params.clientId;
+    void clientId;
     const r = await applyClientCredit({
       organizationId,
       clientCreditId,
