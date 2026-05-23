@@ -135,6 +135,87 @@ const POSTING_STATUS_OPTIONS = [
   "voided",
 ];
 
+type ReprocessTargetKind = "era_835" | "insurance_manual" | "client_payment";
+
+interface ReprocessRuleError {
+  ruleKind: string;
+  message: string;
+}
+
+interface ReprocessTargetErrors {
+  kind: ReprocessTargetKind;
+  id: string;
+  /** Generic per-target failure (id format `<kind>:<id>`). */
+  targetMessages: string[];
+  /** Per-rule failures (id format `<kind>:<id>:rule:<ruleKind>`). */
+  ruleErrors: ReprocessRuleError[];
+}
+
+interface ReprocessResult {
+  reprocessed: number;
+  itemsCreated: number;
+  submittedCount: number;
+  errors: ReprocessTargetErrors[];
+  parseErrors: string[];
+}
+
+const REPROCESS_KIND_LABELS: Record<ReprocessTargetKind, string> = {
+  era_835: "ERA 835",
+  insurance_manual: "Manual insurance",
+  client_payment: "Patient payment",
+};
+
+const REPROCESS_KIND_PREFIX: Record<ReprocessTargetKind, string> = {
+  era_835: "era",
+  insurance_manual: "mi",
+  client_payment: "cp",
+};
+
+function parseReprocessErrors(
+  raw: Array<{ id?: unknown; message?: unknown }>,
+): ReprocessTargetErrors[] {
+  const byTarget = new Map<string, ReprocessTargetErrors>();
+  for (const e of raw) {
+    const id = typeof e?.id === "string" ? e.id : "";
+    const message = typeof e?.message === "string" ? e.message : "Unknown error";
+    // id formats:
+    //   <kind>:<uuid>                     → outer try/catch failure
+    //   <kind>:<uuid>:rule:<ruleKind>     → per-emission rule-engine failure
+    const parts = id.split(":");
+    const kind = parts[0] as ReprocessTargetKind;
+    const targetId = parts[1] ?? "";
+    if (!kind || !targetId || !(kind in REPROCESS_KIND_LABELS)) {
+      // Unparseable id — bucket it on its own so it still surfaces.
+      const key = `__unparsed__:${id || message}`;
+      const existing = byTarget.get(key);
+      if (existing) {
+        existing.targetMessages.push(message);
+      } else {
+        byTarget.set(key, {
+          kind: "era_835",
+          id: id || "(unknown)",
+          targetMessages: [message],
+          ruleErrors: [],
+        });
+      }
+      continue;
+    }
+    const key = `${kind}:${targetId}`;
+    let bucket = byTarget.get(key);
+    if (!bucket) {
+      bucket = { kind, id: targetId, targetMessages: [], ruleErrors: [] };
+      byTarget.set(key, bucket);
+    }
+    if (parts[2] === "rule") {
+      const ruleKind = parts.slice(3).join(":") || "(unknown rule)";
+      bucket.ruleErrors.push({ ruleKind, message });
+    } else {
+      bucket.targetMessages.push(message);
+    }
+  }
+  return Array.from(byTarget.values());
+}
+
 const SOURCE_OPTIONS: { value: PaymentSource; label: string }[] = [
   { value: "era", label: "ERA 835" },
   { value: "manual_insurance", label: "Manual Insurance" },
@@ -153,6 +234,7 @@ export default function PaymentsDashboard() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [flash, setFlash] = useState<{ tone: "ok" | "err"; msg: string } | null>(null);
   const [recoupTarget, setRecoupTarget] = useState<DashboardRow | null>(null);
+  const [reprocessResult, setReprocessResult] = useState<ReprocessResult | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -199,22 +281,46 @@ export default function PaymentsDashboard() {
     if (selected.size === 0) return;
     setBusy(path);
     setFlash(null);
+    if (path === "reprocess") setReprocessResult(null);
     try {
+      const submittedIds = [...selected];
       const r = await fetch(`/api/billing/payments/bulk/${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId: orgId,
-          ids: [...selected],
+          ids: submittedIds,
           ...extra,
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Bulk action failed");
-      setFlash({
-        tone: j.failed === 0 ? "ok" : "err",
-        msg: `${path}: applied ${j.applied ?? 0}${j.failed ? `, failed ${j.failed}` : ""}`,
-      });
+      if (path === "reprocess") {
+        const reprocessed = Number(j.reprocessed ?? 0);
+        const itemsCreated = Number(j.itemsCreated ?? 0);
+        const rawErrors = Array.isArray(j.errors) ? j.errors : [];
+        const parseErrors = Array.isArray(j.parseErrors) ? j.parseErrors : [];
+        const errorCount = rawErrors.length;
+        setReprocessResult({
+          reprocessed,
+          itemsCreated,
+          submittedCount: submittedIds.length,
+          errors: parseReprocessErrors(rawErrors),
+          parseErrors,
+        });
+        setFlash({
+          tone: errorCount === 0 ? "ok" : "err",
+          msg:
+            errorCount === 0
+              ? `Reprocessed ${reprocessed} payment(s), ${itemsCreated} workqueue item(s) emitted`
+              : `Reprocessed ${reprocessed} payment(s) with ${errorCount} error(s) — see details below`,
+        });
+      } else {
+        setFlash({
+          tone: j.failed === 0 ? "ok" : "err",
+          msg: `${path}: applied ${j.applied ?? 0}${j.failed ? `, failed ${j.failed}` : ""}`,
+        });
+      }
       setSelected(new Set());
       await refresh();
     } catch (e) {
@@ -459,6 +565,14 @@ export default function PaymentsDashboard() {
         </div>
       ) : null}
 
+      {reprocessResult ? (
+        <ReprocessResultPanel
+          result={reprocessResult}
+          orgId={orgId}
+          onDismiss={() => setReprocessResult(null)}
+        />
+      ) : null}
+
       {/* Bulk action toolbar */}
       <div
         style={{
@@ -685,6 +799,195 @@ export default function PaymentsDashboard() {
             refresh();
           }}
         />
+      ) : null}
+    </div>
+  );
+}
+
+// ── Bulk reprocess result panel ─────────────────────────────────────────────
+
+function ReprocessResultPanel({
+  result,
+  orgId,
+  onDismiss,
+}: {
+  result: ReprocessResult;
+  orgId: string;
+  onDismiss: () => void;
+}) {
+  const totalErrorCount =
+    result.errors.reduce(
+      (s, t) => s + t.targetMessages.length + t.ruleErrors.length,
+      0,
+    ) + result.parseErrors.length;
+  const hasErrors = totalErrorCount > 0;
+
+  const headerBg = hasErrors ? "#fff7ed" : "#ecfdf5";
+  const headerBorder = hasErrors ? "#fed7aa" : "#a7f3d0";
+  const headerColor = hasErrors ? "#9a3412" : "#065f46";
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${headerBorder}`,
+        background: headerBg,
+        borderRadius: 6,
+        marginBottom: 8,
+        fontSize: 13,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          padding: "8px 12px",
+          borderBottom: hasErrors ? `1px solid ${headerBorder}` : "none",
+        }}
+      >
+        <strong style={{ color: headerColor }}>
+          Bulk reprocess results
+        </strong>
+        <span style={{ color: "#374151" }}>
+          {result.reprocessed} of {result.submittedCount} reprocessed ·{" "}
+          {result.itemsCreated} workqueue item(s) emitted ·{" "}
+          {hasErrors ? `${totalErrorCount} error(s)` : "no errors"}
+        </span>
+        <button
+          onClick={onDismiss}
+          style={{
+            marginLeft: "auto",
+            padding: "2px 8px",
+            fontSize: 12,
+            border: "1px solid #d1d5db",
+            borderRadius: 4,
+            background: "white",
+            color: "#374151",
+            cursor: "pointer",
+          }}
+        >
+          Dismiss
+        </button>
+      </div>
+
+      {hasErrors ? (
+        <div style={{ padding: "8px 12px", display: "grid", gap: 8 }}>
+          {result.parseErrors.length > 0 ? (
+            <div
+              style={{
+                background: "white",
+                border: "1px solid #fed7aa",
+                borderRadius: 4,
+                padding: 8,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, color: "#9a3412" }}>
+                Invalid input ids ({result.parseErrors.length})
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: "#7c2d12" }}>
+                {result.parseErrors.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {result.errors.map((t) => {
+            const compositeId =
+              t.id && REPROCESS_KIND_PREFIX[t.kind]
+                ? `${REPROCESS_KIND_PREFIX[t.kind]}:${t.id}`
+                : null;
+            const shortId = t.id.length > 8 ? `${t.id.slice(0, 8)}…` : t.id;
+            return (
+              <div
+                key={`${t.kind}:${t.id}`}
+                style={{
+                  background: "white",
+                  border: "1px solid #fed7aa",
+                  borderRadius: 4,
+                  padding: 8,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: "#9a3412" }}>
+                    {REPROCESS_KIND_LABELS[t.kind]}
+                  </span>
+                  <code
+                    style={{
+                      fontSize: 11,
+                      color: "#6b7280",
+                      background: "#f3f4f6",
+                      padding: "1px 4px",
+                      borderRadius: 3,
+                    }}
+                  >
+                    {shortId}
+                  </code>
+                  {compositeId ? (
+                    <a
+                      href={`/billing/payments/posted/${encodeURIComponent(compositeId)}?organizationId=${orgId}`}
+                      style={{
+                        marginLeft: "auto",
+                        color: "#2563eb",
+                        textDecoration: "none",
+                        fontSize: 12,
+                      }}
+                    >
+                      View payment →
+                    </a>
+                  ) : null}
+                </div>
+
+                {t.targetMessages.length > 0 ? (
+                  <div style={{ marginBottom: t.ruleErrors.length > 0 ? 6 : 0 }}>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>
+                      Row-level failure
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "#7c2d12" }}>
+                      {t.targetMessages.map((m, i) => (
+                        <li key={i}>{m}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {t.ruleErrors.length > 0 ? (
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>
+                      Rule emission failures ({t.ruleErrors.length})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "#7c2d12" }}>
+                      {t.ruleErrors.map((r, i) => (
+                        <li key={i}>
+                          <code
+                            style={{
+                              fontSize: 11,
+                              background: "#fef3c7",
+                              padding: "1px 4px",
+                              borderRadius: 3,
+                              marginRight: 6,
+                              color: "#78350f",
+                            }}
+                          >
+                            {r.ruleKind}
+                          </code>
+                          {r.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       ) : null}
     </div>
   );
