@@ -32,17 +32,63 @@ function policyDto(policy: DbRow) {
   };
 }
 
-function eligibilityDto(row: DbRow) {
+function eligibilityDto(row: DbRow, segments: DbRow[] = []) {
+  const summary = (row.response_summary as Record<string, unknown> | null) ?? null;
   return {
     id: asString(row.id),
     status: asString(row.eligibility_status),
     checkedAt: asString(row.checked_at),
     copayAmount: asNumber(row.copay_amount),
+    coinsurancePercent: asNumber(row.coinsurance_percent),
+    deductibleTotal: asNumber(row.deductible_total),
     deductibleRemaining: asNumber(row.deductible_remaining),
+    outOfPocketTotal: asNumber(row.out_of_pocket_total),
+    outOfPocketRemaining: asNumber(row.out_of_pocket_remaining),
+    maxCoverageAmount: asNumber(row.max_coverage_amount),
+    maxCoveragePeriod: typeof row.max_coverage_period === "string" ? row.max_coverage_period : null,
+    remainingCoverageAmount: asNumber(row.remaining_coverage_amount),
+    remainingCoveragePeriod:
+      typeof row.remaining_coverage_period === "string" ? row.remaining_coverage_period : null,
+    telemedicineCovered: typeof row.telemedicine_covered === "boolean" ? row.telemedicine_covered : null,
+    authorizationRequired: typeof row.authorization_required === "boolean" ? row.authorization_required : null,
+    benefitTier: typeof row.benefit_tier === "string" ? row.benefit_tier : null,
     coverageStartDate: asString(row.coverage_start_date),
     coverageEndDate: asString(row.coverage_end_date),
     coverageLevel: typeof row.coverage_level === "string" ? row.coverage_level : null,
     serviceTypeCode: asString(row.service_type_code),
+    planName: typeof row.plan_name === "string" ? row.plan_name : null,
+    payerName: typeof row.payer_name === "string" ? row.payer_name : null,
+    memberId: typeof row.member_id === "string" ? row.member_id : null,
+    subscriberName: typeof row.subscriber_name === "string" ? row.subscriber_name : null,
+    aaaErrors: Array.isArray(summary?.aaaErrors) ? (summary!.aaaErrors as unknown[]) : [],
+    attribution: (summary?.attribution as Record<string, unknown> | null) ?? null,
+    benefitSegments: segments.map((seg) => ({
+      id: asString(seg.id),
+      segmentIndex: asNumber(seg.segment_index),
+      category: typeof seg.category === "string" ? seg.category : null,
+      eligibilityCode: asString(seg.benefit_information_code),
+      eligibilityCodeMeaning: typeof seg.benefit_description === "string" ? seg.benefit_description : null,
+      coverageLevelCode: typeof seg.coverage_level_code === "string" ? seg.coverage_level_code : null,
+      serviceTypeCode: typeof seg.service_type_code === "string" ? seg.service_type_code : null,
+      planCoverageDescription:
+        typeof seg.plan_coverage_description === "string" ? seg.plan_coverage_description : null,
+      timePeriodQualifier: typeof seg.time_period_qualifier === "string" ? seg.time_period_qualifier : null,
+      monetaryAmount: asNumber(seg.monetary_amount),
+      percent: asNumber(seg.percent_amount),
+      quantityQualifier: typeof seg.quantity_qualifier === "string" ? seg.quantity_qualifier : null,
+      quantity: asNumber(seg.quantity),
+      authorizationRequired:
+        typeof seg.authorization_or_certification_required === "boolean"
+          ? seg.authorization_or_certification_required
+          : null,
+      inPlanNetworkCode:
+        typeof seg.in_plan_network_indicator === "string" ? seg.in_plan_network_indicator : null,
+      isInNetwork: typeof seg.is_in_network === "boolean" ? seg.is_in_network : null,
+      isRemaining: typeof seg.is_remaining === "boolean" ? seg.is_remaining : null,
+      benefitTier: typeof seg.benefit_tier === "string" ? seg.benefit_tier : null,
+      telemedicineFlag: typeof seg.telemedicine_flag === "boolean" ? seg.telemedicine_flag : null,
+      messageText: typeof seg.message_text === "string" ? seg.message_text : null,
+    })),
     responseSummary: row.response_summary ?? null,
     rawResponse: row.raw_response ?? null,
     errorMessage: asString(row.error_message),
@@ -91,7 +137,9 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { data: checks, error: checksError } = await supabase
       .from("eligibility_checks")
-      .select("id, eligibility_status, checked_at, copay_amount, deductible_remaining, coverage_start_date, coverage_end_date, coverage_level, service_type_code, response_summary, raw_response, error_message, insurance_policy_id")
+      .select(
+        "id, eligibility_status, checked_at, copay_amount, coinsurance_percent, deductible_total, deductible_remaining, out_of_pocket_total, out_of_pocket_remaining, max_coverage_amount, max_coverage_period, remaining_coverage_amount, remaining_coverage_period, telemedicine_covered, authorization_required, benefit_tier, coverage_start_date, coverage_end_date, coverage_level, service_type_code, plan_name, payer_name, member_id, subscriber_name, response_summary, raw_response, error_message, insurance_policy_id",
+      )
       .eq("organization_id", organizationId)
       .eq("client_id", clientId)
       .is("archived_at", null)
@@ -102,7 +150,22 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
       return NextResponse.json({ success: false, error: checksError.message }, { status: 422 });
     }
 
-    const checkDtos = ((checks ?? []) as DbRow[]).map(eligibilityDto);
+    const checkRows = (checks ?? []) as DbRow[];
+    const latestCheckId = checkRows[0]?.id ? String(checkRows[0].id) : null;
+
+    let latestSegments: DbRow[] = [];
+    if (latestCheckId) {
+      const { data: segs } = await supabase
+        .from("eligibility_benefit_segments")
+        .select(
+          "id, segment_index, category, benefit_information_code, benefit_description, coverage_level_code, service_type_code, plan_coverage_description, time_period_qualifier, monetary_amount, percent_amount, quantity_qualifier, quantity, authorization_or_certification_required, in_plan_network_indicator, is_in_network, is_remaining, benefit_tier, telemedicine_flag, message_text",
+        )
+        .eq("eligibility_check_id", latestCheckId)
+        .order("segment_index", { ascending: true });
+      latestSegments = (segs ?? []) as DbRow[];
+    }
+
+    const checkDtos = checkRows.map((row, i) => eligibilityDto(row, i === 0 ? latestSegments : []));
 
     return NextResponse.json({
       success: true,

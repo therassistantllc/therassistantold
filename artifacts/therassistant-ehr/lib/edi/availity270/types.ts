@@ -139,6 +139,11 @@ export interface ParsedEB271 {
   telemedicineFlag?: boolean;
   /** Concatenated MSG free-text attached to this benefit. */
   messageText?: string | null;
+  /**
+   * Which HL loop this EB segment was returned under — drives Single
+   * Patient Attribution Rule vEB.1.0 rollup of `attribution.target`.
+   */
+  owner?: "subscriber" | "dependent";
 }
 
 /**
@@ -166,6 +171,42 @@ export interface Parsed271Financials {
   benefitTier: string | null;
 }
 
+/**
+ * Identity captured from the 271's subscriber loop (Loop 2100C / NM1*IL).
+ * Always populated when the response carries any subscriber context.
+ */
+export interface Parsed271Subscriber {
+  lastName: string | null;
+  firstName: string | null;
+  memberId: string | null;
+  dob: string | null;
+  gender: string | null;
+}
+
+/**
+ * Identity captured from the 271's dependent loop (Loop 2100D / NM1*03)
+ * per CAQH CORE Single Patient Attribution Data Content Rule vEB.1.0.
+ * Present only when the 271 includes an HL*23 dependent hierarchy.
+ */
+export interface Parsed271Dependent {
+  lastName: string | null;
+  firstName: string | null;
+  dob: string | null;
+  gender: string | null;
+}
+
+/**
+ * Attribution rollup per Single Patient Attribution Rule vEB.1.0
+ * §4.2–§4.3. `target` says which loop the eligibility/benefit content
+ * applies to; the caller is responsible for routing the response to the
+ * matching patient chart.
+ */
+export interface Parsed271Attribution {
+  target: "subscriber" | "dependent";
+  subscriber: Parsed271Subscriber;
+  dependent: Parsed271Dependent | null;
+}
+
 export interface Parsed271Response {
   status: "active" | "inactive" | "not_found" | "error" | "unknown";
   payerName?: string | null;
@@ -176,6 +217,12 @@ export interface Parsed271Response {
   memberId?: string | null;
   dob?: string | null;
   gender?: string | null;
+  /** Full subscriber identity (also reflected in flat fields above). */
+  subscriber?: Parsed271Subscriber;
+  /** Dependent identity when an HL*23 dependent loop is present. */
+  dependent?: Parsed271Dependent | null;
+  /** Single Patient Attribution Rule rollup. */
+  attribution?: Parsed271Attribution;
   effectiveDate?: string | null;
   terminationDate?: string | null;
   aaaErrors: ParsedAAAError[];

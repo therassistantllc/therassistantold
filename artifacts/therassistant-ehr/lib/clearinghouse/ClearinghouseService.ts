@@ -253,6 +253,13 @@ export class ClearinghouseService {
       remaining_coverage_period: result.normalized.remainingCoveragePeriod ?? null,
       coverage_level: result.normalized.coverageLevel ?? null,
       raw_benefits: result.normalized.rawBenefits ?? {},
+      // Phase 6 — AAA reject reasons + Single Patient Attribution rollup
+      // surfaced to the UI via response_summary (legacy JSON column).
+      response_summary: {
+        aaaErrors: result.normalized.aaaErrors ?? [],
+        attribution: result.normalized.attribution ?? null,
+        message: result.normalized.message ?? null,
+      },
       checked_at: new Date().toISOString(),
     };
 

@@ -81,6 +81,23 @@ export function parsed271ToLegacyNormalized(
 
   const benefitSegments = parsed.benefits.map((b, i) => toBenefitSegment(b, i));
 
+  const attribution = parsed.attribution
+    ? {
+        target: parsed.attribution.target,
+        subscriberName:
+          [parsed.attribution.subscriber.firstName, parsed.attribution.subscriber.lastName]
+            .filter(Boolean)
+            .join(" ") || null,
+        subscriberMemberId: parsed.attribution.subscriber.memberId ?? null,
+        dependentName: parsed.attribution.dependent
+          ? [parsed.attribution.dependent.firstName, parsed.attribution.dependent.lastName]
+              .filter(Boolean)
+              .join(" ") || null
+          : null,
+        dependentDob: parsed.attribution.dependent?.dob ?? null,
+      }
+    : undefined;
+
   return {
     status: parsed.status,
     payerName: parsed.payerName ?? null,
@@ -89,6 +106,13 @@ export function parsed271ToLegacyNormalized(
     memberId: parsed.memberId ?? null,
     subscriberName:
       [parsed.subscriberFirstName, parsed.subscriberLastName].filter(Boolean).join(" ") || null,
+    aaaErrors: parsed.aaaErrors?.map((e) => ({
+      code: e.code,
+      description: e.description,
+      followUpAction: e.followUpAction ?? null,
+      loop: e.loop ?? null,
+    })),
+    attribution,
     effectiveDate: parsed.effectiveDate ?? null,
     terminationDate: parsed.terminationDate ?? null,
     copayAmount: financials.copayAmount,

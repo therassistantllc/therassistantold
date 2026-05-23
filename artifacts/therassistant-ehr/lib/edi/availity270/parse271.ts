@@ -1,6 +1,8 @@
 import { annotateBenefits } from "./categorizeBenefits";
 import type {
+  Parsed271Dependent,
   Parsed271Response,
+  Parsed271Subscriber,
   ParsedAAAError,
   ParsedEB271,
 } from "./types";
@@ -188,9 +190,22 @@ export function parseAvaility271(raw: string): Parsed271Response {
 
   let currentEB: ParsedEB271 | null = null;
   // Loop context tracking — used so we know when EB-adjacent DTP/MSG/REF
-  // segments belong to the in-flight benefit vs. a higher loop.
+  // segments belong to the in-flight benefit vs. a higher loop. We also
+  // track which HL we are inside for Single Patient Attribution routing.
   let lastLoopKind: "source" | "receiver" | "subscriber" | "dependent" | "benefit" | "envelope" =
     "envelope";
+  // Tracks the most recent non-benefit loop so EB segments following an
+  // HL*23 (dependent) attribute to the dependent rather than the
+  // subscriber (Single Patient Attribution Rule vEB.1.0 §4.2).
+  let benefitOwnerLoop: "subscriber" | "dependent" = "subscriber";
+  let subscriber: Parsed271Subscriber = {
+    lastName: null,
+    firstName: null,
+    memberId: null,
+    dob: null,
+    gender: null,
+  };
+  let dependent: Parsed271Dependent | null = null;
 
   const flushBenefit = () => {
     if (currentEB) {
@@ -214,10 +229,20 @@ export function parseAvaility271(raw: string): Parsed271Response {
       case "HL": {
         flushBenefit();
         const levelCode = seg[3];
-        if (levelCode === "20") lastLoopKind = "source";
-        else if (levelCode === "21") lastLoopKind = "receiver";
-        else if (levelCode === "22") lastLoopKind = "subscriber";
-        else if (levelCode === "23") lastLoopKind = "dependent";
+        if (levelCode === "20") {
+          lastLoopKind = "source";
+        } else if (levelCode === "21") {
+          lastLoopKind = "receiver";
+        } else if (levelCode === "22") {
+          lastLoopKind = "subscriber";
+          benefitOwnerLoop = "subscriber";
+        } else if (levelCode === "23") {
+          lastLoopKind = "dependent";
+          benefitOwnerLoop = "dependent";
+          if (!dependent) {
+            dependent = { lastName: null, firstName: null, dob: null, gender: null };
+          }
+        }
         break;
       }
       case "NM1": {
@@ -227,18 +252,40 @@ export function parseAvaility271(raw: string): Parsed271Response {
           result.payerName = seg[3] ?? null;
           result.payerId = seg[9] ?? null;
         } else if (entityIdCode === "IL") {
-          result.subscriberLastName = seg[3] ?? null;
-          result.subscriberFirstName = seg[4] ?? null;
+          // Subscriber (Loop 2100C). Always populates subscriber identity.
+          subscriber.lastName = seg[3] ?? null;
+          subscriber.firstName = seg[4] ?? null;
           if (seg[8] === "MI") {
-            result.memberId = seg[9] ?? null;
+            subscriber.memberId = seg[9] ?? null;
           }
+          // Back-compat: keep flat top-level fields populated.
+          result.subscriberLastName = subscriber.lastName;
+          result.subscriberFirstName = subscriber.firstName;
+          if (subscriber.memberId) result.memberId = subscriber.memberId;
+        } else if (entityIdCode === "03" && lastLoopKind === "dependent") {
+          // Dependent (Loop 2100D / NM1*03) — Single Patient Attribution
+          // Rule vEB.1.0: benefit content under this HL belongs to the
+          // dependent, NOT the subscriber.
+          if (!dependent) {
+            dependent = { lastName: null, firstName: null, dob: null, gender: null };
+          }
+          dependent.lastName = seg[3] ?? null;
+          dependent.firstName = seg[4] ?? null;
         }
         break;
       }
       case "DMG":
-        if (lastLoopKind === "subscriber" || lastLoopKind === "dependent") {
-          result.dob = formatDateFromX12(seg[2] ?? "");
-          result.gender = seg[3] ?? null;
+        if (lastLoopKind === "subscriber") {
+          subscriber.dob = formatDateFromX12(seg[2] ?? "");
+          subscriber.gender = seg[3] ?? null;
+          result.dob = subscriber.dob;
+          result.gender = subscriber.gender;
+        } else if (lastLoopKind === "dependent") {
+          if (!dependent) {
+            dependent = { lastName: null, firstName: null, dob: null, gender: null };
+          }
+          dependent.dob = formatDateFromX12(seg[2] ?? "");
+          dependent.gender = seg[3] ?? null;
         }
         break;
       case "DTP": {
@@ -263,6 +310,7 @@ export function parseAvaility271(raw: string): Parsed271Response {
         flushBenefit();
         const ebCode = (seg[1] ?? "").toUpperCase();
         currentEB = {
+          owner: benefitOwnerLoop,
           eligibilityCode: ebCode,
           eligibilityCodeMeaning: EB01_MEANINGS[ebCode] ?? (ebCode || "Unknown"),
           coverageLevelCode: seg[2] || null,
@@ -351,6 +399,30 @@ export function parseAvaility271(raw: string): Parsed271Response {
   // financial-responsibility rollup per CORE Data Content Rule
   // §1.3.2.5–§1.3.2.13. Mutates each benefit in place.
   result.financials = annotateBenefits(result.benefits);
+
+  // Phase 6 — Single Patient Attribution Rule vEB.1.0 §4.2–§4.3.
+  // Compute target from where benefit content actually appears, not just
+  // from dependent-loop presence: many payers echo an empty HL*23 even
+  // when all returned benefits live under the subscriber loop.
+  result.subscriber = subscriber;
+  result.dependent = dependent;
+  const dependentBenefitCount = result.benefits.filter((b) => b.owner === "dependent").length;
+  const subscriberBenefitCount = result.benefits.filter((b) => b.owner !== "dependent").length;
+  let attributionTarget: "subscriber" | "dependent";
+  if (dependentBenefitCount > 0 && dependentBenefitCount >= subscriberBenefitCount) {
+    attributionTarget = "dependent";
+  } else if (subscriberBenefitCount > 0) {
+    attributionTarget = "subscriber";
+  } else {
+    // No EB segments returned at all (AAA-only response): fall back to
+    // whichever party was identified furthest down the HL chain.
+    attributionTarget = dependent ? "dependent" : "subscriber";
+  }
+  result.attribution = {
+    target: attributionTarget,
+    subscriber,
+    dependent,
+  };
 
   // Derive coarse status
   if (result.aaaErrors.length > 0) {

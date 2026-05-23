@@ -9,6 +9,9 @@ type PatientBannerData = {
   insurancePlan: string | null;
   eligibilityStatus: string | null;
   openBalance: number;
+  copay: number | null;
+  deductibleRemaining: number | null;
+  benefitTier: string | null;
 };
 
 function getOrganizationId() {
@@ -47,12 +50,21 @@ export default function PatientContextBanner({ clientId }: { clientId: string })
         if (json.success && json.patient) {
           const policies: Array<{ plan_name?: string | null; active_flag?: boolean | null }> = json.insurance?.policies ?? [];
           const primaryPolicy = policies.find((p) => p.active_flag) ?? policies[0] ?? null;
+          const elig = json.insurance?.latestEligibility ?? null;
+          const toNum = (v: unknown): number | null => {
+            if (v === null || v === undefined || v === "") return null;
+            const n = typeof v === "number" ? v : Number(v);
+            return Number.isFinite(n) ? n : null;
+          };
           setData({
             name: json.patient.name,
             dateOfBirth: json.patient.dateOfBirth ?? null,
             insurancePlan: primaryPolicy?.plan_name ?? null,
-            eligibilityStatus: json.insurance?.latestEligibility?.eligibility_status ?? null,
+            eligibilityStatus: elig?.eligibility_status ?? null,
             openBalance: json.balance?.total ?? 0,
+            copay: toNum(elig?.copay_amount),
+            deductibleRemaining: toNum(elig?.deductible_remaining),
+            benefitTier: typeof elig?.benefit_tier === "string" ? elig.benefit_tier : null,
           });
         }
       })
@@ -97,6 +109,21 @@ export default function PatientContextBanner({ clientId }: { clientId: string })
       {elig && (
         <span className={styles.patientBannerField} style={{ color: eligColor }}>
           Eligibility: <strong style={{ color: eligColor }}>{elig}</strong>
+        </span>
+      )}
+      {data.copay !== null && (
+        <span className={styles.patientBannerField} title="Patient copay from latest 271">
+          Copay: <strong>{formatMoney(data.copay)}</strong>
+        </span>
+      )}
+      {data.deductibleRemaining !== null && (
+        <span className={styles.patientBannerField} title="Deductible remaining from latest 271">
+          Deductible left: <strong>{formatMoney(data.deductibleRemaining)}</strong>
+        </span>
+      )}
+      {data.benefitTier && (
+        <span className={styles.patientBannerField} title="Benefit tier from latest 271">
+          Tier: <strong>{data.benefitTier}</strong>
         </span>
       )}
       {data.openBalance > 0 && (

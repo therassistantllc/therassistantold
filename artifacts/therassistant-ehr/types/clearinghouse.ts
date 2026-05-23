@@ -256,6 +256,28 @@ export interface EligibilityResponseNormalized {
   remainingCoveragePeriod?: string | null;
   /** Per-benefit normalized rows to persist into eligibility_benefit_segments. */
   benefitSegments?: NormalizedBenefitSegment[];
+  /**
+   * AAA reject errors with human-readable descriptions (X12 271 AAA
+   * segment). Surfaced in the UI when status is `error` or `not_found`.
+   */
+  aaaErrors?: Array<{
+    code: string;
+    description: string;
+    followUpAction?: string | null;
+    loop?: string | null;
+  }>;
+  /**
+   * Single Patient Attribution Rule vEB.1.0 §4.2–§4.3 — identifies
+   * whether the response carries content for the subscriber or for a
+   * dependent under the subscriber's HL.
+   */
+  attribution?: {
+    target: "subscriber" | "dependent";
+    subscriberName?: string | null;
+    subscriberMemberId?: string | null;
+    dependentName?: string | null;
+    dependentDob?: string | null;
+  };
   serviceTypeCode?: string | null;
   /**
    * Coverage type / level returned by the payer (e.g. "individual", "family",

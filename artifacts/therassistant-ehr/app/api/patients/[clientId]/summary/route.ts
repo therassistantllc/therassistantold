@@ -66,7 +66,9 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { data: eligibility } = await supabase
       .from("eligibility_checks")
-      .select("id, eligibility_status, checked_at, copay_amount, deductible_remaining, coverage_start_date, coverage_end_date, response_summary")
+      .select(
+        "id, eligibility_status, checked_at, copay_amount, deductible_remaining, coverage_start_date, coverage_end_date, response_summary, benefit_tier, authorization_required, telemedicine_covered",
+      )
       .eq("organization_id", organizationId)
       .eq("client_id", clientId)
       .is("archived_at", null)
