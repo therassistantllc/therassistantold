@@ -17,6 +17,9 @@ const ONLINE_WINDOW_MS = 60_000;
 const IDLE_WINDOW_MS = 5 * 60_000;
 // Local idle threshold: flip own tab to idle after this much no-activity.
 const LOCAL_IDLE_AFTER_MS = 60_000;
+// Sustained inactivity: after this much no-activity, stop heartbeating
+// and untrack so peers age us from idle → offline.
+const LOCAL_OFFLINE_AFTER_MS = 5 * 60_000;
 // Reconcile messages every 30s as a Realtime safety net.
 const MESSAGE_RECONCILE_MS = 30_000;
 
@@ -229,13 +232,27 @@ export default function ChatClient() {
     let focused =
       typeof document === "undefined" ? true : document.visibilityState === "visible";
     let lastActivity = Date.now();
+    // When sustained inactivity kicks in we untrack and stop heartbeating
+    // so peers age us to offline. Any new activity flips this back on.
+    let tracking = true;
 
     const broadcast = () => {
+      if (!tracking) return;
       void channel.track({
         userId: currentUserId,
         focused,
         lastSeenAt: Date.now(),
       });
+    };
+    const goOffline = () => {
+      if (!tracking) return;
+      tracking = false;
+      void channel.untrack();
+    };
+    const resumeFromOffline = () => {
+      if (tracking) return;
+      tracking = true;
+      broadcast();
     };
 
     const recomputeFromChannel = () => {
@@ -279,17 +296,25 @@ export default function ChatClient() {
     const heartbeat = window.setInterval(broadcast, 25_000);
 
     // Local idle: if no input/visibility for LOCAL_IDLE_AFTER_MS, flip
-    // focused=false on our next beat so others see us as idle.
+    // focused=false on our next beat so others see us as idle. After
+    // LOCAL_OFFLINE_AFTER_MS untrack so peers age us to offline.
     const onActivity = () => {
       const wasIdle = !focused;
+      const wasUntracked = !tracking;
       lastActivity = Date.now();
-      if (wasIdle) {
+      if (wasUntracked) {
+        focused = document.visibilityState === "visible";
+        resumeFromOffline();
+      } else if (wasIdle) {
         focused = document.visibilityState === "visible";
         broadcast();
       }
     };
     const idleCheck = window.setInterval(() => {
-      if (focused && Date.now() - lastActivity > LOCAL_IDLE_AFTER_MS) {
+      const inactiveFor = Date.now() - lastActivity;
+      if (inactiveFor > LOCAL_OFFLINE_AFTER_MS) {
+        goOffline();
+      } else if (focused && inactiveFor > LOCAL_IDLE_AFTER_MS) {
         focused = false;
         broadcast();
       }
@@ -298,16 +323,18 @@ export default function ChatClient() {
     const onVisibility = () => {
       focused = document.visibilityState === "visible";
       lastActivity = Date.now();
-      broadcast();
+      if (!tracking) resumeFromOffline();
+      else broadcast();
     };
     const onBlur = () => {
       focused = false;
-      broadcast();
+      if (tracking) broadcast();
     };
     const onFocus = () => {
       focused = true;
       lastActivity = Date.now();
-      broadcast();
+      if (!tracking) resumeFromOffline();
+      else broadcast();
     };
     const onUnload = () => {
       void channel.untrack();
