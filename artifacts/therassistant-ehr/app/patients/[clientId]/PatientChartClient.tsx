@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
+import CasesPanel from "./CasesPanel";
+import MoveClaimButton from "./MoveClaimButton";
 
 type InsurancePolicySummary = {
   id: string;
@@ -714,6 +716,19 @@ export default function PatientChartClient({
         </article>
 
         <article className="panel">
+          <CasesPanel
+            clientId={patient.id}
+            organizationId={organizationId}
+            availablePolicies={policies.map((p) => ({
+              id: p.id,
+              plan_name: p.plan_name ?? null,
+              policy_number: p.policy_number ?? null,
+              priority: p.priority ?? null,
+            }))}
+          />
+        </article>
+
+        <article className="panel">
           <h2>Recent Appointments</h2>
           {details.appointments.length === 0 ? <p className="muted">No appointments found.</p> : null}
           <div className="stack-list">
@@ -806,6 +821,11 @@ export default function PatientChartClient({
                 <strong>{claim.claimNumber ?? claim.id.slice(0, 8)}</strong>
                 <span className={statusClass(claim.status)}>{claim.status ?? "status not set"}</span>
                 <span>Total charge: {formatMoney(claim.totalCharge)}</span>
+                <MoveClaimButton
+                  claimId={claim.id}
+                  clientId={patient.id}
+                  organizationId={organizationId}
+                />
               </div>
             ))}
           </div>

@@ -62,6 +62,7 @@ export async function PATCH(
         internal_note?: string | null;
         cpt_code?: string | null;
         memo?: string | null;
+        case_id?: string | null;
       };
     };
 
@@ -89,6 +90,9 @@ export async function PATCH(
     }
     if ("internal_note" in updates) {
       allowed.internal_note = updates.internal_note ?? null;
+    }
+    if ("case_id" in updates) {
+      allowed.case_id = updates.case_id ?? null;
     }
 
     if (Object.keys(allowed).length === 0) {

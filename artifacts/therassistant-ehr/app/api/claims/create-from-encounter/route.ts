@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { mapLegacyClaimInputToProfessionalClaim } from "@/lib/claims/createProfessionalClaimFromLegacyInput";
 import { assertClaimSubmissionReady, gateResponse } from "@/lib/validation/claimSubmissionGate";
+import {
+  getCaseById,
+  getDefaultCaseForClient,
+  isPatientResponsibilityCaseType,
+} from "@/lib/cases/clientCasesService";
 
 function generateUuid() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -27,9 +32,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Encounter must be signed before claim creation" }, { status: 422 });
     }
 
-    const gate = await assertClaimSubmissionReady(
-      typeof encounter.organization_id === "string" ? encounter.organization_id : null,
-    );
+    // Resolve case (encounter.case_id wins; else client's default case).
+    const organizationId = typeof encounter.organization_id === "string" ? encounter.organization_id : null;
+    let resolvedCase = null as Awaited<ReturnType<typeof getCaseById>>;
+    if (organizationId) {
+      if (encounter.case_id) {
+        resolvedCase = await getCaseById({ organizationId, caseId: String(encounter.case_id) });
+      } else if (encounter.client_id) {
+        resolvedCase = await getDefaultCaseForClient({
+          organizationId,
+          clientId: String(encounter.client_id),
+        });
+      }
+    }
+
+    // Self-pay / charity cases skip insurance claim creation entirely. The
+    // charge capture row stays at status='patient_responsibility' and the
+    // balance will be invoiced to the patient by the existing balance flow.
+    if (resolvedCase && isPatientResponsibilityCaseType(resolvedCase.caseType)) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "patient_responsibility",
+        caseId: resolvedCase.id,
+        caseType: resolvedCase.caseType,
+        message: `Encounter is routed to patient responsibility under case "${resolvedCase.name}"; no insurance claim created.`,
+      });
+    }
+
+    const gate = await assertClaimSubmissionReady(organizationId);
     const blocked = gateResponse(gate);
     if (blocked) return blocked;
 
@@ -56,6 +87,7 @@ export async function POST(request: Request) {
         claim_status: "ready_to_submit",
         total_charge_amount: 0,
       }),
+      case_id: resolvedCase?.id ?? null,
       created_at: now,
       updated_at: now,
     };

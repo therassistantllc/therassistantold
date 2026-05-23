@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { addMonthsKeepingClock, checkProviderAvailability, resolveOrganizationId } from "@/lib/scheduling/core";
+import { getDefaultCaseForClient } from "@/lib/cases/clientCasesService";
 
 type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 type RecurrenceEndMode = "by_date" | "by_count";
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
       clientId?: string;
       providerId?: string;
       insurancePolicyId?: string | null;
+      caseId?: string | null;
       scheduledStartAt?: string;
       durationMinutes?: number;
       appointmentType?: string;
@@ -137,6 +139,14 @@ export async function POST(request: Request) {
 
     const seriesId = recurrenceFrequency === "none" ? null : generateUuid();
     const now = new Date().toISOString();
+
+    // Resolve the case for this appointment series. Caller-supplied wins;
+    // otherwise default to the client's active default case.
+    let resolvedCaseId: string | null = body.caseId ?? null;
+    if (!resolvedCaseId) {
+      const defaultCase = await getDefaultCaseForClient({ organizationId, clientId });
+      resolvedCaseId = defaultCase?.id ?? null;
+    }
 
     let providerTelehealthUrl: string | null = null;
     if (serviceLocation === "telehealth") {
@@ -211,6 +221,7 @@ export async function POST(request: Request) {
         client_id: clientId,
         provider_id: providerId,
         insurance_policy_id: body.insurancePolicyId ?? null,
+        case_id: resolvedCaseId,
         scheduled_start_at: startAt.toISOString(),
         scheduled_end_at: endAt.toISOString(),
         appointment_status: "scheduled",

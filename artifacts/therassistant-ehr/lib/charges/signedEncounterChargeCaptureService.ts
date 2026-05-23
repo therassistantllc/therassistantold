@@ -1,4 +1,9 @@
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import {
+  getDefaultCaseForClient,
+  isPatientResponsibilityCaseType,
+  resolveCaseBillingPolicy,
+} from "@/lib/cases/clientCasesService";
 
 export interface CaptureSignedEncounterChargeInput {
   organizationId: string;
@@ -8,8 +13,10 @@ export interface CaptureSignedEncounterChargeInput {
 export interface CaptureSignedEncounterChargeResult {
   ok: boolean;
   chargeId: string | null;
-  status: "ready_for_claim" | "blocked";
+  status: "ready_for_claim" | "blocked" | "patient_responsibility";
   blockers: Array<{ field: string; message: string }>;
+  caseId?: string | null;
+  routing?: "insurance_claim" | "patient_responsibility";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,7 +72,7 @@ export async function captureSignedEncounterCharge(
 
   const { data: encounter, error: encounterError } = await supabase
     .from("encounters")
-    .select("id, organization_id, appointment_id, client_id, provider_id, encounter_status, service_date")
+    .select("id, organization_id, appointment_id, client_id, provider_id, encounter_status, service_date, case_id")
     .eq("id", input.encounterId)
     .eq("organization_id", input.organizationId)
     .is("archived_at", null)
@@ -141,12 +148,45 @@ export async function captureSignedEncounterCharge(
     if (line.chargeAmount <= 0) blockers.push({ field: `service_lines.${index}.charge_amount`, message: "Service line charge must be greater than zero" });
   }
 
-  const policyId = encounter.client_id
-    ? await getActivePrimaryPolicy({ organizationId: input.organizationId, clientId: String(encounter.client_id) })
-    : null;
-  if (!policyId) blockers.push({ field: "insurance_policy", message: "No active primary insurance policy found for claim creation" });
+  // Resolve the case for this encounter — explicit case_id wins, then the
+  // client's default case. Self-pay / charity cases route to patient
+  // responsibility instead of generating an insurance claim.
+  let resolvedCaseId: string | null = encounter.case_id ? String(encounter.case_id) : null;
+  if (!resolvedCaseId && encounter.client_id) {
+    const defaultCase = await getDefaultCaseForClient({
+      organizationId: input.organizationId,
+      clientId: String(encounter.client_id),
+    });
+    resolvedCaseId = defaultCase?.id ?? null;
+  }
 
-  const status = blockers.length > 0 ? "blocked" : "ready_for_claim";
+  let policyId: string | null = null;
+  let routing: "insurance_claim" | "patient_responsibility" = "insurance_claim";
+
+  if (resolvedCaseId) {
+    const billing = await resolveCaseBillingPolicy({
+      organizationId: input.organizationId,
+      caseId: resolvedCaseId,
+    });
+    if (billing.kind === "patient_responsibility") {
+      routing = "patient_responsibility";
+    } else if (billing.kind === "insurance") {
+      policyId = billing.policyId;
+    } else {
+      blockers.push({ field: "insurance_policy", message: billing.reason });
+    }
+  } else if (encounter.client_id) {
+    // Legacy fallback for clients with no case yet (e.g. pre-migration data).
+    policyId = await getActivePrimaryPolicy({ organizationId: input.organizationId, clientId: String(encounter.client_id) });
+    if (!policyId) blockers.push({ field: "insurance_policy", message: "No active primary insurance policy found for claim creation" });
+  }
+
+  const status =
+    blockers.length > 0
+      ? "blocked"
+      : routing === "patient_responsibility"
+        ? "patient_responsibility"
+        : "ready_for_claim";
   const totalCharge = serviceLines.reduce((sum, line) => sum + line.chargeAmount * line.units, 0);
 
   const { data: existing } = await supabase
@@ -159,11 +199,14 @@ export async function captureSignedEncounterCharge(
     .limit(1)
     .maybeSingle();
 
+  const okForFlow = status === "ready_for_claim" || status === "patient_responsibility";
+
   if (existing?.id) {
     const { data: updated, error: updateError } = await supabase
       .from("charge_capture_items")
       .update({
         insurance_policy_id: policyId,
+        case_id: resolvedCaseId,
         charge_status: status,
         diagnosis_codes: diagnosisCodes,
         service_lines: serviceLines,
@@ -177,7 +220,7 @@ export async function captureSignedEncounterCharge(
       .single();
 
     if (updateError || !updated) throw new Error(updateError?.message ?? "Failed to update charge capture item");
-    return { ok: status === "ready_for_claim", chargeId: String(updated.id), status, blockers };
+    return { ok: okForFlow, chargeId: String(updated.id), status, blockers, caseId: resolvedCaseId, routing };
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -189,6 +232,7 @@ export async function captureSignedEncounterCharge(
       provider_id: encounter.provider_id,
       appointment_id: encounter.appointment_id,
       insurance_policy_id: policyId,
+      case_id: resolvedCaseId,
       source_object_type: "encounter",
       source_object_id: input.encounterId,
       charge_status: status,
@@ -203,5 +247,9 @@ export async function captureSignedEncounterCharge(
     .single();
 
   if (insertError || !inserted) throw new Error(insertError?.message ?? "Failed to create charge capture item");
-  return { ok: status === "ready_for_claim", chargeId: String(inserted.id), status, blockers };
+  return { ok: okForFlow, chargeId: String(inserted.id), status, blockers, caseId: resolvedCaseId, routing };
 }
+
+// Re-export so consumers (tests) can detect self-pay routing without importing
+// the cases module directly.
+export { isPatientResponsibilityCaseType };
