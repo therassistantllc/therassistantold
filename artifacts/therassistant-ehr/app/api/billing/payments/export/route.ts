@@ -78,7 +78,49 @@ export async function GET(req: Request) {
     limit: 500,
   };
 
-  const result = await queryPaymentsDashboard(supabase, filters);
+  // Page through the dashboard in chunks of 500 so export covers the FULL
+  // filtered population (no silent 500-row truncation). Cap absolute volume
+  // at MAX_EXPORT_ROWS to keep memory bounded; the dashboard itself never
+  // surfaces more than this in one CSV. The audit row records the cap hit.
+  const MAX_EXPORT_ROWS = 25000;
+  const PAGE = 500;
+  let allRows: Awaited<ReturnType<typeof queryPaymentsDashboard>>["rows"] = [];
+  let totals: Awaited<ReturnType<typeof queryPaymentsDashboard>>["totals"] | null = null;
+  let pageOffset = 0;
+  let capHit = false;
+  while (allRows.length < MAX_EXPORT_ROWS) {
+    const page = await queryPaymentsDashboard(supabase, {
+      ...filters,
+      limit: PAGE,
+      offset: pageOffset,
+    });
+    if (!totals) totals = page.totals;
+    if (page.rows.length === 0) break;
+    allRows = allRows.concat(page.rows);
+    if (page.rows.length < PAGE) break;
+    pageOffset += PAGE;
+    if (allRows.length >= MAX_EXPORT_ROWS) {
+      allRows = allRows.slice(0, MAX_EXPORT_ROWS);
+      capHit = true;
+      break;
+    }
+  }
+  const result = {
+    rows: allRows,
+    totals: totals ?? {
+      imported: 0,
+      posted: 0,
+      unmatched: 0,
+      unapplied: 0,
+      denied: 0,
+      recoupments: 0,
+      refunds: 0,
+      pendingReview: 0,
+      amountPosted: 0,
+      amountPending: 0,
+    },
+    rowCount: allRows.length,
+  };
   const header = [
     "id",
     "source",
@@ -121,9 +163,9 @@ export async function GET(req: Request) {
     action: "payment_adjusted",
     objectType: "era_claim_payment",
     objectId: "00000000-0000-0000-0000-000000000000",
-    afterValue: { row_count: result.rowCount, filters },
-    summary: `CSV export — ${result.rowCount} rows`,
-    metadata: { source: "dashboard_export" },
+    afterValue: { row_count: result.rowCount, filters, cap_hit: capHit },
+    summary: `CSV export — ${result.rowCount} rows${capHit ? " (cap hit)" : ""}`,
+    metadata: { source: "dashboard_export", cap_hit: capHit, max_rows: MAX_EXPORT_ROWS },
   });
 
   return new Response(csv, {

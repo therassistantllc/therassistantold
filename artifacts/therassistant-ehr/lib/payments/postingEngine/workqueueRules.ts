@@ -333,55 +333,118 @@ async function deriveEligibilityEmissions(
     const billingPayer =
       (claim as { payer_profile_id: string | null }).payer_profile_id;
 
-    // cob_issue: any *other* active coverage exists for this client beyond the
-    // one we posted under — payer needs to coordinate benefits before billing.
+    // cob_issue: secondary insurance is *expected* (patient has ≥2 active
+    // coverages on file) but *no secondary payment* has been recorded for
+    // this claim under a payer other than the one we just posted under.
+    // This matches the spec — fires on "secondary expected but missing,"
+    // not on "additional coverage exists."
     if (clientId && postedPayerProfileId) {
       try {
-        const { data: otherCov } = await supabase
+        const { data: activeCoverages } = await supabase
           .from("eligibility_coverages")
-          .select("id, payer_profile_id")
+          .select("id, payer_profile_id, is_active")
           .eq("organization_id", organizationId)
           .eq("client_id", clientId)
-          .neq("payer_profile_id", postedPayerProfileId)
-          .limit(1)
-          .maybeSingle();
-        if (otherCov?.id) {
-          out.push({
-            ruleKind: "cob_issue",
-            workType: "cob_issue",
-            title: "COB issue — additional coverage on file",
-            description:
-              "Patient has additional active insurance coverage beyond the payer we posted under. Verify COB order before re-billing.",
-            priority: "normal",
-            contextPayload: {
-              rule: "cob_issue",
-              other_payer: (otherCov as { payer_profile_id: string | null }).payer_profile_id,
-            },
-          });
+          .eq("is_active", true)
+          .limit(5);
+        const activeList = (activeCoverages ?? []) as Array<{
+          payer_profile_id: string | null;
+        }>;
+        const distinctActivePayers = new Set(
+          activeList.map((c) => c.payer_profile_id).filter(Boolean),
+        );
+        if (distinctActivePayers.size >= 2) {
+          // Has secondary expected — check whether *any* secondary payment
+          // (different payer) exists for this same claim. Check both
+          // insurance_manual_payments and era_claim_payments.
+          let secondaryFound = false;
+          try {
+            const { data: secMan } = await supabase
+              .from("insurance_manual_payments")
+              .select("id")
+              .eq("organization_id", organizationId)
+              .eq("claim_id", professionalClaimId)
+              .neq("payer_profile_id", postedPayerProfileId)
+              .is("archived_at", null)
+              .limit(1)
+              .maybeSingle();
+            if (secMan?.id) secondaryFound = true;
+          } catch {
+            // tolerate column variance
+          }
+          if (!secondaryFound) {
+            try {
+              const { data: secEra } = await supabase
+                .from("era_claim_payments")
+                .select("id")
+                .eq("organization_id", organizationId)
+                .eq("professional_claim_id", professionalClaimId)
+                .neq("payer_identifier", postedPayerProfileId)
+                .is("archived_at", null)
+                .limit(1)
+                .maybeSingle();
+              if (secEra?.id) secondaryFound = true;
+            } catch {
+              // tolerate column variance
+            }
+          }
+          if (!secondaryFound) {
+            out.push({
+              ruleKind: "cob_issue",
+              workType: "cob_issue",
+              title: "COB issue — secondary payment missing",
+              description:
+                "Patient has additional active insurance coverage on file, but no secondary payment has been recorded for this claim. Bill secondary payer or document COB.",
+              priority: "normal",
+              contextPayload: {
+                rule: "cob_issue",
+                posted_payer: postedPayerProfileId,
+                active_payers: [...distinctActivePayers],
+              },
+            });
+          }
         }
       } catch {
         // eligibility_coverages may not exist in all envs — ignore.
       }
     }
 
-    // eligibility_issue: posted payer differs from the claim's billing payer.
-    if (
-      postedPayerProfileId &&
-      billingPayer &&
-      postedPayerProfileId !== billingPayer
-    ) {
-      out.push({
-        ruleKind: "eligibility_issue",
-        workType: "eligibility_issue",
-        title: "Eligibility conflict — posted payer ≠ billing payer",
-        description: `This payment was posted under payer ${postedPayerProfileId} but the claim was billed to payer ${billingPayer}. Verify eligibility and payer routing.`,
-        priority: "normal",
-        contextPayload: {
-          rule: "eligibility_issue",
-          posted_payer: postedPayerProfileId,
-          billing_payer: billingPayer,
-        },
-      });
+    // eligibility_issue: posted payer differs from the *eligibility-active*
+    // payer for this client (not from the claim's billing payer). This
+    // matches the spec — eligibility is the source of truth for who should
+    // pay; the billing payer may simply have been keyed wrong on the claim.
+    if (clientId && postedPayerProfileId) {
+      try {
+        const { data: activeCov } = await supabase
+          .from("eligibility_coverages")
+          .select("id, payer_profile_id, is_active, updated_at")
+          .eq("organization_id", organizationId)
+          .eq("client_id", clientId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const activePayer = activeCov
+          ? ((activeCov as { payer_profile_id: string | null }).payer_profile_id ?? null)
+          : null;
+        if (activePayer && activePayer !== postedPayerProfileId) {
+          out.push({
+            ruleKind: "eligibility_issue",
+            workType: "eligibility_issue",
+            title: "Eligibility conflict — posted payer ≠ eligibility-active payer",
+            description: `This payment was posted under payer ${postedPayerProfileId} but the patient's eligibility-active payer is ${activePayer}. Verify coverage and payer routing.`,
+            priority: "normal",
+            contextPayload: {
+              rule: "eligibility_issue",
+              posted_payer: postedPayerProfileId,
+              eligibility_active_payer: activePayer,
+              billing_payer: billingPayer,
+            },
+          });
+        }
+      } catch {
+        // eligibility_coverages may not exist in all envs — skip silently.
+      }
     }
   } catch {
     // Tolerate missing columns — these tables vary by deployment.

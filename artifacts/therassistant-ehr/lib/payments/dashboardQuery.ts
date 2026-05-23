@@ -333,15 +333,15 @@ function mapPatientRow(r: Record<string, unknown>): DashboardRow {
 // ── Totals ──────────────────────────────────────────────────────────────────
 
 /**
- * Derive every total from the same filtered row set + apply the same
- * filter predicates to the side-channel count queries (recoupments /
- * refunds / pending review / unapplied). Single source of truth for
- * "what the user sees" — totals always match the visible table.
+ * Compute totals over the FULL filtered population — independent of the
+ * row page the user is looking at. Each KPI is an independent count(*)
+ * (or sum) constrained by the same predicates as the row queries so
+ * "$ posted / unmatched / denied" reflect the whole filter set, not
+ * just the current page of 100 rows.
  */
 async function loadTotals(
   supabase: SupabaseClient,
   filters: DashboardFilters,
-  rows: DashboardRow[],
   providerClaimIds: string[] | null,
 ): Promise<DashboardTotals> {
   const totals: DashboardTotals = {
@@ -357,30 +357,59 @@ async function loadTotals(
     amountPending: 0,
   };
 
-  // Derive the per-row totals from the unified, already-filtered row set
-  // so they always agree with what the user is looking at. No source-only
-  // override — that was the bug the architect flagged.
-  for (const r of rows) {
-    totals.imported += 1;
-    if (r.postingStatus === "posted") {
-      totals.posted += 1;
-      totals.amountPosted += r.amount;
-    } else {
-      totals.amountPending += r.amount;
-    }
-    if (r.source === "era" && r.amount <= 0) totals.denied += 1;
-    if (r.source === "era" && r.claimMatchStatus === "unmatched") totals.unmatched += 1;
-    if (r.source === "patient" && r.professionalClaimId == null) totals.unapplied += 1;
-  }
-
-  // Cross-source side counts (not represented as rows) — apply the same
-  // org + date + client filters where the column exists so the KPI moves
-  // with the filter bar.
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const countQ = (table: string): any =>
     supabase.from(table).select("id", { count: "exact", head: true });
 
-  const scoped = (q: any, opts: { dateCol?: string } = {}) => {
+  // Apply the dashboard's filter predicates to an ERA count query.
+  const eraScoped = (q: any) => {
+    let r = q
+      .eq("organization_id", filters.organizationId)
+      .is("archived_at", null);
+    if (filters.clientId) r = r.eq("client_id", filters.clientId);
+    if (providerClaimIds) r = r.in("professional_claim_id", providerClaimIds);
+    if (filters.postingStatus && filters.postingStatus.length > 0) {
+      r = r.in("posting_status", filters.postingStatus);
+    }
+    if (filters.eftCheckNumber) r = r.ilike("check_number", `%${filters.eftCheckNumber}%`);
+    if (filters.depositDateFrom) r = r.gte("era_received_date", filters.depositDateFrom);
+    if (filters.depositDateTo) r = r.lte("era_received_date", filters.depositDateTo);
+    if (filters.paymentDateFrom) r = r.gte("created_at", filters.paymentDateFrom);
+    if (filters.paymentDateTo) r = r.lte("created_at", filters.paymentDateTo);
+    if (filters.eraImportDateFrom) r = r.gte("created_at", filters.eraImportDateFrom);
+    if (filters.eraImportDateTo) r = r.lte("created_at", filters.eraImportDateTo);
+    return r;
+  };
+
+  const manualScoped = (q: any) => {
+    let r = q
+      .eq("organization_id", filters.organizationId)
+      .is("archived_at", null);
+    if (filters.clientId) r = r.eq("client_id", filters.clientId);
+    if (filters.payerProfileId) r = r.eq("payer_profile_id", filters.payerProfileId);
+    if (providerClaimIds) r = r.in("claim_id", providerClaimIds);
+    if (filters.eftCheckNumber) r = r.ilike("eob_reference", `%${filters.eftCheckNumber}%`);
+    if (filters.paymentDateFrom) r = r.gte("posted_at", filters.paymentDateFrom);
+    if (filters.paymentDateTo) r = r.lte("posted_at", filters.paymentDateTo);
+    return r;
+  };
+
+  const patientScoped = (q: any) => {
+    let r = q
+      .eq("organization_id", filters.organizationId)
+      .is("archived_at", null);
+    if (filters.clientId) r = r.eq("client_id", filters.clientId);
+    if (providerClaimIds) r = r.in("claim_id", providerClaimIds);
+    if (filters.eftCheckNumber) r = r.ilike("reference_number", `%${filters.eftCheckNumber}%`);
+    if (filters.postingStatus && filters.postingStatus.length > 0) {
+      r = r.in("posting_status", filters.postingStatus);
+    }
+    if (filters.paymentDateFrom) r = r.gte("posted_at", filters.paymentDateFrom);
+    if (filters.paymentDateTo) r = r.lte("posted_at", filters.paymentDateTo);
+    return r;
+  };
+
+  const sideScoped = (q: any, opts: { dateCol?: string } = {}) => {
     let r = q.eq("organization_id", filters.organizationId).is("archived_at", null);
     if (filters.clientId) r = r.eq("client_id", filters.clientId);
     if (opts.dateCol) {
@@ -391,11 +420,45 @@ async function loadTotals(
   };
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
+  const wantEra = wantSource(filters, "era");
+  const wantManual = wantSource(filters, "manual_insurance");
+  const wantPatient = wantSource(filters, "patient");
+
   try {
-    const [recoupments, refunds, pendingReview] = await Promise.all([
-      scoped(countQ("payment_recoupments"), { dateCol: "created_at" }),
-      scoped(countQ("payment_refunds"), { dateCol: "created_at" }),
-      scoped(countQ("workqueue_items"), { dateCol: "created_at" })
+    const [
+      eraTotal,
+      eraPosted,
+      eraUnmatched,
+      eraDeniedZero,
+      manualTotal,
+      patientTotal,
+      patientUnapplied,
+      patientPosted,
+      recoupments,
+      refunds,
+      pendingReview,
+    ] = await Promise.all([
+      wantEra ? eraScoped(countQ("era_claim_payments")) : Promise.resolve({ count: 0 }),
+      wantEra
+        ? eraScoped(countQ("era_claim_payments")).eq("posting_status", "posted")
+        : Promise.resolve({ count: 0 }),
+      wantEra
+        ? eraScoped(countQ("era_claim_payments")).eq("claim_match_status", "unmatched")
+        : Promise.resolve({ count: 0 }),
+      wantEra
+        ? eraScoped(countQ("era_claim_payments")).lte("clp04_payment_amount", 0)
+        : Promise.resolve({ count: 0 }),
+      wantManual ? manualScoped(countQ("insurance_manual_payments")) : Promise.resolve({ count: 0 }),
+      wantPatient ? patientScoped(countQ("client_payments")) : Promise.resolve({ count: 0 }),
+      wantPatient
+        ? patientScoped(countQ("client_payments")).is("claim_id", null).is("patient_invoice_id", null)
+        : Promise.resolve({ count: 0 }),
+      wantPatient
+        ? patientScoped(countQ("client_payments")).eq("posting_status", "posted")
+        : Promise.resolve({ count: 0 }),
+      sideScoped(countQ("payment_recoupments"), { dateCol: "created_at" }),
+      sideScoped(countQ("payment_refunds"), { dateCol: "created_at" }),
+      sideScoped(countQ("workqueue_items"), { dateCol: "created_at" })
         .in("work_type", [
           "denied",
           "underpayment",
@@ -409,15 +472,66 @@ async function loadTotals(
         ])
         .in("status", ["open", "in_progress", "blocked"]),
     ]);
-    if (typeof recoupments.count === "number") totals.recoupments = recoupments.count;
-    if (typeof refunds.count === "number") totals.refunds = refunds.count;
-    if (typeof pendingReview.count === "number") totals.pendingReview = pendingReview.count;
+
+    const num = (c: { count?: number | null }) => (typeof c.count === "number" ? c.count : 0);
+    totals.imported = num(eraTotal) + num(manualTotal) + num(patientTotal);
+    totals.posted = num(eraPosted) + num(manualTotal) + num(patientPosted);
+    totals.unmatched = num(eraUnmatched);
+    totals.unapplied = num(patientUnapplied);
+    totals.denied = num(eraDeniedZero);
+    totals.recoupments = num(recoupments);
+    totals.refunds = num(refunds);
+    totals.pendingReview = num(pendingReview);
   } catch {
-    // best-effort; keep row-derived totals
+    // best-effort; KPIs stay at 0 if counts fail
   }
 
-  // Provider-scoped denied claims count when provider filter is active.
-  // We already have providerClaimIds — if not set, fall back to org-wide.
+  // amount* totals via lightweight sum() — chunked across the filtered ERA
+  // set to avoid huge transfers. We pull only the amount column with a
+  // reasonable cap, then sum in memory.
+  try {
+    const AMOUNT_CAP = 5000;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const amountFromEra = wantEra
+      ? eraScoped(
+          supabase.from("era_claim_payments").select("clp04_payment_amount, posting_status") as any,
+        ).limit(AMOUNT_CAP)
+      : Promise.resolve({ data: [] });
+    const amountFromManual = wantManual
+      ? manualScoped(supabase.from("insurance_manual_payments").select("paid_amount") as any).limit(
+          AMOUNT_CAP,
+        )
+      : Promise.resolve({ data: [] });
+    const amountFromPatient = wantPatient
+      ? patientScoped(
+          supabase.from("client_payments").select("amount, posting_status") as any,
+        ).limit(AMOUNT_CAP)
+      : Promise.resolve({ data: [] });
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const [era, manual, patient] = await Promise.all([amountFromEra, amountFromManual, amountFromPatient]);
+    for (const r of ((era as { data?: unknown[] }).data ?? []) as Array<Record<string, unknown>>) {
+      const amt = Number(r.clp04_payment_amount ?? 0);
+      if (!Number.isFinite(amt)) continue;
+      if (r.posting_status === "posted") totals.amountPosted += amt;
+      else totals.amountPending += amt;
+    }
+    for (const r of ((manual as { data?: unknown[] }).data ?? []) as Array<Record<string, unknown>>) {
+      const amt = Number(r.paid_amount ?? 0);
+      if (Number.isFinite(amt)) totals.amountPosted += amt;
+    }
+    for (const r of ((patient as { data?: unknown[] }).data ?? []) as Array<Record<string, unknown>>) {
+      const amt = Number(r.amount ?? 0);
+      if (!Number.isFinite(amt)) continue;
+      if (r.posting_status === "posted") totals.amountPosted += amt;
+      else totals.amountPending += amt;
+    }
+  } catch {
+    // best-effort
+  }
+
+  // Provider-scoped denied claim count: use the claim-level signal in
+  // addition to row-derived denied so this KPI tracks both AR-side
+  // denials and zero-pay ERA rows.
   try {
     let q = supabase
       .from("professional_claims")
@@ -425,12 +539,9 @@ async function loadTotals(
       .eq("organization_id", filters.organizationId)
       .eq("claim_status", "denied");
     if (providerClaimIds) q = q.in("id", providerClaimIds);
-    const { count: deniedCount } = await q;
-    if (typeof deniedCount === "number") {
-      // Row-derived denied counts zero-pay ERA rows; the claim-level count
-      // is the canonical "denied claims" KPI. Take the maximum so neither
-      // signal is hidden by the other.
-      totals.denied = Math.max(totals.denied, deniedCount);
+    const { count: deniedClaims } = await q;
+    if (typeof deniedClaims === "number") {
+      totals.denied = Math.max(totals.denied, deniedClaims);
     }
   } catch {
     // ignore
@@ -450,19 +561,23 @@ export async function queryPaymentsDashboard(
     filters.organizationId,
     filters.providerNpi,
   );
-  const [eraRows, manualRows, patientRows] = await Promise.all([
+  const [eraRows, manualRows, patientRows, totals] = await Promise.all([
     loadEraRows(supabase, filters, providerClaimIds),
     loadManualRows(supabase, filters, providerClaimIds),
     loadPatientRows(supabase, filters, providerClaimIds),
+    // Totals run independently against the FULL filtered population so
+    // KPIs don't shrink to the visible page.
+    loadTotals(supabase, filters, providerClaimIds),
   ]);
-  const merged = [...eraRows, ...manualRows, ...patientRows]
-    .sort((a, b) => {
-      const ad = a.paymentDate ?? a.depositDate ?? "";
-      const bd = b.paymentDate ?? b.depositDate ?? "";
-      return bd.localeCompare(ad);
-    })
-    .slice(0, clampLimit(filters.limit));
-  const totals = await loadTotals(supabase, filters, merged, providerClaimIds);
+  const sorted = [...eraRows, ...manualRows, ...patientRows].sort((a, b) => {
+    const ad = a.paymentDate ?? a.depositDate ?? "";
+    const bd = b.paymentDate ?? b.depositDate ?? "";
+    return bd.localeCompare(ad);
+  });
+  // Apply offset + limit at the merge tier so pagination behaves
+  // consistently regardless of which source dominates a given page.
+  const offset = Math.max(0, Math.floor(Number(filters.offset ?? 0)) || 0);
+  const merged = sorted.slice(offset, offset + clampLimit(filters.limit));
   return {
     rows: merged,
     totals,
