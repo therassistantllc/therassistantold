@@ -9807,6 +9807,7 @@ export type Database = {
           appeal_deadline_date: string | null
           appeal_submitted_at: string | null
           appointment_id: string | null
+          archived_at: string | null
           benefits_assignment: boolean | null
           billing_notes: string | null
           case_id: string | null
@@ -9844,6 +9845,7 @@ export type Database = {
           appeal_deadline_date?: string | null
           appeal_submitted_at?: string | null
           appointment_id?: string | null
+          archived_at?: string | null
           benefits_assignment?: boolean | null
           billing_notes?: string | null
           case_id?: string | null
@@ -9881,6 +9883,7 @@ export type Database = {
           appeal_deadline_date?: string | null
           appeal_submitted_at?: string | null
           appointment_id?: string | null
+          archived_at?: string | null
           benefits_assignment?: boolean | null
           billing_notes?: string | null
           case_id?: string | null
