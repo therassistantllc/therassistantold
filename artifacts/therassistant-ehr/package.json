@@ -6,7 +6,8 @@
     "dev": "next dev --webpack --port ${PORT:-22803}",
     "build": "next build",
     "start": "next start --port ${PORT:-22803}",
-    "lint": "eslint",
+    "lint": "eslint && knip",
+    "dead-code": "knip",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --experimental-test-module-mocks --test lib/edi/availity270/__tests__/*.test.ts lib/clearinghouse/__tests__/*.test.ts lib/payments/postingEngine/__tests__/*.test.ts lib/payments/__tests__/*.test.ts lib/cases/__tests__/*.test.ts lib/billing/__tests__/*.test.ts lib/encounters/__tests__/*.test.ts lib/mailroom/__tests__/*.test.ts lib/portal/__tests__/*.test.ts scripts/__tests__/*.test.ts app/api/portal/invites/__tests__/*.test.ts app/api/patients/__tests__/*.test.ts",
     "import:billing-codes": "tsx scripts/import-billing-codes.ts"
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "knip": "^6.14.2",
     "tailwindcss": "^4",
     "tsx": "catalog:",
     "typescript": "^5",
