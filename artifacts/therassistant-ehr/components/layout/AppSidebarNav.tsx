@@ -62,15 +62,6 @@ function InboxIcon() {
   );
 }
 
-function DollarIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
 function FilePlusIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -99,26 +90,6 @@ function CreditCardIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
       <line x1="1" y1="10" x2="23" y2="10" />
-    </svg>
-  );
-}
-
-function LayersIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  );
-}
-
-function ArchiveIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="21 8 21 21 3 21 3 8" />
-      <rect x="1" y="3" width="22" height="5" />
-      <line x1="10" y1="12" x2="14" y2="12" />
     </svg>
   );
 }
@@ -205,13 +176,9 @@ function active(pathname: string, prefixes: string[], exact = false): boolean {
 export default function AppSidebarNav() {
   const pathname = usePathname();
 
-  const billingActive = active(pathname, ["/billing", "/workqueue"]);
   const adminActive = active(pathname, ["/settings", "/admin"]);
 
-  const [billingOpen, setBillingOpen] = useState<boolean>(billingActive || true);
   const [adminOpen, setAdminOpen] = useState(adminActive || false);
-  const [workqueuesOpen, setWorkqueuesOpen] = useState(active(pathname, ["/workqueue"]));
-  const [collectionsOpen, setCollectionsOpen] = useState(false);
 
   return (
     <nav className={styles.nav} aria-label="Primary navigation">
@@ -225,73 +192,6 @@ export default function AppSidebarNav() {
       <NavLink href="/chat" icon={<ChatIcon />} label="Chat" prefixes={["/chat"]} pathname={pathname} />
       <NavLink href="/email" icon={<MailIcon />} label="Email" prefixes={["/email"]} pathname={pathname} />
       <NavLink href="/mailroom" icon={<InboxIcon />} label="Mailroom" prefixes={["/mailroom"]} pathname={pathname} />
-
-      {/* ── BILLING ──────────────────────────────────────────── */}
-      <div className={styles.navSectionSpacer} />
-      <div className={styles.navSection}>Billing</div>
-
-      <button
-        type="button"
-        className={`${styles.navItem} ${styles.navItemCollapsible} ${billingActive ? styles.navItemActive : ""}`}
-        onClick={() => setBillingOpen((o) => !o)}
-        aria-expanded={billingOpen}
-      >
-        <span className={styles.navIcon}><DollarIcon /></span>
-        Billing
-        <ChevronIcon open={billingOpen} />
-      </button>
-
-      {billingOpen ? (
-        <div className={styles.subnav}>
-          <SubNavLink href="/billing" label="Dashboard" prefixes={["/billing"]} exact={pathname === "/billing"} pathname={pathname} />
-          <SubNavLink href="/billing/charge-capture" label="Charge Capture" prefixes={["/billing/charge-capture", "/billing/claim-readiness"]} pathname={pathname} />
-          <SubNavLink href="/billing/claim-submission" label="Claims" prefixes={["/billing/claim-submission", "/billing/837p-batches"]} pathname={pathname} />
-          <SubNavLink href="/billing/payments" label="Payments / ERA" prefixes={["/billing/payments"]} pathname={pathname} />
-
-          {/* Workqueues sub-group */}
-          <button
-            type="button"
-            className={`${styles.subnavItem} ${styles.subnavItemGroup} ${workqueuesOpen ? styles.subnavItemGroupOpen : ""}`}
-            onClick={() => setWorkqueuesOpen((o) => !o)}
-            aria-expanded={workqueuesOpen}
-          >
-            <span className={styles.subnavGroupIcon}><LayersIcon /></span>
-            Workqueues
-            <ChevronIcon open={workqueuesOpen} />
-          </button>
-          {workqueuesOpen ? (
-            <div className={styles.subSubnav}>
-              <SubSubNavLink href="/workqueue?type=denials" label="Denials" pathname={pathname} />
-              <SubSubNavLink href="/workqueue?type=rejections" label="Rejections" pathname={pathname} />
-              <SubSubNavLink href="/workqueue?type=missing-info" label="Missing Info" pathname={pathname} />
-              <SubSubNavLink href="/workqueue?type=underpaid" label="Underpaid Claims" pathname={pathname} />
-              <SubSubNavLink href="/workqueue?type=unbilled" label="Unbilled Charges" pathname={pathname} />
-            </div>
-          ) : null}
-
-          {/* Collections sub-group */}
-          <button
-            type="button"
-            className={`${styles.subnavItem} ${styles.subnavItemGroup} ${collectionsOpen ? styles.subnavItemGroupOpen : ""}`}
-            onClick={() => setCollectionsOpen((o) => !o)}
-            aria-expanded={collectionsOpen}
-          >
-            <span className={styles.subnavGroupIcon}><ArchiveIcon /></span>
-            Collections
-            <ChevronIcon open={collectionsOpen} />
-          </button>
-          {collectionsOpen ? (
-            <div className={styles.subSubnav}>
-              <SubSubNavLink href="/billing/reports?tab=statements" label="Statements" pathname={pathname} />
-              <SubSubNavLink href="/billing/reports?tab=patient-payments" label="Patient Payments" pathname={pathname} />
-              <SubSubNavLink href="/billing/reports?tab=payment-plans" label="Payment Plans" pathname={pathname} />
-              <SubSubNavLink href="/billing/reports?tab=outstanding" label="Outstanding Balances" pathname={pathname} />
-            </div>
-          ) : null}
-
-          <SubNavLink href="/billing/reports" label="Reports" prefixes={["/billing/reports"]} pathname={pathname} />
-        </div>
-      ) : null}
 
       {/* ── ADMIN ────────────────────────────────────────────── */}
       <div className={styles.navSectionSpacer} />
@@ -355,29 +255,6 @@ function NavLink({
   );
 }
 
-function SubNavLink({
-  href, label, prefixes, pathname, exact = false, activeOverride,
-}: {
-  href: string; label: string; prefixes: string[]; pathname: string;
-  exact?: boolean; activeOverride?: boolean;
-}) {
-  const isActive = activeOverride !== undefined
-    ? activeOverride
-    : exact
-    ? pathname === href
-    : prefixes.some((p) => pathname.startsWith(p));
-
-  return (
-    <Link
-      href={href}
-      className={isActive ? `${styles.subnavItem} ${styles.subnavItemActive}` : styles.subnavItem}
-      aria-current={isActive ? "page" : undefined}
-    >
-      {label}
-    </Link>
-  );
-}
-
 function SubNavLinkIcon({
   href, icon, label, prefixes, pathname,
 }: {
@@ -396,16 +273,3 @@ function SubNavLinkIcon({
   );
 }
 
-function SubSubNavLink({ href, label, pathname }: { href: string; label: string; pathname: string }) {
-  const path = href.split("?")[0];
-  const isActive = pathname === path;
-  return (
-    <Link
-      href={href}
-      className={isActive ? `${styles.subSubnavItem} ${styles.subSubnavItemActive}` : styles.subSubnavItem}
-      aria-current={isActive ? "page" : undefined}
-    >
-      {label}
-    </Link>
-  );
-}
