@@ -1999,6 +1999,177 @@ export function recordPatientRefund(
   return recordRefundShared("patient", input, injectedSupabase);
 }
 
+/**
+ * Two-step patient refund confirmation: moves a pending payment_refunds
+ * row (refund_type='patient', sourced from a client_payment) to 'issued'
+ * and reconciles the originating patient_invoice paid_amount/balance.
+ *
+ * Used by the Stripe webhook (Task #136) when a `charge.refunded` /
+ * `refund.updated` event matches an existing pending refund row by
+ * `stripe_refund_id` — i.e. our own refund-issuance flow created the
+ * pending row but Stripe is now confirming it actually settled.
+ *
+ * Concurrency-safe: the pending→issued flip is conditional, so concurrent
+ * webhook re-deliveries collapse into a single state transition.
+ * Fail-closed on the transition itself; the invoice paid_amount update
+ * is best-effort (matches the inline patient-refund issuance path).
+ */
+export interface ConfirmPatientRefundInput {
+  organizationId: string;
+  refundId: string;
+  stripeRefundId?: string | null;
+  actor: PostingActor;
+}
+
+export interface ConfirmPatientRefundResult {
+  ok: boolean;
+  refundId: string | null;
+  refundStatus: "issued" | null;
+  alreadyIssued: boolean;
+  errors: Array<{ field: string; message: string }>;
+}
+
+export async function confirmPatientRefund(
+  input: ConfirmPatientRefundInput,
+  injectedSupabase?: SupabaseAdmin,
+): Promise<ConfirmPatientRefundResult> {
+  const result: ConfirmPatientRefundResult = {
+    ok: false,
+    refundId: null,
+    refundStatus: null,
+    alreadyIssued: false,
+    errors: [],
+  };
+  const supabase = injectedSupabase ?? createServerSupabaseAdminClient();
+  if (!supabase) {
+    result.errors.push({ field: "system", message: "Database connection not available" });
+    return result;
+  }
+
+  // First, check whether the row is already issued (idempotent webhook noop).
+  const { data: existing } = await supabase
+    .from("payment_refunds")
+    .select("id, refund_status, refund_type, source_client_payment_id, amount")
+    .eq("id", input.refundId)
+    .eq("organization_id", input.organizationId)
+    .is("archived_at", null)
+    .maybeSingle();
+  const existingRow = existing as Record<string, unknown> | null;
+  if (!existingRow) {
+    result.errors.push({
+      field: "payment_refunds",
+      message: "Refund row not found or wrong org.",
+    });
+    return result;
+  }
+  if (String(existingRow.refund_type) !== "patient") {
+    result.errors.push({
+      field: "refund_type",
+      message: "confirmPatientRefund only applies to patient refunds.",
+    });
+    return result;
+  }
+  if (String(existingRow.refund_status) === "issued") {
+    result.ok = true;
+    result.alreadyIssued = true;
+    result.refundId = input.refundId;
+    result.refundStatus = "issued";
+    return result;
+  }
+
+  const now = new Date().toISOString();
+  const updatePayload: Record<string, unknown> = {
+    refund_status: "issued",
+    issued_at: now,
+    issued_by_actor_id: input.actor.staffId ?? null,
+  };
+  if (input.stripeRefundId) updatePayload.stripe_refund_id = input.stripeRefundId;
+
+  const { data: claimed, error: claimErr } = await supabase
+    .from("payment_refunds")
+    .update(updatePayload)
+    .eq("id", input.refundId)
+    .eq("organization_id", input.organizationId)
+    .eq("refund_status", "pending")
+    .is("archived_at", null)
+    .select("id, amount, source_client_payment_id");
+  if (claimErr) {
+    result.errors.push({ field: "payment_refunds", message: claimErr.message });
+    return result;
+  }
+  const row = Array.isArray(claimed) ? (claimed[0] as Record<string, unknown> | undefined) : null;
+  if (!row) {
+    // Lost race — re-read to report current state.
+    result.ok = true;
+    result.alreadyIssued = true;
+    result.refundId = input.refundId;
+    result.refundStatus = "issued";
+    return result;
+  }
+
+  const amount = round2(Number(row.amount ?? 0));
+  const sourceCpId = (row.source_client_payment_id as string | null) ?? null;
+
+  // Best-effort patient invoice paid_amount reduction (mirrors the inline
+  // patient-refund issuance path in recordRefundShared so balances stay
+  // accurate after webhook confirmation).
+  if (sourceCpId && amount > 0) {
+    const { data: cp } = await supabase
+      .from("client_payments")
+      .select("patient_invoice_id")
+      .eq("id", sourceCpId)
+      .eq("organization_id", input.organizationId)
+      .maybeSingle();
+    const invId =
+      (cp as { patient_invoice_id?: string | null } | null)?.patient_invoice_id ?? null;
+    if (invId) {
+      const { data: inv } = await supabase
+        .from("patient_invoices")
+        .select("paid_amount, balance_amount, patient_responsibility_amount, invoice_status")
+        .eq("id", invId)
+        .eq("organization_id", input.organizationId)
+        .maybeSingle();
+      if (inv) {
+        const invRow = inv as Record<string, unknown>;
+        const newPaid = round2(Math.max(Number(invRow.paid_amount ?? 0) - amount, 0));
+        const responsibility = Number(invRow.patient_responsibility_amount ?? 0);
+        const newBalance = round2(Math.max(responsibility - newPaid, 0));
+        const newStatus =
+          newBalance > 0 && invRow.invoice_status === "paid" ? "open" : invRow.invoice_status;
+        await supabase
+          .from("patient_invoices")
+          .update({
+            paid_amount: newPaid,
+            balance_amount: newBalance,
+            invoice_status: newStatus,
+            updated_at: now,
+          })
+          .eq("id", invId)
+          .eq("organization_id", input.organizationId);
+      }
+    }
+  }
+
+  await writePaymentAuditLog(supabase, {
+    organizationId: input.organizationId,
+    actor: input.actor,
+    action: "refund_issued",
+    objectType: "payment_refund",
+    objectId: input.refundId,
+    afterValue: {
+      refund_status: "issued",
+      amount,
+      stripe_refund_id: input.stripeRefundId ?? null,
+    },
+    summary: `Patient refund ${amount.toFixed(2)} confirmed by Stripe webhook.`,
+  });
+
+  result.ok = true;
+  result.refundId = input.refundId;
+  result.refundStatus = "issued";
+  return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure validators (exported so API routes can dry-run UI feedback)
 // ─────────────────────────────────────────────────────────────────────────────

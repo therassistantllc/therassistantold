@@ -1,26 +1,43 @@
 /**
  * POST /api/billing/payments/stripe-webhook
  *
- * Stripe webhook receiver for patient card payments (Task #114). Verifies
+ * Stripe webhook receiver for patient card payments. Verifies
  * `Stripe-Signature` (HMAC-SHA256 over `${t}.${rawBody}` with
- * STRIPE_WEBHOOK_SECRET), then routes `payment_intent.succeeded` and
- * `charge.succeeded` events through `commitPatientPayment`. Idempotency
- * is handled by the existing unique index on
- * (organization_id, payment_method, external_payment_id) — we pass the
- * Stripe charge id as `externalPaymentId` so retries collapse into the
- * same client_payments row.
+ * STRIPE_WEBHOOK_SECRET), then routes Stripe events through the posting
+ * engine.
+ *
+ * Handled event types:
+ *   - `payment_intent.succeeded` / `charge.succeeded` (Task #114)
+ *       → auto-post via commitPatientPayment
+ *   - `charge.refunded`           (Task #136)
+ *       → reconcile each refund in the charge: flip matching
+ *         payment_refunds row pending→issued, or create a new patient
+ *         refund row via recordPatientRefund (alreadyIssued=true)
+ *   - `refund.updated`            (Task #136)
+ *       → same reconciliation, scoped to the single refund object
+ *   - `charge.dispute.created`    (Task #136)
+ *       → open a high-priority workqueue item linked to the original
+ *         client_payment
+ *   - `charge.dispute.closed`     (Task #136)
+ *       → resolve the open dispute workqueue item with the final status
+ *
+ * Idempotency: payment posting collapses on the unique
+ * (organization_id, payment_method='stripe', external_payment_id) index;
+ * refund reconciliation is conditional on refund_status='pending' so
+ * repeat deliveries collapse; dispute WQ uses stripe_dispute_id stashed
+ * in context_payload as a soft dedupe key.
  *
  * Failure handling:
  *   - Signature invalid → 401 (Stripe will retry).
  *   - Missing secret → 503 (Stripe will retry).
  *   - Unknown event type → 200 acknowledged + ignored.
- *   - Missing org/client metadata or commit error → write a workqueue_items
- *     row for biller review and return 200 (so Stripe does not retry
- *     indefinitely; the WQ row is the source of truth for follow-up).
+ *   - Reconciliation can't proceed → write a workqueue_items row for
+ *     biller review and return 200. If even the workqueue write fails,
+ *     return 5xx so Stripe retries instead of silently dropping.
  *
  * Stripe Checkout / PaymentIntents must include these metadata fields:
- *   - metadata.organization_id   (required)
- *   - metadata.client_id         (required)
+ *   - metadata.organization_id   (required for auto-posting)
+ *   - metadata.client_id         (required for auto-posting)
  *   - metadata.patient_invoice_id (optional, but enables auto-apply)
  *   - metadata.professional_claim_id (optional)
  *
@@ -33,6 +50,8 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   commitPatientPayment,
+  confirmPatientRefund,
+  recordPatientRefund,
   type PatientPaymentApplyTo,
   type PostingActor,
 } from "@/lib/payments/postingEngine";
@@ -49,6 +68,8 @@ const WEBHOOK_ACTOR: PostingActor = {
 // recommended default).
 const REPLAY_WINDOW_SECONDS = 300;
 
+type SupabaseAdmin = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
+
 interface StripeEvent {
   id?: string;
   type?: string;
@@ -63,6 +84,7 @@ interface StripeChargeLike {
   payment_intent?: string;
   metadata?: Record<string, string>;
   status?: string;
+  refunds?: { data?: StripeRefundLike[] };
 }
 
 interface StripePaymentIntentLike {
@@ -74,6 +96,26 @@ interface StripePaymentIntentLike {
   charges?: { data?: StripeChargeLike[] };
   metadata?: Record<string, string>;
   status?: string;
+}
+
+interface StripeRefundLike {
+  id?: string;
+  amount?: number;
+  charge?: string | null;
+  payment_intent?: string | null;
+  status?: string;
+  reason?: string | null;
+  metadata?: Record<string, string>;
+}
+
+interface StripeDisputeLike {
+  id?: string;
+  amount?: number;
+  charge?: string | null;
+  payment_intent?: string | null;
+  reason?: string | null;
+  status?: string;
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -167,59 +209,59 @@ export function extractPaymentDetails(event: StripeEvent): {
  * Schema notes (Task #114):
  *   - workqueue_items uses `client_id` (not patient_id) and `work_type`
  *     (not queue_type).
- *   - `source_object_type` is an enum — Stripe charges are not first-class
- *     in that enum, so we use the closest valid value `payment_posting`
- *     and stash the real Stripe identifiers in `context_payload` (jsonb).
- *   - `source_object_id` is uuid NOT NULL with a check constraint requiring
- *     it alongside source_object_type. Stripe ids are not uuids, so we
- *     generate a synthetic uuid for the review task itself.
+ *   - `source_object_type` is an enum — Stripe charges/refunds/disputes
+ *     are not first-class in that enum, so we use the closest valid value
+ *     `payment_posting` and stash the real Stripe identifiers in
+ *     `context_payload` (jsonb).
+ *   - `source_object_id` is uuid NOT NULL with a check constraint
+ *     requiring it alongside source_object_type. When we have a matching
+ *     client_payments uuid we use it; otherwise we mint a synthetic uuid
+ *     and stash the Stripe ids in context_payload.
  */
 async function writeUnmatchedWorkqueueItem(
-  reason: string,
-  context: {
-    organizationId: string | null;
+  supabase: SupabaseAdmin,
+  params: {
+    organizationId: string;
     clientId: string | null;
-    invoiceId: string | null;
-    chargeId: string | null;
-    paymentIntentId: string | null;
-    amountCents: number;
+    reason: string;
+    title: string;
+    description: string;
+    sourceObjectId?: string | null;
+    contextPayload: Record<string, unknown>;
+    priority?: "low" | "normal" | "high" | "urgent";
+    workType?: string;
   },
-  supabaseClient?: ReturnType<typeof createServerSupabaseAdminClient>,
 ): Promise<boolean> {
-  const supabase = supabaseClient ?? createServerSupabaseAdminClient();
-  if (!supabase || !context.organizationId) {
+  if (!params.organizationId) {
     // No org context = no organization scope to attach the WQ row to.
     // This is unrecoverable for this delivery; signal failure so the caller
-    // returns 5xx and Stripe retries (giving us a chance to receive the
-    // metadata-bearing delivery if this was a malformed one).
-    console.error("[stripe-webhook] cannot create workqueue item (no org):", reason, context);
+    // returns 5xx and Stripe retries.
+    console.error(
+      "[stripe-webhook] cannot create workqueue item (no org):",
+      params.reason,
+      params.contextPayload,
+    );
     return false;
   }
-  const amountDollars = (context.amountCents / 100).toFixed(2);
-  const labelRef = context.chargeId ?? context.paymentIntentId ?? "unknown";
   const syntheticId =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
+    params.sourceObjectId ??
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
-      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`);
   const { error } = await supabase.from("workqueue_items").insert({
-    organization_id: context.organizationId,
-    client_id: context.clientId,
-    work_type: "patient_payment_review",
+    organization_id: params.organizationId,
+    client_id: params.clientId,
+    work_type: params.workType ?? "patient_payment_review",
     status: "open",
-    priority: "high",
-    title: `Review Stripe payment $${amountDollars} (${labelRef})`,
-    description: `Stripe webhook could not auto-post this payment: ${reason}. Charge=${
-      context.chargeId ?? "n/a"
-    }, PaymentIntent=${context.paymentIntentId ?? "n/a"}, Invoice=${context.invoiceId ?? "n/a"}.`,
+    priority: params.priority ?? "high",
+    title: params.title,
+    description: params.description,
     source_object_type: "payment_posting",
     source_object_id: syntheticId,
     context_payload: {
       origin: "stripe_webhook",
-      reason,
-      stripe_charge_id: context.chargeId,
-      stripe_payment_intent_id: context.paymentIntentId,
-      patient_invoice_id: context.invoiceId,
-      amount_cents: context.amountCents,
+      reason: params.reason,
+      ...params.contextPayload,
     },
   });
   if (error) {
@@ -269,6 +311,12 @@ export async function processStripeWebhook(
   }
 
   const supabase = deps.getSupabase();
+  if (!supabase) {
+    return NextResponse.json(
+      { success: false, error: "Database connection not available" },
+      { status: 503 },
+    );
+  }
 
   let event: StripeEvent;
   try {
@@ -278,11 +326,33 @@ export async function processStripeWebhook(
   }
 
   const eventType = String(event.type ?? "");
-  if (eventType !== "charge.succeeded" && eventType !== "payment_intent.succeeded") {
-    // Acknowledge so Stripe doesn't retry; we just don't act on other types.
-    return NextResponse.json({ success: true, ignored: true, type: eventType });
+  switch (eventType) {
+    case "charge.succeeded":
+    case "payment_intent.succeeded":
+      return handlePaymentSucceeded(event, supabase, deps);
+    case "charge.refunded":
+      return handleChargeRefunded(event, supabase);
+    case "refund.updated":
+      return handleRefundUpdated(event, supabase);
+    case "charge.dispute.created":
+      return handleDisputeCreated(event, supabase);
+    case "charge.dispute.closed":
+      return handleDisputeClosed(event, supabase);
+    default:
+      // Acknowledge so Stripe doesn't retry; we just don't act on other types.
+      return NextResponse.json({ success: true, ignored: true, type: eventType });
   }
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler: payment_intent.succeeded / charge.succeeded
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handlePaymentSucceeded(
+  event: StripeEvent,
+  supabase: SupabaseAdmin,
+  deps: StripeWebhookDeps,
+): Promise<Response> {
   const details = extractPaymentDetails(event);
   if (!details) {
     return NextResponse.json({ success: false, error: "Could not parse event object" }, { status: 400 });
@@ -297,11 +367,7 @@ export async function processStripeWebhook(
   // Standardize the dedupe key on the Stripe CHARGE id. Both
   // `charge.succeeded` and `payment_intent.succeeded` events ultimately
   // describe the same charge, so keying on the charge id collapses dual
-  // deliveries (PI+charge) into one client_payments row via the unique
-  // index on (organization_id, payment_method='stripe',
-  // external_payment_id). If a PI event arrives without a resolvable
-  // charge id (uncommon for card flows), we defer to the charge.succeeded
-  // delivery instead of double-posting under the PI id.
+  // deliveries into one client_payments row.
   const externalPaymentId = details.chargeId;
   if (!externalPaymentId) {
     return NextResponse.json({
@@ -311,19 +377,29 @@ export async function processStripeWebhook(
     });
   }
 
+  const queueContext = {
+    chargeId: details.chargeId,
+    paymentIntentId: details.paymentIntentId,
+    invoiceId,
+    amountCents: details.amountCents,
+  };
+  const amountDollarsStr = (details.amountCents / 100).toFixed(2);
+  const labelRef = details.chargeId ?? details.paymentIntentId ?? "unknown";
+
   if (!organizationId || !clientId) {
-    const queued = await writeUnmatchedWorkqueueItem(
-      "Stripe event missing metadata.organization_id or metadata.client_id",
-      {
-        organizationId,
-        clientId,
-        invoiceId,
-        chargeId: details.chargeId,
-        paymentIntentId: details.paymentIntentId,
-        amountCents: details.amountCents,
+    const queued = await writeUnmatchedWorkqueueItem(supabase, {
+      organizationId: organizationId ?? "",
+      clientId,
+      reason: "Stripe event missing metadata.organization_id or metadata.client_id",
+      title: `Review Stripe payment $${amountDollarsStr} (${labelRef})`,
+      description: `Stripe webhook could not auto-post this payment. Charge=${details.chargeId ?? "n/a"}, PaymentIntent=${details.paymentIntentId ?? "n/a"}.`,
+      contextPayload: {
+        stripe_charge_id: details.chargeId,
+        stripe_payment_intent_id: details.paymentIntentId,
+        patient_invoice_id: invoiceId,
+        amount_cents: details.amountCents,
       },
-      supabase,
-    );
+    });
     if (!queued) {
       // Fail-loud: if we couldn't even persist the review obligation,
       // return 5xx so Stripe retries instead of silently losing the
@@ -333,25 +409,23 @@ export async function processStripeWebhook(
         { status: 503 },
       );
     }
-    // 200: Stripe should not retry this event forever; a biller can
-    // resolve the workqueue item by adding metadata on the source
-    // payment link and re-issuing if needed.
     return NextResponse.json({ success: false, queuedForReview: true });
   }
 
   if (amountDollars <= 0) {
-    const queued = await writeUnmatchedWorkqueueItem(
-      "Stripe event reported zero amount",
-      {
-        organizationId,
-        clientId,
-        invoiceId,
-        chargeId: details.chargeId,
-        paymentIntentId: details.paymentIntentId,
-        amountCents: details.amountCents,
+    const queued = await writeUnmatchedWorkqueueItem(supabase, {
+      organizationId,
+      clientId,
+      reason: "Stripe event reported zero amount",
+      title: `Review Stripe payment $${amountDollarsStr} (${labelRef})`,
+      description: `Stripe webhook could not auto-post this payment (zero amount). Charge=${details.chargeId ?? "n/a"}.`,
+      contextPayload: {
+        stripe_charge_id: details.chargeId,
+        stripe_payment_intent_id: details.paymentIntentId,
+        patient_invoice_id: invoiceId,
+        amount_cents: details.amountCents,
       },
-      supabase,
-    );
+    });
     if (!queued) {
       return NextResponse.json(
         { success: false, error: "Failed to record review item; retry expected" },
@@ -390,18 +464,14 @@ export async function processStripeWebhook(
     }
 
     const errorSummary = result.errors.map((e) => `${e.field}: ${e.message}`).join("; ") || "Unknown commit failure";
-    const queued = await writeUnmatchedWorkqueueItem(
-      `commitPatientPayment failed: ${errorSummary}`,
-      {
-        organizationId,
-        clientId,
-        invoiceId,
-        chargeId: details.chargeId,
-        paymentIntentId: details.paymentIntentId,
-        amountCents: details.amountCents,
-      },
-      supabase,
-    );
+    const queued = await writeUnmatchedWorkqueueItem(supabase, {
+      organizationId,
+      clientId,
+      reason: `commitPatientPayment failed: ${errorSummary}`,
+      title: `Review Stripe payment $${amountDollarsStr} (${labelRef})`,
+      description: `commitPatientPayment failed: ${errorSummary}`,
+      contextPayload: { ...queueContext },
+    });
     if (!queued) {
       return NextResponse.json(
         { success: false, error: "Failed to record review item; retry expected", errors: result.errors },
@@ -411,29 +481,460 @@ export async function processStripeWebhook(
     return NextResponse.json({ success: false, queuedForReview: true, errors: result.errors });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const queued = await writeUnmatchedWorkqueueItem(
-      `Unexpected error: ${message}`,
-      {
-        organizationId,
-        clientId,
-        invoiceId,
-        chargeId: details.chargeId,
-        paymentIntentId: details.paymentIntentId,
-        amountCents: details.amountCents,
-      },
-      supabase,
-    );
+    const queued = await writeUnmatchedWorkqueueItem(supabase, {
+      organizationId,
+      clientId,
+      reason: `Unexpected error: ${message}`,
+      title: `Review Stripe payment $${amountDollarsStr} (${labelRef})`,
+      description: `Unexpected error auto-posting Stripe payment: ${message}`,
+      contextPayload: { ...queueContext },
+    });
     if (!queued) {
       return NextResponse.json(
         { success: false, error: `Failed to record review item; retry expected. Original: ${message}` },
         { status: 503 },
       );
     }
-    // 200 here: the WQ row holds the obligation, so Stripe doesn't need
-    // to pile up retries on a deterministic bug we already captured.
     return NextResponse.json({ success: false, queuedForReview: true, error: message });
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler: refund reconciliation (charge.refunded / refund.updated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Look up the originating client_payment row for a given Stripe charge id.
+ * Card payments posted by this webhook live under
+ * (payment_method='stripe', external_payment_id=<charge id>); some legacy
+ * rows additionally have stripe_charge_id populated.
+ */
+async function findClientPaymentByChargeId(
+  supabase: SupabaseAdmin,
+  chargeId: string,
+): Promise<{
+  id: string;
+  organization_id: string;
+  client_id: string | null;
+  patient_invoice_id: string | null;
+} | null> {
+  // Try external_payment_id first (the canonical dedupe key for stripe
+  // payments). Then fall back to stripe_charge_id (set by some flows).
+  const byExternal = await supabase
+    .from("client_payments")
+    .select("id, organization_id, client_id, patient_invoice_id")
+    .eq("external_payment_id", chargeId)
+    .eq("payment_method", "stripe")
+    .is("archived_at", null)
+    .maybeSingle();
+  const rowExt = (byExternal.data ?? null) as {
+    id: string;
+    organization_id: string;
+    client_id: string | null;
+    patient_invoice_id: string | null;
+  } | null;
+  if (rowExt) return rowExt;
+  const byCharge = await supabase
+    .from("client_payments")
+    .select("id, organization_id, client_id, patient_invoice_id")
+    .eq("stripe_charge_id", chargeId)
+    .is("archived_at", null)
+    .maybeSingle();
+  return ((byCharge.data ?? null) as {
+    id: string;
+    organization_id: string;
+    client_id: string | null;
+    patient_invoice_id: string | null;
+  } | null);
+}
+
+interface RefundReconcileResult {
+  refundId: string | null;
+  outcome:
+    | "confirmed"
+    | "already_issued"
+    | "created"
+    | "ignored"
+    | "queued_for_review"
+    | "failed"
+    | "marked_failed";
+  /**
+   * True when reconciliation could not complete AND we also could not
+   * persist a workqueue row capturing the obligation. The caller MUST
+   * return 5xx so Stripe retries — otherwise the refund silently
+   * disappears from our records.
+   */
+  unrecoverable?: boolean;
+  errors?: Array<{ field: string; message: string }>;
+}
+
+async function reconcileStripeRefund(
+  supabase: SupabaseAdmin,
+  args: { refund: StripeRefundLike; chargeId: string | null; eventId: string | null },
+): Promise<RefundReconcileResult> {
+  const refund = args.refund;
+  if (!refund.id) return { refundId: null, outcome: "ignored" };
+
+  // 1. Existing refund row matched by stripe_refund_id?
+  const { data: existing } = await supabase
+    .from("payment_refunds")
+    .select("id, organization_id, refund_status, refund_type, source_client_payment_id, amount")
+    .eq("stripe_refund_id", refund.id)
+    .is("archived_at", null)
+    .maybeSingle();
+  const existingRow = (existing ?? null) as {
+    id: string;
+    organization_id: string;
+    refund_status: string;
+    refund_type: string;
+    source_client_payment_id: string | null;
+    amount: number;
+  } | null;
+
+  if (existingRow) {
+    if (existingRow.refund_status === "issued") {
+      return { refundId: existingRow.id, outcome: "already_issued" };
+    }
+    if (refund.status === "failed" || refund.status === "canceled") {
+      await supabase
+        .from("payment_refunds")
+        .update({ refund_status: refund.status === "canceled" ? "cancelled" : "failed" })
+        .eq("id", existingRow.id)
+        .eq("organization_id", existingRow.organization_id)
+        .in("refund_status", ["pending", "issued"]);
+      return { refundId: existingRow.id, outcome: "marked_failed" };
+    }
+    if (refund.status === "succeeded" && existingRow.refund_status === "pending") {
+      if (existingRow.refund_type === "patient") {
+        const r = await confirmPatientRefund({
+          organizationId: existingRow.organization_id,
+          refundId: existingRow.id,
+          stripeRefundId: refund.id,
+          actor: WEBHOOK_ACTOR,
+        });
+        if (r.ok) {
+          return { refundId: existingRow.id, outcome: "confirmed" };
+        }
+        // Fail-loud: confirmation failed (e.g. DB error during state flip).
+        // Capture the obligation in a workqueue row; if THAT also fails,
+        // surface unrecoverable so the caller returns 5xx and Stripe retries.
+        const errorSummary = r.errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+        const amountDollarsStr = (Number(refund.amount ?? 0) / 100).toFixed(2);
+        const queued = await writeUnmatchedWorkqueueItem(supabase, {
+          organizationId: existingRow.organization_id,
+          clientId: null,
+          reason: `confirmPatientRefund failed: ${errorSummary}`,
+          title: `Reconcile Stripe refund $${amountDollarsStr} (${refund.id})`,
+          description: `Stripe webhook could not confirm pending patient refund ${existingRow.id} for Stripe refund ${refund.id}: ${errorSummary}.`,
+          sourceObjectId: existingRow.source_client_payment_id ?? null,
+          contextPayload: {
+            stripe_refund_id: refund.id,
+            stripe_charge_id: args.chargeId,
+            payment_refund_id: existingRow.id,
+            client_payment_id: existingRow.source_client_payment_id,
+            amount_cents: Number(refund.amount ?? 0),
+            event_id: args.eventId,
+          },
+        });
+        return {
+          refundId: existingRow.id,
+          outcome: queued ? "queued_for_review" : "failed",
+          unrecoverable: !queued,
+          errors: r.errors,
+        };
+      }
+      // Insurance refunds are not initiated by Stripe charges (they target
+      // ERA/manual sources), so we should never get here. Leave the row
+      // alone and log for ops.
+      console.warn(
+        "[stripe-webhook] insurance refund matched a Stripe refund event; unexpected",
+        { refundId: existingRow.id, stripeRefundId: refund.id },
+      );
+      return { refundId: existingRow.id, outcome: "ignored" };
+    }
+    return { refundId: existingRow.id, outcome: "ignored" };
+  }
+
+  // 2. No matching refund row — only create one for SUCCEEDED refunds.
+  if (refund.status && refund.status !== "succeeded") {
+    return { refundId: null, outcome: "ignored" };
+  }
+  const chargeId = args.chargeId ?? (typeof refund.charge === "string" ? refund.charge : null);
+  if (!chargeId) {
+    return { refundId: null, outcome: "ignored" };
+  }
+  const cp = await findClientPaymentByChargeId(supabase, chargeId);
+  if (!cp) {
+    // Unknown charge: queue for review if we can attribute an org via
+    // refund metadata; otherwise ack and ignore (likely not our charge).
+    const orgFromMeta = (refund.metadata?.organization_id ?? "").trim() || null;
+    if (orgFromMeta) {
+      const amountDollarsStr = (Number(refund.amount ?? 0) / 100).toFixed(2);
+      const queued = await writeUnmatchedWorkqueueItem(supabase, {
+        organizationId: orgFromMeta,
+        clientId: null,
+        reason: "Stripe refund for unknown charge (no matching client_payments row)",
+        title: `Reconcile Stripe refund $${amountDollarsStr} (${refund.id})`,
+        description: `Stripe refund ${refund.id} on charge ${chargeId} did not match any posted client_payment. Verify whether the original charge was captured by this system.`,
+        contextPayload: {
+          stripe_refund_id: refund.id,
+          stripe_charge_id: chargeId,
+          amount_cents: Number(refund.amount ?? 0),
+          refund_reason: refund.reason ?? null,
+          event_id: args.eventId,
+        },
+      });
+      return {
+        refundId: null,
+        outcome: queued ? "queued_for_review" : "failed",
+        unrecoverable: !queued,
+      };
+    }
+    return { refundId: null, outcome: "ignored" };
+  }
+
+  const amountDollars = Math.round(Number(refund.amount ?? 0)) / 100;
+  if (amountDollars <= 0) {
+    return { refundId: null, outcome: "ignored" };
+  }
+  const reasonLabel = refund.reason
+    ? `Stripe refund (${refund.reason}) ${refund.id}`
+    : `Stripe-initiated refund ${refund.id}`;
+  const result = await recordPatientRefund({
+    organizationId: cp.organization_id,
+    target: { kind: "client_payment", id: cp.id },
+    amount: amountDollars,
+    reason: reasonLabel,
+    actor: WEBHOOK_ACTOR,
+    stripeRefundId: refund.id,
+    alreadyIssued: true,
+  });
+  if (!result.ok) {
+    const errorSummary = result.errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+    const amountDollarsStr = amountDollars.toFixed(2);
+    const queued = await writeUnmatchedWorkqueueItem(supabase, {
+      organizationId: cp.organization_id,
+      clientId: cp.client_id,
+      reason: `recordPatientRefund failed: ${errorSummary}`,
+      title: `Reconcile Stripe refund $${amountDollarsStr} (${refund.id})`,
+      description: `Stripe refund ${refund.id} on charge ${chargeId} could not be auto-recorded: ${errorSummary}.`,
+      sourceObjectId: cp.id,
+      contextPayload: {
+        stripe_refund_id: refund.id,
+        stripe_charge_id: chargeId,
+        client_payment_id: cp.id,
+        amount_cents: Number(refund.amount ?? 0),
+        event_id: args.eventId,
+      },
+    });
+    return {
+      refundId: null,
+      outcome: queued ? "queued_for_review" : "failed",
+      unrecoverable: !queued,
+      errors: result.errors,
+    };
+  }
+  return { refundId: result.refundId, outcome: "created" };
+}
+
+async function handleChargeRefunded(
+  event: StripeEvent,
+  supabase: SupabaseAdmin,
+): Promise<Response> {
+  const ch = event.data?.object as StripeChargeLike | undefined;
+  if (!ch || !ch.id) {
+    return NextResponse.json({ success: false, error: "Missing charge object" }, { status: 400 });
+  }
+  const refunds = ch.refunds?.data ?? [];
+  if (refunds.length === 0) {
+    return NextResponse.json({ success: true, ignored: true, reason: "no refund objects in payload" });
+  }
+  const results: RefundReconcileResult[] = [];
+  for (const r of refunds) {
+    const res = await reconcileStripeRefund(supabase, {
+      refund: r,
+      chargeId: ch.id,
+      eventId: event.id ?? null,
+    });
+    results.push(res);
+  }
+  // Fail-loud if ANY refund couldn't be reconciled or queued for review,
+  // so Stripe retries instead of us silently dropping the obligation.
+  if (results.some((r) => r.unrecoverable)) {
+    return NextResponse.json(
+      { success: false, error: "Failed to record refund review item; retry expected", results },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json({ success: true, results });
+}
+
+async function handleRefundUpdated(
+  event: StripeEvent,
+  supabase: SupabaseAdmin,
+): Promise<Response> {
+  const refund = event.data?.object as StripeRefundLike | undefined;
+  if (!refund || !refund.id) {
+    return NextResponse.json({ success: false, error: "Missing refund object" }, { status: 400 });
+  }
+  const chargeId = typeof refund.charge === "string" ? refund.charge : null;
+  const result = await reconcileStripeRefund(supabase, {
+    refund,
+    chargeId,
+    eventId: event.id ?? null,
+  });
+  if (result.unrecoverable) {
+    return NextResponse.json(
+      { success: false, error: "Failed to record refund review item; retry expected", result },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json({ success: true, result });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler: charge.dispute.created / charge.dispute.closed
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function findDisputeWorkqueueItem(
+  supabase: SupabaseAdmin,
+  organizationId: string,
+  disputeId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("workqueue_items")
+    .select("id, context_payload")
+    .eq("organization_id", organizationId)
+    .eq("work_type", "stripe_dispute_review")
+    .is("archived_at", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  for (const row of (data ?? []) as Array<{ id: string; context_payload?: Record<string, unknown> | null }>) {
+    const ctx = row.context_payload ?? {};
+    if ((ctx as Record<string, unknown>).stripe_dispute_id === disputeId) {
+      return row.id;
+    }
+  }
+  return null;
+}
+
+async function handleDisputeCreated(
+  event: StripeEvent,
+  supabase: SupabaseAdmin,
+): Promise<Response> {
+  const dispute = event.data?.object as StripeDisputeLike | undefined;
+  if (!dispute || !dispute.id) {
+    return NextResponse.json({ success: false, error: "Missing dispute object" }, { status: 400 });
+  }
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : null;
+  if (!chargeId) {
+    return NextResponse.json({ success: true, ignored: true, reason: "dispute without charge id" });
+  }
+  const cp = await findClientPaymentByChargeId(supabase, chargeId);
+  const amountDollars = (Number(dispute.amount ?? 0) / 100).toFixed(2);
+  const orgFromMeta = (dispute.metadata?.organization_id ?? "").trim() || null;
+  const organizationId = cp?.organization_id ?? orgFromMeta;
+  if (!organizationId) {
+    // Not our charge — ack.
+    return NextResponse.json({ success: true, ignored: true, reason: "dispute charge not found" });
+  }
+  // Idempotency: if a WQ item already exists for this dispute id, do nothing.
+  const existing = await findDisputeWorkqueueItem(supabase, organizationId, dispute.id);
+  if (existing) {
+    return NextResponse.json({ success: true, alreadyOpen: true, workqueueItemId: existing });
+  }
+  const queued = await writeUnmatchedWorkqueueItem(supabase, {
+    organizationId,
+    clientId: cp?.client_id ?? null,
+    reason: `Stripe dispute opened (${dispute.reason ?? "unknown reason"})`,
+    title: `Stripe dispute $${amountDollars} on charge ${chargeId}`,
+    description: `Stripe dispute ${dispute.id} opened on charge ${chargeId}. Reason: ${dispute.reason ?? "n/a"}. Status: ${dispute.status ?? "needs_response"}. Respond in the Stripe Dashboard.`,
+    sourceObjectId: cp?.id ?? null,
+    priority: "urgent",
+    workType: "stripe_dispute_review",
+    contextPayload: {
+      stripe_dispute_id: dispute.id,
+      stripe_charge_id: chargeId,
+      client_payment_id: cp?.id ?? null,
+      amount_cents: Number(dispute.amount ?? 0),
+      dispute_reason: dispute.reason ?? null,
+      dispute_status: dispute.status ?? null,
+      event_id: event.id ?? null,
+    },
+  });
+  if (!queued) {
+    return NextResponse.json(
+      { success: false, error: "Failed to record dispute workqueue item; retry expected" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json({ success: true, disputeId: dispute.id });
+}
+
+async function handleDisputeClosed(
+  event: StripeEvent,
+  supabase: SupabaseAdmin,
+): Promise<Response> {
+  const dispute = event.data?.object as StripeDisputeLike | undefined;
+  if (!dispute || !dispute.id) {
+    return NextResponse.json({ success: false, error: "Missing dispute object" }, { status: 400 });
+  }
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : null;
+  const cp = chargeId ? await findClientPaymentByChargeId(supabase, chargeId) : null;
+  const orgFromMeta = (dispute.metadata?.organization_id ?? "").trim() || null;
+  const organizationId = cp?.organization_id ?? orgFromMeta;
+  if (!organizationId) {
+    return NextResponse.json({ success: true, ignored: true, reason: "dispute charge not found" });
+  }
+  const wqId = await findDisputeWorkqueueItem(supabase, organizationId, dispute.id);
+  const status = String(dispute.status ?? "closed");
+  const isWon = status === "won";
+  if (wqId) {
+    const now = new Date().toISOString();
+    await supabase
+      .from("workqueue_items")
+      .update({
+        status: isWon ? "resolved" : "in_progress",
+        resolved_at: isWon ? now : null,
+        updated_at: now,
+        description: `Stripe dispute ${dispute.id} closed with status: ${status}.`,
+      })
+      .eq("id", wqId)
+      .eq("organization_id", organizationId);
+    return NextResponse.json({ success: true, workqueueItemId: wqId, disputeStatus: status });
+  }
+  // No prior WQ — open one now for visibility (e.g. created event missed).
+  const amountDollars = (Number(dispute.amount ?? 0) / 100).toFixed(2);
+  const queued = await writeUnmatchedWorkqueueItem(supabase, {
+    organizationId,
+    clientId: cp?.client_id ?? null,
+    reason: `Stripe dispute closed (${status})`,
+    title: `Stripe dispute $${amountDollars} closed (${status})`,
+    description: `Stripe dispute ${dispute.id} on charge ${chargeId ?? "n/a"} closed with status ${status}.`,
+    sourceObjectId: cp?.id ?? null,
+    priority: isWon ? "normal" : "urgent",
+    workType: "stripe_dispute_review",
+    contextPayload: {
+      stripe_dispute_id: dispute.id,
+      stripe_charge_id: chargeId,
+      client_payment_id: cp?.id ?? null,
+      amount_cents: Number(dispute.amount ?? 0),
+      dispute_status: status,
+      event_id: event.id ?? null,
+    },
+  });
+  if (!queued) {
+    return NextResponse.json(
+      { success: false, error: "Failed to record dispute workqueue item; retry expected" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json({ success: true, disputeId: dispute.id, disputeStatus: status });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Entry point
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   let rawBody: string;
