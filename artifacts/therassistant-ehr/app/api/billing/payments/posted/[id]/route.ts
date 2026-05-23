@@ -167,15 +167,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           ? "source_client_payment_id"
           : "source_insurance_manual_payment_id";
     const [refundsRes, recoupsRes] = await Promise.all([
+      // Intentionally NOT filtering on archived_at: cancelled refunds get
+      // archived_at stamped (see reversal.cancelPendingRefund) and we want
+      // them in the timeline. Dashboard totals further down already exclude
+      // 'cancelled' / 'failed' from refundedTotal so math is unaffected.
+      // Ordered ascending so the UI renders true request order (oldest first).
       supabase
         .from("payment_refunds")
         .select(
-          "id, refund_type, amount, reason, refund_status, stripe_refund_id, workqueue_item_id, requested_at, issued_at",
+          "id, refund_type, amount, reason, refund_status, stripe_refund_id, workqueue_item_id, requested_at, issued_at, archived_at, note",
         )
         .eq("organization_id", organizationId)
         .eq(sourceCol, parsed.id)
-        .is("archived_at", null)
-        .order("requested_at", { ascending: false }),
+        .order("requested_at", { ascending: true }),
       parsed.kind === "insurance_manual"
         ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
         : supabase

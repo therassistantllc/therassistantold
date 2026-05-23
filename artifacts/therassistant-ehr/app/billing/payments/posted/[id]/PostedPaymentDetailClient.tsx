@@ -506,68 +506,19 @@ export default function PostedPaymentDetailClient({ compositeId }: { compositeId
         )}
       </Section>
 
-      {/* Refunds */}
+      {/* Refunds timeline (issued / pending / cancelled) */}
       <Section title={`Refunds (${detail.refunds.length})`}>
         {detail.refunds.length === 0 ? (
           <Empty>No refunds against this payment.</Empty>
         ) : (
-          <Table
-            cols={["Type", "Amount", "Status", "Stripe Refund", "Reason", "Requested", "Issued"]}
-            rows={detail.refunds.map((r) => [
-              String(r.refund_type ?? "—"),
-              fmtCurrency(r.amount),
-              String(r.refund_status ?? "—"),
-              String(r.stripe_refund_id ?? "—"),
-              String(r.reason ?? "—"),
-              fmtDate(r.requested_at),
-              fmtDate(r.issued_at),
-            ])}
+          <RefundTimeline
+            refunds={detail.refunds}
+            auditChain={detail.auditChain}
+            actionBusy={actionBusy}
+            onConfirm={handleConfirmRefund}
           />
         )}
       </Section>
-
-      {/* Pending insurance refunds — confirm action */}
-      {detail.refunds.some(
-        (r) => String(r.refund_type) === "insurance" && String(r.refund_status) === "pending",
-      ) ? (
-        <Section title="Pending insurance refunds — confirm issuance">
-          <p style={{ fontSize: 12, color: "#6b7280", marginTop: 0 }}>
-            Confirming flips the refund to <strong>issued</strong> and posts the compensating
-            negative ledger entry (fail-closed: if the ledger write fails, the refund stays pending).
-          </p>
-          <div style={{ display: "grid", gap: 8 }}>
-            {detail.refunds
-              .filter(
-                (r) => String(r.refund_type) === "insurance" && String(r.refund_status) === "pending",
-              )
-              .map((r) => (
-                <div
-                  key={String(r.id)}
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: 8,
-                    background: "#fffbeb",
-                    border: "1px solid #fde68a",
-                    borderRadius: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 13, flex: 1 }}>
-                    <strong>{fmtCurrency(r.amount)}</strong> — {String(r.reason ?? "")}
-                  </div>
-                  <button
-                    onClick={() => handleConfirmRefund(String(r.id), Number(r.amount ?? 0))}
-                    disabled={actionBusy !== null}
-                    style={btnStyle(false)}
-                  >
-                    {actionBusy === "confirm-refund" ? "Confirming…" : "Confirm issued"}
-                  </button>
-                </div>
-              ))}
-          </div>
-        </Section>
-      ) : null}
 
       {/* Recoupments */}
       <Section title={`Recoupments (${detail.recoupments.length})`}>
@@ -676,6 +627,205 @@ function Table({ cols, rows }: { cols: string[]; rows: Array<Array<string>> }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * Single chronological strip of every refund tied to the payment — pending,
+ * issued, and cancelled. Cancelled rows are visually de-emphasised but still
+ * clickable to reveal the cancellation reason (stored on payment_refunds.note
+ * by reversal.cancelPendingRefund). Creation + terminal-action actors and
+ * timestamps come from the audit_logs chain already loaded with the detail
+ * payload — refund_requested / refund_issued / refund_cancelled rows keyed
+ * on the refund_id.
+ */
+function RefundTimeline({
+  refunds,
+  auditChain,
+  actionBusy,
+  onConfirm,
+}: {
+  refunds: Array<Record<string, unknown>>;
+  auditChain: Array<Record<string, unknown>>;
+  actionBusy: string | null;
+  onConfirm: (refundId: string, amount: number) => void;
+}) {
+  // Build a quick { refundId -> { created, terminal } } index from the audit
+  // chain so we don't repeat the .find() per render row.
+  const auditByRefund = useMemo(() => {
+    const idx = new Map<
+      string,
+      {
+        created: Record<string, unknown> | null;
+        terminal: Record<string, unknown> | null;
+      }
+    >();
+    for (const row of auditChain) {
+      if (String(row.object_type ?? "") !== "payment_refund") continue;
+      const oid = String(row.object_id ?? "");
+      if (!oid) continue;
+      const entry = idx.get(oid) ?? { created: null, terminal: null };
+      const action = String(row.action ?? "");
+      if (action === "refund_requested" && !entry.created) {
+        entry.created = row;
+      } else if (action === "refund_issued" || action === "refund_cancelled" || action === "refund_failed") {
+        // Last terminal action wins (audit chain is already ascending).
+        entry.terminal = row;
+        // If a refund was issued directly (no separate request audit row),
+        // fall back to using the same row as the creation marker.
+        if (!entry.created && action === "refund_issued") entry.created = row;
+      }
+      idx.set(oid, entry);
+    }
+    return idx;
+  }, [auditChain]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {refunds.map((r) => {
+        const id = String(r.id);
+        const status = String(r.refund_status ?? "");
+        const type = String(r.refund_type ?? "");
+        const amount = Number(r.amount ?? 0);
+        const reason = String(r.reason ?? "");
+        const note = String(r.note ?? "");
+        const isCancelled = status === "cancelled";
+        const isPendingInsurance = status === "pending" && type === "insurance";
+        const audit = auditByRefund.get(id) ?? { created: null, terminal: null };
+        const createdActor = audit.created
+          ? `${String(audit.created.user_role ?? "—")} ${String(audit.created.user_id ?? "")}`.trim()
+          : null;
+        const terminalActor = audit.terminal
+          ? `${String(audit.terminal.user_role ?? "—")} ${String(audit.terminal.user_id ?? "")}`.trim()
+          : null;
+        const terminalAt =
+          status === "issued"
+            ? (r.issued_at as string | null) ?? (audit.terminal?.created_at as string | null) ?? null
+            : status === "cancelled"
+              ? (r.archived_at as string | null) ?? (audit.terminal?.created_at as string | null) ?? null
+              : null;
+        const open = expanded[id] === true;
+        const clickable = isCancelled && note.length > 0;
+
+        return (
+          <div
+            key={id}
+            onClick={clickable ? () => setExpanded((s) => ({ ...s, [id]: !s[id] })) : undefined}
+            style={{
+              padding: 12,
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              background: isPendingInsurance ? "#fffbeb" : isCancelled ? "#fafafa" : "white",
+              opacity: isCancelled ? 0.7 : 1,
+              cursor: clickable ? "pointer" : "default",
+            }}
+            title={clickable ? (open ? "Hide cancellation reason" : "Show cancellation reason") : undefined}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <RefundStatusBadge status={status} />
+              <strong style={{ fontSize: 14 }}>{fmtCurrency(amount)}</strong>
+              <span style={{ fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                {type}
+              </span>
+              {r.stripe_refund_id ? (
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  Stripe <code>{String(r.stripe_refund_id)}</code>
+                </span>
+              ) : null}
+              {isPendingInsurance ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfirm(id, amount);
+                  }}
+                  disabled={actionBusy !== null}
+                  style={{ ...btnStyle(false), marginLeft: "auto", padding: "6px 12px" }}
+                >
+                  {actionBusy === "confirm-refund" ? "Confirming…" : "Confirm issued"}
+                </button>
+              ) : null}
+            </div>
+
+            {reason ? (
+              <div style={{ marginTop: 6, fontSize: 13, color: "#374151" }}>{reason}</div>
+            ) : null}
+
+            <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280", display: "grid", gap: 2 }}>
+              <div>
+                <strong>Requested</strong> {fmtDate(r.requested_at)}
+                {createdActor ? <> · by {createdActor}</> : null}
+              </div>
+              {terminalAt || audit.terminal ? (
+                <div>
+                  <strong>
+                    {status === "issued" ? "Issued" : status === "cancelled" ? "Cancelled" : "Updated"}
+                  </strong>{" "}
+                  {fmtDate(terminalAt)}
+                  {terminalActor ? <> · by {terminalActor}</> : null}
+                </div>
+              ) : null}
+              {isPendingInsurance ? (
+                <div style={{ color: "#92400e" }}>
+                  Awaiting issuance — confirming flips to <strong>issued</strong> and posts the compensating ledger entry.
+                </div>
+              ) : null}
+            </div>
+
+            {isCancelled && note ? (
+              open ? (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 8,
+                    background: "#f3f4f6",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: "#374151",
+                  }}
+                >
+                  <strong>Cancellation reason:</strong> {note}
+                </div>
+              ) : (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#2563eb" }}>
+                  Click to see cancellation reason
+                </div>
+              )
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RefundStatusBadge({ status }: { status: string }) {
+  const color =
+    status === "issued"
+      ? "#15803d"
+      : status === "pending"
+        ? "#b45309"
+        : status === "cancelled"
+          ? "#6b7280"
+          : status === "failed"
+            ? "#b91c1c"
+            : "#374151";
+  return (
+    <span
+      style={{
+        background: `${color}15`,
+        color,
+        padding: "2px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+      }}
+    >
+      {status || "—"}
+    </span>
   );
 }
 
