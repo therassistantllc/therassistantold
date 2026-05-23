@@ -338,6 +338,19 @@ export async function reversePostedPayment(
   // leave the payment marked 'reversed' with no compensating ledger entries —
   // financial-state divergence between header and ledger.
   const restoreStatus = async () => {
+    // Compensating cleanup: any reversal ledger rows we already inserted for
+    // this source must be archived too, otherwise the header reverts to
+    // 'posted' while compensating negatives remain — corrupting balances.
+    // Best-effort; even if this archive fails, the header restore proceeds so
+    // we never leave the header in 'reversed' with no compensating rows.
+    const restoreNow = new Date().toISOString();
+    await supabase
+      .from("era_posting_ledger_entries")
+      .update({ archived_at: restoreNow })
+      .eq("organization_id", input.organizationId)
+      .eq("source_id", payment.id)
+      .eq("source_type", "reversal")
+      .is("archived_at", null);
     await supabase
       .from(targetTable(payment.kind))
       .update({
@@ -345,7 +358,7 @@ export async function reversePostedPayment(
         reversed_at: null,
         reversal_reason: null,
         reversed_by_actor_id: null,
-        updated_at: new Date().toISOString(),
+        updated_at: restoreNow,
       })
       .eq("id", payment.id)
       .eq("organization_id", input.organizationId);
@@ -1063,8 +1076,85 @@ async function recordRefundShared(
     return result;
   }
 
+  // ── Stripe refund issuance for patient/Stripe-origin refunds ──────────────
+  // If the original client_payment was a Stripe charge and STRIPE_SECRET_KEY
+  // is available, attempt to issue the refund via the Stripe REST API now.
+  // On success we mark the refund row as 'issued' and stamp stripe_refund_id;
+  // on failure (or no key configured) we leave it 'pending' so the workqueue
+  // sweeper / ops can issue manually. Best-effort: NEVER fail the refund-row
+  // creation on Stripe error — the AR obligation is already persisted.
+  let stripeIssuedNow = false;
+  if (
+    refundType === "patient" &&
+    payment.kind === "client_payment" &&
+    refundStatus === "pending" &&
+    !input.alreadyIssued
+  ) {
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    if (stripeKey) {
+      try {
+        const { data: cpRow } = await supabase
+          .from("client_payments")
+          .select("stripe_charge_id, stripe_payment_intent_id")
+          .eq("id", payment.id)
+          .eq("organization_id", input.organizationId)
+          .maybeSingle();
+        const cp = cpRow as { stripe_charge_id?: string | null; stripe_payment_intent_id?: string | null } | null;
+        const chargeId = cp?.stripe_charge_id ?? null;
+        const piId = cp?.stripe_payment_intent_id ?? null;
+        if (chargeId || piId) {
+          const form = new URLSearchParams();
+          if (chargeId) form.set("charge", chargeId);
+          else if (piId) form.set("payment_intent", piId);
+          form.set("amount", String(Math.round(amount * 100)));
+          form.set("reason", "requested_by_customer");
+          form.set(`metadata[reversal_refund_id]`, result.refundId ?? "");
+          form.set(`metadata[organization_id]`, input.organizationId);
+          const resp = await fetch("https://api.stripe.com/v1/refunds", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${stripeKey}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Idempotency-Key": `refund-${result.refundId}`,
+            },
+            body: form.toString(),
+          });
+          if (resp.ok) {
+            const j = (await resp.json()) as { id?: string; status?: string };
+            const stripeRefundId = j.id ?? null;
+            if (stripeRefundId) {
+              await supabase
+                .from("payment_refunds")
+                .update({
+                  stripe_refund_id: stripeRefundId,
+                  refund_status: "issued",
+                  issued_at: now,
+                  issued_by_actor_id: input.actor.staffId ?? null,
+                })
+                .eq("id", result.refundId)
+                .eq("organization_id", input.organizationId);
+              result.refundStatus = "issued";
+              stripeIssuedNow = true;
+            }
+          } else {
+            const errText = await resp.text().catch(() => "");
+            result.errors.push({
+              field: "stripe",
+              message: `Stripe refund issuance failed (${resp.status}); refund left pending for manual follow-up: ${errText.slice(0, 200)}`,
+            });
+          }
+        }
+      } catch (e) {
+        result.errors.push({
+          field: "stripe",
+          message: `Stripe refund issuance error (refund left pending): ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    }
+  }
+
   // ── Open a workqueue item so AR / Stripe-ops follow up ────────────────────
-  if (refundStatus === "pending") {
+  if (refundStatus === "pending" && !stripeIssuedNow) {
     const queueType = refundType === "insurance" ? "insurance_refund" : "patient_refund";
     const title =
       refundType === "insurance"

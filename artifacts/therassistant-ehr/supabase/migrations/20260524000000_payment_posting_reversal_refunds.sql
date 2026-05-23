@@ -98,7 +98,7 @@ create table if not exists public.payment_refunds (
     (source_era_claim_payment_id is not null)::int
     + (source_client_payment_id  is not null)::int
     + (source_insurance_manual_payment_id is not null)::int
-    >= 1
+    = 1
   ),
   constraint payment_refunds_type_matches_source check (
     (refund_type = 'patient'   and source_client_payment_id  is not null)
