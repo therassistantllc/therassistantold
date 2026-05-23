@@ -494,11 +494,29 @@ export async function applyWorkqueueRules(
     );
     if (exists) continue;
     try {
+      // Schema invariant (see .agents/memory/workqueue-items-schema.md):
+      //   workqueue_items.source_object_type is a Postgres ENUM
+      //   (public.source_object_type). The caller-facing
+      //   ApplyWorkqueueRulesContext.sourceObjectType uses payment-domain
+      //   logical labels (`era_claim_payment`, `client_payment`,
+      //   `insurance_manual_payment`, `payment_recoupment`, `payment_refund`)
+      //   — NONE of which are members of that enum. Inserting them silently
+      //   fails the enum cast and the WQ row is lost. Map every logical
+      //   payment-source to the closest valid enum member, `payment_posting`,
+      //   and stash the original logical kind + the same ids in
+      //   context_payload so downstream filters and the audit chain can
+      //   still resolve the row back to its true source object.
+      const sourceObjectTypeEnum = "payment_posting";
+      const insertContext = {
+        ...em.contextPayload,
+        logical_source_object_type: ctx.sourceObjectType,
+        logical_source_object_id: ctx.sourceObjectId,
+      };
       const { data, error } = await supabase
         .from("workqueue_items")
         .insert({
           organization_id: ctx.organizationId,
-          source_object_type: ctx.sourceObjectType,
+          source_object_type: sourceObjectTypeEnum,
           source_object_id: ctx.sourceObjectId,
           client_id: ctx.clientId,
           professional_claim_id: ctx.professionalClaimId,
@@ -507,7 +525,7 @@ export async function applyWorkqueueRules(
           work_type: em.workType,
           title: em.title,
           description: em.description,
-          context_payload: em.contextPayload,
+          context_payload: insertContext,
         })
         .select("id")
         .single();

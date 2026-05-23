@@ -289,9 +289,53 @@ describe("applyWorkqueueRules", () => {
     }));
     assert.equal(r.itemsCreated, 1);
     assert.equal(fake.tables.workqueue_items.length, 1);
-    assert.equal(fake.tables.workqueue_items[0].work_type, "denied");
-    assert.equal(fake.tables.workqueue_items[0].source_object_id, "src-1");
+    const wq = fake.tables.workqueue_items[0];
+    assert.equal(wq.work_type, "denied");
+    assert.equal(wq.source_object_id, "src-1");
+    // Schema invariant (.agents/memory/workqueue-items-schema.md):
+    //   workqueue_items.source_object_type is a Postgres ENUM that does
+    //   NOT include payment-domain logical kinds like `era_claim_payment`,
+    //   `client_payment`, etc. The applier MUST map every payment source
+    //   to the closest valid enum member, `payment_posting`, and stash
+    //   the original logical kind in context_payload so silent enum
+    //   failures cannot drop WQ rows in production.
+    assert.equal(wq.source_object_type, "payment_posting");
+    const ctx = (wq.context_payload ?? {}) as Record<string, unknown>;
+    assert.equal(ctx.logical_source_object_type, "era_claim_payment");
+    assert.equal(ctx.logical_source_object_id, "src-1");
     assert.ok(fake.tables.audit_logs.length >= 1, "audit row written for each item");
+  });
+
+  it("maps every logical payment-domain sourceObjectType to the payment_posting enum value", async () => {
+    const logical = [
+      "era_claim_payment",
+      "insurance_manual_payment",
+      "client_payment",
+      "payment_recoupment",
+      "payment_refund",
+    ] as const;
+    for (const t of logical) {
+      const fake = makeFake();
+      await applyWorkqueueRules(
+        fake.client,
+        baseCtx({
+          sourceObjectType: t,
+          sourceObjectId: `src-${t}`,
+          sourceKind: t === "payment_recoupment" ? "recoupment" : t === "payment_refund" ? "refund" : "era_835",
+          insurancePaymentAmount: 0,
+        }),
+      );
+      assert.equal(fake.tables.workqueue_items.length, 1, `one row for ${t}`);
+      const wq = fake.tables.workqueue_items[0];
+      assert.equal(
+        wq.source_object_type,
+        "payment_posting",
+        `${t} must be mapped to payment_posting (the only enum value that fits)`,
+      );
+      const ctx = (wq.context_payload ?? {}) as Record<string, unknown>;
+      assert.equal(ctx.logical_source_object_type, t);
+      assert.equal(ctx.logical_source_object_id, `src-${t}`);
+    }
   });
 
   it("dedupes against existing open items on the same source+work_type", async () => {

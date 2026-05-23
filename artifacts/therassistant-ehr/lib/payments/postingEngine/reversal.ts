@@ -873,17 +873,30 @@ export async function reversePostedPayment(
         return result;
       }
       const refundId = (refundRow as { id: string }).id;
+      // Schema invariants (see .agents/memory/workqueue-items-schema.md):
+      //   - column is `work_type`; `queue_type` is a legacy column new
+      //     insert paths must not set.
+      //   - `source_object_type` is a Postgres ENUM — `payment_refund` is
+      //     NOT a valid member, so use `payment_posting` and stash the
+      //     refund linkage in `context_payload` for downstream filters.
       const { error: wqErr } = await supabase.from("workqueue_items").insert({
         organization_id: input.organizationId,
-        queue_type: "patient_refund",
         work_type: "patient_refund",
         status: "open",
         priority: "high",
         title: `Issue patient refund $${amt.toFixed(2)} (reversal)`,
         description: `Patient refund triggered by payment reversal. Stripe charge: ${String(cpRow?.stripe_charge_id ?? "n/a")}.`,
-        source_object_type: "payment_refund",
+        source_object_type: "payment_posting",
         source_object_id: refundId,
         client_id: (cpRow?.client_id as string | null) ?? payment.clientId,
+        context_payload: {
+          origin: "reversal_auto_refund",
+          payment_refund_id: refundId,
+          source_kind: payment.kind,
+          source_id: payment.id,
+          stripe_charge_id: (cpRow?.stripe_charge_id as string | null) ?? null,
+          amount: amt,
+        },
       });
       if (wqErr) {
         // Refund row exists but workqueue creation failed — append a warning
@@ -1630,22 +1643,38 @@ async function recordRefundShared(
       refundType === "insurance"
         ? `Issue payer refund ${amount.toFixed(2)} on ${payment.rawSourceLabel}`
         : `Issue patient refund ${amount.toFixed(2)} on ${payment.rawSourceLabel}`;
+    // Schema invariants (see .agents/memory/workqueue-items-schema.md):
+    //   - column is `client_id`, NOT `patient_id` (dropped in
+    //     20260505010000_enforce_client_schema_drift.sql).
+    //   - `payer_id` is NOT a workqueue_items column.
+    //   - column is `work_type`; `queue_type` is a legacy column new
+    //     insert paths must not set.
+    //   - `source_object_type` is a Postgres ENUM — `payment_refund` is
+    //     NOT a valid member, so use `payment_posting` and stash the
+    //     refund + payer linkage in `context_payload`.
     const { data: wq } = await supabase
       .from("workqueue_items")
       .insert({
         organization_id: input.organizationId,
         professional_claim_id: payment.professionalClaimId,
         claim_id: payment.professionalClaimId,
-        patient_id: payment.clientId,
-        payer_id: payment.payerProfileId,
-        queue_type: queueType,
+        client_id: payment.clientId,
         work_type: queueType,
         priority: "high",
         status: "open",
         title,
         description: input.reason,
-        source_object_type: "payment_refund",
+        source_object_type: "payment_posting",
         source_object_id: result.refundId,
+        context_payload: {
+          origin: "refund_request",
+          payment_refund_id: result.refundId,
+          refund_type: refundType,
+          source_kind: payment.kind,
+          source_id: payment.id,
+          payer_profile_id: payment.payerProfileId ?? null,
+          amount,
+        },
       })
       .select("id")
       .single();

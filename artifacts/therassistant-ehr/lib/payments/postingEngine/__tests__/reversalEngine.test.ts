@@ -513,6 +513,58 @@ describe("reversePostedPayment — patient refund initiation (fail-closed)", () 
   });
 });
 
+describe("reversePostedPayment — auto-refund workqueue schema", () => {
+  it("writes a workqueue_items row that matches the actual schema (Task #140)", async () => {
+    const fake = makeFakeSupabase({
+      client_payments: [
+        {
+          id: "cp-wq-1",
+          organization_id: ORG,
+          client_id: "c-1",
+          claim_id: null,
+          amount: 60,
+          payment_method: "stripe",
+          stripe_charge_id: "ch_test_wq",
+          patient_invoice_id: null,
+          posting_status: "posted",
+          archived_at: null,
+        },
+      ],
+    });
+    const r = await reversePostedPayment(
+      {
+        organizationId: ORG,
+        target: { kind: "client_payment", id: "cp-wq-1" },
+        reason: "patient dispute",
+        actor: ACTOR,
+      },
+      fake.client,
+    );
+    assert.equal(r.ok, true, r.errors.map((e) => e.message).join("; "));
+    assert.equal(fake.tables.payment_refunds.length, 1);
+    assert.equal(fake.tables.workqueue_items.length, 1);
+    const wq = fake.tables.workqueue_items[0] as Record<string, unknown>;
+    // Schema invariants from .agents/memory/workqueue-items-schema.md:
+    //   - column is `work_type`; never `queue_type`
+    //   - `source_object_type` enum only allows `payment_posting`
+    //     (NOT `payment_refund`)
+    //   - column is `client_id` (no `patient_id`)
+    //   - refund linkage lives in `context_payload`
+    assert.equal(wq.work_type, "patient_refund");
+    assert.equal(wq.source_object_type, "payment_posting");
+    assert.equal(wq.client_id, "c-1");
+    assert.equal(wq.source_object_id, fake.tables.payment_refunds[0].id);
+    assert.ok(!("queue_type" in wq), "must not write legacy queue_type column");
+    assert.ok(!("patient_id" in wq), "must not write dropped patient_id column");
+    assert.ok(!("payer_id" in wq), "must not write nonexistent payer_id column");
+    const ctx = (wq.context_payload ?? {}) as Record<string, unknown>;
+    assert.equal(ctx.origin, "reversal_auto_refund");
+    assert.equal(ctx.payment_refund_id, fake.tables.payment_refunds[0].id);
+    assert.equal(ctx.stripe_charge_id, "ch_test_wq");
+    assert.equal(ctx.source_kind, "client_payment");
+  });
+});
+
 describe("confirmInsuranceRefund (two-step issuance)", () => {
   it("flips pending→issued, posts compensating ledger row, and writes audit", async () => {
     const refundId = "11111111-1111-1111-1111-111111111111";
@@ -1016,7 +1068,26 @@ describe("recordInsuranceRefund / recordPatientRefund", () => {
     assert.equal(fake.tables.payment_refunds.length, 1);
     assert.equal(fake.tables.payment_refunds[0].refund_type, "insurance");
     assert.equal(fake.tables.workqueue_items.length, 1);
-    assert.equal(fake.tables.workqueue_items[0].queue_type, "insurance_refund");
+    const wq = fake.tables.workqueue_items[0] as Record<string, unknown>;
+    // Schema invariants (see .agents/memory/workqueue-items-schema.md):
+    //   - column is `work_type` (no `queue_type`)
+    //   - column is `client_id` (no `patient_id`)
+    //   - `payer_id` is NOT a column
+    //   - `source_object_type` enum only allows `payment_posting`
+    //     (NOT `payment_refund`); refund/payer linkage lives in
+    //     `context_payload`.
+    assert.equal(wq.work_type, "insurance_refund");
+    assert.equal(wq.source_object_type, "payment_posting");
+    assert.equal(wq.client_id, "c-1");
+    assert.equal(wq.source_object_id, fake.tables.payment_refunds[0].id);
+    assert.ok(!("queue_type" in wq), "must not write legacy queue_type column");
+    assert.ok(!("patient_id" in wq), "must not write dropped patient_id column");
+    assert.ok(!("payer_id" in wq), "must not write nonexistent payer_id column");
+    const ctx = (wq.context_payload ?? {}) as Record<string, unknown>;
+    assert.equal(ctx.origin, "refund_request");
+    assert.equal(ctx.refund_type, "insurance");
+    assert.equal(ctx.payer_profile_id, "pp-1");
+    assert.equal(ctx.payment_refund_id, fake.tables.payment_refunds[0].id);
   });
 
   it("records issued patient refund with stripe_refund_id", async () => {
