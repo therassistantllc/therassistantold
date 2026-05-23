@@ -101,6 +101,34 @@ function emptyMetrics() {
   };
 }
 
+type ProviderOption = {
+  id: string;
+  provider_name: string;
+  credential_display: string | null;
+  user_id: string | null;
+  email: string | null;
+};
+
+type MePayload = {
+  staffId?: string;
+  email?: string | null;
+};
+
+const PROVIDER_FILTER_STORAGE_KEY = "clinicianAgenda.providerFilter";
+
+function readInitialClinicianId(): string {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get("clinicianId");
+  if (fromUrl !== null) return fromUrl.trim();
+  try {
+    const stored = window.localStorage.getItem(PROVIDER_FILTER_STORAGE_KEY);
+    return stored ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export default function ClinicianAgendaClient() {
   const [payload, setPayload] = useState<CommandCenterPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +137,9 @@ export default function ClinicianAgendaClient() {
   const [eligibilityResults, setEligibilityResults] = useState<Record<string, string>>({});
   const [joiningTelehealth, setJoiningTelehealth] = useState<Record<string, boolean>>({});
   const [telehealthMessages, setTelehealthMessages] = useState<Record<string, string>>({});
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [me, setMe] = useState<MePayload | null>(null);
+  const [selectedClinicianId, setSelectedClinicianId] = useState<string>(() => readInitialClinicianId());
 
   const joinTelehealth = useCallback(async (item: AgendaItem) => {
     setJoiningTelehealth((prev) => ({ ...prev, [item.appointmentId]: true }));
@@ -191,14 +222,18 @@ export default function ClinicianAgendaClient() {
         return;
       }
 
+      setLoading(true);
       try {
-        const response = await fetch(`/api/clinician/command-center?organizationId=${encodeURIComponent(organizationId)}`, {
+        const params = new URLSearchParams({ organizationId });
+        if (selectedClinicianId) params.set("clinicianId", selectedClinicianId);
+        const response = await fetch(`/api/clinician/command-center?${params.toString()}`, {
           cache: "no-store",
         });
         const json = (await response.json()) as CommandCenterPayload;
         if (cancelled) return;
         if (!response.ok || !json.success) throw new Error(json.error ?? "Failed to load clinician agenda");
         setPayload(json);
+        setError(null);
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Failed to load clinician agenda");
       } finally {
@@ -210,7 +245,71 @@ export default function ClinicianAgendaClient() {
     return () => {
       cancelled = true;
     };
+  }, [organizationId, selectedClinicianId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!organizationId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/providers?organizationId=${encodeURIComponent(organizationId)}`, {
+          cache: "no-store",
+        });
+        const json = (await res.json()) as { success?: boolean; providers?: ProviderOption[] };
+        if (!cancelled && res.ok && json.success && Array.isArray(json.providers)) {
+          setProviders(json.providers);
+        }
+      } catch {
+        // Non-fatal: dropdown just stays empty beyond "All providers"
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [organizationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as MePayload;
+        if (!cancelled) setMe(json);
+      } catch {
+        // Non-fatal: "Just me" shortcut just won't have a target
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const myProviderId = useMemo(() => {
+    if (!me?.email || providers.length === 0) return null;
+    const email = me.email.toLowerCase();
+    const match = providers.find((p) => (p.email ?? "").toLowerCase() === email);
+    return match?.id ?? null;
+  }, [me, providers]);
+
+  const updateSelectedClinician = useCallback((next: string) => {
+    setSelectedClinicianId(next);
+    if (typeof window === "undefined") return;
+    try {
+      if (next) window.localStorage.setItem(PROVIDER_FILTER_STORAGE_KEY, next);
+      else window.localStorage.removeItem(PROVIDER_FILTER_STORAGE_KEY);
+    } catch {
+      // ignore quota / privacy mode
+    }
+    try {
+      const url = new URL(window.location.href);
+      if (next) url.searchParams.set("clinicianId", next);
+      else url.searchParams.delete("clinicianId");
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      // ignore — URL stays in sync next navigation
+    }
+  }, []);
 
   const metrics = payload?.metrics ?? emptyMetrics();
   const agenda = payload?.agenda ?? [];
@@ -251,6 +350,43 @@ export default function ClinicianAgendaClient() {
           <div>
             <h2>Appointment List</h2>
             <p>Practical visit context only. No coding prompts or documentation interruptions.</p>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              <span>Provider</span>
+              <select
+                value={selectedClinicianId}
+                onChange={(e) => updateSelectedClinician(e.target.value)}
+                style={{ padding: "4px 8px" }}
+              >
+                <option value="">All providers</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.provider_name}
+                    {p.credential_display ? `, ${p.credential_display}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {myProviderId ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => updateSelectedClinician(myProviderId)}
+                disabled={selectedClinicianId === myProviderId}
+              >
+                Just me
+              </button>
+            ) : null}
+            {selectedClinicianId ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => updateSelectedClinician("")}
+              >
+                Clear
+              </button>
+            ) : null}
           </div>
         </div>
 

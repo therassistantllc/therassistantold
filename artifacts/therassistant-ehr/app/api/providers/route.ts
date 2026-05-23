@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("providers")
-      .select("id, first_name, last_name, display_name, credential, npi, provider_type, is_active")
+      .select("id, first_name, last_name, display_name, credential, npi, provider_type, is_active, user_id, email")
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .eq("is_active", true)
@@ -34,6 +34,8 @@ export async function GET(request: Request) {
         credential_display: row.credential ? String(row.credential) : null,
         npi: row.npi ? String(row.npi) : null,
         is_active: row.is_active !== false,
+        user_id: row.user_id ? String(row.user_id) : null,
+        email: row.email ? String(row.email) : null,
       };
     });
 
