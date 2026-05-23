@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./AppShell.module.css";
 
 function CalendarIcon() {
@@ -89,6 +89,94 @@ function LockIcon() {
   );
 }
 
+function DollarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+      <line x1="3" y1="20" x2="21" y2="20" />
+    </svg>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1z" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function LayersIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+function CreditCardIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2" ry="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  );
+}
+
 function GearIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -126,8 +214,19 @@ export default function AppSidebarNav() {
   const pathname = usePathname();
 
   const adminActive = active(pathname, ["/settings", "/admin"]);
+  const billingGroupActive = pathname.startsWith("/billing") && !pathname.startsWith("/billing/reports");
+  const billingRouteActive = pathname.startsWith("/billing");
 
   const [adminOpen, setAdminOpen] = useState(adminActive || false);
+  const [billingOpen, setBillingOpen] = useState(billingRouteActive || false);
+
+  useEffect(() => {
+    if (billingRouteActive) setBillingOpen(true);
+  }, [billingRouteActive]);
+
+  useEffect(() => {
+    if (adminActive) setAdminOpen(true);
+  }, [adminActive]);
 
   return (
     <nav className={styles.nav} aria-label="Primary navigation">
@@ -140,6 +239,35 @@ export default function AppSidebarNav() {
       <NavLink href="/inbox" icon={<TasksIcon />} label="Inbox" prefixes={["/inbox"]} pathname={pathname} />
       <NavLink href="/chat" icon={<ChatIcon />} label="Chat" prefixes={["/chat"]} pathname={pathname} />
       <NavLink href="/mailroom" icon={<InboxIcon />} label="Mailroom" prefixes={["/mailroom"]} pathname={pathname} />
+
+      {/* ── BILLING ──────────────────────────────────────────── */}
+      <div className={styles.navSectionSpacer} />
+      <div className={styles.navSection}>Billing</div>
+
+      <button
+        type="button"
+        className={`${styles.navItem} ${styles.navItemCollapsible} ${billingGroupActive ? styles.navItemActive : ""}`}
+        onClick={() => setBillingOpen((o) => !o)}
+        aria-expanded={billingOpen}
+      >
+        <span className={styles.navIcon}><DollarIcon /></span>
+        Billing
+        <ChevronIcon open={billingOpen} />
+      </button>
+
+      {billingOpen ? (
+        <div className={styles.subnav}>
+          <SubNavLinkIcon href="/billing/charge-capture" icon={<ClipboardIcon />} label="Charge Capture" prefixes={["/billing/charge-capture"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/claim-readiness" icon={<CheckCircleIcon />} label="Claim Readiness" prefixes={["/billing/claim-readiness"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/claim-submission" icon={<SendIcon />} label="Claim Submission" prefixes={["/billing/claim-submission"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/837p-batches" icon={<LayersIcon />} label="837P Batches" prefixes={["/billing/837p-batches", "/billing/batches"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/workqueue" icon={<ListIcon />} label="Work Queue" prefixes={["/billing/workqueue"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/claim-edit-dashboard" icon={<EditIcon />} label="Claim Edits" prefixes={["/billing/claim-edit-dashboard"]} pathname={pathname} />
+          <SubNavLinkIcon href="/billing/payments" icon={<CreditCardIcon />} label="Payments" prefixes={["/billing/payments"]} pathname={pathname} />
+        </div>
+      ) : null}
+
+      <NavLink href="/billing/reports" icon={<ChartIcon />} label="Reports" prefixes={["/billing/reports"]} pathname={pathname} />
 
       {/* ── ADMIN ────────────────────────────────────────────── */}
       <div className={styles.navSectionSpacer} />
