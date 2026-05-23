@@ -301,6 +301,24 @@ async function commitEra835Posting(
       const { applyWorkqueueRules } = await import("./workqueueRules");
       const allowed =
         Number(row.clp03_total_charge ?? 0) - sumContractualAdjustments(row.cas_adjustments);
+      // Resolve the payer we posted under so cob_issue + eligibility_issue
+      // rules can fire on ERA posts (those rules require postedPayerProfileId).
+      // The claim's billing payer is the canonical "posted under" payer.
+      let postedPayerProfileId: string | null = null;
+      if (row.professional_claim_id) {
+        try {
+          const { data: claim } = await supabase
+            .from("professional_claims")
+            .select("payer_profile_id")
+            .eq("id", row.professional_claim_id)
+            .eq("organization_id", input.organizationId)
+            .maybeSingle();
+          postedPayerProfileId =
+            (claim as { payer_profile_id: string | null } | null)?.payer_profile_id ?? null;
+        } catch {
+          // best-effort; rule engine still runs without payer-scoped rules.
+        }
+      }
       await applyWorkqueueRules(supabase, {
         organizationId: input.organizationId,
         sourceObjectType: "era_claim_payment",
@@ -313,6 +331,7 @@ async function commitEra835Posting(
         casAdjustments: row.cas_adjustments,
         claimMatchStatus: row.claim_match_status,
         sourceKind: "era_835",
+        postedPayerProfileId,
         actor,
       });
     } catch (ruleErr) {

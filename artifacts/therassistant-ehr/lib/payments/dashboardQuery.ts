@@ -501,18 +501,30 @@ async function loadTotals(
       wantEra || wantPatient
         ? sideScoped(countQ("payment_refunds"), { dateCol: "created_at" })
         : Promise.resolve({ count: 0 }),
+      // pendingReview gates work types by which sources are visible
+      // under the current filter so the KPI tracks the visible scope
+      // (e.g., when only patient is selected, ERA-only work types like
+      // era_unmatched_claim drop out of the count).
       sideScoped(countQ("workqueue_items"), { dateCol: "created_at" })
-        .in("work_type", [
-          "denied",
-          "underpayment",
-          "appeal_needed",
-          "cob_issue",
-          "eligibility_issue",
-          "era_unmatched_claim",
-          "recoupment",
-          "refund_review",
-          "no_response",
-        ])
+        .in(
+          "work_type",
+          (() => {
+            const out: string[] = [];
+            if (wantEra || wantManual) {
+              out.push(
+                "denied",
+                "underpayment",
+                "appeal_needed",
+                "cob_issue",
+                "eligibility_issue",
+                "no_response",
+              );
+            }
+            if (wantEra) out.push("era_unmatched_claim", "recoupment");
+            if (wantPatient) out.push("refund_review", "recoupment");
+            return [...new Set(out)];
+          })(),
+        )
         .in("status", ["open", "in_progress", "blocked"]),
     ]);
 

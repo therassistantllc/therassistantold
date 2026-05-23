@@ -122,6 +122,24 @@ export async function POST(req: Request) {
               ((c.groupCode ?? c.group_code ?? "").toString().toUpperCase()) === "CO",
           )
           .reduce((s, c) => s + Number(c.amount ?? 0), 0);
+        // Resolve the claim's payer_profile_id so cob_issue +
+        // eligibility_issue rules can fire on ERA reprocess (rule engine
+        // gates those on a non-null postedPayerProfileId).
+        let postedPayerProfileId: string | null = null;
+        if (professionalClaimId) {
+          try {
+            const { data: claim } = await supabase
+              .from("professional_claims")
+              .select("payer_profile_id")
+              .eq("id", professionalClaimId)
+              .eq("organization_id", organizationId)
+              .maybeSingle();
+            postedPayerProfileId =
+              (claim as { payer_profile_id: string | null } | null)?.payer_profile_id ?? null;
+          } catch {
+            // best-effort.
+          }
+        }
         const r = await applyWorkqueueRules(supabase, {
           organizationId,
           sourceObjectType: "era_claim_payment",
@@ -134,6 +152,7 @@ export async function POST(req: Request) {
           casAdjustments: cas as never,
           claimMatchStatus,
           sourceKind: "era_835",
+          postedPayerProfileId,
           actor,
         });
         summary.reprocessed++;
