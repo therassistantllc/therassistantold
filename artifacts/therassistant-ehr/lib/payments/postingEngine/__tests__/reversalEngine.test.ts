@@ -950,3 +950,258 @@ describe("recordInsuranceRefund / recordPatientRefund", () => {
     assert.match(r.errors[0].message, /exceeds remaining/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task #135 — commitPosting dispatch shim for refund / reversal sources.
+//
+// These tests target the public commitPosting entrypoint (not the underlying
+// recordPatientRefund / reversePostedPayment helpers), so a regression that
+// drops the `refund` metadata field, mis-maps `posted`, skips the dry-run
+// short-circuit, or forgets to mirror workqueueItemsClosed back into the
+// CommitPostingResult is caught here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { commitPosting } from "../index";
+
+describe("commitPosting → refund dispatch", () => {
+  it("returns posted=true and a populated refund field after a successful patient refund", async () => {
+    const fake = makeFakeSupabase({
+      client_payments: [
+        {
+          id: "cp-disp-1",
+          organization_id: ORG,
+          client_id: "c-1",
+          claim_id: null,
+          amount: 80,
+          payment_method: "stripe",
+          stripe_charge_id: null,
+          patient_invoice_id: null,
+          posting_status: "posted",
+          archived_at: null,
+        },
+      ],
+    });
+
+    const r = await commitPosting(
+      {
+        organizationId: ORG,
+        actor: ACTOR,
+        source: {
+          type: "refund",
+          target: { kind: "client_payment", id: "cp-disp-1" },
+          amount: 30,
+          reason: "patient overpaid",
+        },
+      },
+      fake.client,
+    );
+
+    assert.equal(r.ok, true, r.errors.map((e) => e.message).join("; "));
+    assert.equal(r.posted, true, "posted must be true when a refund row was written");
+    assert.ok(r.refund, "refund metadata must be surfaced for dashboard callers");
+    assert.ok(r.refund!.refundId, "refund.refundId must be populated");
+    // refund_status comes straight from the inserted row — pending until a
+    // stripe issuance (not exercised here) or confirmInsuranceRefund flips it.
+    assert.equal(r.refund!.refundStatus, "pending");
+
+    // A payment_refunds row must actually exist for the refund the engine
+    // claims to have created.
+    const refundRow = fake.tables.payment_refunds.find(
+      (row) => row.id === r.refund!.refundId,
+    ) as Record<string, unknown> | undefined;
+    assert.ok(refundRow, "payment_refunds row must exist for the returned refundId");
+    assert.equal(refundRow!.refund_type, "patient");
+    assert.equal(Number(refundRow!.amount), 30);
+    assert.equal(refundRow!.source_client_payment_id, "cp-disp-1");
+  });
+});
+
+describe("commitPosting → reversal dispatch", () => {
+  it("returns posted=true and mirrors workqueueItemsClosed from the engine", async () => {
+    const fake = makeFakeSupabase({
+      era_claim_payments: [
+        {
+          id: "era-disp-1",
+          organization_id: ORG,
+          client_id: "c-1",
+          professional_claim_id: "claim-disp-1",
+          clp01_claim_control_number: "PCN-DISP",
+          clp04_payment_amount: 100,
+          posting_status: "posted",
+          reversed_at: null,
+          voided_at: null,
+          archived_at: null,
+        },
+      ],
+      era_posting_ledger_entries: [
+        {
+          id: "le-disp-1",
+          organization_id: ORG,
+          source_type: "era_835",
+          source_id: "era-disp-1",
+          era_claim_payment_id: "era-disp-1",
+          professional_claim_id: "claim-disp-1",
+          client_id: "c-1",
+          entry_type: "insurance_payment",
+          amount: 100,
+          archived_at: null,
+        },
+      ],
+      professional_claims: [
+        { id: "claim-disp-1", organization_id: ORG, claim_status: "paid" },
+      ],
+      // Two open ERA-mismatch workqueue rows that the reversal engine should
+      // close. The dispatch shim must mirror this count into the
+      // CommitPostingResult so dashboard callers don't have to re-query.
+      workqueue_items: [
+        {
+          id: "wq-disp-1",
+          organization_id: ORG,
+          source_object_type: "era_claim_payment",
+          source_object_id: "era-disp-1",
+          work_type: "era_mismatch",
+          status: "open",
+          archived_at: null,
+        },
+        {
+          id: "wq-disp-2",
+          organization_id: ORG,
+          source_object_type: "era_claim_payment",
+          source_object_id: "era-disp-1",
+          work_type: "era_835_exception",
+          status: "in_progress",
+          archived_at: null,
+        },
+      ],
+    });
+
+    const r = await commitPosting(
+      {
+        organizationId: ORG,
+        actor: ACTOR,
+        source: {
+          type: "reversal",
+          target: { kind: "era_835", id: "era-disp-1" },
+          reason: "duplicate ERA imported",
+        },
+      },
+      fake.client,
+    );
+
+    assert.equal(r.ok, true, r.errors.map((e) => e.message).join("; "));
+    assert.equal(r.posted, true, "posted must mirror reversal engine's `reversed`");
+    assert.equal(
+      r.workqueueItemsClosed,
+      2,
+      "workqueueItemsClosed must mirror the engine's count exactly",
+    );
+
+    // Sanity: the workqueue rows really were closed under the hood, so the
+    // mirrored count above isn't a coincidence.
+    const closedRows = fake.tables.workqueue_items.filter(
+      (row) => row.status === "resolved",
+    );
+    assert.equal(closedRows.length, 2);
+  });
+});
+
+describe("commitPosting → dryRun short-circuit for refund + reversal", () => {
+  it("refund dry-run returns ok=true and writes nothing", async () => {
+    const fake = makeFakeSupabase({
+      client_payments: [
+        {
+          id: "cp-dry-1",
+          organization_id: ORG,
+          client_id: "c-1",
+          amount: 50,
+          posting_status: "posted",
+          archived_at: null,
+        },
+      ],
+    });
+
+    const r = await commitPosting(
+      {
+        organizationId: ORG,
+        actor: ACTOR,
+        dryRun: true,
+        source: {
+          type: "refund",
+          target: { kind: "client_payment", id: "cp-dry-1" },
+          amount: 20,
+          reason: "preview only",
+        },
+      },
+      fake.client,
+    );
+
+    assert.equal(r.ok, true);
+    assert.equal(r.posted, false, "dry-run must not report a write");
+    assert.equal(r.refund, undefined, "dry-run must not populate refund metadata");
+    // No DB rows of any kind should have been written.
+    assert.equal(fake.tables.payment_refunds.length, 0);
+    assert.equal(fake.tables.era_posting_ledger_entries.length, 0);
+    assert.equal(fake.tables.audit_logs.length, 0);
+  });
+
+  it("reversal dry-run returns ok=true and writes nothing", async () => {
+    const fake = makeFakeSupabase({
+      era_claim_payments: [
+        {
+          id: "era-dry-1",
+          organization_id: ORG,
+          client_id: "c-1",
+          professional_claim_id: "claim-dry-1",
+          clp01_claim_control_number: "PCN-DRY",
+          clp04_payment_amount: 100,
+          posting_status: "posted",
+          reversed_at: null,
+          voided_at: null,
+          archived_at: null,
+        },
+      ],
+      era_posting_ledger_entries: [
+        {
+          id: "le-dry-1",
+          organization_id: ORG,
+          source_type: "era_835",
+          source_id: "era-dry-1",
+          era_claim_payment_id: "era-dry-1",
+          professional_claim_id: "claim-dry-1",
+          client_id: "c-1",
+          entry_type: "insurance_payment",
+          amount: 100,
+          archived_at: null,
+        },
+      ],
+      professional_claims: [
+        { id: "claim-dry-1", organization_id: ORG, claim_status: "paid" },
+      ],
+    });
+
+    const r = await commitPosting(
+      {
+        organizationId: ORG,
+        actor: ACTOR,
+        dryRun: true,
+        source: {
+          type: "reversal",
+          target: { kind: "era_835", id: "era-dry-1" },
+          reason: "preview only",
+        },
+      },
+      fake.client,
+    );
+
+    assert.equal(r.ok, true);
+    assert.equal(r.posted, false, "dry-run must not report a write");
+    assert.equal(r.workqueueItemsClosed, 0);
+    // ERA header untouched.
+    const era = fake.tables.era_claim_payments[0] as Record<string, unknown>;
+    assert.equal(era.posting_status, "posted");
+    assert.equal(era.reversed_at, null);
+    // No compensating ledger row appended, no audit row written.
+    assert.equal(fake.tables.era_posting_ledger_entries.length, 1);
+    assert.equal(fake.tables.audit_logs.length, 0);
+  });
+});

@@ -110,6 +110,7 @@ function emptyResult(): CommitPostingResult {
 
 export async function commitPosting(
   input: CommitPostingInput,
+  injectedSupabase?: NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>,
 ): Promise<CommitPostingResult> {
   const actor = input.actor ?? SYSTEM_ACTOR;
   if (input.source.type === "era_835") {
@@ -152,15 +153,18 @@ export async function commitPosting(
       input.source.refundType ??
       (input.source.target.kind === "client_payment" ? "patient" : "insurance");
     const fn = refundType === "patient" ? recordPatientRefund : recordInsuranceRefund;
-    const r = await fn({
-      organizationId: input.organizationId,
-      target: input.source.target,
-      amount: input.source.amount,
-      reason: input.source.reason,
-      stripeRefundId: input.source.stripeRefundId ?? null,
-      alreadyIssued: input.source.alreadyIssued === true,
-      actor,
-    });
+    const r = await fn(
+      {
+        organizationId: input.organizationId,
+        target: input.source.target,
+        amount: input.source.amount,
+        reason: input.source.reason,
+        stripeRefundId: input.source.stripeRefundId ?? null,
+        alreadyIssued: input.source.alreadyIssued === true,
+        actor,
+      },
+      injectedSupabase,
+    );
     return refundResultToCommitResult(r);
   }
   if (input.source.type === "recoupment") {
@@ -173,15 +177,18 @@ export async function commitPosting(
       return out;
     }
     const { recordRecoupment } = await import("./reversal");
-    const r = await recordRecoupment({
-      organizationId: input.organizationId,
-      target: input.source.target,
-      amount: input.source.amount,
-      reason: input.source.reason,
-      reasonCode: input.source.reasonCode ?? null,
-      offsetEraClaimPaymentId: input.source.offsetEraClaimPaymentId ?? null,
-      actor,
-    });
+    const r = await recordRecoupment(
+      {
+        organizationId: input.organizationId,
+        target: input.source.target,
+        amount: input.source.amount,
+        reason: input.source.reason,
+        reasonCode: input.source.reasonCode ?? null,
+        offsetEraClaimPaymentId: input.source.offsetEraClaimPaymentId ?? null,
+        actor,
+      },
+      injectedSupabase,
+    );
     return recoupmentResultToCommitResult(r);
   }
   if (input.source.type === "reversal") {
@@ -191,12 +198,15 @@ export async function commitPosting(
       return out;
     }
     const { reversePostedPayment } = await import("./reversal");
-    const r = await reversePostedPayment({
-      organizationId: input.organizationId,
-      target: input.source.target,
-      reason: input.source.reason,
-      actor,
-    });
+    const r = await reversePostedPayment(
+      {
+        organizationId: input.organizationId,
+        target: input.source.target,
+        reason: input.source.reason,
+        actor,
+      },
+      injectedSupabase,
+    );
     return reversalResultToCommitResult(r);
   }
   // All PostingSource variants are handled above; this is exhaustiveness
