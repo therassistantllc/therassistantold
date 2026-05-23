@@ -63,7 +63,7 @@ export async function GET(
     const { data: appt, error: apptError } = await supabase
       .from("appointments")
       .select(
-        "id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status, appointment_type, reason",
+        "id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status, appointment_type, reason, cpt_code, memo",
       )
       .eq("organization_id", organizationId)
       .eq("id", appointmentId)
@@ -77,17 +77,28 @@ export async function GET(
       );
     }
 
-    // CPT lives in appointment_type when it matches a CPT pattern.
-    // Memo lives in `reason` (the only free-text appointment column available).
+    // CPT and memo each have their own dedicated columns now. Fall
+    // back to the legacy heuristic (CPT-shaped string stashed in
+    // appointment_type, free-text memo stashed in reason) for rows
+    // that predate the dedicated columns and haven't been backfilled.
     const apptTypeRaw =
       typeof (appt as Row).appointment_type === "string"
         ? String((appt as Row).appointment_type)
         : "";
-    const cpt = /^9\d{4}$/.test(apptTypeRaw) ? apptTypeRaw : null;
-    const memo =
+    const cptRaw =
+      typeof (appt as Row).cpt_code === "string"
+        ? String((appt as Row).cpt_code)
+        : "";
+    const cpt = cptRaw || (/^9\d{4}$/.test(apptTypeRaw) ? apptTypeRaw : null);
+    const memoRaw =
+      typeof (appt as Row).memo === "string"
+        ? String((appt as Row).memo)
+        : "";
+    const reasonRaw =
       typeof (appt as Row).reason === "string"
         ? String((appt as Row).reason)
         : "";
+    const memo = memoRaw || reasonRaw;
 
     const [clientRes, providerRes, policiesRes, encounterRes] =
       await Promise.all([

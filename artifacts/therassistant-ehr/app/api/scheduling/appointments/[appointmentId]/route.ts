@@ -73,16 +73,20 @@ export async function PATCH(
     if (typeof updates.appointment_status === "string" && updates.appointment_status.trim()) {
       allowed.appointment_status = updates.appointment_status.trim();
     }
-    // CPT lives in `appointment_type`; memo lives in `reason`. Explicit
-    // cpt_code / memo updates take precedence over raw reason / appointment_type.
+    // CPT and memo each have their own dedicated columns now, so we
+    // write them independently of appointment_type / reason. This keeps
+    // the original appointment type (e.g. "therapy", "Initial
+    // Consultation") intact when a CPT is saved.
     if ("cpt_code" in updates) {
-      allowed.appointment_type = updates.cpt_code ?? null;
-    } else if (typeof updates.appointment_type === "string") {
+      allowed.cpt_code = updates.cpt_code ?? null;
+    }
+    if (typeof updates.appointment_type === "string") {
       allowed.appointment_type = updates.appointment_type;
     }
     if ("memo" in updates) {
-      allowed.reason = updates.memo ?? null;
-    } else if (typeof updates.reason === "string") {
+      allowed.memo = updates.memo ?? null;
+    }
+    if (typeof updates.reason === "string") {
       allowed.reason = updates.reason;
     }
     if (typeof updates.service_location === "string") {

@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     const { data: appts, error } = await supabase
       .from("appointments")
       .select(
-        "id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status, appointment_type, reason",
+        "id, client_id, provider_id, scheduled_start_at, scheduled_end_at, appointment_status, appointment_type, reason, cpt_code, memo",
       )
       .eq("organization_id", organizationId)
       .is("archived_at", null)
@@ -136,10 +136,15 @@ export async function GET(request: Request) {
           "Unassigned"
         : "Unassigned";
 
-      // CPT is stored in appointment_type when it looks like a CPT code.
+      // CPT and memo now live in their own columns. Fall back to the
+      // legacy heuristic (CPT-shaped string stashed in appointment_type)
+      // for rows that predate the dedicated columns and haven't been
+      // backfilled yet.
       const apptType =
         typeof r.appointment_type === "string" ? r.appointment_type : "";
-      const cptCode = /^9\d{4}$/.test(apptType) ? apptType : null;
+      const cptCode =
+        (typeof r.cpt_code === "string" && r.cpt_code) ||
+        (/^9\d{4}$/.test(apptType) ? apptType : null);
 
       return {
         id: String(r.id),
