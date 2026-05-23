@@ -30,3 +30,14 @@ isn't broken — the live DB really is missing the column.
 - For narrowly-scoped tasks (e.g. dropping a specific overlay entry), prefer
   surgical patches to the committed types over a full regen, then leave a
   follow-up to actually sync the live DB.
+- When regenerating via `npx -y supabase@latest gen types typescript`, the
+  npx stdout sometimes appends `npm notice ...` upgrade banners after the
+  TS output. Strip them (`sed -i '/^npm notice/d'`) or the file fails
+  esbuild parsing with "Expected ';' but found 'notice'".
+- Several "missing" migrations actually have hidden prerequisites that
+  never made it to prod (eligibility_benefit_segments table absent;
+  professional_claims.archived_at column absent;
+  staff_profiles.auth_user_id column absent). When the migration touches
+  one of these, sanitize it with `to_regclass(...) is not null` / column
+  presence gates before applying, instead of replaying the historical
+  chain blindly.
