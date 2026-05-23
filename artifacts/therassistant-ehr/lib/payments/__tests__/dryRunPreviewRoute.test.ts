@@ -74,6 +74,9 @@ function makeFakeSupabase(initial: Record<string, Array<Record<string, unknown>>
       neqs: [] as Array<[string, unknown]>,
       isNulls: [] as string[],
       inSpec: [] as Array<[string, unknown[]]>,
+      // jsonb `contains` predicates: every key in `sub` must be present
+      // (deep-equal) inside the row's value at `col`.
+      containsSpec: [] as Array<[string, Record<string, unknown>]>,
       mode: null as "select" | "count" | "insert" | "update" | null,
       single: false,
       maybe: false,
@@ -88,6 +91,13 @@ function makeFakeSupabase(initial: Record<string, Array<Record<string, unknown>>
       );
       for (const [k, vs] of ctx.inSpec) {
         rows = rows.filter((r) => vs.includes(r[k]));
+      }
+      for (const [col, sub] of ctx.containsSpec) {
+        rows = rows.filter((r) => {
+          const v = r[col] as Record<string, unknown> | null | undefined;
+          if (!v || typeof v !== "object") return false;
+          return Object.entries(sub).every(([k, val]) => v[k] === val);
+        });
       }
       return rows;
     };
@@ -143,6 +153,10 @@ function makeFakeSupabase(initial: Record<string, Array<Record<string, unknown>>
       },
       in(k: string, vs: unknown[]) {
         ctx.inSpec.push([k, vs]);
+        return chain;
+      },
+      contains(col: string, sub: Record<string, unknown>) {
+        ctx.containsSpec.push([col, sub]);
         return chain;
       },
       order() {
@@ -227,8 +241,12 @@ function seedPostedEra() {
       {
         id: "wq-1",
         organization_id: ORG,
-        source_object_type: "era_claim_payment",
+        // Canonical shape per .agents/memory/workqueue-items-schema.md:
+        // payment-domain rows live under source_object_type='payment_posting'
+        // with the original logical kind stashed in context_payload.
+        source_object_type: "payment_posting",
         source_object_id: ERA_ID,
+        context_payload: { logical_source_object_type: "era_claim_payment" },
         status: "open",
         archived_at: null,
       },

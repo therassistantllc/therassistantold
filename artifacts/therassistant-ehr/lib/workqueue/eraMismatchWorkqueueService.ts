@@ -27,12 +27,18 @@ type EraClaimPaymentRow = {
 async function hasOpenEraMismatchItem(organizationId: string, eraPaymentId: string) {
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) throw new Error("Database connection not available");
+  // See .agents/memory/workqueue-items-schema.md: payment-domain rows are
+  // stored as source_object_type='payment_posting' with the logical kind
+  // ('era_claim_payment') stashed in context_payload. The bare string
+  // 'era_claim_payment' is NOT a member of the public.source_object_type
+  // enum, so the old shape silently filtered to zero rows.
   const { data, error } = await supabase
     .from("workqueue_items")
     .select("id")
     .eq("organization_id", organizationId)
-    .eq("source_object_type", "era_claim_payment")
+    .eq("source_object_type", "payment_posting")
     .eq("source_object_id", eraPaymentId)
+    .contains("context_payload", { logical_source_object_type: "era_claim_payment" })
     .eq("work_type", "era_mismatch")
     .in("status", ["open", "in_progress", "blocked"])
     .is("archived_at", null)
@@ -81,6 +87,10 @@ export async function routeEraMismatchClaimsToWorkqueue(
         ? `ERA payment for claim control number ${payment.clp01_claim_control_number} could not be matched to a professional claim in the system.`
         : `ERA payment for claim control number ${payment.clp01_claim_control_number} is blocked from posting. Review ERA detail and resolve manually.`;
 
+      // See .agents/memory/workqueue-items-schema.md: 'era_claim_payment'
+      // is NOT a member of the public.source_object_type enum. Insert under
+      // the canonical 'payment_posting' enum and stash the logical kind in
+      // context_payload so reads (here + reversal.ts) line up.
       const { error: insertError } = await supabase.from("workqueue_items").insert({
         organization_id: input.organizationId,
         title: `ERA mismatch – ${payment.clp01_claim_control_number}`,
@@ -88,11 +98,12 @@ export async function routeEraMismatchClaimsToWorkqueue(
         work_type: "era_mismatch",
         status: "open",
         priority: "high",
-        source_object_type: "era_claim_payment",
+        source_object_type: "payment_posting",
         source_object_id: payment.id,
         client_id: payment.client_id,
         professional_claim_id: payment.professional_claim_id,
         context_payload: {
+          logical_source_object_type: "era_claim_payment",
           clp01_claim_control_number: payment.clp01_claim_control_number,
           claim_match_status: payment.claim_match_status,
           posting_status: payment.posting_status,
