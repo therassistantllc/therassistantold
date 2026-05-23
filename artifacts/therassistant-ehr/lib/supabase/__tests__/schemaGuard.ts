@@ -47,9 +47,7 @@ const ENUM_VALUES: Record<string, Set<string>> = Object.fromEntries(
  * matching migration. Keep entries here in sync with new ALTER TYPE
  * migrations until the types file is regenerated.
  */
-const EXTRA_ENUM_VALUES: Record<string, string[]> = {
-  encounter_status: ["draft", "in_review", "signed", "corrected"],
-};
+const EXTRA_ENUM_VALUES: Record<string, string[]> = {};
 for (const [name, extras] of Object.entries(EXTRA_ENUM_VALUES)) {
   if (!ENUM_VALUES[name]) ENUM_VALUES[name] = new Set<string>();
   for (const v of extras) ENUM_VALUES[name].add(v);

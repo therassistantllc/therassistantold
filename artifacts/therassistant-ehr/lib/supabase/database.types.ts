@@ -10445,6 +10445,10 @@ export type Database = {
         | "ready_to_bill"
         | "billed"
         | "voided"
+        | "draft"
+        | "in_review"
+        | "signed"
+        | "corrected"
       envelope_format: "x12" | "none" | "xml_wrapper"
       environment_flag: "test" | "production"
       external_attempt_status:
@@ -10690,6 +10694,10 @@ export const Constants = {
         "ready_to_bill",
         "billed",
         "voided",
+        "draft",
+        "in_review",
+        "signed",
+        "corrected",
       ],
       envelope_format: ["x12", "none", "xml_wrapper"],
       environment_flag: ["test", "production"],
