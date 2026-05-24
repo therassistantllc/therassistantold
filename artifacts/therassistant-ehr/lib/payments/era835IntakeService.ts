@@ -182,6 +182,27 @@ export async function intakeEra835(input: IntakeEra835Input): Promise<IntakeEra8
           cas_adjustments: claim.casAdjustments,
           service_lines: claim.serviceLines,
           raw_segments: claim.rawSegments,
+          // Task #561 — surface CARC/RARC arrays alongside the structured
+          // `remark_codes` jsonb so Medical Review / Denials / Payer
+          // Received panels can read them without re-parsing raw_segments.
+          carc_codes: Array.from(
+            new Set(
+              (claim.casAdjustments ?? [])
+                .map((a) => String(a.reasonCode ?? "").toUpperCase())
+                .filter(Boolean),
+            ),
+          ),
+          rarc_codes: Array.from(
+            new Set(
+              (claim.remarkCodes ?? [])
+                .map((c) => String(c ?? "").toUpperCase())
+                .filter(Boolean),
+            ),
+          ),
+          remark_codes: (claim.remarkCodes ?? [])
+            .map((c) => String(c ?? "").toUpperCase())
+            .filter(Boolean)
+            .map((code) => ({ code, source: "835" })),
         })
         .select("id")
         .single();

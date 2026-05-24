@@ -35,6 +35,13 @@ export interface MedicalReviewRow {
 
   chargeAmount: number;
   denialCode: string | null;
+  /**
+   * Combined CARC + RARC codes that triggered the medical-review request,
+   * surfaced alongside the request source on each queue row (Task #561).
+   * Empty when the request was authored manually (no trigger codes on the
+   * underlying audit row).
+   */
+  triggerCodes: string[];
   claimStatus: string | null;
 
   providerId: string | null;

@@ -294,6 +294,26 @@ export default function MedicalReviewClient() {
       { id: "dos", header: "DOS", cell: (r) => formatDate(r.dateOfService) },
       { id: "rtype", header: "Request type", cell: (r) => r.requestTypeLabel },
       {
+        id: "tcodes", header: "Trigger codes", width: 160,
+        cell: (r) => r.triggerCodes.length
+          ? (
+            <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 4 }}>
+              {r.triggerCodes.map((c) => (
+                <span
+                  key={c}
+                  style={{
+                    background: "#EFF6FF", color: "#1D4ED8",
+                    padding: "1px 6px", borderRadius: 4,
+                    fontFamily: "ui-monospace, monospace",
+                    fontSize: 11, fontWeight: 600,
+                  }}
+                >{c}</span>
+              ))}
+            </span>
+          )
+          : <span style={{ color: "#9CA3AF" }}>—</span>,
+      },
+      {
         id: "rdocs", header: "Requested documents",
         cell: (r) => r.requestedDocuments.length
           ? <span style={{ fontSize: 12 }}>{r.requestedDocuments.join(", ")}</span>
@@ -691,6 +711,12 @@ export default function MedicalReviewClient() {
           <div>
             <DetailKV label="Request type" value={selectedRow.requestTypeLabel} />
             <DetailKV label="Source" value={selectedRow.requestSource ?? "—"} />
+            <DetailKV
+              label="Trigger codes"
+              value={selectedRow.triggerCodes.length
+                ? selectedRow.triggerCodes.join(", ")
+                : "—"}
+            />
             <DetailKV label="Request date" value={formatDateTime(selectedRow.requestDate)} />
             <DetailKV label="Due date" value={selectedRow.dueDate ? `${formatDate(selectedRow.dueDate)}${selectedRow.isOverdue ? " (overdue)" : selectedRow.isUrgent ? ` (in ${selectedRow.daysUntilDue}d)` : ""}` : "—"} />
             <DetailKV label="Requested documents" value={selectedRow.requestedDocuments.length ? selectedRow.requestedDocuments.join(", ") : "—"} />

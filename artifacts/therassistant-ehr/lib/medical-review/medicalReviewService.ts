@@ -82,6 +82,14 @@ interface RawRequest {
   requestNotes: string | null;
   requestDate: string | null;
   dueDate: string | null;
+  /**
+   * CARC/RARC codes that triggered this request, surfaced alongside the
+   * request source on each row (Task #561). For audit-derived rows the
+   * codes come from `event_metadata.triggerCodes` (written by
+   * `writeMedicalReviewRequestAudit`). For denial-derived rows we fall
+   * back to the claim's `denial_reason_code`.
+   */
+  triggerCodes: string[];
   source: "audit" | "denial";
 }
 
@@ -172,6 +180,11 @@ export async function loadMedicalReview({
       : text(meta.requestedDocuments)
         ? text(meta.requestedDocuments).split(/[,;]\s*/).filter(Boolean)
         : [];
+    const triggerCodes = Array.isArray(meta.triggerCodes)
+      ? (meta.triggerCodes as unknown[])
+          .map((c) => text(c).toUpperCase())
+          .filter(Boolean)
+      : [];
     requests.push({
       requestId: text(r.id),
       claimId,
@@ -181,6 +194,7 @@ export async function loadMedicalReview({
       requestNotes: text(meta.notes) || text(r.event_summary) || null,
       requestDate: text(meta.requestDate) || text(r.created_at) || null,
       dueDate: text(meta.dueDate) || null,
+      triggerCodes,
       source: "audit",
     });
     requestedClaimIds.add(claimId);
@@ -213,6 +227,7 @@ export async function loadMedicalReview({
       requestNotes: text(c.denial_reason_description) || null,
       requestDate: text(c.updated_at) || text(c.first_billed_date) || null,
       dueDate: null,
+      triggerCodes: code ? [code.toUpperCase()] : [],
       source: "denial",
     });
     requestedClaimIds.add(claimId);
@@ -377,6 +392,7 @@ export async function loadMedicalReview({
       isOverdue,
       chargeAmount: money(claim.total_charge),
       denialCode: text(claim.denial_reason_code) || carcRarcFromNotes(text(claim.billing_notes)),
+      triggerCodes: req.triggerCodes,
       claimStatus: text(claim.claim_status) || null,
       providerId: text(appt?.provider_id) || null,
       practiceId: text(appt?.provider_location_id) || null,

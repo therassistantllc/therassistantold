@@ -71,6 +71,16 @@ export interface PayerReceivedRow {
   movedToAgingAt: string | null;
   billingNotes: string | null;
   denialCode: string | null;
+  /**
+   * Latest ERA's parsed CARC / RARC / remark codes for this claim (Task
+   * #561). Populated from `era_claim_payments.carc_codes` /
+   * `rarc_codes` / `remark_codes` so the detail panel doesn't have to
+   * re-parse `raw_segments` on every read. Empty when no ERA has landed
+   * yet.
+   */
+  carcCodes: string[];
+  rarcCodes: string[];
+  remarkCodes: string[];
 }
 
 export interface PayerReceivedFilters {
@@ -220,6 +230,7 @@ export async function loadPayerReceivedClaims({
     { data: inquiries },
     { data: submissions },
     { data: auditRows },
+    { data: eraPayments },
   ] = await Promise.all([
     clientIds.length
       ? sb.from("clients").select("id, first_name, last_name").in("id", clientIds)
@@ -266,7 +277,43 @@ export async function loadPayerReceivedClaims({
           ])
           .order("created_at", { ascending: false })
       : { data: [] as DbRow[] },
+    claimIds.length
+      ? sb.from("era_claim_payments")
+          .select("professional_claim_id, carc_codes, rarc_codes, remark_codes, created_at")
+          .eq("organization_id", organizationId)
+          .in("professional_claim_id", claimIds)
+          .order("created_at", { ascending: false })
+      : { data: [] as DbRow[] },
   ]);
+
+  // Task #561 — keep only the latest ERA payment per claim so the detail
+  // panel reflects the most recent remittance's codes.
+  const eraByClaim = new Map<string, { carc: string[]; rarc: string[]; remark: string[] }>();
+  for (const e of ((eraPayments as DbRow[]) ?? [])) {
+    const k = text(e.professional_claim_id);
+    if (!k || eraByClaim.has(k)) continue;
+    const carc = Array.isArray(e.carc_codes)
+      ? (e.carc_codes as unknown[]).map((c) => text(c).toUpperCase()).filter(Boolean)
+      : [];
+    const rarc = Array.isArray(e.rarc_codes)
+      ? (e.rarc_codes as unknown[]).map((c) => text(c).toUpperCase()).filter(Boolean)
+      : [];
+    let remark: string[] = [];
+    const rmk = e.remark_codes;
+    if (Array.isArray(rmk)) {
+      remark = rmk
+        .map((r) => {
+          if (r && typeof r === "object" && "code" in (r as Record<string, unknown>)) {
+            return text((r as Record<string, unknown>).code).toUpperCase();
+          }
+          return text(r).toUpperCase();
+        })
+        .filter(Boolean);
+    }
+    // Fall back to rarc when remark_codes isn't yet populated on legacy rows.
+    if (remark.length === 0) remark = rarc;
+    eraByClaim.set(k, { carc, rarc, remark });
+  }
 
   const clientById = new Map<string, DbRow>(
     ((clients as DbRow[]) ?? []).map((c) => [text(c.id), c]),
@@ -490,6 +537,9 @@ export async function loadPayerReceivedClaims({
       movedToAgingAt: null,
       billingNotes: text(c.billing_notes) || null,
       denialCode: carcRarcFromNotes(text(c.billing_notes) || null),
+      carcCodes: eraByClaim.get(claimId)?.carc ?? [],
+      rarcCodes: eraByClaim.get(claimId)?.rarc ?? [],
+      remarkCodes: eraByClaim.get(claimId)?.remark ?? [],
     });
   }
 

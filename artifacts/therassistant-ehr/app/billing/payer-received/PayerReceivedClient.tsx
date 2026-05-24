@@ -640,6 +640,18 @@ export default function PayerReceivedClient() {
             <DetailKV label="Payer status text" value={selectedRow.payerStatusText ?? "—"} />
             <DetailKV label="Payer" value={selectedRow.payerName} />
             <DetailKV label="Internal claim #" value={selectedRow.claimNumber} />
+            <DetailKV
+              label="CARC codes (latest ERA)"
+              value={selectedRow.carcCodes.length ? selectedRow.carcCodes.join(", ") : "—"}
+            />
+            <DetailKV
+              label="RARC codes (latest ERA)"
+              value={selectedRow.rarcCodes.length ? selectedRow.rarcCodes.join(", ") : "—"}
+            />
+            <DetailKV
+              label="Remark codes (latest ERA)"
+              value={selectedRow.remarkCodes.length ? selectedRow.remarkCodes.join(", ") : "—"}
+            />
           </div>
         ) : null,
       },
