@@ -12,6 +12,7 @@ import WorkqueueShell, {
   type SummaryMetric,
 } from "@/components/billing/WorkqueueShell";
 import { getWorkqueue } from "@/lib/billing/workqueues";
+import PlaceClaimOnHoldModal from "@/components/billing/PlaceClaimOnHoldModal";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -238,6 +239,7 @@ export default function DenialsByCarcClient() {
   const [appealModal, setAppealModal] = useState<CarcGroup | null>(null);
   const [correctModal, setCorrectModal] = useState<CarcGroup | null>(null);
   const [ruleModal, setRuleModal] = useState<CarcGroup | null>(null);
+  const [holdClaim, setHoldClaim] = useState<DrilldownClaim | null>(null);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -616,6 +618,7 @@ export default function DenialsByCarcClient() {
                       <th style={{ padding: "6px 4px" }}>RARC</th>
                       <th style={{ padding: "6px 4px" }}>Last action</th>
                       <th style={{ padding: "6px 4px" }}>Next step</th>
+                      <th style={{ padding: "6px 4px", textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -647,6 +650,16 @@ export default function DenialsByCarcClient() {
                         </td>
                         <td style={{ padding: "6px 4px", color: "#64748B" }}>
                           {c.nextStep ?? "—"}
+                        </td>
+                        <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: 12, padding: "4px 8px" }}
+                            onClick={() => setHoldClaim(c)}
+                          >
+                            Place on hold
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -861,6 +874,48 @@ export default function DenialsByCarcClient() {
     );
   }
 
+  function removeClaimFromGroup(carcCode: string, claimId: string) {
+    setGroups((prev) =>
+      prev
+        .map((g) => {
+          if (g.carcCode !== carcCode) return g;
+          const claims = g.claims.filter((c) => c.claimId !== claimId);
+          if (claims.length === g.claims.length) return g;
+          const total = Math.round(claims.reduce((s, c) => s + c.deniedAmount, 0) * 100) / 100;
+          const ages = claims.map((c) => c.ageDays).filter((a): a is number => a != null);
+          const avg = ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length) : null;
+          const oldest = ages.length ? Math.max(...ages) : null;
+          const payerSet = new Map<string, { count: number; total: number }>();
+          for (const c of claims) {
+            const cur = payerSet.get(c.payer) ?? { count: 0, total: 0 };
+            cur.count += 1;
+            cur.total = Math.round((cur.total + c.deniedAmount) * 100) / 100;
+            payerSet.set(c.payer, cur);
+          }
+          const payerBreakdown = Array.from(payerSet.entries())
+            .map(([payer, x]) => ({ payer, claimCount: x.count, totalAmount: x.total }))
+            .sort((a, b) => b.totalAmount - a.totalAmount);
+          return {
+            ...g,
+            claimCount: claims.length,
+            totalDeniedAmount: total,
+            avgAgeDays: avg,
+            oldestAgeDays: oldest,
+            payers: payerBreakdown.map((p) => p.payer),
+            payerBreakdown,
+            claims,
+          };
+        })
+        .filter((g) => g.claims.length > 0),
+    );
+    setTopCounts((prev) => {
+      if (!(carcCode in prev)) return prev;
+      const next = { ...prev };
+      next[carcCode] = Math.max(0, (next[carcCode] ?? 0) - 1);
+      return next;
+    });
+  }
+
   function applyAppeal(carcCode: string) {
     setGroups((prev) =>
       prev.map((g) =>
@@ -987,6 +1042,21 @@ export default function DenialsByCarcClient() {
             } catch (e) {
               setToast(e instanceof Error ? e.message : "Rule failed");
             }
+          }}
+        />
+      ) : null}
+
+      {holdClaim ? (
+        <PlaceClaimOnHoldModal
+          claimId={holdClaim.claimId}
+          organizationId={organizationId}
+          subtitle={`Claim ${holdClaim.claimNumber} · ${holdClaim.payer}`}
+          onClose={() => setHoldClaim(null)}
+          onPlaced={() => {
+            const label = holdClaim.claimNumber || holdClaim.claimId;
+            const carcCode = selectedGroup?.carcCode ?? null;
+            if (carcCode) removeClaimFromGroup(carcCode, holdClaim.claimId);
+            setToast(`Claim ${label} placed on hold.`);
           }}
         />
       ) : null}
