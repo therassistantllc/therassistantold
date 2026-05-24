@@ -15,6 +15,12 @@ type BillingDefaults = {
   auto_route_missing_info: boolean;
 };
 
+type Rejections277CaAutoroute = {
+  enabled: boolean;
+  route_invalid_member: boolean;
+  route_invalid_provider: boolean;
+};
+
 const INITIAL: BillingDefaults = {
   claim_frequency_code: "1",
   default_pos: "11",
@@ -26,6 +32,12 @@ const INITIAL: BillingDefaults = {
   auto_route_missing_info: true,
 };
 
+const INITIAL_AUTOROUTE: Rejections277CaAutoroute = {
+  enabled: true,
+  route_invalid_member: true,
+  route_invalid_provider: true,
+};
+
 function getOrganizationId() {
   if (typeof window === "undefined") return DEFAULT_ORG_ID;
   const params = new URLSearchParams(window.location.search);
@@ -35,6 +47,7 @@ function getOrganizationId() {
 export default function BillingDefaultsClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [form, setForm] = useState<BillingDefaults>(INITIAL);
+  const [autoroute, setAutoroute] = useState<Rejections277CaAutoroute>(INITIAL_AUTOROUTE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -44,8 +57,11 @@ export default function BillingDefaultsClient() {
     if (!organizationId) { setLoading(false); return; }
     fetch(`/api/settings/billing-defaults?organizationId=${encodeURIComponent(organizationId)}`)
       .then((r) => r.json())
-      .then((json: { billing_defaults?: BillingDefaults }) => {
+      .then((json: { billing_defaults?: BillingDefaults; rejections_277ca_autoroute?: Rejections277CaAutoroute }) => {
         if (json.billing_defaults) setForm((prev) => ({ ...prev, ...json.billing_defaults }));
+        if (json.rejections_277ca_autoroute) {
+          setAutoroute((prev) => ({ ...prev, ...json.rejections_277ca_autoroute }));
+        }
       })
       .catch(() => setStatusMsg({ type: "err", text: "Failed to load billing defaults." }))
       .finally(() => setLoading(false));
@@ -60,7 +76,7 @@ export default function BillingDefaultsClient() {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({ ...form, rejections_277ca_autoroute: autoroute }),
         },
       );
       if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Save failed");
@@ -70,7 +86,7 @@ export default function BillingDefaultsClient() {
     } finally {
       setSaving(false);
     }
-  }, [form, organizationId]);
+  }, [form, autoroute, organizationId]);
 
   return (
     <main className="app-shell">
@@ -192,6 +208,58 @@ export default function BillingDefaultsClient() {
               />
               Auto-route claims with missing information to workqueue
             </label>
+          </section>
+
+          <section className="panel form-panel">
+            <h2>277CA Rejection Auto-Routing</h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)", marginBottom: "var(--space-4)" }}>
+              Stored in <code>system_settings</code> under key <code>billing.rejections_277ca_autoroute</code>.
+              When auto-routing is on, incoming 277CA rejections that match a clear member or provider
+              problem skip the 277CA queue and hand off to the right team instead.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={autoroute.enabled}
+                  onChange={(e) => setAutoroute((p) => ({ ...p, enabled: e.target.checked }))}
+                />
+                <span>
+                  Enable 277CA auto-routing
+                  <span style={{ display: "block", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                    Master switch. When off, every 277CA rejection stays in the 277CA workqueue for a biller to triage manually.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  disabled={!autoroute.enabled}
+                  checked={autoroute.route_invalid_member}
+                  onChange={(e) => setAutoroute((p) => ({ ...p, route_invalid_member: e.target.checked }))}
+                />
+                <span>
+                  Auto-defer &ldquo;Invalid Member&rdquo; rejections to Eligibility
+                  <span style={{ display: "block", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                    Subscriber, member ID, DOB, and policy-number problems hand off to the eligibility queue.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  disabled={!autoroute.enabled}
+                  checked={autoroute.route_invalid_provider}
+                  onChange={(e) => setAutoroute((p) => ({ ...p, route_invalid_provider: e.target.checked }))}
+                />
+                <span>
+                  Auto-defer &ldquo;Invalid Provider&rdquo; rejections to Credentialing
+                  <span style={{ display: "block", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                    Rendering, billing, referring, and taxonomy problems hand off to the credentialing queue.
+                  </span>
+                </span>
+              </label>
+            </div>
           </section>
 
           <div style={{ padding: "0 var(--space-6) var(--space-6)" }}>
