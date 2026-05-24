@@ -62,6 +62,19 @@ type Note = {
   created_at: string;
 };
 
+type ClaimDocument = {
+  id: string;
+  title: string;
+  fileName: string | null;
+  documentType: string | null;
+  mimeType: string | null;
+  fileSizeBytes: number | null;
+  uploadedAt: string | null;
+  source: "mailroom" | "fax" | "manual_upload" | "other";
+  sourceLabel: string;
+  hasFile: boolean;
+};
+
 const TABS: Array<{ id: HoldCategory; label: string }> = [
   { id: "manual", label: "Manual Holds" },
   { id: "documentation", label: "Documentation Holds" },
@@ -645,6 +658,124 @@ function NotesHistory({
   );
 }
 
+function formatBytes(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let n = bytes;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+}
+
+function ClaimDocuments({
+  claimId,
+  organizationId,
+}: {
+  claimId: string;
+  organizationId: string;
+}) {
+  const [docs, setDocs] = useState<ClaimDocument[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDocs(null);
+    setError(null);
+    fetch(
+      `/api/billing/claims/${claimId}/documents?organizationId=${encodeURIComponent(organizationId)}`,
+      { cache: "no-store" },
+    )
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j?.success === false) setError(j.error || "Failed to load documents");
+        else setDocs((j?.documents ?? []) as ClaimDocument[]);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load documents");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [claimId, organizationId]);
+
+  if (error) return <div style={{ color: "#B91C1C", fontSize: 13 }}>{error}</div>;
+  if (docs == null) {
+    return <div style={{ color: "#94A3B8", fontSize: 13 }}>Loading documents…</div>;
+  }
+  if (docs.length === 0) {
+    return (
+      <div style={{ color: "#94A3B8", fontSize: 13 }}>
+        No documents linked to this claim yet. File a mailroom item or upload
+        supporting paperwork from the patient chart to attach it here.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {docs.map((d) => {
+        const href = `/api/billing/claims/${claimId}/documents/${d.id}/file?organizationId=${encodeURIComponent(organizationId)}`;
+        const size = formatBytes(d.fileSizeBytes);
+        return (
+          <div
+            key={d.id}
+            style={{
+              border: "1px solid #E5E7EB",
+              borderRadius: 6,
+              padding: 10,
+              background: "#F9FAFB",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#0F172A",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={d.fileName ?? d.title}
+              >
+                {d.fileName ?? d.title}
+              </div>
+              <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                {d.sourceLabel}
+                {" · "}
+                {formatDate(d.uploadedAt)}
+                {size ? ` · ${size}` : ""}
+                {d.documentType ? ` · ${d.documentType}` : ""}
+              </div>
+            </div>
+            {d.hasFile ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="button button-secondary"
+                style={{ fontSize: 12, padding: "4px 10px", whiteSpace: "nowrap" }}
+              >
+                Open
+              </a>
+            ) : (
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>No file</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function nextStepForCategory(cat: HoldCategory): string {
   switch (cat) {
     case "manual":
@@ -1030,10 +1161,10 @@ export default function ClaimHoldClient() {
         label: "Related documents",
         render: () =>
           selectedRow ? (
-            <div style={{ color: "#94A3B8", fontSize: 13 }}>
-              No documents linked to this claim yet. Upload via the patient
-              chart to attach supporting paperwork.
-            </div>
+            <ClaimDocuments
+              claimId={selectedRow.id}
+              organizationId={organizationId}
+            />
           ) : null,
       },
     ],
