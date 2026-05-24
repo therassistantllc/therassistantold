@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, MoreVertical, Search } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import styles from "./roster.module.css";
 
@@ -237,18 +237,6 @@ export default function PatientsRosterClient({
 
   return (
     <main className={styles.page}>
-      {/* ── Header ── */}
-      <header className={styles.header}>
-        <div className={styles.headerActions}>
-          <Link className={styles.headerBtn} href="/clinician/agenda">
-            <CalendarDays size={14} /> Agenda
-          </Link>
-          <Link className={styles.headerBtn} href="/">
-            Home
-          </Link>
-        </div>
-      </header>
-
       {/* ── Smart search ── */}
       <div className={styles.searchBar} role="search">
         <Search size={16} color="#94A3B8" aria-hidden />
