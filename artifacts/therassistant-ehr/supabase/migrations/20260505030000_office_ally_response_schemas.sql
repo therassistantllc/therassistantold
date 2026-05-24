@@ -130,67 +130,22 @@ create table if not exists public.claim_status_response_lines (
   archived_at timestamptz null
 );
 
-create table if not exists public.era_claim_payments (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  payment_import_item_id uuid null,
-  edi_transaction_id uuid null,
-  claim_id uuid null,
-  client_id uuid null,
-  payer_name text null,
-  payer_id text null,
-  payee_npi text null,
-  payee_tax_id text null,
-  check_or_eft_number text null,
-  trace_number text null,
-  payer_claim_control_number text null,
-  patient_control_number text null,
-  claim_status_code text null,
-  total_charge_amount numeric null,
-  paid_amount numeric null,
-  patient_responsibility_amount numeric null,
-  claim_filing_indicator_code text null,
-  received_at timestamptz null,
-  raw_clp_segment jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  archived_at timestamptz null
-);
-
-create table if not exists public.era_service_line_payments (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  era_claim_payment_id uuid not null,
-  claim_id uuid null,
-  claim_service_line_id uuid null,
-  service_line_number integer null,
-  cpt_hcpcs_code text null,
-  modifiers text[] null,
-  charge_amount numeric null,
-  paid_amount numeric null,
-  allowed_amount numeric null,
-  units numeric null,
-  service_date date null,
-  raw_svc_segment jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  archived_at timestamptz null
-);
-
-create table if not exists public.era_adjustments (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  era_claim_payment_id uuid null,
-  era_service_line_payment_id uuid null,
-  claim_id uuid null,
-  adjustment_scope text not null check (adjustment_scope in ('claim', 'service_line')),
-  group_code text null,
-  reason_code text null,
-  reason_description text null,
-  amount numeric null,
-  quantity numeric null,
-  remark_codes text[] null,
-  created_at timestamptz not null default now(),
-  archived_at timestamptz null
-);
+-- NOTE: The 835/ERA tables (era_claim_payments, era_service_line_payments,
+-- era_adjustments) were originally drafted here with a `claim_id`-keyed
+-- narrow shape. That draft was superseded by the canonical 835 redesign in
+-- `20260511190000_era_835_foundation.sql`, which uses `professional_claim_id`
+-- + `clp01_*..clp05_*` columns and introduces `era_posting_ledger_entries`
+-- in place of the per-line / adjustment side tables. Subsequent migrations
+-- (`20260515000000_ehr_billing_foundation.sql`,
+--  `20260524000000_payment_posting_reversal_refunds.sql`,
+--  `20260524010000_payment_bulk_action_columns.sql`) layer on the CARC/RARC,
+-- check-tracking, lifecycle (reversed/voided), and bulk-action columns that
+-- make up the production shape. To keep `supabase db push` reproducing the
+-- canonical schema on a fresh DB — and to stop drift between repo and live —
+-- the original create-tables / indexes / RLS / policies for these three
+-- tables have been removed from this migration. The `drop table … cascade`
+-- statements at the top of `20260511190000_era_835_foundation.sql` continue
+-- to clean up any legacy rows on databases that did apply the early draft.
 
 create index if not exists idx_clearinghouse_health_checks_vendor_endpoint_checked
   on public.clearinghouse_health_checks (vendor, endpoint_name, checked_at desc);
@@ -210,26 +165,15 @@ create index if not exists idx_claim_status_response_lines_claim_inquiry
   on public.claim_status_response_lines (claim_id, claim_status_inquiry_id, created_at desc)
   where archived_at is null;
 
-create index if not exists idx_era_claim_payments_org_claim_trace
-  on public.era_claim_payments (organization_id, claim_id, trace_number, created_at desc)
-  where archived_at is null;
-
-create index if not exists idx_era_service_line_payments_claim_payment
-  on public.era_service_line_payments (claim_id, era_claim_payment_id)
-  where archived_at is null;
-
-create index if not exists idx_era_adjustments_claim_reason
-  on public.era_adjustments (claim_id, reason_code, group_code)
-  where archived_at is null;
+-- ERA indexes (era_claim_payments / era_service_line_payments / era_adjustments)
+-- intentionally omitted — see the canonical 835 redesign in
+-- `20260511190000_era_835_foundation.sql`.
 
 alter table public.clearinghouse_health_checks enable row level security;
 alter table public.clearinghouse_api_requests enable row level security;
 alter table public.edi_acknowledgments enable row level security;
 alter table public.eligibility_benefit_segments enable row level security;
 alter table public.claim_status_response_lines enable row level security;
-alter table public.era_claim_payments enable row level security;
-alter table public.era_service_line_payments enable row level security;
-alter table public.era_adjustments enable row level security;
 
 -- Service role bypasses RLS. Authenticated org policies are included for future UI reads.
 drop policy if exists clearinghouse_api_requests_org_policy on public.clearinghouse_api_requests;
@@ -256,20 +200,6 @@ create policy claim_status_response_lines_org_policy on public.claim_status_resp
   using (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''))
   with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
 
-drop policy if exists era_claim_payments_org_policy on public.era_claim_payments;
-create policy era_claim_payments_org_policy on public.era_claim_payments
-  for all to authenticated
-  using (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''))
-  with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
-
-drop policy if exists era_service_line_payments_org_policy on public.era_service_line_payments;
-create policy era_service_line_payments_org_policy on public.era_service_line_payments
-  for all to authenticated
-  using (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''))
-  with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
-
-drop policy if exists era_adjustments_org_policy on public.era_adjustments;
-create policy era_adjustments_org_policy on public.era_adjustments
-  for all to authenticated
-  using (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''))
-  with check (organization_id::text = coalesce(auth.jwt() ->> 'organization_id', auth.jwt() -> 'app_metadata' ->> 'organization_id', ''));
+-- ERA RLS policies (era_claim_payments / era_service_line_payments /
+-- era_adjustments) intentionally omitted — the canonical 835 redesign in
+-- `20260511190000_era_835_foundation.sql` owns those tables and policies.
