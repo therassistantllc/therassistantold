@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { rebuild837PForRejection } from "@/lib/claims/rebuild837pForRejection";
 
 type DbRow = Record<string, any>;
 
@@ -165,16 +166,69 @@ export async function POST(request: Request) {
     }
 
     if (action === "resubmit" || action === "rebuild_837") {
-      if (claimId) {
-        const { error: claimErr } = await (supabase as any)
-          .from("professional_claims")
-          .update({ claim_status: "ready_for_batch", updated_at: now })
-          .eq("organization_id", organizationId)
-          .eq("id", claimId);
-        if (claimErr) throw claimErr;
+      if (!claimId) {
+        return NextResponse.json(
+          { success: false, error: "Workqueue item has no linked claim to rebuild" },
+          { status: 422 },
+        );
       }
 
-      const resolved = action === "resubmit";
+      const submit = action === "resubmit";
+      const rebuildResult = await rebuild837PForRejection({
+        organizationId,
+        claimId,
+        submit,
+      });
+
+      // Failure — surface the underlying reason as a comment and leave the item open.
+      if (!rebuildResult.ok) {
+        const stageLabel =
+          rebuildResult.stage === "validation"
+            ? "validation"
+            : rebuildResult.stage === "submission"
+              ? "transmission"
+              : rebuildResult.stage === "build"
+                ? "build"
+                : rebuildResult.stage === "persistence"
+                  ? "persistence"
+                  : "lookup";
+
+        const commentBody =
+          (submit
+            ? `Resubmit blocked at ${stageLabel}: ${rebuildResult.message}`
+            : `837P rebuild blocked at ${stageLabel}: ${rebuildResult.message}`) +
+          (rebuildResult.batchId ? ` (batch ${rebuildResult.batchId})` : "");
+
+        const { error: failUpdErr } = await (supabase as any)
+          .from("workqueue_items")
+          .update({ status: "in_progress", updated_at: now })
+          .eq("organization_id", organizationId)
+          .eq("id", workqueueItemId);
+        if (failUpdErr) throw failUpdErr;
+
+        await addComment(supabase, {
+          organizationId,
+          workqueueItemId,
+          body: commentBody,
+          type: "status_change",
+          userId,
+        });
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: rebuildResult.message,
+            stage: rebuildResult.stage,
+            batchId: rebuildResult.batchId,
+            patch: { status: "in_progress" },
+          },
+          { status: rebuildResult.stage === "submission" ? 502 : 422 },
+        );
+      }
+
+      // Success — for rebuild_837 we leave the item in_progress so the biller can
+      // still inspect / submit; for resubmit we close the item.
+      const resolved = submit && rebuildResult.submitted;
       const { error: updErr } = await (supabase as any)
         .from("workqueue_items")
         .update({
@@ -186,22 +240,30 @@ export async function POST(request: Request) {
         .eq("id", workqueueItemId);
       if (updErr) throw updErr;
 
+      const successBody = resolved
+        ? `Resubmitted to Availity (batch ${rebuildResult.batchId}, file ${rebuildResult.fileName}${
+            rebuildResult.availityTransactionId
+              ? `, txn ${rebuildResult.availityTransactionId}`
+              : ""
+          }).`
+        : `Rebuilt fresh 837P (batch ${rebuildResult.batchId}, file ${rebuildResult.fileName}). Ready to transmit.`;
       await addComment(supabase, {
         organizationId,
         workqueueItemId,
-        body:
-          action === "resubmit"
-            ? "Claim queued for resubmission (status reset to ready_for_batch)."
-            : "Claim queued for 837P rebuild (status reset to ready_for_batch).",
+        body: successBody,
         type: resolved ? "resolution" : "status_change",
         userId,
       });
 
       return NextResponse.json({
         success: true,
+        batchId: rebuildResult.batchId,
+        fileName: rebuildResult.fileName,
+        availityTransactionId: rebuildResult.availityTransactionId,
+        warnings: rebuildResult.warnings,
         patch: {
           status: resolved ? "resolved" : "in_progress",
-          claimStatus: claimId ? "ready_for_batch" : undefined,
+          claimStatus: resolved ? "submitted" : "batched",
         },
         removeFromQueue: resolved,
       });
