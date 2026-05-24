@@ -5,6 +5,10 @@ import { requireAuthenticatedStaff } from "@/lib/rbac/auth";
 
 type PostBody = {
   organizationId?: string;
+  // When the priority slot is already occupied by a different active
+  // policy, set this true to archive the old one and insert the new one.
+  // The UI uses this to satisfy the "Replace existing primary?" prompt.
+  replaceExistingPriority?: boolean;
   priority?: "primary" | "secondary" | "tertiary";
   payerId?: string;
   planName?: string | null;
@@ -207,13 +211,37 @@ export async function POST(
           reused: true,
         });
       }
-      return NextResponse.json(
-        {
-          success: false,
-          error: `This patient already has a different ${priority} insurance on file (${existingActive.plan_name ?? "policy"} #${existingActive.policy_number ?? "—"}). Archive it first, or save this one under a different priority.`,
-        },
-        { status: 409 },
-      );
+      if (body.replaceExistingPriority) {
+        // Archive the old policy so the new one can take the priority
+        // slot. We do NOT delete — the old policy may still be referenced
+        // by historical claims/eligibility and case_policies attachments
+        // for older cases. Soft-archive preserves history.
+        const nowIso = new Date().toISOString();
+        const { error: archErr } = await supabase
+          .from("insurance_policies")
+          .update({ archived_at: nowIso, active_flag: false })
+          .eq("id", existingActive.id);
+        if (archErr) {
+          return NextResponse.json(
+            { success: false, error: `Failed to archive existing ${priority} policy: ${archErr.message}` },
+            { status: 500 },
+          );
+        }
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `This patient already has a different ${priority} insurance on file (${existingActive.plan_name ?? "policy"} #${existingActive.policy_number ?? "—"}). Archive it first, or save this one under a different priority.`,
+            conflict: {
+              priority,
+              existingPolicyId: String(existingActive.id),
+              existingPlanName: existingActive.plan_name ?? null,
+              existingPolicyNumber: existingActive.policy_number ?? null,
+            },
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // insurance_subscribers has no client_id column; subscribers are scoped

@@ -315,12 +315,36 @@ export default function CasesPanel({
         (a, b) => PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority),
       );
       for (const staged of ordered) {
-        const polRes = await fetch(`/api/clients/${clientId}/policies`, {
+        let polRes = await fetch(`/api/clients/${clientId}/policies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ organizationId, priority: staged.priority, ...staged.fields }),
         });
-        const polJson = await polRes.json().catch(() => ({}));
+        let polJson = await polRes.json().catch(() => ({}));
+        // 409 = the priority slot is occupied by a different active policy.
+        // Offer to archive the old one and retry, instead of forcing the
+        // user to manually find and archive it elsewhere first.
+        if (polRes.status === 409 && polJson?.conflict) {
+          const c = polJson.conflict;
+          const proceed =
+            typeof window !== "undefined" &&
+            window.confirm(
+              `This patient already has a different ${c.priority} insurance on file (${c.existingPlanName ?? "policy"} #${c.existingPolicyNumber ?? "—"}).\n\nReplace it with the new ${c.priority} insurance? The old one will be archived (kept for history, not deleted).`,
+            );
+          if (proceed) {
+            polRes = await fetch(`/api/clients/${clientId}/policies`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                organizationId,
+                priority: staged.priority,
+                replaceExistingPriority: true,
+                ...staged.fields,
+              }),
+            });
+            polJson = await polRes.json().catch(() => ({}));
+          }
+        }
         if (!polRes.ok || !polJson.success) {
           const r = await rollback();
           throw new Error(
