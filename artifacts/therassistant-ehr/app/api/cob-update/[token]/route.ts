@@ -252,7 +252,12 @@ export async function POST(
     const hasOtherCoverage = payload.hasOtherCoverage === true;
     const otherCoverageNote = value(payload.otherCoverageNote).slice(0, 1000);
     const signatureName = value(payload.signatureName);
-    const cardSanitized = sanitizeCard(payload.cardPhoto);
+    // Accept both the new front/back fields and the legacy single
+    // cardPhoto field so an older client that didn't ship the camera
+    // capture UI still works.
+    const cardFrontSanitized =
+      sanitizeCard(payload.cardPhotoFront) ?? sanitizeCard(payload.cardPhoto);
+    const cardBackSanitized = sanitizeCard(payload.cardPhotoBack);
 
     if (!signatureName) {
       return NextResponse.json(
@@ -289,7 +294,9 @@ export async function POST(
           hasOtherCoverage,
           otherCoverageNote,
           signatureName,
-          cardUploaded: !!cardSanitized,
+          cardUploaded: !!cardFrontSanitized || !!cardBackSanitized,
+          cardFrontUploaded: !!cardFrontSanitized,
+          cardBackUploaded: !!cardBackSanitized,
         },
       })
       .eq("id", linkId)
@@ -378,25 +385,39 @@ export async function POST(
       }
     }
 
-    // Optional card photo — uploaded after the link is claimed so a
+    // Optional card photos — uploaded after the link is claimed so a
     // failed submit never leaves an orphaned blob in storage. We
     // intentionally do not create a new policy from a card image; the
     // photo lives in storage for the biller to review in the chart.
-    let storedCard: { bucket: string; path: string } | null = null;
-    if (cardSanitized) {
-      const objectPath = `${organizationId}/${clientId}/cob-update-${linkId}.${cardSanitized.extension}`;
+    async function uploadSide(
+      sideLabel: "front" | "back",
+      sanitized: SanitizedCard | null,
+    ): Promise<{ bucket: string; path: string } | null> {
+      if (!sanitized) return null;
+      const objectPath = `${organizationId}/${clientId}/cob-update-${linkId}-${sideLabel}.${sanitized.extension}`;
       const { error: uploadErr } = await supabase!.storage
         .from(CARD_BUCKET)
-        .upload(objectPath, cardSanitized.bytes, {
-          contentType: cardSanitized.contentType,
+        .upload(objectPath, sanitized.bytes, {
+          contentType: sanitized.contentType,
           upsert: true,
         });
       if (uploadErr) {
-        console.error("COB update card upload failed:", uploadErr.message);
-      } else {
-        storedCard = { bucket: CARD_BUCKET, path: objectPath };
+        console.error(
+          `COB update card upload failed (${sideLabel}):`,
+          uploadErr.message,
+        );
+        return null;
       }
+      return { bucket: CARD_BUCKET, path: objectPath };
     }
+    const [storedCardFront, storedCardBack] = await Promise.all([
+      uploadSide("front", cardFrontSanitized),
+      uploadSide("back", cardBackSanitized),
+    ]);
+    // Keep the legacy `card_photo` field populated with the front (or
+    // back if only the back was provided) so existing readers in the
+    // patient chart don't lose data.
+    const storedCard = storedCardFront ?? storedCardBack;
 
     // Audit row → COB queue reducer flips claim state to "resolved".
     const { data: claimRow } = await (supabase as any)
@@ -420,6 +441,8 @@ export async function POST(
           other_coverage_note: otherCoverageNote || null,
           signature_name: signatureName,
           card_photo: storedCard,
+          card_photo_front: storedCardFront,
+          card_photo_back: storedCardBack,
         },
         user_id: null,
         action: "cob_client_update_received",

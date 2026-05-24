@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
 } from "react";
@@ -51,7 +52,7 @@ function formatDate(value: string | null) {
   return d.toLocaleDateString();
 }
 
-async function fileToDataUrl(file: File): Promise<string> {
+async function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ""));
@@ -60,14 +61,90 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+const MAX_CARD_EDGE = 1600;
+const CARD_JPEG_QUALITY = 0.82;
+
+/**
+ * Decode the file with EXIF auto-orientation applied, downscale so the
+ * longest edge is <= MAX_CARD_EDGE, and re-encode as a JPEG so the
+ * upload is small enough to survive flaky mobile networks. Falls back
+ * to the raw file if the browser can't decode it (e.g. HEIC on some
+ * Androids — server-side sanitizer will reject those anyway).
+ */
+async function normalizeCardImage(
+  file: File,
+): Promise<{ blob: Blob; dataUrl: string }> {
+  try {
+    let bitmap: ImageBitmap | null = null;
+    if (typeof createImageBitmap === "function") {
+      try {
+        bitmap = await createImageBitmap(file, {
+          imageOrientation: "from-image",
+        });
+      } catch {
+        bitmap = await createImageBitmap(file);
+      }
+    }
+    if (!bitmap) throw new Error("no-bitmap");
+
+    const { width, height } = bitmap;
+    const longest = Math.max(width, height);
+    const scale = longest > MAX_CARD_EDGE ? MAX_CARD_EDGE / longest : 1;
+    const targetW = Math.max(1, Math.round(width * scale));
+    const targetH = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no-ctx");
+    ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+    bitmap.close?.();
+
+    const blob: Blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+        "image/jpeg",
+        CARD_JPEG_QUALITY,
+      );
+    });
+    const dataUrl = await fileToDataUrl(blob);
+    return { blob, dataUrl };
+  } catch {
+    const dataUrl = await fileToDataUrl(file);
+    return { blob: file, dataUrl };
+  }
+}
+
+type CardSide = {
+  blob: Blob;
+  dataUrl: string;
+  contentType: string;
+};
+
+async function blobToUploadPayload(
+  side: CardSide,
+  fileName: string,
+): Promise<{ name: string; type: string; content: string }> {
+  return {
+    name: fileName,
+    type: side.contentType,
+    content: side.dataUrl,
+  };
+}
+
 export default function CobUpdateClient({ token }: { token: string }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [hasOtherCoverage, setHasOtherCoverage] = useState<"" | "yes" | "no">("");
   const [otherCoverageNote, setOtherCoverageNote] = useState("");
   const [signatureName, setSignatureName] = useState("");
-  const [cardFile, setCardFile] = useState<File | null>(null);
-  const [cardPreview, setCardPreview] = useState<string | null>(null);
+  const [cardFront, setCardFront] = useState<CardSide | null>(null);
+  const [cardBack, setCardBack] = useState<CardSide | null>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [processingSide, setProcessingSide] = useState<"front" | "back" | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,19 +207,39 @@ export default function CobUpdateClient({ token }: { token: string }) {
     });
   }, []);
 
-  const onCardChange = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setCardFile(file);
-    if (!file) {
-      setCardPreview(null);
-      return;
-    }
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setCardPreview(dataUrl);
-    } catch {
-      setCardPreview(null);
-    }
+  const onCardSideChange = useCallback(
+    async (side: "front" | "back", e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] ?? null;
+      // Reset the input so re-selecting the same file still fires change.
+      e.target.value = "";
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setCardError("That doesn't look like an image. Please choose a photo.");
+        return;
+      }
+      setCardError(null);
+      setProcessingSide(side);
+      try {
+        const { blob, dataUrl } = await normalizeCardImage(file);
+        const next: CardSide = {
+          blob,
+          dataUrl,
+          contentType: "image/jpeg",
+        };
+        if (side === "front") setCardFront(next);
+        else setCardBack(next);
+      } catch {
+        setCardError("We couldn't read that photo. Please try again.");
+      } finally {
+        setProcessingSide(null);
+      }
+    },
+    [],
+  );
+
+  const clearCardSide = useCallback((side: "front" | "back") => {
+    if (side === "front") setCardFront(null);
+    else setCardBack(null);
   }, []);
 
   const onSubmit = useCallback(async () => {
@@ -158,11 +255,12 @@ export default function CobUpdateClient({ token }: { token: string }) {
     }
     setSubmitting(true);
     try {
-      let cardPhoto: { name: string; type: string; content: string } | null = null;
-      if (cardFile) {
-        const content = await fileToDataUrl(cardFile);
-        cardPhoto = { name: cardFile.name, type: cardFile.type, content };
-      }
+      const cardPhotoFront = cardFront
+        ? await blobToUploadPayload(cardFront, "insurance-card-front.jpg")
+        : null;
+      const cardPhotoBack = cardBack
+        ? await blobToUploadPayload(cardBack, "insurance-card-back.jpg")
+        : null;
       const res = await fetch(`/api/cob-update/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,7 +269,12 @@ export default function CobUpdateClient({ token }: { token: string }) {
           hasOtherCoverage: hasOtherCoverage === "yes",
           otherCoverageNote: otherCoverageNote.trim(),
           signatureName: signatureName.trim(),
-          cardPhoto,
+          cardPhotoFront,
+          cardPhotoBack,
+          // Back-compat: older API revisions only knew about a single
+          // cardPhoto field. Send the front as cardPhoto so a stale
+          // server still captures something.
+          cardPhoto: cardPhotoFront,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -193,7 +296,8 @@ export default function CobUpdateClient({ token }: { token: string }) {
     hasOtherCoverage,
     otherCoverageNote,
     orderedIds,
-    cardFile,
+    cardFront,
+    cardBack,
     token,
   ]);
 
@@ -365,17 +469,39 @@ export default function CobUpdateClient({ token }: { token: string }) {
         ) : null}
       </Section>
 
-      <Section title="3. (Optional) Upload a photo of your insurance card">
-        <input type="file" accept="image/*" onChange={onCardChange} />
-        {cardPreview ? (
-          <div style={{ marginTop: 8 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cardPreview}
-              alt="Insurance card preview"
-              style={{ maxWidth: 320, borderRadius: 6, border: "1px solid #e2e8f0" }}
-            />
-          </div>
+      <Section title="3. (Optional) Take a photo of your insurance card">
+        <p style={{ fontSize: 13, color: "#475569", margin: "0 0 12px" }}>
+          Hold the card flat against a dark background. Your phone camera
+          opens automatically — snap the front, then the back.
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+          }}
+        >
+          <CardSideCapture
+            label="Front of card"
+            side="front"
+            value={cardFront}
+            processing={processingSide === "front"}
+            onChange={onCardSideChange}
+            onClear={() => clearCardSide("front")}
+          />
+          <CardSideCapture
+            label="Back of card"
+            side="back"
+            value={cardBack}
+            processing={processingSide === "back"}
+            onChange={onCardSideChange}
+            onClear={() => clearCardSide("back")}
+          />
+        </div>
+        {cardError ? (
+          <p style={{ color: "#b91c1c", fontSize: 13, marginTop: 8 }}>
+            {cardError}
+          </p>
         ) : null}
       </Section>
 
@@ -435,6 +561,158 @@ export default function CobUpdateClient({ token }: { token: string }) {
         {submitting ? "Sending…" : "Send to my care team"}
       </button>
     </Shell>
+  );
+}
+
+function CardSideCapture({
+  label,
+  side,
+  value,
+  processing,
+  onChange,
+  onClear,
+}: {
+  label: string;
+  side: "front" | "back";
+  value: CardSide | null;
+  processing: boolean;
+  onChange: (
+    side: "front" | "back",
+    e: ChangeEvent<HTMLInputElement>,
+  ) => void | Promise<void>;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputId = `card-${side}`;
+  const openPicker = () => inputRef.current?.click();
+  const hasImage = !!value;
+  return (
+    <div
+      style={{
+        border: "1px dashed #cbd5e1",
+        borderRadius: 10,
+        padding: 12,
+        background: "#f8fafc",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        minHeight: 180,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <label
+          htmlFor={inputId}
+          style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}
+        >
+          {label}
+        </label>
+        {hasImage ? (
+          <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>
+            ✓ Captured
+          </span>
+        ) : null}
+      </div>
+
+      {hasImage ? (
+        <div
+          style={{
+            background: "white",
+            borderRadius: 8,
+            padding: 6,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={value!.dataUrl}
+            alt={`Insurance card ${side}`}
+            style={{
+              maxWidth: "100%",
+              maxHeight: 180,
+              borderRadius: 4,
+              objectFit: "contain",
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#94a3b8",
+            fontSize: 13,
+            textAlign: "center",
+            padding: 12,
+          }}
+        >
+          {processing ? "Processing photo…" : "No photo yet"}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => void onChange(side, e)}
+        style={{ display: "none" }}
+      />
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={openPicker}
+          disabled={processing}
+          style={{
+            flex: 1,
+            minWidth: 120,
+            padding: "10px 12px",
+            background: hasImage ? "white" : "#2563eb",
+            color: hasImage ? "#0f172a" : "white",
+            border: hasImage ? "1px solid #cbd5e1" : "none",
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: processing ? "wait" : "pointer",
+          }}
+        >
+          {processing
+            ? "Working…"
+            : hasImage
+              ? "Retake photo"
+              : `Take photo of ${side}`}
+        </button>
+        {hasImage ? (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={processing}
+            style={{
+              padding: "10px 12px",
+              background: "white",
+              color: "#b91c1c",
+              border: "1px solid #fecaca",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
