@@ -386,13 +386,10 @@ export async function POST(
       claimId: id,
       action,
       summary,
-<<<<<<< HEAD
       clientUpdate,
-=======
       ...(metadata.child_claim_id
         ? { childClaimId: metadata.child_claim_id }
         : {}),
->>>>>>> 3291d0b (COB Issues: wire "Bill secondary" / "Bill primary" actions to real claim mutations)
     });
   } catch (error) {
     console.error("COB Issues action error:", error);

@@ -229,31 +229,47 @@ export async function POST(request: Request) {
     }
 
     // ── attach_documents ───────────────────────────────────────────────────
+    // Real file uploads now go through
+    // POST /api/billing/appeals/[appealId]/documents, which inserts rows
+    // into public.claim_appeal_documents and refreshes attachments_count.
+    // This endpoint is kept as a thin helper that:
+    //   • ensures a claim_appeals row exists (so the upload route has an
+    //     appealId to scope to), and
+    //   • optionally writes a free-text audit note.
     if (action === "attach_documents") {
-      const delta = Math.max(1, Number(body.delta ?? 1) || 1);
-      const note = text(body.note) || `Attached ${delta} document(s) to appeal packet.`;
+      const note = text(body.note);
       const existing = await loadOrCreateAppeal(supabase as any, {
         organizationId,
         claimId,
         seedStatus: "draft_ready",
       });
-      const next = Number(existing.attachments_count ?? 0) + delta;
-      const { data: updated, error } = await (supabase as any)
-        .from("claim_appeals")
-        .update({ attachments_count: next, updated_at: now })
+      // Re-derive count from real documents so the patch reflects truth.
+      const { count } = await (supabase as any)
+        .from("claim_appeal_documents")
+        .select("id", { count: "exact", head: true })
         .eq("organization_id", organizationId)
-        .eq("id", text(existing.id))
-        .select("*")
-        .single();
-      if (error) throw error;
-      await addClaimNote(supabase as any, {
-        organizationId,
-        claimId,
-        body: note,
-        userId,
-        authorDisplayName: authorDisplay,
+        .eq("appeal_id", text(existing.id));
+      const liveCount = Number(count ?? 0);
+      if (Number(existing.attachments_count ?? -1) !== liveCount) {
+        await (supabase as any)
+          .from("claim_appeals")
+          .update({ attachments_count: liveCount, updated_at: now })
+          .eq("organization_id", organizationId)
+          .eq("id", text(existing.id));
+      }
+      if (note) {
+        await addClaimNote(supabase as any, {
+          organizationId,
+          claimId,
+          body: note,
+          userId,
+          authorDisplayName: authorDisplay,
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        patch: buildRowPatch(existing as DbRow, { attachmentsCount: liveCount }),
       });
-      return NextResponse.json({ success: true, patch: buildRowPatch(updated as DbRow) });
     }
 
     // ── submit ─────────────────────────────────────────────────────────────

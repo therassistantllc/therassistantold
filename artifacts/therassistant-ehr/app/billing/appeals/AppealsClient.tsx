@@ -522,47 +522,220 @@ function SubmitAppealModal({
   );
 }
 
+interface AppealDocument {
+  id: string;
+  appealId: string;
+  claimId: string;
+  fileName: string;
+  mimeType: string | null;
+  fileSizeBytes: number | null;
+  description: string | null;
+  uploadedByDisplayName: string | null;
+  uploadedAt: string | null;
+}
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function fetchAppealDocuments(
+  appealId: string,
+  organizationId: string,
+): Promise<AppealDocument[]> {
+  const params = new URLSearchParams({ organizationId });
+  const res = await fetch(
+    `/api/billing/appeals/${encodeURIComponent(appealId)}/documents?${params.toString()}`,
+    { cache: "no-store" },
+  );
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json?.success) return [];
+  return (json.documents ?? []) as AppealDocument[];
+}
+
 function AttachModal({
   row, organizationId, onClose, onDone,
 }: {
   row: Row; organizationId: string;
   onClose: () => void; onDone: (patch: Partial<Row>, msg: string) => void;
 }) {
-  const [note, setNote] = useState("");
-  const [count, setCount] = useState("1");
+  const [description, setDescription] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [existing, setExisting] = useState<AppealDocument[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (row.appealId) {
+      void fetchAppealDocuments(row.appealId, organizationId).then((docs) => {
+        if (alive) setExisting(docs);
+      });
+    } else {
+      setExisting([]);
+    }
+    return () => { alive = false; };
+  }, [row.appealId, organizationId]);
+
+  async function ensureAppealId(): Promise<string | null> {
+    if (row.appealId) return row.appealId;
+    // No appeal row yet — seed one through the action endpoint (it
+    // upserts a draft_ready row scoped to the claim) and reuse its id.
+    const r = await callAction({
+      action: "attach_documents",
+      organizationId,
+      claimId: row.claimId,
+      delta: 0,
+      note: "Seeded appeal record for document upload.",
+    });
+    if (!r.success) { setErr(r.error ?? "Could not create appeal record"); return null; }
+    const seededId = (r.patch && (r.patch as Partial<Row>).appealId) || null;
+    if (seededId) onDone({ appealId: seededId, ...(r.patch ?? {}) }, "Appeal record created");
+    return seededId;
+  }
+
+  async function handleUpload() {
+    if (files.length === 0) { setErr("Pick at least one file to upload."); return; }
+    setBusy(true); setErr(null);
+    const appealId = await ensureAppealId();
+    if (!appealId) { setBusy(false); return; }
+
+    let latestCount = row.attachmentsCount;
+    let firstErr: string | null = null;
+    for (const f of files) {
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("organizationId", organizationId);
+      if (description) fd.append("description", description);
+      const res = await fetch(
+        `/api/billing/appeals/${encodeURIComponent(appealId)}/documents`,
+        { method: "POST", body: fd },
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.success) {
+        firstErr = firstErr ?? (json?.error || `Upload failed (${res.status})`);
+        continue;
+      }
+      if (typeof json.attachmentsCount === "number") {
+        latestCount = json.attachmentsCount;
+      }
+    }
+    setBusy(false);
+    if (firstErr && latestCount === row.attachmentsCount) {
+      setErr(firstErr);
+      return;
+    }
+    onDone(
+      { appealId, attachmentsCount: latestCount },
+      firstErr ? `Some uploads failed: ${firstErr}` : `Uploaded ${files.length} file(s)`,
+    );
+    onClose();
+  }
+
+  async function handleDelete(doc: AppealDocument) {
+    if (!confirm(`Remove "${doc.fileName}" from this appeal?`)) return;
+    const res = await fetch(
+      `/api/billing/appeals/${encodeURIComponent(doc.appealId)}/documents/${encodeURIComponent(doc.id)}?organizationId=${encodeURIComponent(organizationId)}`,
+      { method: "DELETE" },
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.success) {
+      setErr(json?.error || `Delete failed (${res.status})`);
+      return;
+    }
+    setExisting((prev) => (prev ?? []).filter((d) => d.id !== doc.id));
+    onDone({ attachmentsCount: json.attachmentsCount ?? Math.max(0, row.attachmentsCount - 1) }, "Document removed");
+  }
+
   return (
-    <ModalShell title={`Attach documents — ${row.claimNumber}`} onClose={onClose}>
+    <ModalShell title={`Attach documents — ${row.claimNumber}`} onClose={onClose} width={640}>
       <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 12px" }}>
-        Records which clinical / supporting documents are part of this appeal packet. Upload
-        the files in the Documents area then log them here for the audit trail.
+        Upload supporting documents (treatment plans, progress notes, prior-auth letters, etc.)
+        for this appeal packet. Files are stored against the appeal and downloadable from the
+        Attachments tab.
       </p>
-      <label style={fieldLabel}>How many documents?</label>
-      <input type="number" min={1} style={fieldInput} value={count} onChange={(e) => setCount(e.target.value)} />
-      <label style={{ ...fieldLabel, marginTop: 12 }}>Description</label>
-      <textarea style={{ ...fieldInput, minHeight: 80 }} value={note} onChange={(e) => setNote(e.target.value)}
-        placeholder="e.g. Treatment plan, two progress notes, prior auth letter" />
+
+      <label style={fieldLabel}>Files</label>
+      <input
+        type="file"
+        multiple
+        onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+        style={fieldInput}
+        disabled={busy}
+      />
+      {files.length > 0 ? (
+        <ul style={{ fontSize: 12, color: "#475569", margin: "6px 0 0 16px" }}>
+          {files.map((f) => (
+            <li key={f.name + f.size}>{f.name} <span style={{ color: "#94A3B8" }}>({formatBytes(f.size)})</span></li>
+          ))}
+        </ul>
+      ) : null}
+
+      <label style={{ ...fieldLabel, marginTop: 12 }}>Description (optional)</label>
+      <textarea
+        style={{ ...fieldInput, minHeight: 60 }}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="e.g. Treatment plan + progress notes for 03/01–03/15"
+        disabled={busy}
+      />
+
+      {existing && existing.length > 0 ? (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Already attached ({existing.length})
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid #E2E8F0", borderRadius: 4 }}>
+            {existing.map((d) => (
+              <li key={d.id} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "8px 10px", borderBottom: "1px solid #F1F5F9", fontSize: 12,
+              }}>
+                <div style={{ minWidth: 0, flex: 1, marginRight: 8 }}>
+                  <a
+                    href={`/api/billing/appeals/${encodeURIComponent(d.appealId)}/documents/${encodeURIComponent(d.id)}/file?organizationId=${encodeURIComponent(organizationId)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: "#1D4ED8", fontWeight: 500 }}
+                  >
+                    {d.fileName}
+                  </a>
+                  <div style={{ color: "#64748B" }}>
+                    {formatBytes(d.fileSizeBytes)}
+                    {d.uploadedAt ? ` · ${new Date(d.uploadedAt).toLocaleString()}` : ""}
+                    {d.description ? ` · ${d.description}` : ""}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(d)}
+                  style={{ ...secondaryBtn, color: "#B91C1C", borderColor: "#FCA5A5", padding: "2px 8px" }}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : existing && existing.length === 0 ? (
+        <div style={{ marginTop: 12, color: "#94A3B8", fontSize: 12 }}>
+          No documents attached to this appeal yet.
+        </div>
+      ) : null}
+
       {err ? <div style={{ color: "#B91C1C", fontSize: 12, marginTop: 8 }}>{err}</div> : null}
+
       <div style={btnRow}>
-        <button type="button" style={secondaryBtn} onClick={onClose}>Cancel</button>
-        <button type="button" style={primaryBtn} disabled={busy}
-          onClick={async () => {
-            setBusy(true); setErr(null);
-            const delta = Math.max(1, Number(count) || 1);
-            const r = await callAction({
-              action: "attach_documents",
-              organizationId,
-              claimId: row.claimId,
-              delta,
-              note: note || `Attached ${delta} document(s) to appeal packet.`,
-            });
-            setBusy(false);
-            if (!r.success) { setErr(r.error ?? "Failed"); return; }
-            onDone(r.patch ?? {}, "Attachments recorded");
-            onClose();
-          }}>
-          {busy ? "Saving…" : "Attach"}
+        <button type="button" style={secondaryBtn} onClick={onClose} disabled={busy}>Close</button>
+        <button
+          type="button"
+          style={primaryBtn}
+          disabled={busy || files.length === 0}
+          onClick={() => void handleUpload()}
+        >
+          {busy ? "Uploading…" : `Upload ${files.length || ""}`.trim()}
         </button>
       </div>
     </ModalShell>
@@ -599,6 +772,7 @@ export default function AppealsClient() {
   const [resolveRow, setResolveRow] = useState<Row | null>(null);
   const [attachRow, setAttachRow] = useState<Row | null>(null);
   const [submitRow, setSubmitRow] = useState<Row | null>(null);
+  const [docsByAppeal, setDocsByAppeal] = useState<Record<string, AppealDocument[]>>({});
 
   const load = useCallback(async () => {
     if (!organizationId) return;
@@ -627,6 +801,18 @@ export default function AppealsClient() {
   }, [organizationId, activeTab, filterValues]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const refreshAppealDocs = useCallback(async (appealId: string) => {
+    const docs = await fetchAppealDocuments(appealId, organizationId);
+    setDocsByAppeal((prev) => ({ ...prev, [appealId]: docs }));
+  }, [organizationId]);
+
+  useEffect(() => {
+    const sel = rows.find((r) => r.id === selectedRowId);
+    if (!sel || !sel.appealId) return;
+    if (docsByAppeal[sel.appealId]) return;
+    void refreshAppealDocs(sel.appealId);
+  }, [selectedRowId, rows, docsByAppeal, refreshAppealDocs]);
 
   function patchRowById(rowId: string, patch: Partial<Row>) {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
@@ -947,7 +1133,7 @@ export default function AppealsClient() {
               style={primaryBtn}
               onClick={() => setAttachRow(selectedRow)}
             >
-              Log attached documents
+              Upload documents
             </button>
           </div>
         );
@@ -1004,21 +1190,56 @@ export default function AppealsClient() {
       label: "Attachments",
       render: () => {
         if (!selectedRow) return null;
+        const docs = selectedRow.appealId ? (docsByAppeal[selectedRow.appealId] ?? null) : [];
         return (
           <div style={{ fontSize: 13 }}>
-            <DetailKV label="Documents attached" value={`${selectedRow.attachmentsCount} (audit only)`} />
-            <p style={{ color: "#64748B", marginTop: 8 }}>
-              File uploads route through the patient&apos;s Documents tab; logging here
-              records that they belong to this appeal packet.
-            </p>
-            <button type="button" style={primaryBtn} onClick={() => setAttachRow(selectedRow)}>
-              Attach documents
-            </button>
+            <DetailKV label="Documents attached" value={`${selectedRow.attachmentsCount} file(s)`} />
+            <div style={{ marginTop: 12 }}>
+              {docs === null ? (
+                <div style={{ color: "#94A3B8" }}>Loading documents…</div>
+              ) : docs.length === 0 ? (
+                <div style={{ color: "#94A3B8" }}>
+                  No documents uploaded yet. Click below to add treatment plans, progress notes,
+                  prior-auth letters, etc.
+                </div>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid #E2E8F0", borderRadius: 4 }}>
+                  {docs.map((d) => (
+                    <li key={d.id} style={{
+                      padding: "8px 10px", borderBottom: "1px solid #F1F5F9",
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
+                    }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <a
+                          href={`/api/billing/appeals/${encodeURIComponent(d.appealId)}/documents/${encodeURIComponent(d.id)}/file?organizationId=${encodeURIComponent(organizationId)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "#1D4ED8", fontWeight: 500 }}
+                        >
+                          {d.fileName}
+                        </a>
+                        <div style={{ fontSize: 12, color: "#64748B" }}>
+                          {formatBytes(d.fileSizeBytes)}
+                          {d.uploadedAt ? ` · ${new Date(d.uploadedAt).toLocaleString()}` : ""}
+                          {d.uploadedByDisplayName ? ` · ${d.uploadedByDisplayName}` : ""}
+                          {d.description ? ` · ${d.description}` : ""}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <button type="button" style={primaryBtn} onClick={() => setAttachRow(selectedRow)}>
+                Upload documents
+              </button>
+            </div>
           </div>
         );
       },
     },
-  ], [selectedRow, claimHistory]);
+  ], [selectedRow, claimHistory, docsByAppeal, organizationId]);
 
   const detailActions: PrimaryAction[] = selectedRow ? [
     {
@@ -1122,7 +1343,12 @@ export default function AppealsClient() {
           row={attachRow}
           organizationId={organizationId}
           onClose={() => setAttachRow(null)}
-          onDone={(patch, msg) => { patchByClaim(attachRow.claimId, patch); setToast(msg); }}
+          onDone={(patch, msg) => {
+            patchByClaim(attachRow.claimId, patch);
+            setToast(msg);
+            const targetAppealId = (patch.appealId ?? attachRow.appealId) || null;
+            if (targetAppealId) void refreshAppealDocs(targetAppealId);
+          }}
         />
       ) : null}
       {submitRow ? (

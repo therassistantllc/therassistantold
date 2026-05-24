@@ -298,6 +298,25 @@ export async function GET(request: Request) {
       if (!latestAppealByClaim.has(cid)) latestAppealByClaim.set(cid, a);
     }
 
+    // Real attachments count from claim_appeal_documents — this is the
+    // source of truth, the denormalized attachments_count column on
+    // claim_appeals is kept in sync by the upload/delete routes.
+    const appealIds = Array.from(latestAppealByClaim.values())
+      .map((a) => text(a.id))
+      .filter(Boolean);
+    const docCountByAppeal = new Map<string, number>();
+    if (appealIds.length) {
+      const { data: docRows } = await (supabase as any)
+        .from("claim_appeal_documents")
+        .select("appeal_id")
+        .eq("organization_id", organizationId)
+        .in("appeal_id", appealIds);
+      for (const d of ((docRows as DbRow[]) ?? [])) {
+        const aid = text(d.appeal_id);
+        docCountByAppeal.set(aid, (docCountByAppeal.get(aid) ?? 0) + 1);
+      }
+    }
+
     const staffById = new Map<string, DbRow>(
       ((orgStaff as DbRow[]) ?? []).map((s) => [text(s.id), s]),
     );
@@ -457,7 +476,9 @@ export async function GET(request: Request) {
         assignedToDisplayName: assigneeName,
         letterBody: appeal ? (text(appeal.letter_body) || "") : "",
         templateId: appeal ? (text(appeal.template_id) || null) : null,
-        attachmentsCount: appeal ? Number(appeal.attachments_count ?? 0) : 0,
+        attachmentsCount: appeal
+          ? (docCountByAppeal.get(text(appeal.id)) ?? Number(appeal.attachments_count ?? 0))
+          : 0,
         submissionChannel: appeal ? (text(appeal.submission_channel) || null) : null,
         noteCount: (notesByClaim.get(claimId) ?? []).length,
         claimStatus: text(claim.claim_status),
