@@ -124,6 +124,8 @@ export default function ClaimBuildErrorsClient() {
     { tone: "success" | "error"; text: string } | null
   >(null);
   const [holdTarget, setHoldTarget] = useState<BuildErrorRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
 
   // ── Load ────────────────────────────────────────────────────────────────
   // Filter values are also forwarded to the server so it can do cheap
@@ -723,6 +725,21 @@ export default function ClaimBuildErrorsClient() {
 
   const headerActions: PrimaryAction[] = useMemo(
     () => [
+      ...(selectedIds.length > 0
+        ? [
+            {
+              id: "bulk-hold",
+              label: `Place ${selectedIds.length} on hold`,
+              variant: "primary" as const,
+              onClick: () => setBulkHoldOpen(true),
+            },
+            {
+              id: "clear-selection",
+              label: "Clear selection",
+              onClick: () => setSelectedIds([]),
+            },
+          ]
+        : []),
       {
         id: "refresh",
         label: loading ? "Refreshing…" : "Refresh",
@@ -730,7 +747,7 @@ export default function ClaimBuildErrorsClient() {
         disabled: loading,
       },
     ],
-    [loading],
+    [loading, selectedIds],
   );
 
   // Reference enum exports so they're not flagged unused when the
@@ -811,6 +828,8 @@ export default function ClaimBuildErrorsClient() {
         emptyMessage={`No ${BUILD_ERROR_TABS.find((t) => t.id === activeTab)?.label.toLowerCase()} errors.`}
         selectedRowId={selectedRowId}
         onSelectRow={setSelectedRowId}
+        selectedRowIds={selectedIds}
+        onSelectionChange={setSelectedIds}
         detailTabs={detailTabs}
         detailActions={detailActions}
         message={message}
@@ -831,6 +850,40 @@ export default function ClaimBuildErrorsClient() {
             setReloadKey((k) => k + 1);
           }}
         />
+      ) : null}
+      {bulkHoldOpen ? (
+        (() => {
+          const selectedRows = items.filter((r) => selectedIds.includes(r.id));
+          const claimIds = Array.from(
+            new Set(
+              selectedRows.map((r) => r.claimId).filter((id): id is string => !!id),
+            ),
+          );
+          return (
+            <PlaceClaimOnHoldModal
+              claimIds={claimIds}
+              organizationId={organizationId}
+              subtitle={`${claimIds.length} claim${claimIds.length === 1 ? "" : "s"} selected`}
+              onClose={() => setBulkHoldOpen(false)}
+              onPlacedBulk={(summary) => {
+                const heldClaims = new Set(
+                  summary.results.filter((r) => r.success).map((r) => r.claimId),
+                );
+                setItems((prev) => prev.filter((r) => !heldClaims.has(r.claimId)));
+                setSelectedIds([]);
+                const parts = [
+                  `${summary.succeeded} placed on hold`,
+                  summary.failed > 0 ? `${summary.failed} failed` : null,
+                ].filter(Boolean);
+                setMessage({
+                  tone: summary.failed > 0 ? "error" : "success",
+                  text: parts.join(" · "),
+                });
+                setReloadKey((k) => k + 1);
+              }}
+            />
+          );
+        })()
       ) : null}
     </main>
   );

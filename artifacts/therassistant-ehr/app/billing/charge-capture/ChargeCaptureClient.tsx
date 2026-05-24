@@ -239,6 +239,8 @@ export default function ChargeCaptureClient() {
     subtitle: string;
     sourceRowId: string;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
 
   // ── List fetch ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -992,6 +994,22 @@ export default function ChargeCaptureClient() {
           title={queueDef?.title ?? "Charge Capture"}
           description={queueDef?.description}
           headerActions={[
+            ...(selectedIds.length > 0
+              ? [
+                  {
+                    id: "bulk-hold",
+                    label: `Place ${selectedIds.length} on hold`,
+                    variant: "primary" as const,
+                    onClick: () => setBulkHoldOpen(true),
+                    disabled: acting,
+                  },
+                  {
+                    id: "clear-selection",
+                    label: "Clear selection",
+                    onClick: () => setSelectedIds([]),
+                  },
+                ]
+              : []),
             { id: "refresh", label: loading ? "Loading…" : "Refresh", onClick: () => setReloadKey((k) => k + 1), disabled: loading },
           ]}
           summary={summary}
@@ -1006,6 +1024,8 @@ export default function ChargeCaptureClient() {
           emptyMessage="No charges match the current filters."
           selectedRowId={selectedId}
           onSelectRow={setSelectedId}
+          selectedRowIds={selectedIds}
+          onSelectionChange={setSelectedIds}
           rowActions={rowActions}
           detailTabs={detailTabs}
           detailActions={detailActions}
@@ -1025,6 +1045,54 @@ export default function ChargeCaptureClient() {
             setReloadKey((k) => k + 1);
           }}
         />
+      ) : null}
+      {bulkHoldOpen ? (
+        (() => {
+          const selectedRows = items.filter((r) => selectedIds.includes(r.id));
+          const claimIds = selectedRows
+            .map((r) => r.claimId)
+            .filter((id): id is string => !!id);
+          const skipped = selectedIds.length - claimIds.length;
+          const subtitle =
+            (claimIds.length > 0
+              ? `${claimIds.length} claim${claimIds.length === 1 ? "" : "s"} selected`
+              : "No selected rows have a claim yet") +
+            (skipped > 0
+              ? ` · ${skipped} skipped (no claim created yet)`
+              : "");
+          if (claimIds.length === 0) {
+            return (
+              <PlaceClaimOnHoldModal
+                claimIds={[]}
+                claimId={undefined}
+                organizationId={organizationId}
+                subtitle={subtitle}
+                onClose={() => setBulkHoldOpen(false)}
+              />
+            );
+          }
+          return (
+            <PlaceClaimOnHoldModal
+              claimIds={claimIds}
+              organizationId={organizationId}
+              subtitle={subtitle}
+              onClose={() => setBulkHoldOpen(false)}
+              onPlacedBulk={(summary) => {
+                const parts = [
+                  `${summary.succeeded} placed on hold`,
+                  summary.failed > 0 ? `${summary.failed} failed` : null,
+                  skipped > 0 ? `${skipped} skipped` : null,
+                ].filter(Boolean);
+                setMessage({
+                  tone: summary.failed > 0 ? "error" : "success",
+                  text: parts.join(" · "),
+                });
+                setSelectedIds([]);
+                setReloadKey((k) => k + 1);
+              }}
+            />
+          );
+        })()
       ) : null}
     </div>
   );

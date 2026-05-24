@@ -763,6 +763,8 @@ export default function NoResponseClient() {
   const [noteRow, setNoteRow] = useState<Row | null>(null);
   const [callRow, setCallRow] = useState<Row | null>(null);
   const [holdRow, setHoldRow] = useState<Row | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
 
   const load = useCallback(async () => {
@@ -1259,6 +1261,21 @@ export default function NoResponseClient() {
         title="No Response"
         description="Claims submitted to a payer where the expected acknowledgement or response has not come back."
         headerActions={[
+          ...(selectedIds.length > 0
+            ? [
+                {
+                  id: "bulk-hold",
+                  label: `Place ${selectedIds.length} on hold`,
+                  variant: "primary" as const,
+                  onClick: () => setBulkHoldOpen(true),
+                },
+                {
+                  id: "clear-selection",
+                  label: "Clear selection",
+                  onClick: () => setSelectedIds([]),
+                },
+              ]
+            : []),
           {
             id: "refresh",
             label: loading ? "Loading…" : "Refresh",
@@ -1279,6 +1296,8 @@ export default function NoResponseClient() {
         emptyMessage="No claims awaiting payer response in this view."
         selectedRowId={selectedRowId}
         onSelectRow={setSelectedRowId}
+        selectedRowIds={selectedIds}
+        onSelectionChange={setSelectedIds}
         detailTabs={detailTabs}
         detailActions={detailActions}
         message={message}
@@ -1307,6 +1326,25 @@ export default function NoResponseClient() {
             const label = holdRow.claim_number ?? holdRow.id;
             removeRow(holdRow.id);
             setToast(`Claim ${label} placed on hold.`);
+          }}
+        />
+      ) : null}
+      {bulkHoldOpen ? (
+        <PlaceClaimOnHoldModal
+          claimIds={selectedIds}
+          organizationId={organizationId}
+          subtitle={`${selectedIds.length} claim${selectedIds.length === 1 ? "" : "s"} selected`}
+          onClose={() => setBulkHoldOpen(false)}
+          onPlacedBulk={(summary) => {
+            for (const r of summary.results) {
+              if (r.success) removeRow(r.claimId);
+            }
+            const parts = [
+              `${summary.succeeded} placed on hold`,
+              summary.failed > 0 ? `${summary.failed} failed` : null,
+            ].filter(Boolean);
+            setToast(parts.join(" · "));
+            setSelectedIds([]);
           }}
         />
       ) : null}

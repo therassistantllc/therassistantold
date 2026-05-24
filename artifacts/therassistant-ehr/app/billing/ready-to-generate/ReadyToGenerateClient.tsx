@@ -151,6 +151,7 @@ export default function ReadyToGenerateClient() {
     open: boolean;
     rows: Array<{ key: string; payerName: string; payerProfileId: string | null; claimCount: number; total: number }>;
   } | null>(null);
+  const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
 
   // ── Initial load + URL tab sync ─────────────────────────────────────────
   useEffect(() => {
@@ -1107,6 +1108,13 @@ export default function ReadyToGenerateClient() {
         disabled: busy || selectionHasIneligible,
       });
       acts.push({
+        id: "bulk-hold",
+        label: `Place ${selectedIds.length} on hold`,
+        variant: "primary",
+        onClick: () => setBulkHoldOpen(true),
+        disabled: busy,
+      });
+      acts.push({
         id: "clear-selection",
         label: "Clear selection",
         onClick: () => setSelectedIds([]),
@@ -1175,6 +1183,31 @@ export default function ReadyToGenerateClient() {
             setItems((prev) => prev.filter((i) => i.id !== holdTarget.id));
             if (selectedId === holdTarget.id) setSelectedId(null);
             setMessage({ tone: "success", text: `Claim ${label} placed on hold.` });
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      ) : null}
+      {bulkHoldOpen ? (
+        <PlaceClaimOnHoldModal
+          claimIds={selectedIds}
+          organizationId={organizationId}
+          subtitle={`${selectedIds.length} claim${selectedIds.length === 1 ? "" : "s"} selected`}
+          onClose={() => setBulkHoldOpen(false)}
+          onPlacedBulk={(summary) => {
+            const heldIds = new Set(
+              summary.results.filter((r) => r.success).map((r) => r.claimId),
+            );
+            setItems((prev) => prev.filter((i) => !heldIds.has(i.id)));
+            if (selectedId && heldIds.has(selectedId)) setSelectedId(null);
+            setSelectedIds([]);
+            const parts = [
+              `${summary.succeeded} placed on hold`,
+              summary.failed > 0 ? `${summary.failed} failed` : null,
+            ].filter(Boolean);
+            setMessage({
+              tone: summary.failed > 0 ? "error" : "success",
+              text: parts.join(" · "),
+            });
             setReloadKey((k) => k + 1);
           }}
         />

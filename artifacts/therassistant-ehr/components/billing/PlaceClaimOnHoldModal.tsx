@@ -1,12 +1,22 @@
 "use client";
 
 /**
- * PlaceClaimOnHoldModal — shared modal that lets a biller place a single
- * claim on hold from any screen that opens a claim row.
+ * PlaceClaimOnHoldModal — shared modal that lets a biller place either
+ * a single claim or many selected claims on hold from any screen that
+ * opens a claim row.
  *
- * Submits to POST /api/billing/claims/[claimId]/hold with action="place".
- * On success, the claim moves to the matching Claim Hold tab and disappears
- * from the source queue (the caller is responsible for refreshing its list).
+ * Single mode: pass `claimId`.  Submits to
+ *   POST /api/billing/claims/[claimId]/hold  with action="place".
+ *
+ * Bulk mode:   pass `claimIds` (1+ ids).  Submits to
+ *   POST /api/billing/claims/bulk-hold
+ * with the same category/reason/follow-up/priority applied to every
+ * selected claim. The API processes each claim individually and the
+ * modal surfaces a per-claim success/failure summary via `onPlacedBulk`
+ * so the caller can show a toast like "12 placed on hold, 1 failed".
+ *
+ * Callers are responsible for refreshing their list after `onPlaced`/
+ * `onPlacedBulk` fires.
  */
 import { useEffect, useState } from "react";
 
@@ -65,8 +75,27 @@ export interface PlaceOnHoldResult {
   priority: HoldPriority;
 }
 
+export interface BulkPlaceOnHoldResult {
+  category: HoldCategory;
+  reason: string;
+  followUpDate: string | null;
+  priority: HoldPriority;
+  totalRequested: number;
+  succeeded: number;
+  failed: number;
+  results: Array<{
+    claimId: string;
+    success: boolean;
+    claimNumber?: string | null;
+    error?: string;
+  }>;
+}
+
 export interface PlaceClaimOnHoldModalProps {
-  claimId: string;
+  /** Single-claim mode: provide this. Ignored when `claimIds` is set. */
+  claimId?: string;
+  /** Bulk mode: provide a non-empty array of claim ids. */
+  claimIds?: string[];
   organizationId: string;
   /** Optional context line shown under the title (e.g. "Claim 12345 · Aetna"). */
   subtitle?: string | null;
@@ -75,19 +104,27 @@ export interface PlaceClaimOnHoldModalProps {
   /** Default priority preselected in the dropdown. */
   defaultPriority?: HoldPriority;
   onClose: () => void;
-  /** Fired after the API successfully accepts the hold. */
-  onPlaced: (result: PlaceOnHoldResult) => void;
+  /** Fired after the single-claim API call succeeds. */
+  onPlaced?: (result: PlaceOnHoldResult) => void;
+  /** Fired after the bulk API call returns; called even when some
+   *  per-claim writes failed so the caller can show a mixed summary. */
+  onPlacedBulk?: (result: BulkPlaceOnHoldResult) => void;
 }
 
 export default function PlaceClaimOnHoldModal({
   claimId,
+  claimIds,
   organizationId,
   subtitle,
   defaultCategory = "manual",
   defaultPriority = "normal",
   onClose,
   onPlaced,
+  onPlacedBulk,
 }: PlaceClaimOnHoldModalProps) {
+  const isBulk = Array.isArray(claimIds) && claimIds.length > 0;
+  const bulkCount = isBulk ? (claimIds as string[]).length : 0;
+
   const [category, setCategory] = useState<HoldCategory>(defaultCategory);
   const [reason, setReason] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
@@ -109,11 +146,45 @@ export default function PlaceClaimOnHoldModal({
       setError("Please enter a hold reason.");
       return;
     }
+    if (!isBulk && !claimId) {
+      setError("Missing claim to place on hold.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
+      if (isBulk) {
+        const res = await fetch(`/api/billing/claims/bulk-hold`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            claimIds,
+            holdCategory: category,
+            holdReason: trimmed,
+            followUpDate: followUpDate || null,
+            priority,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error || `Request failed (${res.status})`);
+        }
+        onPlacedBulk?.({
+          category,
+          reason: trimmed,
+          followUpDate: followUpDate || null,
+          priority,
+          totalRequested: Number(json.totalRequested ?? bulkCount),
+          succeeded: Number(json.succeeded ?? 0),
+          failed: Number(json.failed ?? 0),
+          results: Array.isArray(json.results) ? json.results : [],
+        });
+        onClose();
+        return;
+      }
       const res = await fetch(
-        `/api/billing/claims/${encodeURIComponent(claimId)}/hold`,
+        `/api/billing/claims/${encodeURIComponent(claimId as string)}/hold`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,8 +202,8 @@ export default function PlaceClaimOnHoldModal({
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || `Request failed (${res.status})`);
       }
-      onPlaced({
-        claimId,
+      onPlaced?.({
+        claimId: claimId as string,
         category,
         reason: trimmed,
         followUpDate: followUpDate || null,
@@ -145,6 +216,18 @@ export default function PlaceClaimOnHoldModal({
       setSaving(false);
     }
   }
+
+  const title = isBulk
+    ? `Place ${bulkCount} claim${bulkCount === 1 ? "" : "s"} on hold`
+    : "Place claim on hold";
+  const submitLabel = saving
+    ? "Placing…"
+    : isBulk
+      ? `Place ${bulkCount} on hold`
+      : "Place on hold";
+  const reasonHelp = isBulk
+    ? `The same reason will be applied to all ${bulkCount} selected claims.`
+    : null;
 
   return (
     <div
@@ -175,7 +258,7 @@ export default function PlaceClaimOnHoldModal({
         }}
         role="dialog"
         aria-modal="true"
-        aria-label="Place claim on hold"
+        aria-label={title}
       >
         <div
           style={{
@@ -185,7 +268,7 @@ export default function PlaceClaimOnHoldModal({
             marginBottom: 4,
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 18 }}>Place claim on hold</h2>
+          <h2 style={{ margin: 0, fontSize: 18 }}>{title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -235,10 +318,19 @@ export default function PlaceClaimOnHoldModal({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="Why is this claim being held?"
+          placeholder={
+            isBulk
+              ? "Why are these claims being held?"
+              : "Why is this claim being held?"
+          }
           style={{ ...fieldInput, resize: "vertical" }}
           disabled={saving}
         />
+        {reasonHelp ? (
+          <div style={{ color: "#64748B", fontSize: 12, marginTop: 4 }}>
+            {reasonHelp}
+          </div>
+        ) : null}
 
         <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
           <div style={{ flex: 1 }}>
@@ -298,7 +390,7 @@ export default function PlaceClaimOnHoldModal({
             onClick={submit}
             disabled={saving}
           >
-            {saving ? "Placing…" : "Place on hold"}
+            {submitLabel}
           </button>
         </div>
       </div>
