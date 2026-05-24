@@ -18,6 +18,8 @@ import {
   commitPosting,
   type PostingActor,
 } from "@/lib/payments/postingEngine";
+import { parseEra835 } from "@/lib/payments/era835Parser";
+import { detectAndSeedTakebacks } from "@/lib/payments/postingEngine/eraTakebackDetection";
 
 export interface PostEra835BatchInput {
   organizationId: string;
@@ -32,6 +34,13 @@ export interface PostEra835BatchResult {
   blockedClaims: number;
   patientInvoicesCreated: number;
   errors: Array<{ field: string; message: string }>;
+  /**
+   * Non-fatal anomalies surfaced by the post-pass take-back detector
+   * (e.g. PLB WO referencing an unknown claim control number). These
+   * are deliberately kept out of `errors` so they cannot downgrade
+   * `import_status` to `blocked` or flip `ok` to false.
+   */
+  warnings?: Array<{ field: string; message: string }>;
 }
 
 export interface PostSingleEra835ClaimPaymentInput {
@@ -121,10 +130,52 @@ export async function postEra835Batch(
     }
   }
 
+  // Decide import_status BEFORE running take-back detection. Take-back
+  // detection is a best-effort post-pass: a payer sending a take-back we
+  // can't match (unknown PCN), or a transient workqueue insert failure,
+  // must NOT downgrade an otherwise successfully-posted batch to
+  // `blocked` — operations would have to manually unblock perfectly
+  // good ERAs. Only the per-claim posting loop above gates import_status.
+  const importStatus = errors.length > 0 ? "blocked" : "posted";
+
+  // Auto-seed payer take-backs into the Recoupments queue. All failures
+  // here are collected as warnings (separate from `errors`) and surfaced
+  // to the caller without affecting `ok` / `import_status`.
+  const takebackWarnings: Array<{ field: string; message: string }> = [];
+  try {
+    const { data: batchRow } = await supabase
+      .from("era_import_batches")
+      .select("raw_content")
+      .eq("id", input.eraImportBatchId)
+      .eq("organization_id", input.organizationId)
+      .maybeSingle();
+    const rawContent = batchRow ? (batchRow as { raw_content?: string | null }).raw_content : null;
+    if (rawContent) {
+      const parsed = parseEra835(rawContent);
+      const takebackResult = await detectAndSeedTakebacks(supabase, {
+        organizationId: input.organizationId,
+        eraImportBatchId: input.eraImportBatchId,
+        parsed,
+        actor: input.actor ?? undefined,
+      });
+      for (const e of takebackResult.errors) {
+        takebackWarnings.push({
+          field: `takeback:${e.field}`,
+          message: e.message,
+        });
+      }
+    }
+  } catch (err) {
+    takebackWarnings.push({
+      field: "takeback_detection",
+      message: err instanceof Error ? err.message : "ERA take-back detection failed.",
+    });
+  }
+
   await supabase
     .from("era_import_batches")
     .update({
-      import_status: errors.length > 0 ? "blocked" : "posted",
+      import_status: importStatus,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.eraImportBatchId)
@@ -136,6 +187,7 @@ export async function postEra835Batch(
     blockedClaims,
     patientInvoicesCreated,
     errors,
+    warnings: takebackWarnings.length > 0 ? takebackWarnings : undefined,
   };
 }
 

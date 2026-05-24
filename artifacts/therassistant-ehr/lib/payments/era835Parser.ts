@@ -5,6 +5,27 @@ type Era835CasAdjustment = {
   quantity?: number | null;
 };
 
+/**
+ * One provider-level adjustment parsed from an 835 PLB segment.
+ *
+ * PLB segments encode adjustments that apply to the provider as a whole
+ * (not to a specific claim) — most commonly payer take-backs / recoupments
+ * (`WO` = overpayment recovery, `FB` = forwarding balance, `J1` =
+ * nonreimbursable, `72` = authorized return). PLB04 carries a signed
+ * amount: a positive value REDUCES the check (the payer is taking money
+ * back), a negative value INCREASES it. We persist the raw signed amount
+ * and let downstream consumers (the takeback auto-seeder) interpret sign.
+ *
+ * `referenceIdentifier` is the right half of the PLB03 composite (after
+ * `:` / `>`), typically the original payer-claim-control-number being
+ * recouped. Empty when the payer omits a reference.
+ */
+export type Era835ProviderAdjustment = {
+  adjustmentReasonCode: string;
+  referenceIdentifier: string | null;
+  amount: number;
+};
+
 type Era835ServiceLine = {
   procedureCode: string | null;
   chargeAmount: number;
@@ -74,6 +95,13 @@ export type Era835ParsedFile = {
   /** N1*PR NM109 — payer identifier (typically tax ID or assigned payer ID). */
   payerIdentifier: string | null;
   claims: Era835ClaimPayment[];
+  /**
+   * Provider-level adjustments collected from PLB segments at the end of
+   * the transaction. Empty when the payer included no PLB. Take-back
+   * auto-detection inspects this list for recoupment-class reason codes
+   * (WO / FB / J1 / 72).
+   */
+  providerAdjustments: Era835ProviderAdjustment[];
   segmentCount: number;
 };
 
@@ -148,6 +176,7 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
   let payerName: string | null = null;
   let payerIdentifier: string | null = null;
   let inPayerN1 = false;
+  const providerAdjustments: Era835ProviderAdjustment[] = [];
 
   for (const segment of segments) {
     const elements = splitElements(segment);
@@ -201,6 +230,27 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
         },
         rawSegments: [segment],
       };
+      continue;
+    }
+
+    // PLB — provider-level adjustments. Appear AFTER the last CLP and
+    // before SE. PLB03+ are repeating composites: each pair is
+    // (adjReasonCode>refIdentifier, signedAmount). Sweep all such pairs.
+    if (segmentId === "PLB") {
+      for (let idx = 3; idx + 1 < elements.length; idx += 2) {
+        const composite = clean(elements[idx]);
+        const amt = toNumber(elements[idx + 1]);
+        if (!composite && amt === 0) continue;
+        const parts = composite.split(/[:>]/);
+        const adjReason = clean(parts[0]).toUpperCase();
+        const refId = clean(parts[1]) || null;
+        if (!adjReason && amt === 0) continue;
+        providerAdjustments.push({
+          adjustmentReasonCode: adjReason,
+          referenceIdentifier: refId,
+          amount: amt,
+        });
+      }
       continue;
     }
 
@@ -333,6 +383,7 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
     payerName,
     payerIdentifier,
     claims,
+    providerAdjustments,
     segmentCount: segments.length,
   };
 }

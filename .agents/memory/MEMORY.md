@@ -10,4 +10,5 @@
 - [workqueue_items insert schema](workqueue-items-schema.md) — `client_id` (NOT patient_id), `work_type` (NOT queue_type), source_object_type is an enum (no `stripe_charge`); source_object_id is uuid NOT NULL — mint a synthetic uuid + stash external ids in context_payload.
 - [Shared schemaGuard for fake supabase](schemaGuard-shared.md) — lives at `lib/supabase/__tests__/schemaGuard.ts`; extend EXTRA_COLUMNS / EXTRA_ENUM_VALUES overlays when generated types are stale instead of regenerating.
 - [Migration drift audit sweep](migration-drift-audit.md) — parse migrations + check info_schema; carry a rename map and guard enum/foreign-shape mismatches before replay.
+- [ERA take-back auto-detection](era-takeback-auto-seed.md) — PLB WO/FB/J1/72 + neg-CLP/CLP02=22 auto-seed `payment_recoupments`; bypass `recordRecoupment` (its posted-status guard), dedupe on (org,source,amount,reason), offset = largest pos-pay in same batch.
 - [Stripe Connect refund header](stripe-connect-refund-header.md) — refunding a Connect charge requires `Stripe-Account: acct_…`; without it the refund 404s. Persist the connected account id at charge time.
