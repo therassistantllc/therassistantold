@@ -31,6 +31,20 @@ interface ClaimSummary {
   earliestDos: string | null;
 }
 
+interface AttemptHistoryEntry {
+  id: string;
+  attemptNumber: number;
+  attemptedAt: string | null;
+  endpoint: string | null;
+  httpStatus: number | null;
+  idempotencyKey: string | null;
+  externalTransactionId: string | null;
+  outcome: "success" | "failure" | string;
+  errorMessage: string | null;
+  responseExcerpt: string | null;
+  actorDisplayName: string | null;
+}
+
 interface FailureRow {
   id: string;
   batchNumber: string;
@@ -52,6 +66,7 @@ interface FailureRow {
   claims: ClaimSummary[];
   practiceName: string | null;
   clinicianName: string | null;
+  attempts: AttemptHistoryEntry[];
 }
 
 interface ApiPayload {
@@ -768,40 +783,143 @@ export default function TransmissionFailuresClient() {
       {
         id: "history",
         label: "Retry history",
-        render: () => (
-          <div style={{ display: "grid", gap: 10 }}>
-            <dl
-              style={{
-                display: "grid",
-                gridTemplateColumns: "max-content 1fr",
-                gap: "6px 12px",
-                margin: 0,
-                fontSize: 12.5,
-              }}
-            >
-              <dt style={{ color: "#64748B" }}>Attempts</dt>
-              <dd style={{ margin: 0 }}>{r.attemptCount.toLocaleString()}</dd>
-              <dt style={{ color: "#64748B" }}>Last attempt</dt>
-              <dd style={{ margin: 0 }}>{formatDateTime(r.attemptedAt)}</dd>
-              <dt style={{ color: "#64748B" }}>Last HTTP status</dt>
-              <dd style={{ margin: 0 }}>{r.lastHttpStatus ?? "—"}</dd>
-              <dt style={{ color: "#64748B" }}>Last updated</dt>
-              <dd style={{ margin: 0 }}>{formatDateTime(r.updatedAt)}</dd>
-            </dl>
-            <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>
-              Per-attempt audit detail lives in the clearinghouse request log
-              (one row per outbound API call).
-            </p>
-            <Link
-              href={`/billing/837p-batches?organizationId=${encodeURIComponent(
-                organizationId,
-              )}`}
-              style={{ fontSize: 12.5 }}
-            >
-              Open in 837P Batches →
-            </Link>
-          </div>
-        ),
+        render: () => {
+          // Newest-first timeline so the most recent failure is at the top —
+          // the API returns attempts oldest → newest; reverse here so we
+          // don't mutate the source array.
+          const timeline = [...r.attempts].reverse();
+          return (
+            <div style={{ display: "grid", gap: 12 }}>
+              <dl
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "max-content 1fr",
+                  gap: "6px 12px",
+                  margin: 0,
+                  fontSize: 12.5,
+                }}
+              >
+                <dt style={{ color: "#64748B" }}>Attempts</dt>
+                <dd style={{ margin: 0 }}>{r.attemptCount.toLocaleString()}</dd>
+                <dt style={{ color: "#64748B" }}>Last attempt</dt>
+                <dd style={{ margin: 0 }}>{formatDateTime(r.attemptedAt)}</dd>
+                <dt style={{ color: "#64748B" }}>Last HTTP status</dt>
+                <dd style={{ margin: 0 }}>{r.lastHttpStatus ?? "—"}</dd>
+                <dt style={{ color: "#64748B" }}>Last updated</dt>
+                <dd style={{ margin: 0 }}>{formatDateTime(r.updatedAt)}</dd>
+              </dl>
+
+              {timeline.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>
+                  No transmission attempts recorded yet. New attempts will
+                  appear here as soon as the batch is submitted.
+                </p>
+              ) : (
+                <ol
+                  style={{
+                    listStyle: "none",
+                    padding: 0,
+                    margin: 0,
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  {timeline.map((a) => {
+                    const isSuccess = a.outcome === "success";
+                    const accent = isSuccess ? "#16a34a" : "#c53030";
+                    return (
+                      <li
+                        key={a.id}
+                        style={{
+                          border: "1px solid #E2E8F0",
+                          borderLeft: `3px solid ${accent}`,
+                          borderRadius: 6,
+                          padding: "8px 10px",
+                          fontSize: 12.5,
+                          background: "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 8,
+                            fontWeight: 600,
+                          }}
+                        >
+                          <span>
+                            Attempt #{a.attemptNumber || "—"} ·{" "}
+                            <span style={{ color: accent }}>
+                              {isSuccess ? "Success" : "Failed"}
+                            </span>
+                            {a.httpStatus != null && (
+                              <span style={{ color: "#64748B", fontWeight: 400 }}>
+                                {" "}· HTTP {a.httpStatus}
+                              </span>
+                            )}
+                          </span>
+                          <span style={{ color: "#64748B", fontWeight: 400 }}>
+                            {formatDateTime(a.attemptedAt)}
+                          </span>
+                        </div>
+                        {a.endpoint && (
+                          <div style={{ color: "#475569", marginTop: 4, wordBreak: "break-all" }}>
+                            {a.endpoint}
+                          </div>
+                        )}
+                        {a.errorMessage && (
+                          <div
+                            style={{
+                              color: "#c53030",
+                              marginTop: 4,
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {a.errorMessage}
+                          </div>
+                        )}
+                        {(a.externalTransactionId ||
+                          a.idempotencyKey ||
+                          a.actorDisplayName) && (
+                          <div
+                            style={{
+                              color: "#64748B",
+                              marginTop: 6,
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "2px 12px",
+                              fontSize: 11.5,
+                            }}
+                          >
+                            {a.externalTransactionId && (
+                              <span>Txn: {a.externalTransactionId}</span>
+                            )}
+                            {a.idempotencyKey && (
+                              <span>Idem: {a.idempotencyKey}</span>
+                            )}
+                            {a.actorDisplayName && (
+                              <span>By: {a.actorDisplayName}</span>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+
+              <Link
+                href={`/billing/837p-batches?organizationId=${encodeURIComponent(
+                  organizationId,
+                )}`}
+                style={{ fontSize: 12.5 }}
+              >
+                Open in 837P Batches →
+              </Link>
+            </div>
+          );
+        },
       },
     ];
   }, [selectedRow, organizationId, busyId, removeClaim]);

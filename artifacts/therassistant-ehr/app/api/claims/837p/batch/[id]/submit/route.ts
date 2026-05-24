@@ -200,6 +200,22 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         return NextResponse.json({ success: false, error: updateErr.message }, { status: 422 });
       }
 
+      // Task #442: append the per-attempt history row. Best-effort — a write
+      // failure here must not mask a successful transmission, so we swallow.
+      await recordAttempt(supabase, {
+        organizationId,
+        batchId: id,
+        attemptNumber: attemptCount,
+        attemptedAt: submittedAt,
+        endpoint: endpointUrl,
+        httpStatus: result.httpStatus ?? 200,
+        idempotencyKey,
+        externalTransactionId: externalId,
+        outcome: "success",
+        errorMessage: null,
+        responseExcerpt: excerpt(result.data),
+      });
+
       return NextResponse.json({
         success: true,
         batch: updated,
@@ -225,6 +241,22 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         .eq("id", id)
         .eq("organization_id", organizationId);
 
+      // Task #442: capture the failed attempt so the Retry History timeline
+      // shows every miss, not just the most recent one.
+      await recordAttempt(supabase, {
+        organizationId,
+        batchId: id,
+        attemptNumber: attemptCount,
+        attemptedAt: failedAt,
+        endpoint: endpointUrl,
+        httpStatus: failureHttpStatus,
+        idempotencyKey,
+        externalTransactionId: null,
+        outcome: "failure",
+        errorMessage: message,
+        responseExcerpt: message,
+      });
+
       return NextResponse.json(
         { success: false, error: message, attempt: attemptCount, idempotencyKey, httpStatus: failureHttpStatus },
         { status: 502 },
@@ -235,6 +267,67 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       { success: false, error: e instanceof Error ? e.message : "Failed" },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * Persist a single transmission attempt to the per-batch history table
+ * (Task #442). Best-effort: errors are logged and swallowed so a history
+ * write failure never masks the actual transmission outcome the caller
+ * just observed.
+ */
+async function recordAttempt(
+  supabase: ReturnType<typeof createServerSupabaseAdminClient>,
+  attempt: {
+    organizationId: string;
+    batchId: string;
+    attemptNumber: number;
+    attemptedAt: string;
+    endpoint: string | null;
+    httpStatus: number | null;
+    idempotencyKey: string | null;
+    externalTransactionId: string | null;
+    outcome: "success" | "failure";
+    errorMessage: string | null;
+    responseExcerpt: string | null;
+  },
+): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { error } = await (supabase as any)
+      .from("claim_837p_batch_transmission_attempts")
+      .insert({
+        organization_id: attempt.organizationId,
+        batch_id: attempt.batchId,
+        attempt_number: attempt.attemptNumber,
+        attempted_at: attempt.attemptedAt,
+        endpoint: attempt.endpoint,
+        http_status: attempt.httpStatus,
+        idempotency_key: attempt.idempotencyKey,
+        external_transaction_id: attempt.externalTransactionId,
+        outcome: attempt.outcome,
+        error_message: attempt.errorMessage ? attempt.errorMessage.slice(0, 2000) : null,
+        response_excerpt: attempt.responseExcerpt ? attempt.responseExcerpt.slice(0, 4000) : null,
+      });
+    if (error) {
+      console.warn("[837p submit] failed to persist transmission attempt", error.message);
+    }
+  } catch (e) {
+    console.warn(
+      "[837p submit] failed to persist transmission attempt",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+}
+
+/** Stringify an arbitrary response payload to a short, readable excerpt. */
+function excerpt(data: unknown): string | null {
+  if (data == null) return null;
+  try {
+    const s = typeof data === "string" ? data : JSON.stringify(data);
+    return s.slice(0, 4000);
+  } catch {
+    return null;
   }
 }
 

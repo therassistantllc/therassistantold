@@ -61,6 +61,21 @@ interface BatchRow {
   claims: ClaimSummary[];
   practiceName: string | null;
   clinicianName: string | null;
+  attempts: AttemptHistoryEntry[];
+}
+
+interface AttemptHistoryEntry {
+  id: string;
+  attemptNumber: number;
+  attemptedAt: string | null;
+  endpoint: string | null;
+  httpStatus: number | null;
+  idempotencyKey: string | null;
+  externalTransactionId: string | null;
+  outcome: "success" | "failure" | string;
+  errorMessage: string | null;
+  responseExcerpt: string | null;
+  actorDisplayName: string | null;
 }
 
 function text(v: unknown): string {
@@ -182,6 +197,39 @@ export async function GET(request: Request) {
       .eq("organization_id", organizationId)
       .in("batch_id", batchIds)
       .is("archived_at", null);
+
+    // Per-batch transmission attempt history (Task #442). Ordered oldest →
+    // newest so the UI can render a chronological timeline without sorting.
+    const { data: attemptRows } = await (supabase as any)
+      .from("claim_837p_batch_transmission_attempts")
+      .select(
+        "id, batch_id, attempt_number, attempted_at, endpoint, http_status, idempotency_key, external_transaction_id, outcome, error_message, response_excerpt, actor_display_name",
+      )
+      .eq("organization_id", organizationId)
+      .in("batch_id", batchIds)
+      .order("attempted_at", { ascending: true });
+
+    const attemptsByBatchId = new Map<string, AttemptHistoryEntry[]>();
+    for (const a of (attemptRows ?? []) as DbRow[]) {
+      const batchId = text(a.batch_id);
+      if (!batchId) continue;
+      const entry: AttemptHistoryEntry = {
+        id: text(a.id),
+        attemptNumber: Number(a.attempt_number ?? 0),
+        attemptedAt: text(a.attempted_at) || null,
+        endpoint: text(a.endpoint) || null,
+        httpStatus: a.http_status == null ? null : Number(a.http_status),
+        idempotencyKey: text(a.idempotency_key) || null,
+        externalTransactionId: text(a.external_transaction_id) || null,
+        outcome: text(a.outcome) || "failure",
+        errorMessage: text(a.error_message) || null,
+        responseExcerpt: text(a.response_excerpt) || null,
+        actorDisplayName: text(a.actor_display_name) || null,
+      };
+      const list = attemptsByBatchId.get(batchId) ?? [];
+      list.push(entry);
+      attemptsByBatchId.set(batchId, list);
+    }
 
     const claimIds = [
       ...new Set(
@@ -385,6 +433,7 @@ export async function GET(request: Request) {
         claims: claimList,
         practiceName,
         clinicianName,
+        attempts: attemptsByBatchId.get(batchId) ?? [],
       };
 
       // Universal-rail filter pass. The filter rail is queue-wide, so a
