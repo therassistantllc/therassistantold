@@ -52,6 +52,10 @@ interface RejectionRow {
   priority: string | null;
   followUpDue: string | null;
   agingDays: number | null;
+  autoRouted: boolean;
+  autoRoutedTab: Rejection277CaTabId | null;
+  autoRoutedReason: string | null;
+  autoRoutedAt: string | null;
   correctionHistory: Array<{
     id: string;
     body: string;
@@ -288,8 +292,33 @@ export default function Rejections277CaClient() {
         id: "claimId",
         header: "Claim ID",
         cell: (r) => (
-          <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-            {r.claimNumber ?? r.claimId.slice(0, 8)}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
+              {r.claimNumber ?? r.claimId.slice(0, 8)}
+            </span>
+            {r.autoRouted ? (
+              <span
+                title={
+                  r.autoRoutedReason === "routed_to_eligibility"
+                    ? "Auto-routed to eligibility on intake. Open the row to override."
+                    : r.autoRoutedReason === "routed_to_credentialing"
+                      ? "Auto-routed to credentialing/enrollment on intake. Open the row to override."
+                      : "Auto-routed on intake. Open the row to override."
+                }
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: 999,
+                  background: "#E0E7FF",
+                  color: "#3730A3",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.3,
+                }}
+              >
+                Auto-routed
+              </span>
+            ) : null}
           </span>
         ),
       },
@@ -610,6 +639,31 @@ export default function Rejections277CaClient() {
         label: "277CA message",
         render: () => (
           <div style={{ display: "grid", gap: 12 }}>
+            {r.autoRouted ? (
+              <div
+                style={{
+                  padding: 10,
+                  borderRadius: 6,
+                  background: "#EEF2FF",
+                  border: "1px solid #C7D2FE",
+                  fontSize: 13,
+                  color: "#3730A3",
+                }}
+              >
+                <strong>Auto-routed on intake</strong> —{" "}
+                {r.autoRoutedReason === "routed_to_eligibility"
+                  ? "this looks like a member/eligibility problem, so it was deferred to the eligibility hand-off automatically."
+                  : r.autoRoutedReason === "routed_to_credentialing"
+                    ? "this looks like a provider credentialing/enrollment problem, so it was deferred to credentialing automatically."
+                    : "this rejection was deferred to a downstream hand-off automatically."}
+                {r.autoRoutedAt ? (
+                  <span style={{ display: "block", marginTop: 4, color: "#4338CA", fontSize: 12 }}>
+                    Routed {formatDateTime(r.autoRoutedAt)}. Use the actions below
+                    (e.g. Correct claim, Resubmit, Resolve) to override.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <div>
               <strong style={{ fontSize: 12, color: "#475569" }}>STATUS</strong>
               <p style={{ margin: "4px 0 0", fontSize: 14, fontWeight: 600 }}>

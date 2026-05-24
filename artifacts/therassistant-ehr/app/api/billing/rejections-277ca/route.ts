@@ -46,6 +46,10 @@ interface RowOut {
   priority: string | null;
   followUpDue: string | null;
   agingDays: number | null;
+  autoRouted: boolean;
+  autoRoutedTab: Rejection277CaTabId | null;
+  autoRoutedReason: string | null;
+  autoRoutedAt: string | null;
   correctionHistory: Array<{
     id: string;
     body: string;
@@ -375,6 +379,16 @@ export async function GET(request: Request) {
         ? text(provider.full_name) ||
           fullName(provider.first_name, provider.last_name)
         : null;
+      const autoRouted = ctx?.auto_routed === true;
+      const autoRoutedTab = (typeof ctx?.auto_routed_tab === "string"
+        ? (ctx.auto_routed_tab as Rejection277CaTabId)
+        : null);
+      const autoRoutedReason = typeof ctx?.auto_routed_reason === "string"
+        ? (ctx.auto_routed_reason as string)
+        : null;
+      const autoRoutedAt = typeof ctx?.auto_routed_at === "string"
+        ? (ctx.auto_routed_at as string)
+        : null;
       const itemComments = (commentsByItem.get(itemId) ?? []).map((c) => ({
         id: text(c.id),
         body: text(c.comment_body),
@@ -411,6 +425,10 @@ export async function GET(request: Request) {
         priority: text(row.priority) || null,
         followUpDue: (row.deferred_until as string | null) ?? null,
         agingDays: aging,
+        autoRouted,
+        autoRoutedTab,
+        autoRoutedReason,
+        autoRoutedAt,
         correctionHistory: itemComments,
         contextPayload: ctx ?? {},
       };
