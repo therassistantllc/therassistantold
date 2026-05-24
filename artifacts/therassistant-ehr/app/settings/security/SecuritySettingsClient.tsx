@@ -474,6 +474,12 @@ function RolesPanel() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteFirst, setInviteFirst] = useState("");
+  const [inviteLast, setInviteLast] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRoleId, setInviteRoleId] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -523,12 +529,176 @@ function RolesPanel() {
     [load],
   );
 
+  const resetInviteForm = useCallback(() => {
+    setInviteFirst("");
+    setInviteLast("");
+    setInviteEmail("");
+    setInviteRoleId("");
+  }, []);
+
+  const submitInvite = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      setError(null);
+      setToast(null);
+      setInviting(true);
+      try {
+        const resp = await fetch("/api/admin/security/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: inviteFirst,
+            last_name: inviteLast,
+            email: inviteEmail,
+            role_id: inviteRoleId,
+          }),
+        });
+        const json = await resp.json();
+        if (!resp.ok || !json.success) {
+          throw new Error(json.error ?? "Failed to send invitation");
+        }
+        setToast(json.message ?? `Invitation sent to ${inviteEmail}.`);
+        resetInviteForm();
+        setInviteOpen(false);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to send invitation");
+      } finally {
+        setInviting(false);
+      }
+    },
+    [inviteFirst, inviteLast, inviteEmail, inviteRoleId, load, resetInviteForm],
+  );
+
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>Roles</h2>
-      <p style={{ color: "var(--text-secondary, #555)", marginTop: 0 }}>
-        Assign a role to each staff member. Changes are recorded in the audit log.
-      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2 style={{ marginTop: 0 }}>Roles</h2>
+          <p style={{ color: "var(--text-secondary, #555)", marginTop: 0 }}>
+            Assign a role to each staff member. Changes are recorded in the audit log.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="button button-primary"
+          onClick={() => {
+            setInviteOpen((open) => !open);
+            setError(null);
+            setToast(null);
+          }}
+        >
+          {inviteOpen ? "Close" : "Invite staff"}
+        </button>
+      </div>
+
+      {inviteOpen ? (
+        <form
+          onSubmit={submitInvite}
+          style={{
+            background: "#f7f7f9",
+            border: "1px solid #e3e3e8",
+            borderRadius: 8,
+            padding: "1rem",
+            marginBottom: "1rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "1rem",
+          }}
+        >
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>First name</span>
+            <input
+              className="input"
+              value={inviteFirst}
+              onChange={(e) => setInviteFirst(e.target.value)}
+              required
+              disabled={inviting}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Last name</span>
+            <input
+              className="input"
+              value={inviteLast}
+              onChange={(e) => setInviteLast(e.target.value)}
+              required
+              disabled={inviting}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Email</span>
+            <input
+              type="email"
+              className="input"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+              disabled={inviting}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Starting role</span>
+            <select
+              className="input"
+              value={inviteRoleId}
+              onChange={(e) => setInviteRoleId(e.target.value)}
+              required
+              disabled={inviting || roles.length === 0}
+            >
+              <option value="" disabled>
+                {roles.length === 0 ? "No roles available" : "Select a role"}
+              </option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              gap: "0.5rem",
+              justifyContent: "flex-end",
+            }}
+          >
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => {
+                resetInviteForm();
+                setInviteOpen(false);
+              }}
+              disabled={inviting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={
+                inviting ||
+                !inviteFirst.trim() ||
+                !inviteLast.trim() ||
+                !inviteEmail.trim() ||
+                !inviteRoleId
+              }
+            >
+              {inviting ? "Sending…" : "Send invitation"}
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       {error ? <Alert kind="error">{error}</Alert> : null}
       {toast ? <Alert kind="success">{toast}</Alert> : null}
