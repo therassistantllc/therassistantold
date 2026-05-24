@@ -9,12 +9,12 @@
  *       | "bill_secondary"
  *       | "request_eob"
  *       | "record_eob"
- *       | "route_to_client_admin"    // delivery: "clipboard" | "email"
+ *       | "route_to_client_admin"    // delivery: "clipboard" | "email" | "sms"
  *       | "reopen",
  *     organizationId: string,
  *     ordered_policy_ids?: string[],
  *     note?: string,
- *     delivery?: "clipboard" | "email",
+ *     delivery?: "clipboard" | "email" | "sms",
  *   }
  *
  * Every action writes an audit_logs row under the `cob_<action>`
@@ -31,6 +31,7 @@ import { randomBytes } from "node:crypto";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
 import { sendCobUpdateEmail } from "@/lib/email/resend";
+import { normalizePhoneForSms, sendCobUpdateSms } from "@/lib/sms/twilio";
 import { billPrimary, billSecondary } from "@/lib/billing/cobBilling";
 
 const ALLOWED = [
@@ -192,8 +193,9 @@ export async function POST(
       url: string;
       fullUrl: string;
       expiresAt: string | null;
-      deliveryMethod: "clipboard" | "email";
+      deliveryMethod: "clipboard" | "email" | "sms";
       email: { sent: boolean; to: string | null; error: string | null };
+      sms: { sent: boolean; to: string | null; error: string | null };
     } | null = null;
 
     if (action === "route_to_client_admin") {
@@ -209,16 +211,22 @@ export async function POST(
       }
 
       const requestedDelivery = String(body.delivery ?? "clipboard").toLowerCase();
-      const deliveryMethod: "clipboard" | "email" =
-        requestedDelivery === "email" ? "email" : "clipboard";
+      const deliveryMethod: "clipboard" | "email" | "sms" =
+        requestedDelivery === "email"
+          ? "email"
+          : requestedDelivery === "sms" || requestedDelivery === "text"
+            ? "sms"
+            : "clipboard";
 
       const { data: clientRow } = await (supabase as any)
         .from("clients")
-        .select("id, email, first_name, last_name, preferred_name")
+        .select("id, email, phone, first_name, last_name, preferred_name")
         .eq("id", clientId)
         .eq("organization_id", organizationId)
         .maybeSingle();
       const patientEmail = String(clientRow?.email ?? "").trim();
+      const patientPhoneRaw = String(clientRow?.phone ?? "").trim();
+      const patientPhone = normalizePhoneForSms(patientPhoneRaw);
 
       const canonicalBase = resolveCanonicalBaseUrl();
       if (deliveryMethod === "email") {
@@ -238,6 +246,29 @@ export async function POST(
               success: false,
               error:
                 "Cannot email an insurance-update link without a canonical app URL. Set APP_URL or NEXT_PUBLIC_APP_URL.",
+            },
+            { status: 500 },
+          );
+        }
+      }
+      if (deliveryMethod === "sms") {
+        if (!patientPhone) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: patientPhoneRaw
+                ? "This client's phone number is not in a recognizable format. Fix it on the chart, or copy the link manually instead."
+                : "This client does not have a phone number on file. Add one to the chart, or copy the link manually instead.",
+            },
+            { status: 400 },
+          );
+        }
+        if (!canonicalBase) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Cannot text an insurance-update link without a canonical app URL. Set APP_URL or NEXT_PUBLIC_APP_URL.",
             },
             { status: 500 },
           );
@@ -284,7 +315,7 @@ export async function POST(
 
       const relativeUrl = `/cob-update/${inserted.token}`;
       const baseUrl =
-        deliveryMethod === "email"
+        deliveryMethod === "email" || deliveryMethod === "sms"
           ? (canonicalBase as string)
           : resolveBaseUrlForClipboard(request);
       const fullUrl = baseUrl ? `${baseUrl}${relativeUrl}` : relativeUrl;
@@ -298,6 +329,7 @@ export async function POST(
         expiresAt,
         deliveryMethod,
         email: { sent: false, to: null, error: null },
+        sms: { sent: false, to: null, error: null },
       };
 
       if (deliveryMethod === "email") {
@@ -353,12 +385,71 @@ export async function POST(
         }
       }
 
+      if (deliveryMethod === "sms") {
+        const patientName = [
+          String(clientRow?.preferred_name ?? "").trim() ||
+            String(clientRow?.first_name ?? "").trim(),
+          String(clientRow?.last_name ?? "").trim(),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const send = await sendCobUpdateSms({
+          to: patientPhone as string,
+          patientName,
+          practiceName,
+          updateUrl: fullUrl,
+        });
+
+        const nowIso = new Date().toISOString();
+        if (send.ok) {
+          clientUpdate.sms = { sent: true, to: send.to, error: null };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_phone: send.to,
+              delivered_at: nowIso,
+              delivery_error: null,
+              delivery_provider_id: send.providerId,
+              delivery_status: "sent",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+        } else {
+          clientUpdate.sms = {
+            sent: false,
+            to: patientPhone,
+            error: send.error,
+          };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_phone: patientPhone,
+              delivery_error: send.error,
+              delivery_status: "failed",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+          return NextResponse.json(
+            {
+              success: false,
+              error: send.error,
+              clientUpdate,
+            },
+            { status: 502 },
+          );
+        }
+      }
+
       metadata.link_id = clientUpdate.linkId;
       metadata.link_url = relativeUrl;
       metadata.link_expires_at = expiresAt;
       metadata.delivery_method = deliveryMethod;
       if (clientUpdate.email.sent) {
         metadata.delivered_to_email = clientUpdate.email.to;
+      }
+      if (clientUpdate.sms.sent) {
+        metadata.delivered_to_phone = clientUpdate.sms.to;
       }
     }
 

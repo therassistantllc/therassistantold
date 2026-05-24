@@ -334,9 +334,10 @@ export default function CobIssuesClient() {
           clientUpdate?: {
             fullUrl?: string;
             url?: string;
-            deliveryMethod?: "clipboard" | "email";
+            deliveryMethod?: "clipboard" | "email" | "sms";
             expiresAt?: string | null;
             email?: { sent?: boolean; to?: string | null; error?: string | null };
+            sms?: { sent?: boolean; to?: string | null; error?: string | null };
           };
         };
         if (!res.ok || !json.success) {
@@ -349,6 +350,11 @@ export default function CobIssuesClient() {
             setMessage({
               tone: "success",
               text: `Insurance update link emailed to ${cu.email.to}.`,
+            });
+          } else if (cu.deliveryMethod === "sms" && cu.sms?.sent) {
+            setMessage({
+              tone: "success",
+              text: `Insurance update link texted to ${cu.sms.to}.`,
             });
           } else if (link && typeof window !== "undefined" && navigator.clipboard) {
             await navigator.clipboard
@@ -409,11 +415,18 @@ export default function CobIssuesClient() {
     (row: Row) => {
       const choice = window.prompt(
         `Send ${row.client_name} a secure insurance-update link.\n\n` +
-          `Type "email" to email it now, or just press OK to copy the link to your clipboard so you can text it.`,
-        "email",
+          `Type "text" to send it by SMS, "email" to email it now, ` +
+          `or "copy" (default) to copy the link to your clipboard.`,
+        "text",
       );
       if (choice === null) return;
-      const delivery = choice.trim().toLowerCase() === "email" ? "email" : "clipboard";
+      const normalized = choice.trim().toLowerCase();
+      const delivery =
+        normalized === "email"
+          ? "email"
+          : normalized === "text" || normalized === "sms"
+            ? "sms"
+            : "clipboard";
       void runAction(row.id, "route_to_client_admin", { delivery });
     },
     [runAction],
