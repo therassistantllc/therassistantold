@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import {
@@ -53,6 +54,7 @@ function formatDate(value: string) {
 }
 
 export default function MailroomItemClient({ itemId }: { itemId: string }) {
+  const router = useRouter();
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [item, setItem] = useState<MailroomItem | null>(null);
   const [patient, setPatient] = useState<LinkedPatient | null>(null);
@@ -167,12 +169,13 @@ export default function MailroomItemClient({ itemId }: { itemId: string }) {
     const json = (await response.json()) as { success?: boolean; error?: string; document_id?: string; message?: string };
     if (!response.ok || !json.success) {
       setError(json.error || "Unable to file document.");
-    } else {
-      setMessage(json.message || "Document filed successfully.");
-      setSelectedEntity(null);
-      await loadItem();
+      setFiling(false);
+      return;
     }
-    setFiling(false);
+    setMessage(json.message || "Document filed successfully.");
+    setSelectedEntity(null);
+    router.push("/mailroom?filed=1");
+    router.refresh();
   }
 
   const canFile = canFileDocument({
