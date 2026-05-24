@@ -7,6 +7,15 @@
 
 const Module = require("node:module");
 
+// Stub Next's `server-only` package for unit tests so we can import library
+// modules that guard themselves with `import "server-only"`. The real package
+// throws when bundled into client code; in Node tests it just needs to exist.
+const origResolve = Module._resolveFilename;
+Module._resolveFilename = function patchedResolve(request, parent, ...rest) {
+  if (request === "server-only") return require.resolve("./test-server-only-stub.cjs");
+  return origResolve.call(this, request, parent, ...rest);
+};
+
 Module._extensions[".css"] = function cssExtension(mod) {
   mod.exports = new Proxy(
     {},

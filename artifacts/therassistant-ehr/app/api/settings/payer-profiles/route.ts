@@ -9,6 +9,21 @@ import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
  * same normalizer the validation engine consumes, guaranteeing the rules
  * surface in the engine exactly as written here.
  */
+/**
+ * Coerce caller input for the per-payer adjudication SLA. Returns:
+ *   - a finite integer in [1, 365] when valid
+ *   - null when the field is absent / blank (caller wants the default)
+ *   - "invalid" when present but unparseable / out of range
+ */
+function coerceAdjudicationSlaDays(raw: unknown): number | null | "invalid" {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return "invalid";
+  const i = Math.floor(n);
+  if (i < 1 || i > 365) return "invalid";
+  return i;
+}
+
 function sanitizeBillingRules(raw: unknown): Record<string, unknown> {
   const r = normalizePayerBillingRules(raw);
   return {
@@ -38,7 +53,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("payer_profiles")
     .select(
-      "id, payer_name, availity_payer_id, payer_type, is_active, notes, requires_authorization, billing_rules, fax_number, created_at, updated_at" as any,
+      "id, payer_name, availity_payer_id, payer_type, is_active, notes, requires_authorization, billing_rules, fax_number, adjudication_sla_days, created_at, updated_at" as any,
     )
     .eq("organization_id", organizationId)
     .order("payer_name", { ascending: true });
@@ -74,6 +89,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "payer_name and availity_payer_id are required" }, { status: 400 });
   }
 
+  const slaParsed = coerceAdjudicationSlaDays(body.adjudication_sla_days);
+  if (slaParsed === "invalid") {
+    return NextResponse.json(
+      { error: "adjudication_sla_days must be an integer between 1 and 365" },
+      { status: 400 },
+    );
+  }
+
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("payer_profiles")
@@ -87,6 +110,7 @@ export async function POST(req: NextRequest) {
       requires_authorization: Boolean(body.requires_authorization ?? false),
       fax_number: body.fax_number ? String(body.fax_number) : null,
       billing_rules: sanitizeBillingRules(body.billing_rules),
+      ...(slaParsed != null ? { adjudication_sla_days: slaParsed } : {}),
       created_at: now,
       updated_at: now,
     } as any)
@@ -140,6 +164,16 @@ export async function PATCH(req: NextRequest) {
   }
   if ("billing_rules" in body) {
     updates.billing_rules = sanitizeBillingRules(body.billing_rules);
+  }
+  if ("adjudication_sla_days" in body) {
+    const sla = coerceAdjudicationSlaDays(body.adjudication_sla_days);
+    if (sla === "invalid") {
+      return NextResponse.json(
+        { error: "adjudication_sla_days must be an integer between 1 and 365" },
+        { status: 400 },
+      );
+    }
+    if (sla != null) updates.adjudication_sla_days = sla;
   }
   updates.updated_at = new Date().toISOString();
 

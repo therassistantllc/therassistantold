@@ -217,7 +217,7 @@ export async function loadPayerReceivedClaims({
           .in("id", apptIds)
       : { data: [] as DbRow[] },
     profileIds.length
-      ? sb.from("payer_profiles").select("id, payer_name, availity_payer_id").in("id", profileIds)
+      ? sb.from("payer_profiles").select("id, payer_name, availity_payer_id, adjudication_sla_days").in("id", profileIds)
       : { data: [] as DbRow[] },
     claimIds.length
       ? sb.from("claim_status_events")
@@ -346,8 +346,12 @@ export async function loadPayerReceivedClaims({
     const submittedAt = text(c.submitted_at) || null;
     const daysInProcess = daysSince(payerReceivedAt ?? submittedAt);
 
-    // Expected adjudication date — payer SLA, default 30 days from received.
-    const expectedAdjudicationAt = addDaysIso(payerReceivedAt ?? submittedAt, 30);
+    // Expected adjudication date — driven by the per-payer SLA configured on
+    // payer_profiles.adjudication_sla_days. Falls back to 30 days when the
+    // payer is unknown or the column is somehow null (older rows pre-migration).
+    const slaRaw = profile ? Number(profile.adjudication_sla_days) : NaN;
+    const slaDays = Number.isFinite(slaRaw) && slaRaw >= 1 ? Math.floor(slaRaw) : 30;
+    const expectedAdjudicationAt = addDaysIso(payerReceivedAt ?? submittedAt, slaDays);
 
     // Status history (276/277): combine inquiries + status events.
     const statusHistory: StatusHistoryEntry[] = [];

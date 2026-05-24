@@ -24,6 +24,7 @@ type Payer = {
   requires_authorization: boolean | null;
   billing_rules: BillingRules | null;
   fax_number: string | null;
+  adjudication_sla_days: number | null;
   updated_at: string;
 };
 
@@ -35,6 +36,7 @@ type FormState = {
   notes: string;
   requires_authorization: boolean;
   fax_number: string;
+  adjudication_sla_days_text: string;
   // Billing-rules edit fields. Lists are entered as comma-separated text
   // and split server-side so the UI stays simple.
   requires_telehealth_modifier: boolean;
@@ -54,6 +56,7 @@ const EMPTY_FORM: FormState = {
   notes: "",
   requires_authorization: false,
   fax_number: "",
+  adjudication_sla_days_text: "",
   requires_telehealth_modifier: false,
   allowed_pos_codes_text: "",
   requires_rendering_provider_taxonomy: false,
@@ -113,6 +116,10 @@ export default function PayerProfilesClient() {
       notes: p.notes ?? "",
       requires_authorization: p.requires_authorization === true,
       fax_number: p.fax_number ?? "",
+      adjudication_sla_days_text:
+        typeof p.adjudication_sla_days === "number" && p.adjudication_sla_days > 0
+          ? String(p.adjudication_sla_days)
+          : "",
       requires_telehealth_modifier: br.requires_telehealth_modifier === true,
       allowed_pos_codes_text: joinList(br.allowed_pos_codes ?? []),
       requires_rendering_provider_taxonomy:
@@ -149,6 +156,19 @@ export default function PayerProfilesClient() {
         : `/api/settings/payer-profiles?organizationId=${encodeURIComponent(organizationId)}`;
       const timely = form.timely_filing_days_text.trim();
       const parsedTimely = timely ? Number(timely) : null;
+      const slaText = form.adjudication_sla_days_text.trim();
+      const parsedSla = slaText ? Number(slaText) : null;
+      if (
+        slaText &&
+        (parsedSla == null || !Number.isFinite(parsedSla) || parsedSla < 1 || parsedSla > 365)
+      ) {
+        setStatusMsg({
+          type: "err",
+          text: "Adjudication SLA must be a whole number of days between 1 and 365.",
+        });
+        setSaving(false);
+        return;
+      }
       const billing_rules = {
         requires_telehealth_modifier: form.requires_telehealth_modifier,
         allowed_pos_codes: splitCsv(form.allowed_pos_codes_text),
@@ -173,6 +193,8 @@ export default function PayerProfilesClient() {
           notes: form.notes || null,
           requires_authorization: form.requires_authorization,
           fax_number: form.fax_number.trim() || null,
+          adjudication_sla_days:
+            parsedSla != null && Number.isFinite(parsedSla) ? Math.floor(parsedSla) : null,
           billing_rules,
         }),
       });
@@ -294,6 +316,19 @@ export default function PayerProfilesClient() {
                   placeholder="e.g. 555-123-4567"
                 />
               </label>
+              <label className="field-label">
+                Adjudication SLA (days)
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={form.adjudication_sla_days_text}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, adjudication_sla_days_text: e.target.value }))
+                  }
+                  placeholder="default 30 (Medicare ~14, Medicaid ~60)"
+                />
+              </label>
             </div>
             <label className="checkbox-label" style={{ margin: "var(--space-3) 0" }}>
               <input
@@ -404,6 +439,7 @@ export default function PayerProfilesClient() {
               <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>Availity ID</th>
               <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>Type</th>
               <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>Status</th>
+              <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>SLA (days)</th>
               <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>Notes</th>
               <th style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}></th>
             </tr>
@@ -418,6 +454,9 @@ export default function PayerProfilesClient() {
                   <span className={p.is_active ? "status status-green" : "status status-red"}>
                     {p.is_active ? "Active" : "Inactive"}
                   </span>
+                </td>
+                <td style={{ padding: "8px 12px", fontSize: "var(--text-sm)" }}>
+                  {p.adjudication_sla_days ?? 30}
                 </td>
                 <td style={{ padding: "8px 12px", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{p.notes ?? "—"}</td>
                 <td style={{ padding: "8px 12px" }}>

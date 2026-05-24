@@ -8659,6 +8659,7 @@ export type Database = {
       }
       payer_profiles: {
         Row: {
+          adjudication_sla_days: number
           availity_payer_id: string
           billing_rules: Json
           created_at: string
@@ -8672,6 +8673,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adjudication_sla_days?: number
           availity_payer_id: string
           billing_rules?: Json
           created_at?: string
@@ -8685,6 +8687,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adjudication_sla_days?: number
           availity_payer_id?: string
           billing_rules?: Json
           created_at?: string
