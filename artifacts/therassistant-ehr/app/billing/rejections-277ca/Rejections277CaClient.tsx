@@ -114,8 +114,10 @@ export default function Rejections277CaClient() {
     REJECTION_277CA_TABS[0].id,
   );
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [message, setMessage] = useState<
     { tone: "success" | "error"; text: string } | null
   >(null);
@@ -410,6 +412,109 @@ export default function Rejections277CaClient() {
       }
     },
     [organizationId, items],
+  );
+
+  // ── Bulk action runner ─────────────────────────────────────────────────
+  const runBulkAction = useCallback(
+    async (
+      action:
+        | "resubmit_corrected_claim"
+        | "route_to_eligibility"
+        | "route_to_enrollment"
+        | "mark_resolved",
+    ) => {
+      if (selectedIds.length === 0 || bulkBusy) return;
+      setBulkBusy(true);
+      setMessage(null);
+
+      // Optimistic patch — all four bulk actions take the row out of view.
+      const snapshot = items;
+      const targetIds = new Set(selectedIds);
+      setItems((prev) => prev.filter((r) => !targetIds.has(r.id)));
+
+      try {
+        const res = await fetch(`/api/billing/rejections-277ca/bulk`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            action,
+            itemIds: [...targetIds],
+          }),
+        });
+        const json = (await res.json()) as {
+          success?: boolean;
+          error?: string;
+          successCount?: number;
+          failedCount?: number;
+          totalCount?: number;
+          results?: Array<{ itemId: string; ok: boolean; error?: string }>;
+        };
+        if (!res.ok && !json.results) {
+          throw new Error(json.error || "Bulk action failed");
+        }
+
+        const successCount = json.successCount ?? 0;
+        const failedCount = json.failedCount ?? 0;
+        const totalCount = json.totalCount ?? targetIds.size;
+        const verb =
+          action === "resubmit_corrected_claim"
+            ? "Resubmitted"
+            : action === "route_to_eligibility"
+              ? "Routed to eligibility"
+              : action === "route_to_enrollment"
+                ? "Routed to credentialing/enrollment"
+                : "Marked resolved";
+
+        if (failedCount === 0) {
+          setMessage({
+            tone: "success",
+            text: `${verb}: ${successCount} of ${totalCount} item(s).`,
+          });
+        } else {
+          // Roll back failed rows so the biller can retry them.
+          const failedIds = new Set(
+            (json.results ?? [])
+              .filter((r) => !r.ok)
+              .map((r) => r.itemId),
+          );
+          if (failedIds.size > 0) {
+            setItems((prev) => {
+              const have = new Set(prev.map((r) => r.id));
+              const restored = snapshot.filter(
+                (r) => failedIds.has(r.id) && !have.has(r.id),
+              );
+              return restored.length > 0 ? [...prev, ...restored] : prev;
+            });
+          }
+          const firstError = (json.results ?? []).find((r) => !r.ok)?.error;
+          setMessage({
+            tone: "error",
+            text:
+              `${verb}: ${successCount} of ${totalCount} succeeded, ${failedCount} failed` +
+              (firstError ? ` — first error: ${firstError}` : "."),
+          });
+        }
+        // Only keep failed ids selected so the biller can act on them again.
+        const failedIds = new Set(
+          (json.results ?? [])
+            .filter((r) => !r.ok)
+            .map((r) => r.itemId),
+        );
+        setSelectedIds((prev) => prev.filter((id) => failedIds.has(id)));
+        setReloadKey((k) => k + 1);
+      } catch (e) {
+        // Full rollback on transport-level failure.
+        setItems(snapshot);
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Bulk action failed",
+        });
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [bulkBusy, items, organizationId, selectedIds],
   );
 
   const correctHref = useCallback(
@@ -719,17 +824,54 @@ export default function Rejections277CaClient() {
     return m;
   }, [items]);
 
-  const headerActions: PrimaryAction[] = useMemo(
-    () => [
-      {
-        id: "refresh",
-        label: loading ? "Refreshing…" : "Refresh",
-        onClick: () => setReloadKey((k) => k + 1),
-        disabled: loading,
-      },
-    ],
-    [loading],
-  );
+  const headerActions: PrimaryAction[] = useMemo(() => {
+    const acts: PrimaryAction[] = [];
+    if (selectedIds.length > 0) {
+      const n = selectedIds.length;
+      const suffix = ` (${n})`;
+      acts.push(
+        {
+          id: "bulk-resubmit",
+          label: bulkBusy ? "Working…" : `Resubmit corrected claims${suffix}`,
+          variant: "primary",
+          onClick: () => void runBulkAction("resubmit_corrected_claim"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-eligibility",
+          label: `Route to eligibility${suffix}`,
+          onClick: () => void runBulkAction("route_to_eligibility"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-enrollment",
+          label: `Route to credentialing/enrollment${suffix}`,
+          onClick: () => void runBulkAction("route_to_enrollment"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-resolve",
+          label: `Mark resolved${suffix}`,
+          variant: "success",
+          onClick: () => void runBulkAction("mark_resolved"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-clear",
+          label: "Clear selection",
+          onClick: () => setSelectedIds([]),
+          disabled: bulkBusy,
+        },
+      );
+    }
+    acts.push({
+      id: "refresh",
+      label: loading ? "Refreshing…" : "Refresh",
+      onClick: () => setReloadKey((k) => k + 1),
+      disabled: loading || bulkBusy,
+    });
+    return acts;
+  }, [loading, selectedIds, bulkBusy, runBulkAction]);
 
   const primaryTabs: PrimaryTab[] = useMemo(
     () =>
@@ -753,6 +895,7 @@ export default function Rejections277CaClient() {
         onPrimaryTabChange={(tabId) => {
           setActiveTab(tabId as Rejection277CaTabId);
           setSelectedRowId(null);
+          setSelectedIds([]);
         }}
         filters={filters}
         filterValues={filterValues}
@@ -769,6 +912,8 @@ export default function Rejections277CaClient() {
         }.`}
         selectedRowId={selectedRowId}
         onSelectRow={setSelectedRowId}
+        selectedRowIds={selectedIds}
+        onSelectionChange={setSelectedIds}
         detailTabs={detailTabs}
         detailActions={detailActions}
         message={message}
