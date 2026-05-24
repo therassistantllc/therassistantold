@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { dispatchClaimStatusInquiry } from "@/lib/billing/claimStatusDispatcher";
 
 type ActionName =
   | "check_status"
@@ -82,39 +83,111 @@ export async function POST(request: Request) {
 
     switch (action) {
       case "check_status": {
-        // Queue a 276 status inquiry (worker will pick it up). If the insert
-        // fails, surface the failure — we never want to tell the user a
-        // status inquiry was queued when it wasn't.
+        // Validate the claim exists AND belongs to the authenticated
+        // user's organization BEFORE we create any inquiry or event
+        // rows. Without this, a known-foreign claim UUID could be used
+        // to inject claim_status_events / inquiry rows scoped to the
+        // caller's org but pointing at someone else's claim id.
+        const { data: claimOwner, error: ownerErr } = await sb
+          .from("professional_claims")
+          .select("id")
+          .eq("id", claimId)
+          .eq("organization_id", organizationId)
+          .maybeSingle();
+        if (ownerErr) {
+          return NextResponse.json(
+            { success: false, error: ownerErr.message ?? "Failed to verify claim" },
+            { status: 500 },
+          );
+        }
+        if (!claimOwner?.id) {
+          return NextResponse.json(
+            { success: false, error: "Claim not found" },
+            { status: 404 },
+          );
+        }
+
+        // Queue a 276 status inquiry and immediately dispatch it through
+        // the clearinghouse adapter. If the queueing insert fails, surface
+        // the failure — we never want to tell the user a status inquiry
+        // was queued when it wasn't.
         const duplicateKey = `payer_received:${claimId}:${Date.now()}`;
-        const { error: insertErr } = await sb
+        const queuedAt = new Date().toISOString();
+        const { data: inserted, error: insertErr } = await sb
           .from("claim_status_inquiries")
           .insert({
             organization_id: organizationId,
             claim_id: claimId,
             inquiry_status: "queued",
-            requested_at: new Date().toISOString(),
+            requested_at: queuedAt,
             duplicate_detection_key: duplicateKey,
             created_by_user_id: userId,
-          });
-        if (insertErr) {
+          })
+          .select("id")
+          .single();
+        if (insertErr || !inserted?.id) {
           return NextResponse.json(
             {
               success: false,
-              error: insertErr.message ?? "Failed to queue payer status inquiry",
+              error: insertErr?.message ?? "Failed to queue payer status inquiry",
             },
             { status: 500 },
           );
         }
+
+        // Synchronously act as the dispatcher: send the 276, record the
+        // 277, update this same inquiry row with payer_status_code/text/
+        // responded_at, and write a claim_status_events history entry.
+        const dispatchOutcome = await dispatchClaimStatusInquiry({
+          supabase,
+          organizationId,
+          claimId,
+          inquiryId: inserted.id as string,
+        });
+
         await writeAudit(supabase, {
           organizationId,
           userId,
           action: "payer_received_status_checked",
           claimId,
           clientId: body.clientId ?? null,
-          summary: "Queued 276 payer status inquiry",
-          metadata: { queuedAt: new Date().toISOString() },
+          summary:
+            dispatchOutcome.inquiryStatus === "received"
+              ? "Submitted 276 payer status inquiry"
+              : "Queued 276 payer status inquiry (dispatch failed)",
+          metadata: {
+            queuedAt,
+            inquiryId: inserted.id,
+            inquiryStatus: dispatchOutcome.inquiryStatus,
+            normalizedStatus: dispatchOutcome.normalized?.status ?? null,
+            controlNumber: dispatchOutcome.controlNumber,
+            correlationId: dispatchOutcome.correlationId,
+            error: dispatchOutcome.errorMessage,
+          },
         });
-        return NextResponse.json({ success: true, queuedAt: new Date().toISOString() });
+
+        if (dispatchOutcome.inquiryStatus === "failed") {
+          return NextResponse.json(
+            {
+              success: false,
+              queuedAt,
+              inquiryId: inserted.id,
+              inquiryStatus: dispatchOutcome.inquiryStatus,
+              error: dispatchOutcome.errorMessage ?? "276/277 dispatch failed",
+            },
+            { status: 502 },
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          queuedAt,
+          inquiryId: inserted.id,
+          inquiryStatus: dispatchOutcome.inquiryStatus,
+          normalizedStatus: dispatchOutcome.normalized?.status ?? null,
+          payerStatusCode: dispatchOutcome.normalized?.statusCode ?? null,
+          payerStatusText: dispatchOutcome.normalized?.payerMessage ?? null,
+        });
       }
       case "add_note": {
         const note = (body.note ?? "").trim();
