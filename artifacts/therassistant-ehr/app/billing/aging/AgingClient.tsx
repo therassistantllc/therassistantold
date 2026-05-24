@@ -75,6 +75,14 @@ type Inquiry = {
   created_at: string;
 };
 
+type BulkAction = "run_status" | "escalate" | "mark_resolved";
+
+const BULK_ACTION_LABELS: Record<BulkAction, string> = {
+  run_status: "Run status",
+  escalate: "Escalate to urgent",
+  mark_resolved: "Mark resolved",
+};
+
 type StatusEvent = {
   id?: string;
   status: string;
@@ -256,6 +264,202 @@ function ModalShell({
         {children}
       </div>
     </div>
+  );
+}
+
+// ─── Bulk toolbar ─────────────────────────────────────────────────────────────
+
+function BulkToolbar({
+  count,
+  disabled,
+  onRun,
+  onClear,
+}: {
+  count: number;
+  disabled: boolean;
+  onRun: (action: BulkAction) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div
+      role="toolbar"
+      aria-label="Bulk actions"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 14px",
+        margin: "8px 0",
+        background: "#EFF6FF",
+        border: "1px solid #BFDBFE",
+        borderRadius: 6,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#1E3A8A" }}>
+        {count} selected
+      </span>
+      <div style={{ display: "flex", gap: 6, flex: 1 }}>
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={disabled}
+          onClick={() => onRun("run_status")}
+          style={{ height: 30, padding: "0 12px", fontSize: 12 }}
+        >
+          Run status
+        </button>
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={disabled}
+          onClick={() => onRun("escalate")}
+          style={{ height: 30, padding: "0 12px", fontSize: 12 }}
+        >
+          Escalate to urgent
+        </button>
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={disabled}
+          onClick={() => onRun("mark_resolved")}
+          style={{ height: 30, padding: "0 12px", fontSize: 12 }}
+        >
+          Mark resolved
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        disabled={disabled}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "#1E3A8A",
+          fontSize: 12,
+          cursor: disabled ? "not-allowed" : "pointer",
+          textDecoration: "underline",
+        }}
+      >
+        Clear selection
+      </button>
+    </div>
+  );
+}
+
+function BulkProgressModal({
+  action,
+  done,
+  total,
+}: {
+  action: BulkAction;
+  done: number;
+  total: number;
+}) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <ModalShell title={`${BULK_ACTION_LABELS[action]} — ${done} of ${total}`} onClose={() => {}}>
+      <div style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
+        Submitting requests in parallel. Please wait…
+      </div>
+      <div
+        style={{
+          height: 8,
+          background: "#E5E7EB",
+          borderRadius: 999,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: "#2563EB",
+            transition: "width 120ms linear",
+          }}
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
+function BulkSummaryModal({
+  action,
+  succeeded,
+  failed,
+  onClose,
+}: {
+  action: BulkAction;
+  succeeded: Array<{ id: string; label: string }>;
+  failed: Array<{ id: string; label: string; error: string }>;
+  onClose: () => void;
+}) {
+  return (
+    <ModalShell title={`${BULK_ACTION_LABELS[action]} — results`} onClose={onClose} width={520}>
+      <div style={{ fontSize: 13, marginBottom: 12 }}>
+        <strong style={{ color: "#047857" }}>{succeeded.length} succeeded</strong>
+        {" · "}
+        <strong style={{ color: failed.length > 0 ? "#B91C1C" : "#6B7280" }}>
+          {failed.length} failed
+        </strong>
+      </div>
+      {failed.length > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#B91C1C", marginBottom: 6 }}>
+            Failed (still selected for retry)
+          </div>
+          <div
+            style={{
+              maxHeight: 200,
+              overflow: "auto",
+              border: "1px solid #FECACA",
+              borderRadius: 4,
+              background: "#FEF2F2",
+            }}
+          >
+            {failed.map((f) => (
+              <div
+                key={f.id}
+                style={{
+                  padding: "6px 10px",
+                  borderBottom: "1px solid #FECACA",
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 600 }}>
+                  {f.label}
+                </span>
+                <span style={{ color: "#7F1D1D", marginLeft: 8 }}>{f.error}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {succeeded.length > 0 ? (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#047857", marginBottom: 6 }}>
+            Succeeded
+          </div>
+          <div
+            style={{
+              maxHeight: 160,
+              overflow: "auto",
+              border: "1px solid #BBF7D0",
+              borderRadius: 4,
+              background: "#F0FDF4",
+              fontSize: 12,
+              padding: "6px 10px",
+            }}
+          >
+            {succeeded.map((s) => s.label).join(", ")}
+          </div>
+        </div>
+      ) : null}
+      <div style={buttonRow}>
+        <button type="button" className="button" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -837,6 +1041,18 @@ export default function AgingClient() {
   const [resolveRow, setResolveRow] = useState<Row | null>(null);
   const [bumpKey, setBumpKey] = useState(0);
 
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [bulkProgress, setBulkProgress] = useState<{
+    action: BulkAction;
+    total: number;
+    done: number;
+  } | null>(null);
+  const [bulkSummary, setBulkSummary] = useState<{
+    action: BulkAction;
+    succeeded: Array<{ id: string; label: string }>;
+    failed: Array<{ id: string; label: string; error: string }>;
+  } | null>(null);
+
   const load = useCallback(async () => {
     if (!organizationId) return;
     setLoading(true);
@@ -1180,6 +1396,64 @@ export default function AgingClient() {
     [organizationId],
   );
 
+  const runBulk = useCallback(
+    async (action: BulkAction) => {
+      const ids = selectedRowIds;
+      const targets = rows.filter((r) => ids.includes(r.id));
+      if (targets.length === 0) return;
+      setBulkProgress({ action, total: targets.length, done: 0 });
+      const succeeded: Array<{ id: string; label: string }> = [];
+      const failed: Array<{ id: string; label: string; error: string }> = [];
+      await Promise.all(
+        targets.map(async (r) => {
+          const label = r.claim_number ?? r.id.slice(0, 8);
+          let result: { success: boolean; error?: string };
+          try {
+            if (action === "run_status") {
+              result = await runClaimStatus(r, organizationId);
+            } else if (action === "escalate") {
+              result = await escalate(
+                r,
+                organizationId,
+                `Bulk escalation from Aging (${r.bucket})`,
+              );
+            } else {
+              result = await postAgingAction(
+                r,
+                organizationId,
+                "mark_resolved",
+                "Bulk resolve from Aging",
+              );
+            }
+          } catch (e) {
+            result = { success: false, error: e instanceof Error ? e.message : "Failed" };
+          }
+          if (result.success) {
+            succeeded.push({ id: r.id, label });
+            if (action === "escalate") {
+              patchRow(r.id, { priority: "urgent" });
+            } else if (action === "mark_resolved") {
+              removeRow(r.id);
+            }
+          } else {
+            failed.push({ id: r.id, label, error: result.error ?? "Failed" });
+          }
+          setBulkProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+        }),
+      );
+      setBulkProgress(null);
+      setBulkSummary({ action, succeeded, failed });
+      // Keep only failed rows selected for retry
+      setSelectedRowIds(failed.map((f) => f.id));
+      if (action === "run_status" && succeeded.length > 0) {
+        setBumpKey((k) => k + 1);
+        void load();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedRowIds, rows, organizationId, load],
+  );
+
   const rowActions: RowAction<Row>[] = useMemo(
     () => [
       { id: "status", label: "Run status", onClick: (r) => void handleRunStatus(r) },
@@ -1320,6 +1594,7 @@ export default function AgingClient() {
         onPrimaryTabChange={(id) => {
           setActiveTab(id as Tab);
           setSelectedRowId(null);
+          setSelectedRowIds([]);
         }}
         filters={filters}
         filterValues={filterValues}
@@ -1333,6 +1608,18 @@ export default function AgingClient() {
         emptyMessage="No claims in this aging bucket."
         selectedRowId={selectedRowId}
         onSelectRow={setSelectedRowId}
+        selectedRowIds={selectedRowIds}
+        onSelectionChange={setSelectedRowIds}
+        toolbar={
+          selectedRowIds.length > 0 ? (
+            <BulkToolbar
+              count={selectedRowIds.length}
+              disabled={bulkProgress != null}
+              onRun={(a) => void runBulk(a)}
+              onClear={() => setSelectedRowIds([])}
+            />
+          ) : null
+        }
         detailTabs={detailTabs}
         detailActions={detailActions}
         message={message}
@@ -1373,6 +1660,21 @@ export default function AgingClient() {
           confirmLabel="Mark resolved"
           onClose={() => setResolveRow(null)}
           onConfirm={(reason) => handleResolve(resolveRow, reason)}
+        />
+      ) : null}
+      {bulkProgress ? (
+        <BulkProgressModal
+          action={bulkProgress.action}
+          done={bulkProgress.done}
+          total={bulkProgress.total}
+        />
+      ) : null}
+      {bulkSummary ? (
+        <BulkSummaryModal
+          action={bulkSummary.action}
+          succeeded={bulkSummary.succeeded}
+          failed={bulkSummary.failed}
+          onClose={() => setBulkSummary(null)}
         />
       ) : null}
       {toast ? <Toast message={toast} onClose={() => setToast(null)} /> : null}

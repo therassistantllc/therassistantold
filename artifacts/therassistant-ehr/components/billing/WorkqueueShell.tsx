@@ -109,6 +109,9 @@ export interface WorkqueueShellProps<TRow> {
   tablePaneWidth?: string;
   /** Top-of-page message banner */
   message?: { tone: "success" | "error"; text: string } | null;
+  /** Optional toolbar slot rendered between the filter rail and the table.
+   *  Pages use this for bulk-action bars when rows are multi-selected. */
+  toolbar?: ReactNode;
   /** Slot for page-owned modals/portals */
   overlay?: ReactNode;
 }
@@ -249,6 +252,7 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
     detailPaneWidth,
     tablePaneWidth,
     message,
+    toolbar,
     overlay,
   } = props;
 
@@ -477,6 +481,8 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
           ) : null}
         </div>
       ) : null}
+
+      {toolbar ? <div>{toolbar}</div> : null}
 
       {/* Body */}
       <div className={styles.body}>
