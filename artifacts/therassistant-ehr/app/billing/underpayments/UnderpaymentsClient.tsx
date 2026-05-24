@@ -57,6 +57,13 @@ interface UnderpaymentRow {
   status: string;
   createdAt: string | null;
   priority: "high" | "medium" | "low";
+  suggestion: {
+    kind: "repeated_payment";
+    adoptAmount: number;
+    sampleCount: number;
+    groupKey: string;
+    similarRowIds: string[];
+  } | null;
 }
 
 interface Facets {
@@ -496,6 +503,50 @@ export default function UnderpaymentsClient() {
     [rows, activeTab],
   );
 
+  // ── Auto-suggest banners (Contract Variance only) ──────────────────────
+  // Cluster contract-variance rows by their suggestion.groupKey, then pick a
+  // representative row per cluster (the one whose payer contract / fee
+  // schedule the API can resolve, falling back to the first). Each cluster
+  // renders one banner offering to adopt the repeated paid amount as the
+  // new contracted rate.
+  const suggestionClusters = useMemo(() => {
+    if (activeTab !== "contract_variance") return [];
+    const byKey = new Map<
+      string,
+      {
+        groupKey: string;
+        adoptAmount: number;
+        sampleCount: number;
+        rowIds: string[];
+        representative: UnderpaymentRow;
+        payerName: string;
+        procedureCode: string;
+        modifiers: string[];
+      }
+    >();
+    for (const r of tabRows) {
+      if (!r.suggestion) continue;
+      const key = r.suggestion.groupKey;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, {
+          groupKey: key,
+          adoptAmount: r.suggestion.adoptAmount,
+          sampleCount: r.suggestion.sampleCount,
+          rowIds: [...r.suggestion.similarRowIds],
+          representative: r,
+          payerName: r.payerName,
+          procedureCode: r.procedureCode,
+          modifiers: r.modifiers,
+        });
+      } else if (!existing.representative.feeScheduleId && r.feeScheduleId) {
+        // Prefer a row that already has a fee schedule the API can update.
+        existing.representative = r;
+      }
+    }
+    return [...byKey.values()].sort((a, b) => b.sampleCount - a.sampleCount);
+  }, [tabRows, activeTab]);
+
   // ── Summary metrics ─────────────────────────────────────────────────────
   const summary: SummaryMetric[] = useMemo(() => {
     const total = tabRows.length;
@@ -607,6 +658,23 @@ export default function UnderpaymentsClient() {
         cell: (r) => (
           <span style={{ fontSize: 12.5 }}>
             {r.contractSource}
+            {r.suggestion ? (
+              <span
+                title={`${r.suggestion.sampleCount} ERAs reimbursed ${money(r.suggestion.adoptAmount)} for this payer + CPT — fee schedule is likely stale.`}
+                style={{
+                  marginLeft: 6,
+                  padding: "1px 6px",
+                  borderRadius: 10,
+                  background: "#FEF3C7",
+                  color: "#92400E",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Stale rate?
+              </span>
+            ) : null}
           </span>
         ),
       },
@@ -639,7 +707,12 @@ export default function UnderpaymentsClient() {
     async (
       row: UnderpaymentRow,
       action: ActionId,
-      input: { reason?: string; allowedAmount?: number; ruleText?: string },
+      input: {
+        reason?: string;
+        allowedAmount?: number;
+        ruleText?: string;
+        acceptRowIds?: string[];
+      },
     ) => {
       setBusyAction(`${row.id}::${action}`);
       setError(null);
@@ -661,6 +734,7 @@ export default function UnderpaymentsClient() {
               payerProfileId: row.payerId,
               procedureCode: row.procedureCode,
               modifiers: row.modifiers,
+              acceptRowIds: input.acceptRowIds,
             }),
           },
         );
@@ -669,30 +743,42 @@ export default function UnderpaymentsClient() {
           throw new Error(json.error ?? "Action failed");
         }
 
+        const archivedRows = Number(json.archivedRows ?? 0);
+        const archiveSet = new Set<string>(input.acceptRowIds ?? []);
+        archiveSet.add(row.id);
+
         // Optimistic update.
         setRows((prev) => {
-          const next = [...prev];
-          const idx = next.findIndex((r) => r.id === row.id);
-          if (idx === -1) return next;
           if (action === "mark_accepted") {
-            next.splice(idx, 1);
-          } else if (action === "update_contract_rate" && input.allowedAmount != null) {
-            const newExpected = input.allowedAmount;
-            const newVariance =
-              Math.round((newExpected - next[idx].allowedPaid) * 100) / 100;
-            if (newVariance <= 0.5) {
-              next.splice(idx, 1);
-            } else {
-              next[idx] = {
-                ...next[idx],
-                allowedExpected: newExpected,
-                variance: newVariance,
-              };
-            }
+            return prev.filter((r) => r.id !== row.id);
           }
-          return next;
+          if (action === "update_contract_rate" && input.allowedAmount != null) {
+            const newExpected = input.allowedAmount;
+            return prev
+              .filter((r) => !(archiveSet.has(r.id) && r.id !== row.id))
+              .map((r) => {
+                if (r.id !== row.id) return r;
+                const newVariance =
+                  Math.round((newExpected - r.allowedPaid) * 100) / 100;
+                return newVariance <= 0.5
+                  ? null
+                  : {
+                      ...r,
+                      allowedExpected: newExpected,
+                      variance: newVariance,
+                      suggestion: null,
+                    };
+              })
+              .filter((r): r is UnderpaymentRow => r !== null);
+          }
+          return prev;
         });
-        setSuccess(actionSuccessLabel(action));
+        const baseMsg = actionSuccessLabel(action);
+        setSuccess(
+          archivedRows > 0
+            ? `${baseMsg} Archived ${archivedRows} related row${archivedRows === 1 ? "" : "s"}.`
+            : baseMsg,
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Action failed");
       } finally {
@@ -706,6 +792,22 @@ export default function UnderpaymentsClient() {
   const openModal = useCallback((row: UnderpaymentRow, action: ActionId) => {
     setModal({ action, row });
   }, []);
+
+  const adoptSuggestion = useCallback(
+    (cluster: {
+      representative: UnderpaymentRow;
+      adoptAmount: number;
+      sampleCount: number;
+      rowIds: string[];
+    }) => {
+      void runAction(cluster.representative, "update_contract_rate", {
+        allowedAmount: cluster.adoptAmount,
+        acceptRowIds: cluster.rowIds,
+        reason: `Auto-adopted from ${cluster.sampleCount} repeated ERA payments at ${money(cluster.adoptAmount)}.`,
+      });
+    },
+    [runAction],
+  );
 
   const rowActions: RowAction<UnderpaymentRow>[] = useMemo(
     () => [
@@ -1002,6 +1104,53 @@ export default function UnderpaymentsClient() {
 
   return (
     <>
+      {suggestionClusters.length > 0 ? (
+        <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {suggestionClusters.map((c) => {
+            const busyKey = `${c.representative.id}::update_contract_rate`;
+            const busy = busyAction === busyKey;
+            return (
+              <div
+                key={c.groupKey}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "10px 14px",
+                  background: "#FFFBEB",
+                  border: "1px solid #FCD34D",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: "#92400E",
+                }}
+              >
+                <div>
+                  <strong>{c.payerName}</strong> paid{" "}
+                  <strong>{money(c.adoptAmount)}</strong> on{" "}
+                  <strong>{c.sampleCount}</strong> ERAs for CPT{" "}
+                  <span style={{ fontFamily: "ui-monospace, monospace" }}>
+                    {c.procedureCode}
+                    {c.modifiers.length ? `-${c.modifiers.join("-")}` : ""}
+                  </span>
+                  . The contracted rate on file looks stale.
+                </div>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => adoptSuggestion(c)}
+                  disabled={busy}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {busy
+                    ? "Adopting…"
+                    : `Adopt ${money(c.adoptAmount)} as new contracted rate`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       <WorkqueueShell<UnderpaymentRow>
         title={queueDef?.title ?? "Underpayments"}
         description={queueDef?.description}

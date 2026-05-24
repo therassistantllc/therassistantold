@@ -63,6 +63,13 @@ interface Body {
   payerProfileId?: string;
   procedureCode?: string;
   modifiers?: string[];
+  /**
+   * Additional `<eraPaymentId>#<lineIndex>` row ids to archive (mark accepted)
+   * alongside this action. Used by the "Adopt suggested contract rate" banner
+   * on the Underpayments queue to close every related variance row in one
+   * click. Ignored unless `action === 'update_contract_rate'`.
+   */
+  acceptRowIds?: string[];
 }
 
 async function authorName(supabase: any, staffId: string | null) {
@@ -315,10 +322,57 @@ export async function POST(
         after: afterRow,
       });
 
+      // Bulk-archive related variance rows when the suggestion banner adopts
+      // a rate that closes out a whole cluster in one click. Each "accepted"
+      // marker has to be written on the claim associated with that ERA, so
+      // we resolve them in one batch before inserting notes.
+      const extraIds = Array.isArray(body.acceptRowIds)
+        ? body.acceptRowIds
+            .map((s) => text(s))
+            .filter((s) => s && s !== rowId)
+            .slice(0, 200)
+        : [];
+      let archivedCount = 0;
+      if (extraIds.length > 0) {
+        const eraIds = [
+          ...new Set(extraIds.map((s) => s.split("#")[0]).filter(Boolean)),
+        ];
+        const { data: eraRows } = await (supabase as any)
+          .from("era_claim_payments")
+          .select("id, professional_claim_id")
+          .eq("organization_id", organizationId)
+          .in("id", eraIds);
+        const claimByEra = new Map<string, string>();
+        for (const row of (eraRows as any[]) ?? []) {
+          const cid = text((row as any).professional_claim_id);
+          if (cid) claimByEra.set(text((row as any).id), cid);
+        }
+        const inserts: Array<Record<string, unknown>> = [];
+        for (const id of extraIds) {
+          const eraId = id.split("#")[0];
+          const cid = claimByEra.get(eraId);
+          if (!cid) continue;
+          inserts.push({
+            organization_id: organizationId,
+            claim_id: cid,
+            author_user_id: guard.userId ?? null,
+            author_display_name: author,
+            body: `UNDERPAYMENT_ACCEPTED:${id} — adopted contract rate ${allowed} (auto, fee_schedule=${updatedId})`,
+          });
+        }
+        if (inserts.length > 0) {
+          const { error: noteErr } = await (supabase as any)
+            .from("claim_notes")
+            .insert(inserts);
+          if (!noteErr) archivedCount = inserts.length;
+        }
+      }
+
       return NextResponse.json({
         success: true,
         action,
         feeScheduleId: updatedId,
+        archivedRows: archivedCount,
       });
     }
 

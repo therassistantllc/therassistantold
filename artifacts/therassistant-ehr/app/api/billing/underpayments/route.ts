@@ -78,6 +78,23 @@ export interface UnderpaymentRow {
   status: string;
   createdAt: string | null;
   priority: "high" | "medium" | "low";
+  /**
+   * Auto-detected fee-schedule-stale signal. Populated when >=3 ERA payments
+   * for the same (payer, CPT, modifiers) have reimbursed the exact same
+   * `allowedPaid` amount — strongly suggesting the contracted rate on file is
+   * out of date rather than a real underpayment. Surfaced on Contract Variance.
+   */
+  suggestion: {
+    kind: "repeated_payment";
+    /** The amount each of those ERAs allowed — the proposed new contract rate. */
+    adoptAmount: number;
+    /** How many distinct ERA payments share that allowed amount. */
+    sampleCount: number;
+    /** Group key shared across all rows in the same suggestion cluster. */
+    groupKey: string;
+    /** All workqueue row ids in the same cluster (used to archive together). */
+    similarRowIds: string[];
+  } | null;
 }
 
 interface FilterSelection {
@@ -715,7 +732,60 @@ export async function GET(request: Request) {
           status: claim ? text(claim.claim_status) : "matched",
           createdAt: text(p.created_at) || null,
           priority,
+          suggestion: null,
         });
+      }
+    }
+
+    // ── Auto-suggest contracted rate updates ─────────────────────────────
+    // Group contract-variance rows by (payerId, CPT, sorted-modifiers,
+    // allowedPaid). The spec requires >=3 *prior* ERAs reimbursing the same
+    // amount before we flag a row as a stale fee schedule — i.e. each row
+    // needs three matching peers besides itself, so the cluster must contain
+    // >=4 distinct ERA payments. Limited to contract_variance to avoid
+    // cross-tab noise.
+    {
+      type Group = {
+        adoptAmount: number;
+        rowIds: string[];
+        eraIds: Set<string>;
+      };
+      const groups = new Map<string, Group>();
+      const groupKeyFor = (r: UnderpaymentRow): string | null => {
+        if (!r.payerId || !r.procedureCode) return null;
+        if (!r.tabs.includes("contract_variance")) return null;
+        // Cents-quantize to avoid float jitter.
+        const cents = Math.round((r.allowedPaid || 0) * 100);
+        if (cents <= 0) return null;
+        const mods = [...r.modifiers].map((m) => m.toUpperCase()).sort().join(",");
+        return `${r.payerId}|${r.procedureCode}|${mods}|${cents}`;
+      };
+      for (const r of rows) {
+        const k = groupKeyFor(r);
+        if (!k) continue;
+        let g = groups.get(k);
+        if (!g) {
+          g = { adoptAmount: r.allowedPaid, rowIds: [], eraIds: new Set() };
+          groups.set(k, g);
+        }
+        g.rowIds.push(r.id);
+        g.eraIds.add(r.eraPaymentId);
+      }
+      for (const r of rows) {
+        const k = groupKeyFor(r);
+        if (!k) continue;
+        const g = groups.get(k);
+        if (!g) continue;
+        // >=3 prior ERAs ⇒ cluster (including the current row) must have >=4
+        // distinct ERA payments.
+        if (g.eraIds.size < 4) continue;
+        r.suggestion = {
+          kind: "repeated_payment",
+          adoptAmount: g.adoptAmount,
+          sampleCount: g.eraIds.size,
+          groupKey: k,
+          similarRowIds: [...g.rowIds],
+        };
       }
     }
 
