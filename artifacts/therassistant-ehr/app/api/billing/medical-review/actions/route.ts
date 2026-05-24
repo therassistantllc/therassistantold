@@ -1,6 +1,30 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { generateCoverLetterPdf, type CoverLetterAttachment } from "@/lib/pdf/coverLetter";
+
+const COVER_LETTER_BUCKET = "mailroom-documents";
+
+async function ensureCoverLetterBucket(
+  supabase: ReturnType<typeof createServerSupabaseAdminClient>,
+): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (buckets && buckets.some((b) => b.name === COVER_LETTER_BUCKET)) return;
+    const { error } = await supabase.storage.createBucket(COVER_LETTER_BUCKET, {
+      public: false,
+      fileSizeLimit: 25 * 1024 * 1024,
+    });
+    if (error && !/already exists/i.test(error.message)) {
+      console.warn(`[cover-letter] ensure bucket failed: ${error.message}`);
+    }
+  } catch (err) {
+    console.warn(
+      `[cover-letter] ensure bucket exception: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
 
 type ActionName =
   | "attach_records"
@@ -101,7 +125,7 @@ export async function POST(request: Request) {
     // Validate the claim exists in the caller's org BEFORE any audit write.
     const { data: claim, error: claimErr } = await sb
       .from("professional_claims")
-      .select("id, patient_id, appointment_id, billing_notes")
+      .select("id, patient_id, appointment_id, billing_notes, claim_number, payer_profile_id, total_charge, encounter_id")
       .eq("id", claimId)
       .eq("organization_id", organizationId)
       .maybeSingle();
@@ -146,15 +170,201 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, sentAt: new Date().toISOString() });
       }
       case "create_cover_letter": {
+        // Hydrate the bits we need to populate the letter. Each lookup is
+        // best-effort so a missing payer / client doesn't block letter
+        // generation — we fall back to placeholders.
+        const [
+          { data: org },
+          { data: client },
+          { data: payer },
+          { data: appt },
+          { data: existingDocs },
+        ] = await Promise.all([
+          sb.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
+          clientId
+            ? sb.from("clients")
+                .select("first_name, last_name, date_of_birth")
+                .eq("id", clientId)
+                .eq("organization_id", organizationId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          claim.payer_profile_id
+            ? sb.from("payer_profiles")
+                .select("payer_name")
+                .eq("id", claim.payer_profile_id)
+                .eq("organization_id", organizationId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          appointmentId
+            ? sb.from("appointments")
+                .select("scheduled_start_at, provider_id")
+                .eq("id", appointmentId)
+                .eq("organization_id", organizationId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          sb.from("documents")
+            .select("title, file_name, document_type")
+            .eq("organization_id", organizationId)
+            .eq("claim_id", claimId)
+            .is("archived_at", null)
+            .order("created_at", { ascending: false })
+            .limit(50),
+        ]);
+
+        let providerName: string | null = null;
+        const providerId = appt ? String(appt.provider_id ?? "") : "";
+        if (providerId) {
+          const { data: prov } = await sb
+            .from("providers")
+            .select("first_name, last_name")
+            .eq("id", providerId)
+            .eq("organization_id", organizationId)
+            .maybeSingle();
+          if (prov) {
+            const fn = String(prov.first_name ?? "").trim();
+            const ln = String(prov.last_name ?? "").trim();
+            providerName = `${fn} ${ln}`.trim() || null;
+          }
+        }
+
+        const titlesFromBody = (body.documentTitles ?? [])
+          .map((s) => String(s).trim())
+          .filter(Boolean);
+        const attachments: CoverLetterAttachment[] = titlesFromBody.length
+          ? titlesFromBody.map((t) => ({ title: t }))
+          : ((existingDocs ?? []) as Array<{
+              title: string | null;
+              file_name: string | null;
+              document_type: string | null;
+            }>).map((d) => ({
+              title: d.title || d.file_name || "Document",
+              description: d.document_type ?? null,
+            }));
+
+        const clientFirst = client ? String(client.first_name ?? "").trim() : "";
+        const clientLast = client ? String(client.last_name ?? "").trim() : "";
+        const clientFullName =
+          `${clientFirst} ${clientLast}`.trim() || "Unknown patient";
+        const clientDob = client ? (client.date_of_birth as string | null) : null;
+        const orgName = (org?.name as string | null) || "Billing Office";
+        const payerName = (payer?.payer_name as string | null) || "Insurance Payer";
+        const claimNumber = (claim.claim_number as string | null) || claimId;
+        const dos = appt ? (appt.scheduled_start_at as string | null) : null;
+        const totalCharge = Number(claim.total_charge ?? 0);
+
+        const generatedAt = new Date();
+        let pdfBytes: Uint8Array;
+        try {
+          pdfBytes = generateCoverLetterPdf({
+            organizationName: orgName,
+            payerName,
+            clientName: clientFullName,
+            clientDob,
+            claimNumber,
+            dateOfService: dos,
+            providerName,
+            totalCharge: Number.isFinite(totalCharge) ? totalCharge : null,
+            requestReference: note || null,
+            attachments,
+            notes: note || null,
+            generatedAt,
+          });
+        } catch (e) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Failed to render cover letter: ${e instanceof Error ? e.message : String(e)}`,
+            },
+            { status: 500 },
+          );
+        }
+
+        await ensureCoverLetterBucket(supabase);
+        const stamp = generatedAt.toISOString().replace(/[:.]/g, "-");
+        const safeClaim = String(claimNumber).replace(/[^\w.-]+/g, "_");
+        const fileName = `cover-letter-${safeClaim}-${stamp}.pdf`;
+        const storagePath = `${organizationId}/cover-letters/${claimId}/${fileName}`;
+
+        const { error: upErr } = await supabase.storage
+          .from(COVER_LETTER_BUCKET)
+          .upload(storagePath, pdfBytes, {
+            contentType: "application/pdf",
+            upsert: false,
+          });
+        if (upErr) {
+          return NextResponse.json(
+            { success: false, error: `Storage upload failed: ${upErr.message}` },
+            { status: 500 },
+          );
+        }
+
+        const docTitle = `Cover letter - claim ${claimNumber}`;
+        const { data: docRow, error: docErr } = await sb
+          .from("documents")
+          .insert({
+            organization_id: organizationId,
+            claim_id: claimId,
+            client_id: clientId,
+            encounter_id: claim.encounter_id ?? null,
+            document_scope: "claim",
+            document_type: "cover_letter",
+            title: docTitle,
+            file_name: fileName,
+            mime_type: "application/pdf",
+            file_size_bytes: pdfBytes.byteLength,
+            storage_bucket: COVER_LETTER_BUCKET,
+            storage_path: storagePath,
+            filed_at: generatedAt.toISOString(),
+            filed_by_user_id: userId,
+            uploaded_by_user_id: userId,
+            notes:
+              `Generated by Medical Review queue for payer ${payerName}` +
+              (note ? `. ${note}` : "."),
+          })
+          .select("id, title, file_name, storage_path, storage_bucket, file_size_bytes, created_at")
+          .single();
+
+        if (docErr || !docRow) {
+          // Best-effort cleanup of the orphan storage object.
+          await supabase.storage
+            .from(COVER_LETTER_BUCKET)
+            .remove([storagePath])
+            .catch(() => {});
+          return NextResponse.json(
+            { success: false, error: docErr?.message ?? "Failed to record cover letter document" },
+            { status: 500 },
+          );
+        }
+
         const audit = await writeAuditStrict(supabase, {
           organizationId, userId,
           action: "medical_review_cover_letter_created",
           claimId, clientId, appointmentId,
-          summary: note || "Cover letter generated",
-          metadata: { note },
+          summary: note || `Cover letter generated for ${payerName}`,
+          metadata: {
+            note,
+            documentId: String(docRow.id),
+            fileName,
+            storageBucket: COVER_LETTER_BUCKET,
+            storagePath,
+            fileSizeBytes: pdfBytes.byteLength,
+            attachmentCount: attachments.length,
+          },
         });
-        if (!audit.ok) return NextResponse.json({ success: false, error: audit.error }, { status: 500 });
-        return NextResponse.json({ success: true, createdAt: new Date().toISOString() });
+        if (!audit.ok) {
+          return NextResponse.json({ success: false, error: audit.error }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          createdAt: generatedAt.toISOString(),
+          document: {
+            id: String(docRow.id),
+            title: docTitle,
+            fileName,
+            fileSizeBytes: pdfBytes.byteLength,
+            downloadUrl: `/api/billing/claims/${claimId}/documents/${docRow.id}/file?organizationId=${encodeURIComponent(organizationId)}`,
+          },
+        });
       }
       case "route_to_clinician": {
         let providerId = body.providerId ?? null;
