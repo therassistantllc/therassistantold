@@ -89,6 +89,18 @@ export async function POST(request: Request) {
     const dateOfBirth = value(payload.dateOfBirth);
     const phone = value(payload.phone);
     const email = value(payload.email);
+    const preferredName = value(payload.preferredName);
+    const mrn = value(payload.mrn);
+    const sourceClientId = value(payload.sourceClientId ?? payload.externalClientRef);
+    const sexAtBirthRaw = value(payload.sexAtBirth).toLowerCase();
+    const genderIdentity = value(payload.genderIdentity);
+    const addressLine1 = value(payload.addressLine1);
+    const addressLine2 = value(payload.addressLine2);
+    const city = value(payload.city);
+    const stateCode = value(payload.state).toUpperCase();
+    const postalCode = value(payload.postalCode);
+    const emergencyContactName = value(payload.emergencyContactName);
+    const emergencyContactPhone = value(payload.emergencyContactPhone);
 
     if (!firstName) return NextResponse.json({ success: false, error: "First name is required" }, { status: 400 });
     if (!lastName) return NextResponse.json({ success: false, error: "Last name is required" }, { status: 400 });
@@ -101,20 +113,70 @@ export async function POST(request: Request) {
     }
     if (!phone) return NextResponse.json({ success: false, error: "Primary phone is required" }, { status: 400 });
 
-    const { data: inserted, error } = await supabase
+    const ALLOWED_SEX_AT_BIRTH = new Set(["female", "male", "intersex", "unknown", "declined"]);
+    if (sexAtBirthRaw && !ALLOWED_SEX_AT_BIRTH.has(sexAtBirthRaw)) {
+      return NextResponse.json({ success: false, error: "Invalid sex at birth value" }, { status: 400 });
+    }
+    if (stateCode && !/^[A-Z]{2}$/.test(stateCode)) {
+      return NextResponse.json({ success: false, error: "State must be a 2-letter US code" }, { status: 400 });
+    }
+    if (postalCode && !/^\d{5}(-\d{4})?$/.test(postalCode)) {
+      return NextResponse.json({ success: false, error: "Postal code must be ZIP or ZIP+4" }, { status: 400 });
+    }
+
+    const insertRow: Record<string, unknown> = {
+      organization_id: organizationId,
+      first_name: firstName,
+      last_name: lastName,
+      date_of_birth: dateOfBirth,
+      phone,
+      email: email || null,
+      preferred_name: preferredName || null,
+      mrn: mrn || null,
+      external_client_ref: sourceClientId || null,
+      sex_at_birth: sexAtBirthRaw || null,
+      gender_identity: genderIdentity || null,
+      address_line_1: addressLine1 || null,
+      address_line_2: addressLine2 || null,
+      city: city || null,
+      state: stateCode || null,
+      postal_code: postalCode || null,
+      emergency_contact_name: emergencyContactName || null,
+      emergency_contact_phone: emergencyContactPhone || null,
+      created_by_user_id: staffId,
+      updated_by_user_id: staffId,
+    };
+
+    let { data: inserted, error } = await supabase
       .from("clients")
-      .insert({
-        organization_id: organizationId,
-        first_name: firstName,
-        last_name: lastName,
-        date_of_birth: dateOfBirth,
-        phone,
-        email: email || null,
-        created_by_user_id: staffId,
-        updated_by_user_id: staffId,
-      })
+      .insert(insertRow)
       .select("id, first_name, last_name, preferred_name, email, phone, date_of_birth")
       .single();
+
+    // Gracefully degrade if the emergency_contact_* columns haven't been
+    // pushed to the live database yet — drop them and retry once. Apply the
+    // 20260611010000_clients_emergency_contact migration to restore.
+    if (error) {
+      const errCode = (error as { code?: string }).code ?? "";
+      const errMessage = String((error as { message?: string }).message ?? "");
+      const missingEmergency =
+        errCode === "42703" &&
+        /emergency_contact_(name|phone)/i.test(errMessage);
+      if (missingEmergency) {
+        console.warn(
+          "[clients create] emergency_contact_* columns missing; saving without them. Apply the clients_emergency_contact migration to restore.",
+        );
+        delete insertRow.emergency_contact_name;
+        delete insertRow.emergency_contact_phone;
+        const retry = await supabase
+          .from("clients")
+          .insert(insertRow)
+          .select("id, first_name, last_name, preferred_name, email, phone, date_of_birth")
+          .single();
+        inserted = retry.data;
+        error = retry.error;
+      }
+    }
 
     if (error) throw error;
     if (!inserted) throw new Error("Insert returned no row");

@@ -182,6 +182,9 @@ type PatientSummary = {
     state?: string | null;
     postalCode?: string | null;
     preferredLanguage?: string | null;
+    sourceClientId?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
   };
   insurance?: {
     policies: InsurancePolicySummary[];
@@ -1530,6 +1533,18 @@ export default function PatientChartClient({
                 <div className="summary-field">
                   <label>Language</label>
                   <span>{dashIfNullish(formatPreferredLanguage(patient.preferredLanguage))}</span>
+                </div>
+                <div className="summary-field">
+                  <label>Source client ID</label>
+                  <span>{dashIfNullish(patient.sourceClientId)}</span>
+                </div>
+                <div className="summary-field">
+                  <label>Emergency contact</label>
+                  <span>{dashIfNullish(patient.emergencyContactName)}</span>
+                </div>
+                <div className="summary-field">
+                  <label>Emergency phone</label>
+                  <span>{dashIfNullish(patient.emergencyContactPhone)}</span>
                 </div>
                 <div className="summary-field">
                   <label>Client ID</label>

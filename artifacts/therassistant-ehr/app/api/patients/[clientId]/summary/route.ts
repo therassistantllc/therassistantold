@@ -48,7 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .select(
-        "id, first_name, middle_name, last_name, date_of_birth, email, phone, preferred_name, pronouns, mrn, sex_at_birth, gender_identity, address_line_1, address_line_2, city, state, postal_code, preferred_language",
+        "id, first_name, middle_name, last_name, date_of_birth, email, phone, preferred_name, pronouns, mrn, external_client_ref, sex_at_birth, gender_identity, address_line_1, address_line_2, city, state, postal_code, preferred_language, emergency_contact_name, emergency_contact_phone",
       )
       .eq("organization_id", organizationId)
       .eq("id", clientId)
@@ -161,6 +161,9 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
         state: client.state ?? null,
         postalCode: client.postal_code ?? null,
         preferredLanguage: client.preferred_language ?? null,
+        sourceClientId: client.external_client_ref ?? null,
+        emergencyContactName: client.emergency_contact_name ?? null,
+        emergencyContactPhone: client.emergency_contact_phone ?? null,
       },
       insurance: {
         policies: policies ?? [],
