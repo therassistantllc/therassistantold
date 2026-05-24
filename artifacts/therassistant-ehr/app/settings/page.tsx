@@ -47,6 +47,11 @@ const SETTINGS_SECTIONS = [
     description: "Pre-populated note scaffolding per service type or CPT so clinicians don't start from blank.",
   },
   {
+    label: "Payer Rules",
+    href: "/admin/payer-rules",
+    description: "Auto-flag claims when payers respond with specific RARC/CARC codes so billers can react faster.",
+  },
+  {
     label: "Security",
     href: "/settings/security",
     description: "Password policy, two-factor authentication, and audit logs.",
