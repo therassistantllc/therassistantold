@@ -184,7 +184,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims the payer rejected for front-end edits — fix and resubmit.",
     href: "/billing/payer-rejections",
     stage: "submission_rejections",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "resubmission_queue",
@@ -192,7 +192,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Corrected claims queued for resubmission with the appropriate frequency code.",
     href: "/billing/resubmissions",
     stage: "submission_rejections",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "corrected_claims",
@@ -250,7 +250,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims paid in part — investigate underpaid lines and pursue remainder.",
     href: "/billing/partial-denials",
     stage: "adjudication_denials",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "appeals_needed",
@@ -274,7 +274,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Suspicious or non-contractual adjustments flagged for biller review.",
     href: "/billing/adjustments-review",
     stage: "adjudication_denials",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "medical_necessity",
@@ -282,7 +282,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims denied for medical-necessity reasons — gather records and appeal.",
     href: "/billing/medical-necessity",
     stage: "adjudication_denials",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "medical_review",
@@ -364,7 +364,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Payments received but not yet matched to a claim.",
     href: "/billing/unposted-payments",
     stage: "payments_era",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "patient_payments",
@@ -391,6 +391,14 @@ export const WORKQUEUES: WorkqueueDef[] = [
     status: "live",
   },
   {
+    id: "credit_balances",
+    title: "Credit Balances",
+    description: "Accounts with a credit balance that should be refunded or transferred.",
+    href: "/billing/credit-balances",
+    stage: "payments_era",
+    status: "live",
+  },
+  {
     id: "vcc",
     title: "VCC",
     description: "Virtual credit card payments from payers — track receipt, fee review, ERA match, and posting.",
@@ -404,7 +412,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Bank-to-EHR mismatches that block daily reconciliation.",
     href: "/billing/reconciliation-exceptions",
     stage: "payments_era",
-    status: "coming_soon",
+    status: "live",
   },
 
   // ── Patient & Oversight ─────────────────────────────────────────────────
@@ -438,7 +446,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Balances proposed for bad-debt write-off pending supervisor approval.",
     href: "/billing/bad-debt-review",
     stage: "patient_oversight",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "write_offs",
@@ -446,7 +454,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Recent write-offs and reversals for audit.",
     href: "/billing/write-offs",
     stage: "patient_oversight",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "audit_queue",
@@ -454,7 +462,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims selected for internal pre-bill or post-payment audit.",
     href: "/billing/audit-queue",
     stage: "patient_oversight",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "compliance_audit",
@@ -470,7 +478,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims paused by compliance — false-claims risk, sanctioned provider, etc.",
     href: "/billing/compliance-holds",
     stage: "patient_oversight",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "reports_analytics",
