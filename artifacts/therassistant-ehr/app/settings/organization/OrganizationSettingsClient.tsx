@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 
@@ -165,6 +166,7 @@ function getOrganizationId() {
 }
 
 export default function OrganizationSettingsClient() {
+  const router = useRouter();
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [org, setOrg] = useState<OrgFields>(EMPTY_ORG);
   const [billing, setBilling] = useState<BillingProfile>(EMPTY_BILLING);
@@ -214,7 +216,8 @@ export default function OrganizationSettingsClient() {
       );
       if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Save failed");
       setStatus("saved");
-      setStatusMsg("Settings saved.");
+      setStatusMsg("Settings saved. Returning to organizations list…");
+      setTimeout(() => router.push("/settings/organizations"), 600);
     } catch (err) {
       setStatus("error");
       setStatusMsg(err instanceof Error ? err.message : "Save failed");
@@ -302,7 +305,7 @@ export default function OrganizationSettingsClient() {
           <p className="hero-copy">Practice identity, billing provider details, and transmission defaults.</p>
         </div>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/settings">← Settings</Link>
+          <Link className="button button-secondary" href="/settings/organizations">← Organizations</Link>
         </div>
       </section>
 
