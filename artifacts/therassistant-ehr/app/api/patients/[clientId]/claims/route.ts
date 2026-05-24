@@ -28,6 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
       .select("id, claim_number, claim_status, total_charge, patient_responsibility_amount, diagnosis_codes, created_at, submitted_at, appointment_id, encounter_id, payer_profile_id")
       .eq("organization_id", organizationId)
       .eq("patient_id", clientId)
+      .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(50);
 

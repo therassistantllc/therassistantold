@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type ClaimItem = {
   id: string;
@@ -45,6 +45,8 @@ export default function ClaimsPage() {
   const [claims, setClaims] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [rowMessage, setRowMessage] = useState<{ id: string; text: string; tone: "ok" | "err" } | null>(null);
 
   const submittedCount = claims.filter((claim) => String(claim.status ?? "").toLowerCase().includes("submitted")).length;
   const paidCount = claims.filter((claim) => String(claim.status ?? "").toLowerCase().includes("paid")).length;
@@ -54,25 +56,49 @@ export default function ClaimsPage() {
   }).length;
   const totalCharges = claims.reduce((sum, claim) => sum + Number(claim.totalCharge ?? 0), 0);
 
-  useEffect(() => {
+  const loadClaims = useCallback(async () => {
     if (!clientId || !orgId) return;
-    let cancelled = false;
-    async function load() {
-      try {
-        const r = await fetch(`/api/patients/${clientId}/claims?organizationId=${encodeURIComponent(orgId)}`, { cache: "no-store" });
-        const json = await r.json() as { success: boolean; claims?: ClaimItem[]; error?: string };
-        if (cancelled) return;
-        if (!json.success) throw new Error(json.error ?? "Failed");
-        setClaims(json.claims ?? []);
-      } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/patients/${clientId}/claims?organizationId=${encodeURIComponent(orgId)}`, { cache: "no-store" });
+      const json = await r.json() as { success: boolean; claims?: ClaimItem[]; error?: string };
+      if (!json.success) throw new Error(json.error ?? "Failed");
+      setClaims(json.claims ?? []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
   }, [clientId, orgId]);
+
+  useEffect(() => {
+    void loadClaims();
+  }, [loadClaims]);
+
+  const archiveClaim = useCallback(async (claimId: string) => {
+    if (!orgId) return;
+    if (typeof window !== "undefined" && !window.confirm("Archive this claim? This frees the encounter so a fresh claim can be created.")) {
+      return;
+    }
+    setArchivingId(claimId);
+    setRowMessage(null);
+    try {
+      const r = await fetch(`/api/claims/${encodeURIComponent(claimId)}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: orgId }),
+      });
+      const json = await r.json() as { success: boolean; error?: string };
+      if (!r.ok || !json.success) throw new Error(json.error ?? "Archive failed");
+      setRowMessage({ id: claimId, text: "Claim archived.", tone: "ok" });
+      await loadClaims();
+    } catch (e: unknown) {
+      setRowMessage({ id: claimId, text: e instanceof Error ? e.message : "Archive failed", tone: "err" });
+    } finally {
+      setArchivingId(null);
+    }
+  }, [orgId, loadClaims]);
 
   const orgQ = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : "";
 
@@ -136,6 +162,7 @@ export default function ClaimsPage() {
                 <th>Created</th>
                 <th>Submitted</th>
                 <th>Encounter</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -152,6 +179,21 @@ export default function ClaimsPage() {
                     {claim.encounterId
                       ? <Link className="inline-link" href={`/encounters/${claim.encounterId}${orgQ}`}>Encounter</Link>
                       : "—"}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => void archiveClaim(claim.id)}
+                      disabled={archivingId === claim.id}
+                    >
+                      {archivingId === claim.id ? "Archiving…" : "Archive"}
+                    </button>
+                    {rowMessage && rowMessage.id === claim.id ? (
+                      <div className={rowMessage.tone === "ok" ? "status status-green" : "status status-red"}>
+                        {rowMessage.text}
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}
