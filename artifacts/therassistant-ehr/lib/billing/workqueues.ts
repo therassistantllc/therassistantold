@@ -78,7 +78,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Services that require a prior authorization but none is on file or it has expired.",
     href: "/billing/authorization-required",
     stage: "pre_submission",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "claim_hold",

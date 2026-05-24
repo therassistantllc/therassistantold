@@ -327,6 +327,19 @@ const ROUTES: RouteSpec[] = [
     method: "GET",
     orgIdLocation: "query",
   },
+  {
+    name: "GET /api/billing/authorization-required",
+    importPath: "../../../app/api/billing/authorization-required/route",
+    method: "GET",
+    orgIdLocation: "query",
+  },
+  {
+    name: "POST /api/billing/authorization-required/actions",
+    importPath: "../../../app/api/billing/authorization-required/actions/route",
+    method: "POST",
+    orgIdLocation: "body",
+    extraBody: { action: "release_claim", claimId: "00000000-0000-0000-0000-000000000a01" },
+  },
 ];
 
 function buildUrl(spec: RouteSpec, orgIdValue: string | null): string {
@@ -470,6 +483,13 @@ describe("billing API tenant isolation (Task #167 e2e)", () => {
       "app/api/billing/era-payments/route.ts",
       "app/api/billing/reports/route.ts",
       "app/api/billing/submission-queues/route.ts",
+      "app/api/billing/authorization-required/route.ts",
+      "app/api/billing/authorization-required/actions/route.ts",
+      "app/api/billing/claims/[claimId]/notes/route.ts",
+      "app/api/billing/claims/[claimId]/write-off/route.ts",
+      "app/api/billing/denials/route.ts",
+      "app/api/billing/fax-queue/route.ts",
+      "app/api/billing/rejections/route.ts",
     ]);
     const { readdirSync, readFileSync, statSync } = await import("node:fs");
     const root = resolve(process.cwd(), "app/api/billing");
