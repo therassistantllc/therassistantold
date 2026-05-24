@@ -319,6 +319,14 @@ export const WORKQUEUES: WorkqueueDef[] = [
     status: "live",
   },
   {
+    id: "unmatched_era_claims",
+    title: "Unmatched ERA Claims",
+    description: "ERA claim-payment lines that could not be auto-matched to an internal claim — review, match, or create the missing record.",
+    href: "/billing/unmatched-era",
+    stage: "payments_era",
+    status: "live",
+  },
+  {
     id: "manual_payments",
     title: "Manual Payments",
     description: "Posted manual / paper EOBs and the associated allocations.",
