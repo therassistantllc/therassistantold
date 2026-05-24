@@ -175,6 +175,47 @@ export async function POST(
     const subMember = s(body.subscriberMemberId) ?? policyNumber;
     const effectiveDate = eff.v ?? new Date().toISOString().slice(0, 10);
 
+    // The DB has partial unique indexes on insurance_policies
+    // (client_id, priority) WHERE archived_at IS NULL — only one active
+    // policy per priority slot per client. With multi-case support, a
+    // patient may already have an active "primary" from an earlier case;
+    // creating another would 23505. Reuse the existing policy if the
+    // payer + member ID match (idempotent attach), otherwise return a
+    // clear 409 so the caller can show a friendly message instead of
+    // leaking the raw constraint error.
+    const { data: existingActive, error: existingErr } = await supabase
+      .from("insurance_policies")
+      .select("id, payer_id, policy_number, plan_name")
+      .eq("organization_id", organizationId)
+      .eq("client_id", clientId)
+      .eq("priority", priority)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (existingErr) {
+      return NextResponse.json({ success: false, error: existingErr.message }, { status: 500 });
+    }
+    if (existingActive) {
+      const samePayer = String(existingActive.payer_id) === payerId;
+      const sameMember =
+        (existingActive.policy_number ?? "").trim() === policyNumber.trim();
+      if (samePayer && sameMember) {
+        // Idempotent: same policy already on file — return it.
+        return NextResponse.json({
+          success: true,
+          policyId: String(existingActive.id),
+          priority,
+          reused: true,
+        });
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: `This patient already has a different ${priority} insurance on file (${existingActive.plan_name ?? "policy"} #${existingActive.policy_number ?? "—"}). Archive it first, or save this one under a different priority.`,
+        },
+        { status: 409 },
+      );
+    }
+
     // insurance_subscribers has no client_id column; subscribers are scoped
     // by organization and linked to a policy via insurance_policies.subscriber_id.
     const subInsert: Record<string, unknown> = {
