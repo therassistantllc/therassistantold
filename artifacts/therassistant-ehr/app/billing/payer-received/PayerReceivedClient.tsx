@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 import WorkqueueShell, {
   type ColumnDef,
@@ -52,6 +52,22 @@ function fmtCurrency(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 }
 
+function fmtRelative(value: string | null): string {
+  if (!value) return "";
+  const t = new Date(value).getTime();
+  if (!Number.isFinite(t)) return "";
+  const ms = Date.now() - t;
+  if (ms < 0) return "just now";
+  const s = Math.floor(ms / 1000);
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 3500);
@@ -95,6 +111,16 @@ export default function PayerReceivedClient() {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [checkErrors, setCheckErrors] = useState<Record<string, string>>({});
+  const [lastCheckedAt, setLastCheckedAt] = useState<Record<string, string>>({});
+  const [, setNowTick] = useState(0);
+
+  // Keep "Checked X ago" labels honest after the user sits on the page.
+  useEffect(() => {
+    if (Object.keys(lastCheckedAt).length === 0) return;
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, [lastCheckedAt]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -278,11 +304,46 @@ export default function PayerReceivedClient() {
       {
         id: "status",
         header: "Payer status",
-        cell: (r) => (
-          <span style={{ textTransform: "capitalize" }}>
-            {(r.payerStatus || "—").replace(/_/g, " ")}
-          </span>
-        ),
+        cell: (r) => {
+          const checkedAt =
+            lastCheckedAt[r.id] ??
+            r.statusHistory.find((h) => h.source === "276/277")?.at ??
+            null;
+          const errMsg = checkErrors[r.id];
+          const code = r.payerStatusCode;
+          const display = (r.payerStatus || "—").replace(/_/g, " ");
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ textTransform: "capitalize" }}>
+                {display}
+                {code ? (
+                  <span style={{ marginLeft: 6, color: "#64748B", fontFamily: "ui-monospace, monospace", fontSize: 11 }}>
+                    {code}
+                  </span>
+                ) : null}
+              </span>
+              {errMsg ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#B91C1C" }}>
+                  <span>Failed: {errMsg}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void performActionRef.current?.(r, "check_status"); }}
+                    disabled={actingId === r.id}
+                    style={{
+                      background: "transparent", border: "1px solid #B91C1C",
+                      color: "#B91C1C", borderRadius: 4, padding: "1px 6px",
+                      fontSize: 11, cursor: actingId === r.id ? "wait" : "pointer",
+                    }}
+                  >
+                    {actingId === r.id ? "Retrying…" : "Retry"}
+                  </button>
+                </span>
+              ) : checkedAt ? (
+                <span style={{ fontSize: 11, color: "#64748B" }}>Checked {fmtRelative(checkedAt)}</span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         id: "days",
@@ -321,8 +382,17 @@ export default function PayerReceivedClient() {
         ),
       },
     ],
-    [],
+    [lastCheckedAt, checkErrors, actingId],
   );
+
+  const performActionRef = useRef<
+    | ((
+        row: PayerReceivedRow,
+        action: "check_status" | "add_note" | "set_follow_up" | "move_to_aging",
+        extras?: { note?: string; followUpDueAt?: string },
+      ) => Promise<void>)
+    | null
+  >(null);
 
   const selectedRow = useMemo(
     () => filteredRows.find((r) => r.id === selectedRowId) ?? null,
@@ -337,6 +407,14 @@ export default function PayerReceivedClient() {
       extras?: { note?: string; followUpDueAt?: string },
     ) => {
       setActingId(row.id);
+      if (action === "check_status") {
+        setCheckErrors((prev) => {
+          if (!(row.id in prev)) return prev;
+          const next = { ...prev };
+          delete next[row.id];
+          return next;
+        });
+      }
       try {
         const res = await fetch("/api/billing/payer-received/actions", {
           method: "POST",
@@ -351,28 +429,70 @@ export default function PayerReceivedClient() {
           }),
         });
         const json = await res.json();
-        if (!res.ok || json?.success === false) {
-          throw new Error(json?.error ?? "Action failed");
+        const ok = res.ok && json?.success !== false;
+
+        // For check_status, treat failure as an inline retryable state on
+        // the row instead of a transient toast — the user needs to see
+        // WHICH claim failed and re-trigger it without losing context.
+        if (!ok && action === "check_status") {
+          const errMsg = (json?.error as string) ?? "Status check failed";
+          const failedAt = new Date().toISOString();
+          setCheckErrors((prev) => ({ ...prev, [row.id]: errMsg }));
+          setLastCheckedAt((prev) => ({ ...prev, [row.id]: failedAt }));
+          setRows((prev) => prev.map((r) => {
+            if (r.id !== row.id) return r;
+            return {
+              ...r,
+              statusHistory: [
+                {
+                  source: "276/277",
+                  status: "failed",
+                  message: errMsg,
+                  payerReferenceId: null,
+                  at: failedAt,
+                },
+                ...r.statusHistory,
+              ],
+            };
+          }));
+          setToast(`Status check failed: ${errMsg}`);
+          return;
         }
+
+        if (!ok) throw new Error(json?.error ?? "Action failed");
+
         // Optimistic update
         setRows((prev) => prev.map((r) => {
           if (r.id !== row.id) return r;
           switch (action) {
-            case "check_status":
+            case "check_status": {
+              const respondedAt =
+                (json?.queuedAt as string | undefined) ?? new Date().toISOString();
+              const code = (json?.payerStatusCode as string | null) ?? null;
+              const text = (json?.payerStatusText as string | null) ?? null;
+              const normalized = (json?.normalizedStatus as string | null) ?? null;
+              const inquiryStatus =
+                (json?.inquiryStatus as string | undefined) ?? "received";
+              setLastCheckedAt((prevMap) => ({ ...prevMap, [row.id]: respondedAt }));
+              const displayStatus = text || normalized || r.payerStatus;
               return {
                 ...r,
+                payerStatus: displayStatus,
+                payerStatusCode: code ?? r.payerStatusCode,
+                payerStatusText: text ?? r.payerStatusText,
                 statusHistory: [
                   {
                     source: "276/277",
-                    status: "queued",
-                    message: "Status inquiry queued",
-                    payerReferenceId: null,
-                    at: new Date().toISOString(),
+                    status: normalized ?? inquiryStatus,
+                    message: text ?? `Payer responded (${inquiryStatus})`,
+                    payerReferenceId: code,
+                    at: respondedAt,
                   },
                   ...r.statusHistory,
                 ],
                 tab: r.tab === "received" ? "in_process" : r.tab,
               };
+            }
             case "add_note":
               return {
                 ...r,
@@ -398,8 +518,13 @@ export default function PayerReceivedClient() {
           setRows((prev) => prev.filter((r) => r.id !== row.id));
           if (selectedRowId === row.id) setSelectedRowId(null);
         }
+        const checkSummary =
+          (json?.payerStatusText as string | null) ||
+          (json?.normalizedStatus as string | null) ||
+          (json?.inquiryStatus as string | null) ||
+          "received";
         setToast(({
-          check_status: "Status inquiry queued",
+          check_status: `Payer responded: ${checkSummary}`,
           add_note: "Note added",
           set_follow_up: "Follow-up set",
           move_to_aging: "Moved to aging queue",
@@ -412,6 +537,10 @@ export default function PayerReceivedClient() {
     },
     [organizationId, selectedRowId],
   );
+
+  useEffect(() => {
+    performActionRef.current = performAction;
+  }, [performAction]);
 
   const promptNote = useCallback(
     (row: PayerReceivedRow) => {
