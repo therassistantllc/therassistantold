@@ -128,7 +128,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Individual claims that have been transmitted and are awaiting payer response.",
     href: "/billing/submitted-claims",
     stage: "submission_rejections",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "clearinghouse_rejections",
