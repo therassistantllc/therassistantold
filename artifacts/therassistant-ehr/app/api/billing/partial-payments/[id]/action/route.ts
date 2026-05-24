@@ -219,6 +219,75 @@ export async function POST(
       });
     if (auditErr) throw auditErr;
 
+    // Task #485: auto-resolve any open claim_workqueue_items row that the
+    // ERA posting engine seeded for this partial payment. Only resolves
+    // rows tagged item_status='partial_payment' so unrelated workqueue
+    // entries (denials, aging, etc.) on the same claim are untouched.
+    if (
+      action === "accept_payment" ||
+      action === "appeal_balance" ||
+      action === "bill_secondary" ||
+      action === "transfer_to_patient"
+    ) {
+      const resolvedAt = new Date().toISOString();
+      const { error: resolveErr } = await (supabase as any)
+        .from("claim_workqueue_items")
+        .update({
+          item_status: "resolved",
+          action_taken: SUMMARIES[action],
+          resolved_at: resolvedAt,
+          resolved_by_user_id: guard.userId,
+          updated_at: resolvedAt,
+        })
+        .eq("organization_id", organizationId)
+        .eq("claim_id", id)
+        .eq("item_status", "partial_payment")
+        .is("archived_at", null);
+      if (resolveErr) {
+        // Non-fatal: the audit log is the source of truth for the queue
+        // state overlay. Log and continue so the action still succeeds.
+        console.warn(
+          "Partial Payments: failed to resolve claim_workqueue_items row",
+          resolveErr.message,
+        );
+      }
+    } else if (action === "reopen") {
+      // Reverse the auto-resolve from a prior terminal action: restore
+      // any claim_workqueue_items row this queue previously stamped
+      // back to item_status='partial_payment' so it surfaces in the
+      // open queue again. We scope to rows where resolved_by_user_id /
+      // action_taken match one of the four terminal SUMMARIES so we
+      // don't accidentally reopen rows resolved by an unrelated queue
+      // (denials, aging, etc.).
+      const terminalSummaries = [
+        SUMMARIES.accept_payment,
+        SUMMARIES.appeal_balance,
+        SUMMARIES.bill_secondary,
+        SUMMARIES.transfer_to_patient,
+      ];
+      const nowIso = new Date().toISOString();
+      const { error: reopenErr } = await (supabase as any)
+        .from("claim_workqueue_items")
+        .update({
+          item_status: "partial_payment",
+          resolved_at: null,
+          resolved_by_user_id: null,
+          action_taken: SUMMARIES.reopen,
+          updated_at: nowIso,
+        })
+        .eq("organization_id", organizationId)
+        .eq("claim_id", id)
+        .eq("item_status", "resolved")
+        .in("action_taken", terminalSummaries)
+        .is("archived_at", null);
+      if (reopenErr) {
+        console.warn(
+          "Partial Payments: failed to reopen claim_workqueue_items row",
+          reopenErr.message,
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       organizationId,

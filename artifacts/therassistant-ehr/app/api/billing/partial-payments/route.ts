@@ -328,6 +328,13 @@ export async function GET(request: Request) {
         )
         .in("claim_id", claimIds)
         .order("line_number", { ascending: true }),
+      // Task #485: this queue is driven by claim_workqueue_items rows
+      // tagged item_status='partial_payment' (open) or 'resolved' /
+      // 'deferred' (terminal). Filter to those statuses so we never
+      // surface an unrelated workqueue row (denial, aging, eligibility,
+      // etc.) when overlaying state / priority / assignment. Order by
+      // updated_at desc so the freshest row for the partial-payments
+      // workflow wins when more than one historical row exists.
       (supabase as any)
         .from("claim_workqueue_items")
         .select(
@@ -335,7 +342,9 @@ export async function GET(request: Request) {
         )
         .eq("organization_id", organizationId)
         .in("claim_id", claimIds)
-        .is("archived_at", null),
+        .in("item_status", ["partial_payment", "resolved", "deferred"])
+        .is("archived_at", null)
+        .order("updated_at", { ascending: false }),
       (supabase as any)
         .from("claim_notes")
         .select("claim_id, body, created_at")
@@ -649,7 +658,17 @@ export async function GET(request: Request) {
       const audit = auditByClaim.get(claimId);
       const lastNote = lastNoteByClaim.get(claimId);
 
-      const state: PartialState = audit?.state ?? "open";
+      // Task #485: prefer the claim_workqueue_items row when present so
+      // assignment / deferral / resolution survive across page loads. The
+      // audit-derived state still wins for the specific terminal labels
+      // (payment_accepted / appealed / billed_secondary / transferred)
+      // because action route stamps both — but a wq row tagged 'resolved'
+      // (or 'deferred') trumps any leftover open audit state.
+      const wqItemStatus = wq ? text(wq.item_status) : "";
+      let state: PartialState = audit?.state ?? "open";
+      if (wqItemStatus === "resolved" || wqItemStatus === "deferred") {
+        state = "resolved";
+      }
       const lastActionAt =
         audit?.last_action_at ?? (text(lastNote?.created_at) || null);
       const lastAction =
@@ -678,7 +697,9 @@ export async function GET(request: Request) {
         clinician_name: clinicianName,
         age_days: ageDays,
         aging_bucket: agingBucket(ageDays),
-        priority: priorityFor(ageDays, remaining),
+        priority: (wq && text(wq.priority)
+          ? (text(wq.priority) as "low" | "normal" | "high" | "urgent")
+          : priorityFor(ageDays, remaining)),
         tabs,
         state,
         status_label: stateLabel(state),

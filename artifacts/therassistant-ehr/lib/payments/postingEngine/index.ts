@@ -498,6 +498,36 @@ async function commitEra835Posting(
       );
     }
 
+    // ── 5c. Seed claim_workqueue_items 'partial_payment' (Task #485) ─────
+    // When the payer paid > 0 but < billed, drop a persistent row into
+    // claim_workqueue_items so the Partial Payments queue can track
+    // assignment / deferral / days_in_ar per row instead of recomputing
+    // on every page load. The GET route still falls back to a live ERA
+    // scan for backfill where no row exists.
+    try {
+      const totalCharge = Number(row.clp03_total_charge ?? 0);
+      if (
+        row.professional_claim_id &&
+        insurancePayment > 0 &&
+        totalCharge > 0 &&
+        insurancePayment < totalCharge
+      ) {
+        await seedPartialPaymentWqItem(supabase, {
+          organizationId: input.organizationId,
+          claimId: row.professional_claim_id,
+          clientId: row.client_id,
+          eraClaimPaymentId: row.id,
+          billed: totalCharge,
+          paid: insurancePayment,
+        });
+      }
+    } catch (wqErr) {
+      console.warn(
+        "[postingEngine] seedPartialPaymentWqItem failed (non-fatal)",
+        wqErr instanceof Error ? wqErr.message : wqErr,
+      );
+    }
+
     // ── 6. Audit ──────────────────────────────────────────────────────────
     const auditLog = await writePaymentAuditLog(supabase, {
       organizationId: input.organizationId,
@@ -681,4 +711,70 @@ async function closeRelatedEraWorkqueueItems(
     .in("id", ids);
   if (updateError) throw new Error(updateError.message);
   return ids.length;
+}
+
+interface SeedPartialPaymentArgs {
+  organizationId: string;
+  claimId: string;
+  clientId: string | null;
+  eraClaimPaymentId: string;
+  billed: number;
+  paid: number;
+}
+
+/**
+ * Idempotently upsert a `claim_workqueue_items` row tagged
+ * item_status='partial_payment' for the given claim. Priority is derived
+ * from the remaining balance (≥1000 → urgent, ≥300 → high, else normal)
+ * so freshly-posted partials surface at the top of the queue. If a non-
+ * partial row already exists for this claim (e.g. denial follow-up), we
+ * leave it alone — the action route will resolve only rows tagged
+ * partial_payment to avoid clobbering unrelated work.
+ */
+async function seedPartialPaymentWqItem(
+  supabase: NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>,
+  args: SeedPartialPaymentArgs,
+): Promise<void> {
+  const remaining = Math.max(0, args.billed - args.paid);
+  const priority: "low" | "normal" | "high" | "urgent" =
+    remaining >= 1000 ? "urgent" : remaining >= 300 ? "high" : "normal";
+
+  const { data: existing, error: existingErr } = await supabase
+    .from("claim_workqueue_items")
+    .select("id, item_status")
+    .eq("organization_id", args.organizationId)
+    .eq("claim_id", args.claimId)
+    .eq("item_status", "partial_payment")
+    .is("archived_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (existingErr) throw new Error(existingErr.message);
+
+  const nowIso = new Date().toISOString();
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("claim_workqueue_items")
+      .update({
+        era_claim_payment_id: args.eraClaimPaymentId,
+        priority,
+        updated_at: nowIso,
+      })
+      .eq("id", existing.id);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const { error } = await supabase.from("claim_workqueue_items").insert({
+    organization_id: args.organizationId,
+    claim_id: args.claimId,
+    client_id: args.clientId,
+    era_claim_payment_id: args.eraClaimPaymentId,
+    item_status: "partial_payment",
+    priority,
+  });
+  if (error) {
+    // 23505 = race on a concurrent insert; treat as success.
+    if ((error as { code?: string }).code === UNIQUE_VIOLATION) return;
+    throw new Error(error.message);
+  }
 }
