@@ -269,6 +269,14 @@ export const WORKQUEUES: WorkqueueDef[] = [
     status: "live",
   },
   {
+    id: "timely_filing",
+    title: "Timely Filing Risk",
+    description: "Claims approaching the payer's filing deadline — submit, appeal, or write off before the window closes.",
+    href: "/billing/timely-filing",
+    stage: "adjudication_denials",
+    status: "live",
+  },
+  {
     id: "coordination_of_benefits",
     title: "COB Issues",
     description: "Claims requiring COB updates before secondary/tertiary billing.",
