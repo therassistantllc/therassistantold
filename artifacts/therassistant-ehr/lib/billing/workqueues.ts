@@ -237,6 +237,14 @@ export const WORKQUEUES: WorkqueueDef[] = [
     status: "live",
   },
   {
+    id: "denials_by_rarc",
+    title: "Denied Claims by RARC",
+    description: "Denials grouped by Remittance Advice Remark Code — explanation-first view with recommended actions.",
+    href: "/billing/denials-by-rarc",
+    stage: "adjudication_denials",
+    status: "live",
+  },
+  {
     id: "partial_denials",
     title: "Partial Denials",
     description: "Claims paid in part — investigate underpaid lines and pursue remainder.",
