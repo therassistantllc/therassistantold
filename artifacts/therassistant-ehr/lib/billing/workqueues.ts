@@ -102,7 +102,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Claims that failed automated 837P assembly — bad NPIs, missing loops, etc.",
     href: "/billing/claim-build-errors",
     stage: "pre_submission",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "duplicate_claim_review",
