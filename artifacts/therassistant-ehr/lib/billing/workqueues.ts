@@ -86,7 +86,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Manually held claims — awaiting biller review, follow-up, or supervisor sign-off.",
     href: "/billing/claim-hold",
     stage: "pre_submission",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "ready_to_generate",
