@@ -34,7 +34,17 @@ type ApiItem = {
   providerName?: string | null;
   payerName?: string | null;
   blockers: Array<{ field?: string; message?: string }>;
+  claim?: { id?: string; status?: string | null } | null;
 };
+
+const UNSUBMITTED_CLAIM_STATUSES = new Set(["draft", "ready_for_batch"]);
+
+function isNotYetSubmitted(item: ApiItem): boolean {
+  if (!item.claim) return true;
+  const s = item.claim.status ?? null;
+  if (s === null) return true;
+  return UNSUBMITTED_CLAIM_STATUSES.has(s);
+}
 
 type ApiPayload = {
   success: boolean;
@@ -175,8 +185,6 @@ const EMPTY_LINE: ServiceLine = {
   authorizationNumber: null,
 };
 
-type FilterType = "all" | ChargeStatus;
-
 function HeaderChildSuggestions({
   parent,
   onPick,
@@ -253,7 +261,6 @@ export default function ChargeCaptureClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [items, setItems] = useState<ChargeRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ChargeDetail | null>(null);
@@ -273,7 +280,7 @@ export default function ChargeCaptureClient() {
       .then((res) => res.json() as Promise<ApiPayload>)
       .then((json) => {
         if (json.success && json.items) {
-          const list = json.items.map(mapApiItem);
+          const list = json.items.filter(isNotYetSubmitted).map(mapApiItem);
           setItems(list);
           if (list.length > 0 && !selectedId) setSelectedId(list[0].id);
         }
@@ -297,18 +304,8 @@ export default function ChargeCaptureClient() {
       .finally(() => setDetailLoading(false));
   }, [selectedId, organizationId, reloadKey]);
 
-  const counts = useMemo(() => ({
-    total: items.length,
-    ready: items.filter((c) => c.status === "ready").length,
-    released: items.filter((c) => c.status === "released").length,
-    unsigned: items.filter((c) => c.status === "unsigned").length,
-    missing_dx: items.filter((c) => c.status === "missing_dx").length,
-    hold: items.filter((c) => c.status === "hold").length,
-  }), [items]);
-
   const filtered = useMemo(() => {
     let list = items;
-    if (filter !== "all") list = list.filter((c) => c.status === filter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((c) =>
@@ -319,7 +316,7 @@ export default function ChargeCaptureClient() {
       );
     }
     return list;
-  }, [items, filter, search]);
+  }, [items, search]);
 
   const updateLine = useCallback((idx: number, patch: Partial<ServiceLine>) => {
     setDetail((prev) => {
@@ -475,7 +472,7 @@ export default function ChargeCaptureClient() {
     <div className={styles.page}>
       {/* Header */}
       <header className={styles.header}>
-        <span className={styles.headerTitle}>Charge Capture</span>
+        <span className={styles.headerTitle}>Charges</span>
         {loading ? <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 8 }}>Loading…</span> : null}
         <div className={styles.headerSpacer} />
       </header>
@@ -510,20 +507,6 @@ export default function ChargeCaptureClient() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-          </div>
-
-          <div className={styles.leftFilters}>
-            {(["all", "ready", "unsigned", "missing_dx", "hold", "released"] as FilterType[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={filter === f ? `${styles.chip} ${styles.chipActive}` : styles.chip}
-                onClick={() => setFilter(f)}
-              >
-                {f === "all" ? "All" : STATUS_LABELS[f as ChargeStatus]}
-                {f !== "all" ? ` (${counts[f as ChargeStatus]})` : ` (${counts.total})`}
-              </button>
-            ))}
           </div>
 
           <div className={styles.leftList}>

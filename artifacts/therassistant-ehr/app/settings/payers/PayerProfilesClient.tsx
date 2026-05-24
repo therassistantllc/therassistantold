@@ -23,6 +23,7 @@ type Payer = {
   notes: string | null;
   requires_authorization: boolean | null;
   billing_rules: BillingRules | null;
+  fax_number: string | null;
   updated_at: string;
 };
 
@@ -33,6 +34,7 @@ type FormState = {
   is_active: boolean;
   notes: string;
   requires_authorization: boolean;
+  fax_number: string;
   // Billing-rules edit fields. Lists are entered as comma-separated text
   // and split server-side so the UI stays simple.
   requires_telehealth_modifier: boolean;
@@ -51,6 +53,7 @@ const EMPTY_FORM: FormState = {
   is_active: true,
   notes: "",
   requires_authorization: false,
+  fax_number: "",
   requires_telehealth_modifier: false,
   allowed_pos_codes_text: "",
   requires_rendering_provider_taxonomy: false,
@@ -109,6 +112,7 @@ export default function PayerProfilesClient() {
       is_active: p.is_active,
       notes: p.notes ?? "",
       requires_authorization: p.requires_authorization === true,
+      fax_number: p.fax_number ?? "",
       requires_telehealth_modifier: br.requires_telehealth_modifier === true,
       allowed_pos_codes_text: joinList(br.allowed_pos_codes ?? []),
       requires_rendering_provider_taxonomy:
@@ -168,6 +172,7 @@ export default function PayerProfilesClient() {
           is_active: form.is_active,
           notes: form.notes || null,
           requires_authorization: form.requires_authorization,
+          fax_number: form.fax_number.trim() || null,
           billing_rules,
         }),
       });
@@ -278,6 +283,15 @@ export default function PayerProfilesClient() {
                   type="text"
                   value={form.notes}
                   onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                />
+              </label>
+              <label className="field-label">
+                Fax number
+                <input
+                  type="text"
+                  value={form.fax_number}
+                  onChange={(e) => setForm((p) => ({ ...p, fax_number: e.target.value }))}
+                  placeholder="e.g. 555-123-4567"
                 />
               </label>
             </div>

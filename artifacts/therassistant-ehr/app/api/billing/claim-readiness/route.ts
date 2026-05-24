@@ -1,193 +1,181 @@
+/**
+ * GET /api/billing/claim-readiness
+ *
+ * "No Response" worklist: every professional claim submitted to a
+ * payer that hasn't come back yet. Drives /billing/claim-readiness
+ * (now titled "No Response").
+ *
+ * Criteria:
+ *   - claim_status IN ('submitted', 'accepted_payer')
+ *   - archived_at IS NULL
+ *   - defer_until IS NULL OR defer_until <= today (auto-resurface)
+ *   - ordered by submitted_at ASC (oldest first)
+ */
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
 
 type DbRow = Record<string, unknown>;
 
-function text(value: unknown) {
-  return String(value ?? "").trim();
-}
+const text = (value: unknown) => String(value ?? "").trim();
+const money = (value: unknown) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+};
 
-function money(value: unknown) {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : 0;
-}
-
-function arrayLength(value: unknown) {
-  return Array.isArray(value) ? value.length : 0;
-}
-
-function extractCptCodes(serviceLines: unknown): string[] {
-  if (!Array.isArray(serviceLines)) return [];
-  const codes: string[] = [];
-  for (const line of serviceLines) {
-    if (line && typeof line === "object") {
-      const code = text((line as DbRow).procedure_code ?? (line as DbRow).cpt_code);
-      if (code) codes.push(code);
-    }
-  }
-  return codes;
+function agingDays(submittedAt: string | null): number | null {
+  if (!submittedAt) return null;
+  const submitted = new Date(submittedAt);
+  if (Number.isNaN(submitted.getTime())) return null;
+  const today = new Date();
+  const ms = today.getTime() - submitted.getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
 export async function GET(request: Request) {
   try {
     const supabase = createServerSupabaseAdminClient();
-    if (!supabase) return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Database connection not available" },
+        { status: 500 },
+      );
+    }
 
     const { searchParams } = new URL(request.url);
-    const guard = await requireBillingAccess({ requestedOrganizationId: searchParams.get("organizationId") });
+    const guard = await requireBillingAccess({
+      requestedOrganizationId: searchParams.get("organizationId"),
+    });
     if (guard instanceof NextResponse) return guard;
     const organizationId = guard.organizationId;
 
-    const { data: chargeRows, error: chargeError } = await supabase
-      .from("charge_capture_items")
-      .select("id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, total_charge, diagnosis_codes, service_lines, blocker_reasons, updated_at")
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: claimRows, error: claimsError } = await (supabase as any)
+      .from("professional_claims")
+      .select(
+        "id, claim_number, claim_status, patient_id, payer_profile_id, total_charge, submitted_at, defer_until, deferred_reason, created_at",
+      )
       .eq("organization_id", organizationId)
+      .in("claim_status", ["submitted", "accepted_payer"])
       .is("archived_at", null)
-      .neq("charge_status", "voided")
-      .order("updated_at", { ascending: false })
-      .limit(100);
+      .or(`defer_until.is.null,defer_until.lte.${today}`)
+      .order("submitted_at", { ascending: true, nullsFirst: true });
 
-    if (chargeError) throw chargeError;
+    if (claimsError) throw claimsError;
 
-    const clientIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.client_id)).filter(Boolean))];
-    const encounterIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.encounter_id)).filter(Boolean))];
-    const providerIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.provider_id)).filter(Boolean))];
-    const policyIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.insurance_policy_id)).filter(Boolean))];
+    const claims = (claimRows ?? []) as DbRow[];
+    const claimIds = claims.map((c) => text(c.id)).filter(Boolean);
+    const patientIds = [...new Set(claims.map((c) => text(c.patient_id)).filter(Boolean))];
+    const payerProfileIds = [
+      ...new Set(claims.map((c) => text(c.payer_profile_id)).filter(Boolean)),
+    ];
 
-    const { data: clients } = clientIds.length
-      ? await supabase.from("clients").select("id, first_name, last_name, date_of_birth").in("id", clientIds)
-      : { data: [] as DbRow[] };
+    const [{ data: patients }, { data: payerProfiles }, { data: serviceLines }, { data: notes }] =
+      await Promise.all([
+        patientIds.length
+          ? supabase
+              .from("clients")
+              .select("id, first_name, last_name")
+              .in("id", patientIds)
+          : Promise.resolve({ data: [] as DbRow[] }),
+        payerProfileIds.length
+          ? supabase
+              .from("payer_profiles")
+              .select("id, payer_name")
+              .in("id", payerProfileIds)
+          : Promise.resolve({ data: [] as DbRow[] }),
+        claimIds.length
+          ? supabase
+              .from("professional_claim_service_lines")
+              .select("claim_id, service_date_from, service_date_to")
+              .in("claim_id", claimIds)
+          : Promise.resolve({ data: [] as DbRow[] }),
+        claimIds.length
+          ? (supabase as any)
+              .from("claim_notes")
+              .select("claim_id, body, created_at")
+              .eq("organization_id", organizationId)
+              .in("claim_id", claimIds)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [] as DbRow[] }),
+      ]);
 
-    const { data: claims } = encounterIds.length
-      ? await supabase
-          .from("professional_claims")
-          .select("id, patient_id, appointment_id, claim_number, claim_status, total_charge_amount, payer_profile_id, created_at, updated_at")
-          .eq("organization_id", organizationId)
-          .in("patient_id", clientIds)
-          .neq("claim_status", "voided")
-          .order("updated_at", { ascending: false })
-      : { data: [] as DbRow[] };
+    const patientById = new Map<string, DbRow>(
+      ((patients ?? []) as DbRow[]).map((p) => [text(p.id), p]),
+    );
+    const payerById = new Map<string, DbRow>(
+      ((payerProfiles ?? []) as DbRow[]).map((p) => [text(p.id), p]),
+    );
 
-    const { data: providers } = providerIds.length
-      ? await supabase
-          .from("provider_profiles")
-          .select("id, staff_id, credentials")
-          .in("id", providerIds)
-      : { data: [] as DbRow[] };
-
-    const staffIds = [...new Set((providers ?? []).map((row: DbRow) => text(row.staff_id)).filter(Boolean))];
-
-    const { data: staff } = staffIds.length
-      ? await supabase
-          .from("staff_profiles")
-          .select("id, first_name, last_name")
-          .in("id", staffIds)
-      : { data: [] as DbRow[] };
-
-    const { data: policies } = policyIds.length
-      ? await supabase
-          .from("insurance_policies")
-          .select("id, payer_id, plan_name")
-          .in("id", policyIds)
-      : { data: [] as DbRow[] };
-
-    const payerIds = [...new Set((policies ?? []).map((row: DbRow) => text(row.payer_id)).filter(Boolean))];
-
-    const { data: payers } = payerIds.length
-      ? await supabase
-          .from("insurance_payers")
-          .select("id, payer_name")
-          .in("id", payerIds)
-      : { data: [] as DbRow[] };
-
-    const payerProfileIds = [...new Set((claims ?? []).map((row: DbRow) => text(row.payer_profile_id)).filter(Boolean))];
-
-    const { data: payerProfiles } = payerProfileIds.length
-      ? await supabase
-          .from("payer_profiles")
-          .select("id, payer_name")
-          .in("id", payerProfileIds)
-      : { data: [] as DbRow[] };
-
-    const clientById = new Map<string, DbRow>((clients ?? []).map((client: DbRow) => [text(client.id), client]));
-    const staffById = new Map<string, DbRow>((staff ?? []).map((row: DbRow) => [text(row.id), row]));
-    const providerById = new Map<string, DbRow>((providers ?? []).map((row: DbRow) => [text(row.id), row]));
-    const policyById = new Map<string, DbRow>((policies ?? []).map((row: DbRow) => [text(row.id), row]));
-    const payerById = new Map<string, DbRow>((payers ?? []).map((row: DbRow) => [text(row.id), row]));
-    const payerProfileById = new Map<string, DbRow>((payerProfiles ?? []).map((row: DbRow) => [text(row.id), row]));
-
-    const claimsByPatientAppointment = new Map<string, DbRow>();
-    for (const claim of claims ?? []) {
-      const key = `${text(claim.patient_id)}:${text(claim.appointment_id)}`;
-      if (!claimsByPatientAppointment.has(key)) claimsByPatientAppointment.set(key, claim);
+    const serviceLinesByClaim = new Map<string, { from: string | null; to: string | null }>();
+    for (const line of (serviceLines ?? []) as DbRow[]) {
+      const key = text(line.claim_id);
+      if (!key) continue;
+      const from = (line.service_date_from as string | null) ?? null;
+      const to = (line.service_date_to as string | null) ?? null;
+      const prior = serviceLinesByClaim.get(key);
+      if (!prior) {
+        serviceLinesByClaim.set(key, { from, to });
+        continue;
+      }
+      serviceLinesByClaim.set(key, {
+        from: prior.from && from ? (prior.from < from ? prior.from : from) : (prior.from ?? from),
+        to: prior.to && to ? (prior.to > to ? prior.to : to) : (prior.to ?? to),
+      });
     }
 
-    const items = (chargeRows ?? []).map((charge: DbRow) => {
-      const client = clientById.get(text(charge.client_id));
-      const claim = claimsByPatientAppointment.get(`${text(charge.client_id)}:${text(charge.appointment_id)}`) ?? null;
-      const patientName = client ? [client.first_name, client.last_name].map(text).filter(Boolean).join(" ") : "Unknown patient";
+    const notesByClaim = new Map<string, DbRow[]>();
+    for (const note of (notes ?? []) as DbRow[]) {
+      const key = text(note.claim_id);
+      if (!key) continue;
+      const arr = notesByClaim.get(key) ?? [];
+      arr.push(note);
+      notesByClaim.set(key, arr);
+    }
 
-      const provider = providerById.get(text(charge.provider_id));
-      const staffRow = provider ? staffById.get(text(provider.staff_id)) : null;
-      const credentials = text(provider?.credentials);
-      const providerNameParts = staffRow ? [staffRow.first_name, staffRow.last_name].map(text).filter(Boolean) : [];
-      const providerBaseName = providerNameParts.join(" ");
-      const providerName = providerBaseName
-        ? credentials
-          ? `${providerBaseName}, ${credentials}`
-          : providerBaseName
-        : "";
-
-      const policy = policyById.get(text(charge.insurance_policy_id));
-      const policyPayer = policy ? payerById.get(text(policy.payer_id)) : null;
-      const claimPayerProfile = claim ? payerProfileById.get(text(claim.payer_profile_id)) : null;
-      const payerName = text(policyPayer?.payer_name) || text(claimPayerProfile?.payer_name) || text(policy?.plan_name);
-
-      const cptCodes = extractCptCodes(charge.service_lines);
+    const items = claims.map((claim) => {
+      const patient = patientById.get(text(claim.patient_id));
+      const patientName = patient
+        ? [patient.first_name, patient.last_name].map(text).filter(Boolean).join(" ") ||
+          "Unknown patient"
+        : "Unknown patient";
+      const payer = payerById.get(text(claim.payer_profile_id));
+      const dates = serviceLinesByClaim.get(text(claim.id)) ?? { from: null, to: null };
+      const claimNotes = notesByClaim.get(text(claim.id)) ?? [];
+      const latest = claimNotes[0];
+      const latestBody = latest ? text(latest.body) : "";
+      const excerpt =
+        latestBody.length > 120 ? `${latestBody.slice(0, 117)}…` : latestBody || null;
+      const submittedAt = (claim.submitted_at as string | null) ?? null;
 
       return {
-        chargeCaptureId: text(charge.id),
-        encounterId: text(charge.encounter_id),
-        clientId: text(charge.client_id),
-        patientName,
-        dateOfBirth: client?.date_of_birth ?? null,
-        serviceDate: charge.service_date ?? null,
-        chargeStatus: charge.charge_status ?? null,
-        totalCharge: money(charge.total_charge),
-        diagnosisCount: arrayLength(charge.diagnosis_codes),
-        serviceLineCount: arrayLength(charge.service_lines),
-        cptCodes,
-        providerName,
-        payerName,
-        blockers: Array.isArray(charge.blocker_reasons) ? charge.blocker_reasons : [],
-        updatedAt: charge.updated_at ?? null,
-        claim: claim
-          ? {
-              id: text(claim.id),
-              claimNumber: claim.claim_number ?? null,
-              status: claim.claim_status ?? null,
-              totalChargeAmount: money(claim.total_charge_amount),
-              updatedAt: claim.updated_at ?? null,
-            }
-          : null,
+        id: text(claim.id),
+        claim_number: text(claim.claim_number) || null,
+        claim_status: text(claim.claim_status) || null,
+        patient_id: text(claim.patient_id) || null,
+        patient_name: patientName,
+        payer_name: payer ? text(payer.payer_name) || null : null,
+        service_date_from: dates.from,
+        service_date_to: dates.to,
+        submitted_at: submittedAt,
+        aging_days: agingDays(submittedAt),
+        total_charge: money(claim.total_charge),
+        defer_until: (claim.defer_until as string | null) ?? null,
+        deferred_reason: (claim.deferred_reason as string | null) ?? null,
+        note_count: claimNotes.length,
+        latest_note_excerpt: excerpt,
       };
     });
 
-    const metrics = {
-      total: items.length,
-      blocked: items.filter((item) => item.chargeStatus === "blocked").length,
-      readyForClaim: items.filter((item) => item.chargeStatus === "ready_for_claim").length,
-      claimCreated: items.filter((item) => item.chargeStatus === "claim_created").length,
-      validationFailed: items.filter((item) => item.claim?.status === "validation_failed").length,
-      readyForBatch: items.filter((item) => item.claim?.status === "ready_for_batch").length,
-    };
-
-    return NextResponse.json({ success: true, organizationId, metrics, items });
+    return NextResponse.json({ success: true, organizationId, items });
   } catch (error) {
-    console.error("Claim readiness API error:", error);
+    console.error("No Response (claim-readiness) API error:", error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Claim readiness API failed" },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to load no-response worklist",
+      },
       { status: 500 },
     );
   }

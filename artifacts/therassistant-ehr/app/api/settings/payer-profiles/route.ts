@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("payer_profiles")
     .select(
-      "id, payer_name, availity_payer_id, payer_type, is_active, notes, requires_authorization, billing_rules, created_at, updated_at",
+      "id, payer_name, availity_payer_id, payer_type, is_active, notes, requires_authorization, billing_rules, fax_number, created_at, updated_at" as any,
     )
     .eq("organization_id", organizationId)
     .order("payer_name", { ascending: true });
@@ -85,10 +85,11 @@ export async function POST(req: NextRequest) {
       is_active: Boolean(body.is_active ?? true),
       notes: body.notes ? String(body.notes) : null,
       requires_authorization: Boolean(body.requires_authorization ?? false),
+      fax_number: body.fax_number ? String(body.fax_number) : null,
       billing_rules: sanitizeBillingRules(body.billing_rules),
       created_at: now,
       updated_at: now,
-    })
+    } as any)
     .select("id")
     .single();
 
@@ -131,6 +132,7 @@ export async function PATCH(req: NextRequest) {
     "is_active",
     "notes",
     "requires_authorization",
+    "fax_number",
   ] as const;
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {

@@ -1,5 +1,9 @@
 import ClaimReadinessClient from "./ClaimReadinessClient";
 
-export default function ClaimReadinessPage() {
+export const metadata = {
+  title: "No Response",
+};
+
+export default function NoResponsePage() {
   return <ClaimReadinessClient />;
 }
