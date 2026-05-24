@@ -1655,8 +1655,8 @@ export default function PatientChartClient({
               <table className="summary-cases-table">
                 <thead>
                   <tr>
-                    <th>Case</th>
-                    <th>Primary payer</th>
+                    <th>Priority</th>
+                    <th>Payer</th>
                     <th>Member ID</th>
                     <th>Copay</th>
                     <th>Active</th>
@@ -1664,88 +1664,61 @@ export default function PatientChartClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {cases.flatMap((c) => {
-                    const sortedPolicies = [...c.policies].sort((a, b) => {
-                      const order = { primary: 0, secondary: 1, tertiary: 2 } as const;
-                      return (order[a.priority] ?? 9) - (order[b.priority] ?? 9);
-                    });
-                    // Insurance summary only surfaces the primary policy row;
-                    // secondary/tertiary are visible in the Cases editor below.
-                    const visiblePolicies = sortedPolicies.filter(
-                      (p) => p.priority === "primary",
-                    );
-                    if (visiblePolicies.length === 0) {
-                      return [
-                        <tr key={c.id}>
-                          <td>
-                            <strong>{c.name}</strong>
-                            {c.isDefault ? (
-                              <span className="status status-green" style={{ marginLeft: 6 }}>
-                                Default
-                              </span>
-                            ) : null}
+                  {((): ReactElement | ReactElement[] => {
+                    // Flatten every policy across every active case, dedupe
+                    // by policyId, then keep only ones whose matching policy
+                    // record is still active. Sort primary → secondary → tertiary.
+                    const order = { primary: 0, secondary: 1, tertiary: 2 } as const;
+                    const flat = cases
+                      .filter((c) => c.activeFlag)
+                      .flatMap((c) => c.policies.map((p) => ({ c, p })));
+                    const seen = new Set<string>();
+                    const activeRows = flat
+                      .filter(({ p }) => {
+                        const m = policies.find((x) => x.id === p.policyId);
+                        return m == null ? true : m.active_flag !== false;
+                      })
+                      .filter(({ p }) => {
+                        if (seen.has(p.policyId)) return false;
+                        seen.add(p.policyId);
+                        return true;
+                      })
+                      .sort(
+                        (a, b) =>
+                          (order[a.p.priority] ?? 9) - (order[b.p.priority] ?? 9),
+                      );
+
+                    if (activeRows.length === 0) {
+                      return (
+                        <tr key="no-active">
+                          <td colSpan={6} style={{ color: "var(--muted-color, #6b7280)" }}>
+                            No active insurance policies on file.
                           </td>
-                          <td>{dash}</td>
-                          <td>{dash}</td>
-                          <td>{dash}</td>
-                          <td>
-                            <span
-                              className={c.activeFlag ? "status status-green" : "status status-yellow"}
-                            >
-                              {c.activeFlag ? "Yes" : "No"}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <a className="button button-secondary" href="#cases-editor">
-                              Open
-                            </a>
-                          </td>
-                        </tr>,
-                      ];
+                        </tr>
+                      );
                     }
-                    return visiblePolicies.flatMap((casePolicy, idx) => {
+
+                    return activeRows.flatMap(({ c, p: casePolicy }) => {
                       const matchingPolicy =
                         policies.find((p) => p.id === casePolicy.policyId) ?? null;
-                      const isFirst = idx === 0;
                       const isEditing =
                         matchingPolicy != null && policyEditId === matchingPolicy.id;
+                      const policyActive =
+                        matchingPolicy == null
+                          ? true
+                          : matchingPolicy.active_flag !== false;
                       const rows: ReactElement[] = [
                         <tr key={`${c.id}:${casePolicy.policyId}`}>
-                          <td>
-                            {isFirst ? (
-                              <>
-                                <strong>{c.name}</strong>
-                                {c.isDefault ? (
-                                  <span
-                                    className="status status-green"
-                                    style={{ marginLeft: 6 }}
-                                  >
-                                    Default
-                                  </span>
-                                ) : null}
-                                <div style={{ fontSize: 12, color: "var(--muted-color, #6b7280)" }}>
-                                  {casePolicy.priority}
-                                </div>
-                              </>
-                            ) : (
-                              <div style={{ fontSize: 12, color: "var(--muted-color, #6b7280)" }}>
-                                {casePolicy.priority}
-                              </div>
-                            )}
-                          </td>
+                          <td style={{ textTransform: "capitalize" }}>{casePolicy.priority}</td>
                           <td>{casePolicy.payerName ?? casePolicy.planName ?? dash}</td>
                           <td>{casePolicy.policyNumber ?? dash}</td>
                           <td>{formatMoneyOrDash(matchingPolicy?.copay_amount ?? null)}</td>
                           <td>
-                            {isFirst ? (
-                              <span
-                                className={
-                                  c.activeFlag ? "status status-green" : "status status-yellow"
-                                }
-                              >
-                                {c.activeFlag ? "Yes" : "No"}
-                              </span>
-                            ) : null}
+                            <span
+                              className={policyActive ? "status status-green" : "status status-yellow"}
+                            >
+                              {policyActive ? "Yes" : "No"}
+                            </span>
                           </td>
                           <td style={{ textAlign: "right" }}>
                             <span style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end" }}>
@@ -1760,11 +1733,6 @@ export default function PatientChartClient({
                                 >
                                   {isEditing ? "Close" : "Edit policy"}
                                 </button>
-                              ) : null}
-                              {isFirst ? (
-                                <a className="button button-secondary" href="#cases-editor">
-                                  Open
-                                </a>
                               ) : null}
                             </span>
                           </td>
@@ -1924,7 +1892,7 @@ export default function PatientChartClient({
 
                       return rows;
                     });
-                  })}
+                  })()}
                 </tbody>
               </table>
             )}
