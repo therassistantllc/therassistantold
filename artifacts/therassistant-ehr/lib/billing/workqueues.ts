@@ -368,11 +368,11 @@ export const WORKQUEUES: WorkqueueDef[] = [
   },
   {
     id: "refund_requests",
-    title: "Refund Requests",
-    description: "Pending refunds — patient and payer — awaiting approval or processing.",
-    href: "/billing/refund-requests",
+    title: "Refund / Overpayment",
+    description: "Manage credit balances and payer / patient refunds — approve, issue, or apply to balance.",
+    href: "/billing/refunds",
     stage: "payments_era",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "recoupments",
@@ -381,14 +381,6 @@ export const WORKQUEUES: WorkqueueDef[] = [
     href: "/billing/recoupments",
     stage: "payments_era",
     status: "live",
-  },
-  {
-    id: "credit_balances",
-    title: "Credit Balances",
-    description: "Accounts with a credit balance that should be refunded or transferred.",
-    href: "/billing/credit-balances",
-    stage: "payments_era",
-    status: "coming_soon",
   },
   {
     id: "vcc",
