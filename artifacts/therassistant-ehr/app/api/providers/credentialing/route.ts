@@ -19,6 +19,85 @@ function isMissingTelehealthColumns(error: unknown): boolean {
   return /telehealth_url|stripe_payment_link_url|default_telehealth_platform|stripe_connect_account_id|stripe_charges_enabled|stripe_payouts_enabled|stripe_details_submitted|stripe_requirements|stripe_account_status_updated_at/i.test(message);
 }
 
+function splitName(fullName: string): { first_name: string; last_name: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { first_name: "Unknown", last_name: "Provider" };
+  const stripped = trimmed.replace(/,.*$/, "").trim();
+  const parts = stripped.split(/\s+/);
+  if (parts.length === 1) return { first_name: parts[0], last_name: parts[0] };
+  return { first_name: parts[0], last_name: parts.slice(1).join(" ") };
+}
+
+async function upsertProvidersRoster(
+  supabase: ReturnType<typeof createServerSupabaseAdminClient>,
+  organizationId: string,
+  payload: {
+    provider_name: string;
+    credential_display: string | null;
+    individual_npi: string | null;
+    taxonomy_code: string | null;
+    email: string | null;
+    phone: string | null;
+    individual_medicaid_id: string | null;
+    is_active: boolean;
+  },
+) {
+  if (!supabase) return;
+  const { first_name, last_name } = splitName(payload.provider_name);
+  const baseFields = {
+    display_name: payload.provider_name.trim() || `${first_name} ${last_name}`.trim(),
+    credential: payload.credential_display,
+    email: payload.email,
+    phone: payload.phone,
+    npi: payload.individual_npi,
+    taxonomy_code: payload.taxonomy_code,
+    medicaid_id: payload.individual_medicaid_id,
+    is_active: payload.is_active,
+  };
+
+  let existing: { id: string } | null = null;
+  if (payload.individual_npi) {
+    const npiLookup = await supabase
+      .from("providers")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("npi", payload.individual_npi)
+      .is("archived_at", null)
+      .maybeSingle();
+    existing = (npiLookup.data as { id: string } | null) ?? null;
+  }
+  if (!existing) {
+    const nameLookup = await supabase
+      .from("providers")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("display_name", baseFields.display_name)
+      .is("archived_at", null)
+      .maybeSingle();
+    existing = (nameLookup.data as { id: string } | null) ?? null;
+  }
+
+  if (existing) {
+    const upd = await supabase
+      .from("providers")
+      .update({ ...baseFields, updated_at: new Date().toISOString() })
+      .eq("id", existing.id)
+      .eq("organization_id", organizationId);
+    if (upd.error) console.warn("[providers roster] update failed:", upd.error.message);
+  } else {
+    const ins = await supabase
+      .from("providers")
+      .insert({
+        organization_id: organizationId,
+        first_name,
+        last_name,
+        provider_type: "clinician",
+        ...baseFields,
+      });
+    if (ins.error) console.warn("[providers roster] insert failed:", ins.error.message);
+  }
+}
+
 function withNullExtras<T extends Record<string, unknown>>(row: T): T & {
   telehealth_url: string | null;
   stripe_payment_link_url: string | null;
@@ -164,7 +243,23 @@ export async function POST(request: NextRequest) {
       data = fallback.data as typeof data;
     }
 
-    return NextResponse.json({ success: true, provider: withNullExtras(data as Record<string, unknown>) }, { status: 201 });
+    const row = data as Record<string, unknown>;
+    try {
+      await upsertProvidersRoster(supabase, organizationId, {
+        provider_name: String(row.provider_name ?? body.provider_name ?? ""),
+        credential_display: (row.credential_display as string | null) ?? null,
+        individual_npi: (row.individual_npi as string | null) ?? null,
+        taxonomy_code: (row.taxonomy_code as string | null) ?? null,
+        email: (row.email as string | null) ?? null,
+        phone: (row.phone as string | null) ?? null,
+        individual_medicaid_id: (row.individual_medicaid_id as string | null) ?? null,
+        is_active: row.is_active !== false,
+      });
+    } catch (rosterError) {
+      console.warn("[providers roster] dual-write skipped:", rosterError);
+    }
+
+    return NextResponse.json({ success: true, provider: withNullExtras(row) }, { status: 201 });
   } catch (error) {
     console.error("Provider credentialing POST error:", error);
     return NextResponse.json(
@@ -240,7 +335,23 @@ export async function PATCH(request: NextRequest) {
       data = fallback.data as typeof data;
     }
 
-    return NextResponse.json({ success: true, provider: withNullExtras(data as Record<string, unknown>) });
+    const row = data as Record<string, unknown>;
+    try {
+      await upsertProvidersRoster(supabase, organizationId, {
+        provider_name: String(row.provider_name ?? ""),
+        credential_display: (row.credential_display as string | null) ?? null,
+        individual_npi: (row.individual_npi as string | null) ?? null,
+        taxonomy_code: (row.taxonomy_code as string | null) ?? null,
+        email: (row.email as string | null) ?? null,
+        phone: (row.phone as string | null) ?? null,
+        individual_medicaid_id: (row.individual_medicaid_id as string | null) ?? null,
+        is_active: row.is_active !== false,
+      });
+    } catch (rosterError) {
+      console.warn("[providers roster] dual-write skipped:", rosterError);
+    }
+
+    return NextResponse.json({ success: true, provider: withNullExtras(row) });
   } catch (error) {
     console.error("Provider credentialing PATCH error:", error);
     return NextResponse.json(
