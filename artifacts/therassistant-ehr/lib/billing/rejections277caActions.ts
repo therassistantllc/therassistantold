@@ -18,7 +18,8 @@ export type Rejection277CaActionId =
   | "resubmit_corrected_claim"
   | "route_to_eligibility"
   | "route_to_enrollment"
-  | "mark_resolved";
+  | "mark_resolved"
+  | "undo_auto_route";
 
 export interface Rejection277CaActionContext {
   supabase: SupabaseClient;
@@ -86,6 +87,10 @@ export async function applyRejection277CaAction(
   }
 
   const claimId: string | null = item.professional_claim_id ?? null;
+  const wasAutoRouted =
+    !!(item.context_payload &&
+      typeof item.context_payload === "object" &&
+      (item.context_payload as Record<string, unknown>).auto_routed === true);
 
   if (action === "correct_claim") {
     const r = await addWorkqueueComment({
@@ -102,6 +107,9 @@ export async function applyRejection277CaAction(
         error: r.errors[0]?.message ?? "Action failed",
         httpStatus: 500,
       };
+    }
+    if (wasAutoRouted) {
+      await clearAutoRouteContext(supabase, organizationId, itemId, item.context_payload);
     }
     await writeAudit(supabase, {
       organizationId,
@@ -134,6 +142,10 @@ export async function applyRejection277CaAction(
       .eq("organization_id", organizationId);
     if (updErr) {
       return { ok: false, itemId, action, error: updErr.message, httpStatus: 500 };
+    }
+
+    if (wasAutoRouted) {
+      await clearAutoRouteContext(supabase, organizationId, itemId, item.context_payload);
     }
 
     const r = await resolveWorkqueueItem({
@@ -208,6 +220,9 @@ export async function applyRejection277CaAction(
   }
 
   if (action === "mark_resolved") {
+    if (wasAutoRouted) {
+      await clearAutoRouteContext(supabase, organizationId, itemId, item.context_payload);
+    }
     const r = await resolveWorkqueueItem({
       organizationId,
       workqueueItemId: itemId,
@@ -234,6 +249,59 @@ export async function applyRejection277CaAction(
     return { ok: true, itemId, action, status: r.status, httpStatus: 200 };
   }
 
+  if (action === "undo_auto_route") {
+    if (!wasAutoRouted) {
+      return {
+        ok: false,
+        itemId,
+        action,
+        error: "Item was not auto-routed",
+        httpStatus: 400,
+      };
+    }
+    const cleanedCtx = stripAutoRouteFields(item.context_payload);
+    const { error: updErr } = await (supabase as any)
+      .from("workqueue_items")
+      .update({
+        deferred_until: null,
+        defer_reason: null,
+        context_payload: cleanedCtx,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("organization_id", organizationId)
+      .eq("id", itemId);
+    if (updErr) {
+      return { ok: false, itemId, action, error: updErr.message, httpStatus: 500 };
+    }
+
+    const r = await addWorkqueueComment({
+      organizationId,
+      workqueueItemId: itemId,
+      userId,
+      comment:
+        note ??
+        "Biller overrode auto-route; rejection returned to manual 277CA triage.",
+    });
+    if (!r.ok) {
+      return {
+        ok: false,
+        itemId,
+        action,
+        error: r.errors[0]?.message ?? "Action failed",
+        httpStatus: 500,
+      };
+    }
+    await writeAudit(supabase, {
+      organizationId,
+      userId,
+      claimId,
+      eventType: "rejection_277ca_auto_route_undone",
+      summary: "Biller cleared 277CA auto-route and returned item to manual triage.",
+      metadata: { workqueueItemId: itemId, staffId },
+    });
+    return { ok: true, itemId, action, status: r.status, httpStatus: 200 };
+  }
+
   return {
     ok: false,
     itemId,
@@ -241,6 +309,38 @@ export async function applyRejection277CaAction(
     error: `Unknown action: ${action}`,
     httpStatus: 400,
   };
+}
+
+function stripAutoRouteFields(ctx: unknown): Record<string, unknown> {
+  const next: Record<string, unknown> =
+    ctx && typeof ctx === "object" ? { ...(ctx as Record<string, unknown>) } : {};
+  delete next.auto_routed;
+  delete next.auto_routed_tab;
+  delete next.auto_routed_reason;
+  delete next.auto_routed_at;
+  return next;
+}
+
+async function clearAutoRouteContext(
+  supabase: SupabaseClient,
+  organizationId: string,
+  itemId: string,
+  ctx: unknown,
+): Promise<void> {
+  const cleaned = stripAutoRouteFields(ctx);
+  try {
+    await (supabase as any)
+      .from("workqueue_items")
+      .update({
+        context_payload: cleaned,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("organization_id", organizationId)
+      .eq("id", itemId);
+  } catch {
+    // Clearing the auto-route badge is a best-effort side-effect; don't
+    // fail the primary action if it errors.
+  }
 }
 
 async function writeAudit(

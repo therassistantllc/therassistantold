@@ -24,7 +24,8 @@ type ActionId =
   | "resubmit_corrected_claim"
   | "route_to_eligibility"
   | "route_to_enrollment"
-  | "mark_resolved";
+  | "mark_resolved"
+  | "undo_auto_route";
 
 interface RejectionRow {
   id: string;
@@ -314,9 +315,14 @@ export default function Rejections277CaClient() {
                   color: "#3730A3",
                   textTransform: "uppercase",
                   letterSpacing: 0.3,
+                  whiteSpace: "nowrap",
                 }}
               >
-                Auto-routed
+                {r.autoRoutedReason === "routed_to_eligibility"
+                  ? "Auto-routed → Eligibility"
+                  : r.autoRoutedReason === "routed_to_credentialing"
+                    ? "Auto-routed → Credentialing"
+                    : "Auto-routed"}
               </span>
             ) : null}
           </span>
@@ -400,6 +406,24 @@ export default function Rejections277CaClient() {
         action === "route_to_enrollment"
       ) {
         setItems((prev) => prev.filter((r) => r.id !== row.id));
+      } else if (action === "undo_auto_route" || action === "correct_claim") {
+        // Optimistically clear the auto-routed badge — the row stays put,
+        // but the user sees their override take effect immediately.
+        setItems((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? {
+                  ...r,
+                  autoRouted: false,
+                  autoRoutedTab: null,
+                  autoRoutedReason: null,
+                  autoRoutedAt: null,
+                  followUpDue:
+                    action === "undo_auto_route" ? null : r.followUpDue,
+                }
+              : r,
+          ),
+        );
       }
 
       try {
@@ -424,7 +448,9 @@ export default function Rejections277CaClient() {
                 ? "Routed to eligibility."
                 : action === "route_to_enrollment"
                   ? "Routed to credentialing/enrollment."
-                  : "Marked resolved.";
+                  : action === "undo_auto_route"
+                    ? "Auto-route cleared — back in manual triage."
+                    : "Marked resolved.";
         setMessage({ tone: "success", text: label });
         // Pull fresh state so any server-side recomputation (e.g. comment
         // list, status flip) is reflected.
@@ -588,11 +614,21 @@ export default function Rejections277CaClient() {
 
   const detailActions: PrimaryAction[] = useMemo(() => {
     if (!selectedRow) return [];
-    return [
+    const acts: PrimaryAction[] = [];
+    if (selectedRow.autoRouted) {
+      acts.push({
+        id: "undo-auto-route",
+        label: "Undo auto-route",
+        variant: "primary",
+        onClick: () => void runAction(selectedRow, "undo_auto_route"),
+        disabled: busyId === selectedRow.id,
+      });
+    }
+    acts.push(
       {
         id: "correct",
         label: "Correct claim",
-        variant: "primary",
+        variant: selectedRow.autoRouted ? "default" : "primary",
         onClick: () => {
           void runAction(selectedRow, "correct_claim");
           if (typeof window !== "undefined") {
@@ -626,7 +662,8 @@ export default function Rejections277CaClient() {
         onClick: () => void runAction(selectedRow, "mark_resolved"),
         disabled: busyId === selectedRow.id,
       },
-    ];
+    );
+    return acts;
   }, [selectedRow, busyId, runAction, correctHref]);
 
   // ── Detail tabs (per spec) ──────────────────────────────────────────────
