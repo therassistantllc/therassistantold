@@ -1,5 +1,9 @@
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { parseEra835, type Era835ClaimPayment } from "@/lib/payments/era835Parser";
+import {
+  detectEraDocumentationRequest,
+  writeMedicalReviewRequestAudit,
+} from "@/lib/medical-review/documentationRequestDetection";
 
 export interface IntakeEra835Input {
   organizationId: string;
@@ -160,25 +164,64 @@ export async function intakeEra835(input: IntakeEra835Input): Promise<IntakeEra8
       if (match) matchedClaims += 1;
       else unmatchedClaims += 1;
 
-      const { error: claimPaymentError } = await supabase.from("era_claim_payments").insert({
-        organization_id: input.organizationId,
-        era_import_batch_id: batchId,
-        professional_claim_id: match?.id ?? null,
-        client_id: match?.patient_id ?? null,
-        clp01_claim_control_number: claim.clp01ClaimControlNumber,
-        clp02_claim_status_code: claim.clp02ClaimStatusCode,
-        clp03_total_charge: claim.clp03TotalCharge,
-        clp04_payment_amount: claim.clp04PaymentAmount,
-        clp05_patient_responsibility: claim.clp05PatientResponsibility,
-        payer_claim_control_number: claim.payerClaimControlNumber,
-        claim_match_status: match ? "matched" : "unmatched",
-        posting_status: match ? "ready" : "blocked",
-        cas_adjustments: claim.casAdjustments,
-        service_lines: claim.serviceLines,
-        raw_segments: claim.rawSegments,
-      });
+      const { data: paymentRow, error: claimPaymentError } = await supabase
+        .from("era_claim_payments")
+        .insert({
+          organization_id: input.organizationId,
+          era_import_batch_id: batchId,
+          professional_claim_id: match?.id ?? null,
+          client_id: match?.patient_id ?? null,
+          clp01_claim_control_number: claim.clp01ClaimControlNumber,
+          clp02_claim_status_code: claim.clp02ClaimStatusCode,
+          clp03_total_charge: claim.clp03TotalCharge,
+          clp04_payment_amount: claim.clp04PaymentAmount,
+          clp05_patient_responsibility: claim.clp05PatientResponsibility,
+          payer_claim_control_number: claim.payerClaimControlNumber,
+          claim_match_status: match ? "matched" : "unmatched",
+          posting_status: match ? "ready" : "blocked",
+          cas_adjustments: claim.casAdjustments,
+          service_lines: claim.serviceLines,
+          raw_segments: claim.rawSegments,
+        })
+        .select("id")
+        .single();
 
       if (claimPaymentError) throw new Error(claimPaymentError.message);
+
+      // ── Auto-seed Medical Review queue from ERA doc-request signals. ──
+      // When the payer's remittance carries necessity CARCs (50/55/167)
+      // or records-related remark codes (N706/MA01/N705/...), drop a
+      // `medical_review_requested` audit row so the
+      // /billing/medical-review queue surfaces the claim immediately
+      // instead of waiting on a biller to write one by hand. We only
+      // seed for matched claims — unmatched payments don't have a
+      // professional_claim_id to attach the audit row to.
+      if (match) {
+        const detected = detectEraDocumentationRequest({
+          carcCodes: (claim.casAdjustments ?? []).map((a) => a.reasonCode),
+          remarkCodes: claim.remarkCodes ?? [],
+        });
+        if (detected) {
+          const seed = await writeMedicalReviewRequestAudit(supabase, {
+            organizationId: input.organizationId,
+            claimId: match.id,
+            clientId: match.patient_id ?? null,
+            appointmentId: null,
+            detected,
+            origin: "ERA",
+            sourceObjectId: paymentRow?.id ? String(paymentRow.id) : null,
+          });
+          if (seed.status === "error") {
+            // Non-fatal: the era_claim_payments row was inserted; the
+            // medical-review fallback (denial-classification path) will
+            // still surface the claim and the audit row can be re-seeded
+            // by re-importing the same ERA.
+            console.warn(
+              `[ERA medical-review seed] failed for claim ${match.id}: ${seed.error}`,
+            );
+          }
+        }
+      }
     } catch (error) {
       errors.push({
         field: claim.clp01ClaimControlNumber,

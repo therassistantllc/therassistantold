@@ -1,5 +1,9 @@
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { routeRejectedClaimsToWorkqueue } from "@/lib/workqueue/claimRejectionWorkqueueService";
+import {
+  detect277CADocumentationRequest,
+  writeMedicalReviewRequestAudit,
+} from "@/lib/medical-review/documentationRequestDetection";
 
 type Edi277CAOutcome = "accepted" | "rejected" | "partial" | "unknown";
 
@@ -102,6 +106,28 @@ async function loadLinkedClaimIds(batchId: string) {
 
   if (error) throw new Error(error.message);
   return (data ?? []).map((row: { claim_id: string }) => String(row.claim_id));
+}
+
+async function loadClaimContexts(
+  organizationId: string,
+  claimIds: string[],
+): Promise<Map<string, { patient_id: string | null; appointment_id: string | null }>> {
+  const out = new Map<string, { patient_id: string | null; appointment_id: string | null }>();
+  if (claimIds.length === 0) return out;
+  const supabase = createServerSupabaseAdminClient();
+  if (!supabase) return out;
+  const { data } = await supabase
+    .from("professional_claims")
+    .select("id, patient_id, appointment_id")
+    .eq("organization_id", organizationId)
+    .in("id", claimIds);
+  for (const row of (data ?? []) as Array<{ id: string; patient_id: string | null; appointment_id: string | null }>) {
+    out.set(String(row.id), {
+      patient_id: row.patient_id ?? null,
+      appointment_id: row.appointment_id ?? null,
+    });
+  }
+  return out;
 }
 
 function batchStatusForOutcome(outcome: Edi277CAOutcome) {
@@ -242,6 +268,38 @@ export async function intake277CAAcknowledgement(
         linkedClaimIds,
         errors: routed.errors,
       };
+    }
+  }
+
+  // ── Auto-seed Medical Review queue from 277CA documentation requests. ──
+  // When the ack carries STC entries indicating the payer is asking for
+  // additional documentation (e.g. category A6 with status 287/324/354),
+  // write a `medical_review_requested` audit row per linked claim so the
+  // /billing/medical-review queue picks the claim up automatically. This
+  // is idempotent on (claim, origin, acknowledgement id) so re-ingesting
+  // the same 277CA does not flood the queue.
+  const detected = detect277CADocumentationRequest({ stcStatuses: parsed.stcStatuses });
+  if (detected && linkedClaimIds.length > 0) {
+    const contexts = await loadClaimContexts(input.organizationId, linkedClaimIds);
+    for (const claimId of linkedClaimIds) {
+      const ctx = contexts.get(claimId);
+      const writeResult = await writeMedicalReviewRequestAudit(supabase, {
+        organizationId: input.organizationId,
+        claimId,
+        clientId: ctx?.patient_id ?? null,
+        appointmentId: ctx?.appointment_id ?? null,
+        detected,
+        origin: "277CA",
+        sourceObjectId: acknowledgementId,
+      });
+      if (writeResult.status === "error") {
+        // Non-fatal: log but don't fail the whole ingest — the rejected
+        // workqueue routing already succeeded and the queue can be
+        // re-seeded by re-ingesting the same ack.
+        console.warn(
+          `[277CA medical-review seed] failed for claim ${claimId}: ${writeResult.error}`,
+        );
+      }
     }
   }
 

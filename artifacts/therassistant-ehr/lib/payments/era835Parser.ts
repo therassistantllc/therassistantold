@@ -22,6 +22,14 @@ export type Era835ClaimPayment = {
   clp05PatientResponsibility: number;
   payerClaimControlNumber: string | null;
   casAdjustments: Era835CasAdjustment[];
+  /**
+   * Remittance Advice Remark Codes (RARCs) attached to the claim. Pulled
+   * from claim-level LQ segments (qualifier HE = remark code) and from
+   * MIA / MOA segments. Service-line remarks are flattened into this set
+   * too so downstream consumers (medical-review seeding, denials queue)
+   * have a single per-claim list to inspect.
+   */
+  remarkCodes: string[];
   serviceLines: Era835ServiceLine[];
   rawSegments: string[];
 };
@@ -153,6 +161,7 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
         clp05PatientResponsibility: toNumber(elements[5]),
         payerClaimControlNumber: clean(elements[7]) || null,
         casAdjustments: [],
+        remarkCodes: [],
         serviceLines: [],
         rawSegments: [segment],
       };
@@ -166,6 +175,29 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
       const adjustments = parseCas(elements);
       if (currentServiceLine) currentServiceLine.adjustments.push(...adjustments);
       else currentClaim.casAdjustments.push(...adjustments);
+      continue;
+    }
+
+    // LQ*HE*N706 — claim or service-line remittance remark. Qualifier
+    // HE = remark code. Other qualifiers (RX, etc.) are not RARCs and
+    // are ignored.
+    if (segmentId === "LQ" && clean(elements[1]).toUpperCase() === "HE") {
+      const code = clean(elements[2]).toUpperCase();
+      if (code) currentClaim.remarkCodes.push(code);
+      continue;
+    }
+
+    // MIA / MOA segments carry inpatient / outpatient remark codes in
+    // positions MIA20-MIA23 and MOA03-MOA07 respectively. Sweep both
+    // ranges and collect anything that looks like a remark code (alpha
+    // prefix + digits).
+    if (segmentId === "MIA" || segmentId === "MOA") {
+      for (let idx = 1; idx < elements.length; idx += 1) {
+        const candidate = clean(elements[idx]).toUpperCase();
+        if (/^(N|M|MA)\d{1,4}$/.test(candidate)) {
+          currentClaim.remarkCodes.push(candidate);
+        }
+      }
       continue;
     }
 
