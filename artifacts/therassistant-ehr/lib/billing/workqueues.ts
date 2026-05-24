@@ -242,7 +242,7 @@ export const WORKQUEUES: WorkqueueDef[] = [
     description: "Lines reimbursed below the contracted fee schedule.",
     href: "/billing/underpayments",
     stage: "adjudication_denials",
-    status: "coming_soon",
+    status: "live",
   },
   {
     id: "adjustments_review",
