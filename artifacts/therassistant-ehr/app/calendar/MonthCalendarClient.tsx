@@ -447,9 +447,9 @@ export default function MonthCalendarClient() {
       if (!res.ok || !json.success) {
         throw new Error(json.error ?? "Save failed");
       }
-      setDrawerBanner({ kind: "success", text: "Saved." });
       await loadAppointments();
-      await loadDetail(detail.appointment.id);
+      closeDrawer();
+      return;
     } catch (e) {
       setDrawerBanner({
         kind: "error",
