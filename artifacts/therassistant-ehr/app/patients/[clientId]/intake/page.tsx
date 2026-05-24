@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import IntakePanel from "./IntakePanel";
 
 export default function IntakePage() {
-  const params = useParams<{ clientId: string }>();
-  const clientId = params?.clientId ?? "";
+  const params = useParams<{ clientId?: string; id?: string }>();
+  const clientId = params?.clientId ?? params?.id ?? "";
   const searchParams = useSearchParams();
   const orgId = searchParams.get("organizationId") ?? process.env.NEXT_PUBLIC_ORGANIZATION_ID ?? "";
   const [patientEmail, setPatientEmail] = useState<string | null>(null);
