@@ -44,6 +44,7 @@ export interface ReadyToGenerateItem {
   client_name: string;
   service_date: string | null;
   clinician_name: string | null;
+  payer_profile_id: string | null;
   payer_name: string | null;
   payer_type: string | null;
   payer_id_value: string | null;
@@ -266,6 +267,7 @@ export async function GET(request: Request) {
         client_name: clientName,
         service_date: firstLine ? text(firstLine.service_date_from) || null : null,
         clinician_name: clinicianName && clinicianName.length > 0 ? clinicianName : null,
+        payer_profile_id: text(claim.payer_profile_id) || null,
         payer_name: payer ? text(payer.payer_name) || null : null,
         payer_type: payer ? text(payer.payer_type) || null : null,
         payer_id_value: payer ? text(payer.payer_id) || null : null,

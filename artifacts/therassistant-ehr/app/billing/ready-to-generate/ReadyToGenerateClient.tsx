@@ -21,6 +21,7 @@ type Item = {
   client_name: string;
   service_date: string | null;
   clinician_name: string | null;
+  payer_profile_id: string | null;
   payer_name: string | null;
   payer_type: string | null;
   payer_id_value: string | null;
@@ -146,6 +147,10 @@ export default function ReadyToGenerateClient() {
   const [holdReason, setHoldReason] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [holdTarget, setHoldTarget] = useState<Item | null>(null);
+  const [payerPreflight, setPayerPreflight] = useState<{
+    open: boolean;
+    rows: Array<{ key: string; payerName: string; payerProfileId: string | null; claimCount: number; total: number }>;
+  } | null>(null);
 
   // ── Initial load + URL tab sync ─────────────────────────────────────────
   useEffect(() => {
@@ -436,14 +441,35 @@ export default function ReadyToGenerateClient() {
     [selectedRows],
   );
 
-  const selectionPayerIds = useMemo(() => {
-    const set = new Set<string>();
+  // Group the selection by payer_profile_id (with a stable display name) so
+  // the pre-flight summary can show "N claims · $X" per payer and the
+  // split-by-payer call has unambiguous keys. Claims with no payer go in a
+  // sentinel bucket that surfaces an error in the modal.
+  const selectionPayerGroups = useMemo(() => {
+    const m = new Map<
+      string,
+      { key: string; payerName: string; payerProfileId: string | null; claimCount: number; total: number }
+    >();
     for (const r of selectedRows) {
-      // payer_name is a stable display proxy; the API filters on payer_profile_id.
-      if (r.payer_name) set.add(r.payer_name);
+      const key = r.payer_profile_id ?? "__no_payer__";
+      const existing = m.get(key);
+      if (existing) {
+        existing.claimCount += 1;
+        existing.total += r.charge_amount || 0;
+      } else {
+        m.set(key, {
+          key,
+          payerName: r.payer_name || (r.payer_profile_id ? r.payer_profile_id : "(no payer)"),
+          payerProfileId: r.payer_profile_id ?? null,
+          claimCount: 1,
+          total: r.charge_amount || 0,
+        });
+      }
     }
-    return [...set];
+    return [...m.values()].sort((a, b) => a.payerName.localeCompare(b.payerName));
   }, [selectedRows]);
+
+  const selectionPayerCount = selectionPayerGroups.length;
 
   // ── Header summary strip ────────────────────────────────────────────────
   const summary: SummaryMetric[] = useMemo(() => {
@@ -556,8 +582,62 @@ export default function ReadyToGenerateClient() {
     [busy, organizationId],
   );
 
-  // Bulk: bundle every checked claim into a single 837P batch.
-  const runBulkBatch = useCallback(async () => {
+  // Submit the actual bulk-batch call. `splitByPayer` decides whether the
+  // server fans out into one batch per payer or rejects a multi-payer
+  // selection. Used by both the single-payer fast path and the per-payer
+  // preflight modal.
+  const submitBulkBatch = useCallback(
+    async (splitByPayer: boolean) => {
+      if (busy) return;
+      if (selectedIds.length === 0) return;
+      setBusy(true);
+      setMessage(null);
+      try {
+        const res = await fetch(`/api/billing/ready-to-generate/bulk-batch`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            claimIds: selectedIds,
+            splitByPayer,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error ?? "Bulk batch failed");
+
+        const batchedIds = new Set<string>(selectedIds);
+        setItems((prev) => prev.filter((i) => !batchedIds.has(i.id)));
+        setSelectedIds([]);
+        setPayerPreflight(null);
+
+        const batches = Array.isArray(json.batches) ? json.batches : [];
+        if (batches.length > 1) {
+          setMessage({
+            tone: "success",
+            text: `Created ${batches.length} batches (one per payer) covering ${json.claimCount ?? selectedIds.length} claims (${money(json.totalChargeAmount ?? selectedTotal)}).`,
+          });
+        } else {
+          setMessage({
+            tone: "success",
+            text: `Created batch ${json.batchNumber ?? ""} from ${json.claimCount ?? selectedIds.length} claims (${money(json.totalChargeAmount ?? selectedTotal)}).`,
+          });
+        }
+      } catch (e) {
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Bulk batch failed",
+        });
+        setReloadKey((k) => k + 1);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, selectedIds, selectedTotal, organizationId],
+  );
+
+  // Entry point: validate selection, then either open the per-payer
+  // pre-flight modal (multi-payer) or run the single-batch path directly.
+  const runBulkBatch = useCallback(() => {
     if (busy) return;
     if (selectedIds.length === 0) return;
 
@@ -569,15 +649,11 @@ export default function ReadyToGenerateClient() {
       return;
     }
 
-    let payerProfileId: string | null = null;
-    if (selectionPayerIds.length > 1) {
-      const ok =
-        typeof window === "undefined"
-          ? true
-          : window.confirm(
-              `You've selected claims across ${selectionPayerIds.length} payers (${selectionPayerIds.join(", ")}).\n\nBundling mixed payers into one 837P file is unusual — clearinghouses normally expect one payer per file. Continue anyway?`,
-            );
-      if (!ok) return;
+    if (selectionPayerCount > 1) {
+      // Multi-payer: show the per-payer breakdown and force an explicit
+      // "create N batches" confirmation before any writes.
+      setPayerPreflight({ open: true, rows: selectionPayerGroups });
+      return;
     }
 
     const confirmText = `Generate one 837P batch from ${selectedIds.length} claim${
@@ -585,44 +661,15 @@ export default function ReadyToGenerateClient() {
     } totaling ${money(selectedTotal)}?`;
     if (typeof window !== "undefined" && !window.confirm(confirmText)) return;
 
-    setBusy(true);
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/billing/ready-to-generate/bulk-batch`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          organizationId,
-          claimIds: selectedIds,
-          payerProfileId,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error ?? "Bulk batch failed");
-
-      const batchedIds = new Set<string>(selectedIds);
-      setItems((prev) => prev.filter((i) => !batchedIds.has(i.id)));
-      setSelectedIds([]);
-      setMessage({
-        tone: "success",
-        text: `Created batch ${json.batchNumber ?? ""} from ${json.claimCount ?? selectedIds.length} claims (${money(json.totalChargeAmount ?? selectedTotal)}).`,
-      });
-    } catch (e) {
-      setMessage({
-        tone: "error",
-        text: e instanceof Error ? e.message : "Bulk batch failed",
-      });
-      setReloadKey((k) => k + 1);
-    } finally {
-      setBusy(false);
-    }
+    void submitBulkBatch(false);
   }, [
     busy,
     selectedIds,
     selectedTotal,
     selectionHasIneligible,
-    selectionPayerIds,
-    organizationId,
+    selectionPayerCount,
+    selectionPayerGroups,
+    submitBulkBatch,
   ]);
 
   // Load 837 preview when the user opens the preview tab.
@@ -1109,6 +1156,14 @@ export default function ReadyToGenerateClient() {
         detailActions={detailActions}
         message={message}
       />
+      {payerPreflight?.open ? (
+        <PerPayerPreflightModal
+          rows={payerPreflight.rows}
+          busy={busy}
+          onCancel={() => setPayerPreflight(null)}
+          onConfirm={() => void submitBulkBatch(true)}
+        />
+      ) : null}
       {holdTarget ? (
         <PlaceClaimOnHoldModal
           claimId={holdTarget.id}
@@ -1145,6 +1200,153 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 13 }}>
         {children}
+      </div>
+    </div>
+  );
+}
+
+function PerPayerPreflightModal({
+  rows,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  rows: Array<{ key: string; payerName: string; payerProfileId: string | null; claimCount: number; total: number }>;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const totalClaims = rows.reduce((s, r) => s + r.claimCount, 0);
+  const totalDollars = rows.reduce((s, r) => s + r.total, 0);
+  const hasOrphan = rows.some((r) => r.payerProfileId == null);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Per-payer batch preflight"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          background: "white",
+          width: "min(560px, 92vw)",
+          maxHeight: "80vh",
+          overflow: "auto",
+          borderRadius: 8,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+          padding: 20,
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+          Generate one batch per payer
+        </div>
+        <div style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
+          Your selection spans {rows.length} payers. Clearinghouses expect one
+          payer per 837P file, so we&apos;ll create {rows.length} separate batches
+          — one for each payer below.
+        </div>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 13,
+            marginBottom: 14,
+          }}
+        >
+          <thead>
+            <tr style={{ textAlign: "left", color: "#64748B" }}>
+              <th style={{ padding: "6px 4px", borderBottom: "1px solid #E2E8F0" }}>Payer</th>
+              <th style={{ padding: "6px 4px", borderBottom: "1px solid #E2E8F0", textAlign: "right" }}>
+                Claims
+              </th>
+              <th style={{ padding: "6px 4px", borderBottom: "1px solid #E2E8F0", textAlign: "right" }}>
+                Total $
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td style={{ padding: "6px 4px", borderBottom: "1px solid #F1F5F9" }}>
+                  {r.payerProfileId == null ? (
+                    <span style={{ color: "#B91C1C" }}>(no payer assigned)</span>
+                  ) : (
+                    r.payerName
+                  )}
+                </td>
+                <td style={{ padding: "6px 4px", borderBottom: "1px solid #F1F5F9", textAlign: "right" }}>
+                  {r.claimCount.toLocaleString()}
+                </td>
+                <td style={{ padding: "6px 4px", borderBottom: "1px solid #F1F5F9", textAlign: "right" }}>
+                  {money(r.total)}
+                </td>
+              </tr>
+            ))}
+            <tr style={{ fontWeight: 600 }}>
+              <td style={{ padding: "6px 4px" }}>Total</td>
+              <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                {totalClaims.toLocaleString()}
+              </td>
+              <td style={{ padding: "6px 4px", textAlign: "right" }}>{money(totalDollars)}</td>
+            </tr>
+          </tbody>
+        </table>
+        {hasOrphan ? (
+          <div
+            style={{
+              padding: 10,
+              border: "1px solid #FCA5A5",
+              background: "#FEF2F2",
+              color: "#991B1B",
+              fontSize: 12,
+              borderRadius: 4,
+              marginBottom: 12,
+            }}
+          >
+            Some selected claims don&apos;t have a payer assigned and can&apos;t be batched.
+            Assign a payer or remove those claims from the selection first.
+          </div>
+        ) : null}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            style={{
+              padding: "8px 14px",
+              border: "1px solid #CBD5E1",
+              background: "white",
+              borderRadius: 4,
+              cursor: busy ? "not-allowed" : "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || hasOrphan}
+            style={{
+              padding: "8px 14px",
+              border: "1px solid #047857",
+              background: busy || hasOrphan ? "#A7F3D0" : "#10B981",
+              color: "white",
+              borderRadius: 4,
+              cursor: busy || hasOrphan ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {busy ? "Generating…" : `Generate ${rows.length} batches`}
+          </button>
+        </div>
       </div>
     </div>
   );
