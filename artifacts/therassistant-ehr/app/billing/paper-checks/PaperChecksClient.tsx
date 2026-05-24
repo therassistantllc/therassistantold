@@ -549,6 +549,25 @@ function MarkDepositedModal({
   );
 }
 
+type ClaimSearchResult = {
+  id: string;
+  claim_number: string | null;
+  patient_account_number: string | null;
+  patient_name: string | null;
+  payer_profile_id: string | null;
+  claim_status: string | null;
+  date_of_service_from: string | null;
+  date_of_service_to: string | null;
+  total_charge: number;
+  balance: number;
+};
+
+type MatchEntry = {
+  claim_id: string;
+  amount: string;
+  claim?: ClaimSearchResult;
+};
+
 function MatchClaimsModal({
   row,
   organizationId,
@@ -560,28 +579,125 @@ function MatchClaimsModal({
   onClose: () => void;
   onSaved: (patch: Partial<Row>, matches: MatchedClaim[]) => void;
 }) {
-  const [entries, setEntries] = useState<Array<{ claim_id: string; amount: string }>>([
-    { claim_id: "", amount: "" },
-  ]);
+  const [entries, setEntries] = useState<MatchEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function update(idx: number, patch: Partial<{ claim_id: string; amount: string }>) {
-    setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
+  // Searchable picker state
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [restrictToPayer, setRestrictToPayer] = useState<boolean>(Boolean(row.payer_profile_id));
+  const [results, setResults] = useState<ClaimSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Manual paste-UUID fallback
+  const [showManual, setShowManual] = useState(false);
+  const [manualUuid, setManualUuid] = useState("");
+  const [manualAmount, setManualAmount] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setSearching(true);
+      setSearchError(null);
+      try {
+        const url = new URL(
+          "/api/billing/paper-checks/search-claims",
+          window.location.origin,
+        );
+        url.searchParams.set("organizationId", organizationId);
+        if (debouncedQuery) url.searchParams.set("q", debouncedQuery);
+        if (restrictToPayer && row.payer_profile_id) {
+          url.searchParams.set("payerId", row.payer_profile_id);
+        }
+        url.searchParams.set("excludePaperCheckId", row.id);
+        url.searchParams.set("limit", "25");
+        const res = await fetch(url.toString());
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok || json?.ok === false) {
+          setSearchError(json?.error || "Search failed");
+          setResults([]);
+        } else {
+          setResults(json.claims ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSearchError(err instanceof Error ? err.message : "Search failed");
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, debouncedQuery, restrictToPayer, row.payer_profile_id, row.id]);
+
+  const selectedIds = useMemo(
+    () => new Set(entries.map((e) => e.claim_id).filter(Boolean)),
+    [entries],
+  );
+
+  function pickClaim(claim: ClaimSearchResult) {
+    setEntries((prev) => {
+      if (prev.some((e) => e.claim_id === claim.id)) return prev;
+      return [
+        ...prev,
+        {
+          claim_id: claim.id,
+          amount: claim.balance > 0 ? String(claim.balance) : "",
+          claim,
+        },
+      ];
+    });
   }
-  function addRow() {
-    setEntries((prev) => [...prev, { claim_id: "", amount: "" }]);
+
+  function updateAmount(idx: number, amount: string) {
+    setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, amount } : e)));
   }
-  function removeRow(idx: number) {
+  function removeEntry(idx: number) {
     setEntries((prev) => prev.filter((_, i) => i !== idx));
   }
+
+  function addManual() {
+    const id = manualUuid.trim();
+    if (!id) {
+      setError("Enter a claim UUID");
+      return;
+    }
+    if (selectedIds.has(id)) {
+      setError("That claim is already selected");
+      return;
+    }
+    setError(null);
+    setEntries((prev) => [...prev, { claim_id: id, amount: manualAmount.trim() }]);
+    setManualUuid("");
+    setManualAmount("");
+  }
+
+  const selectedTotal = useMemo(
+    () =>
+      Math.round(
+        entries.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100,
+      ) / 100,
+    [entries],
+  );
 
   async function save() {
     const clean = entries
       .map((e) => ({ claim_id: e.claim_id.trim(), amount: Number(e.amount || "0") }))
       .filter((e) => e.claim_id);
     if (clean.length === 0) {
-      setError("Add at least one claim id");
+      setError("Pick at least one claim");
       return;
     }
     setSaving(true);
@@ -622,71 +738,256 @@ function MatchClaimsModal({
     onClose();
   }
 
+  const remaining = Math.round((row.amount - selectedTotal) * 100) / 100;
+
   return (
-    <ModalShell title={`Match claims — Check #${row.check_number ?? row.id.slice(0, 8)}`} onClose={onClose} width={560}>
-      <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 12px" }}>
-        Paste the claim id (UUID) and the dollar amount being applied from this check.
-        Check total: {formatCurrency(row.amount)}.
+    <ModalShell
+      title={`Match claims — Check #${row.check_number ?? row.id.slice(0, 8)}`}
+      onClose={onClose}
+      width={720}
+    >
+      <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 10px" }}>
+        Search the org's open claims by patient name, claim #, or account #. Pick the
+        rows being paid and enter the applied amount.
+        {" "}Check total: <strong>{formatCurrency(row.amount)}</strong>.
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {entries.map((e, idx) => (
-          <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 140px auto", gap: 8 }}>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by patient name, claim #, or account #"
+          style={fieldInput}
+        />
+        {row.payer_profile_id ? (
+          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+            <input
+              type="checkbox"
+              checked={restrictToPayer}
+              onChange={(e) => setRestrictToPayer(e.target.checked)}
+            />
+            Limit to {row.payer_name ?? "check payer"}
+          </label>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          border: "1px solid #E2E8F0",
+          borderRadius: 4,
+          maxHeight: 260,
+          overflow: "auto",
+          background: "#fff",
+        }}
+      >
+        {searching ? (
+          <div style={{ padding: 10, fontSize: 13, color: "#64748B" }}>Searching…</div>
+        ) : searchError ? (
+          <div style={{ padding: 10, fontSize: 13, color: "#B91C1C" }}>{searchError}</div>
+        ) : results.length === 0 ? (
+          <div style={{ padding: 10, fontSize: 13, color: "#64748B" }}>
+            No matching open claims{restrictToPayer && row.payer_profile_id ? " for this payer" : ""}.
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: "#F8FAFC", color: "#475569" }}>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>Patient</th>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>DOS</th>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>Claim #</th>
+                <th style={{ textAlign: "right", padding: "6px 8px" }}>Balance</th>
+                <th style={{ padding: "6px 8px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((c) => {
+                const dos =
+                  c.date_of_service_from && c.date_of_service_to && c.date_of_service_from !== c.date_of_service_to
+                    ? `${formatDate(c.date_of_service_from)} – ${formatDate(c.date_of_service_to)}`
+                    : formatDate(c.date_of_service_from ?? c.date_of_service_to);
+                const picked = selectedIds.has(c.id);
+                return (
+                  <tr key={c.id} style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <td style={{ padding: "6px 8px" }}>{c.patient_name ?? "—"}</td>
+                    <td style={{ padding: "6px 8px" }}>{dos}</td>
+                    <td style={{ padding: "6px 8px", fontFamily: "ui-monospace, monospace" }}>
+                      {c.claim_number ?? c.patient_account_number ?? c.id.slice(0, 8)}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      {formatCurrency(c.balance)}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      <button
+                        type="button"
+                        onClick={() => pickClaim(c)}
+                        disabled={picked}
+                        className="button button-secondary"
+                        style={{ padding: "2px 8px", fontSize: 12, opacity: picked ? 0.55 : 1 }}
+                      >
+                        {picked ? "Added" : "Add"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div style={{ marginTop: 14, fontWeight: 600, fontSize: 13 }}>
+        Selected ({entries.length})
+        <span style={{ float: "right", color: remaining === 0 ? "#065F46" : remaining < 0 ? "#B91C1C" : "#64748B" }}>
+          Applied {formatCurrency(selectedTotal)} of {formatCurrency(row.amount)}
+        </span>
+      </div>
+      {entries.length === 0 ? (
+        <div
+          style={{
+            marginTop: 6,
+            border: "1px dashed #CBD5E1",
+            borderRadius: 4,
+            padding: 10,
+            fontSize: 13,
+            color: "#64748B",
+            textAlign: "center",
+          }}
+        >
+          Pick rows above to start matching.
+        </div>
+      ) : (
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+          {entries.map((e, idx) => {
+            const labelMain = e.claim
+              ? `${e.claim.patient_name ?? "—"} · ${e.claim.claim_number ?? e.claim.id.slice(0, 8)}`
+              : e.claim_id;
+            const dos = e.claim
+              ? e.claim.date_of_service_from
+                ? formatDate(e.claim.date_of_service_from)
+                : "—"
+              : "manual entry";
+            return (
+              <div
+                key={`${e.claim_id}-${idx}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 140px auto",
+                  gap: 8,
+                  alignItems: "center",
+                  background: "#F8FAFC",
+                  padding: "6px 8px",
+                  borderRadius: 4,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={labelMain}
+                  >
+                    {labelMain}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748B" }}>
+                    {dos}
+                    {e.claim ? ` · balance ${formatCurrency(e.claim.balance)}` : ""}
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={e.amount}
+                  placeholder="amount"
+                  onChange={(ev) => updateAmount(idx, ev.target.value)}
+                  style={fieldInput}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeEntry(idx)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #D1D5DB",
+                    borderRadius: 4,
+                    padding: "0 10px",
+                    cursor: "pointer",
+                    color: "#6B7280",
+                  }}
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button
+          type="button"
+          onClick={() => setShowManual((s) => !s)}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            color: "#0369A1",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          {showManual ? "Hide" : "Add by claim UUID (advanced)"}
+        </button>
+        {showManual ? (
+          <div
+            style={{
+              marginTop: 6,
+              display: "grid",
+              gridTemplateColumns: "1fr 140px auto",
+              gap: 8,
+            }}
+          >
             <input
               type="text"
-              value={e.claim_id}
+              value={manualUuid}
+              onChange={(e) => setManualUuid(e.target.value)}
               placeholder="claim uuid"
-              onChange={(ev) => update(idx, { claim_id: ev.target.value })}
               style={{ ...fieldInput, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
             />
             <input
               type="number"
               step="0.01"
               min="0"
-              value={e.amount}
+              value={manualAmount}
+              onChange={(e) => setManualAmount(e.target.value)}
               placeholder="amount"
-              onChange={(ev) => update(idx, { amount: ev.target.value })}
               style={fieldInput}
             />
-            <button
-              type="button"
-              onClick={() => removeRow(idx)}
-              disabled={entries.length === 1}
-              style={{
-                background: "transparent",
-                border: "1px solid #D1D5DB",
-                borderRadius: 4,
-                padding: "0 10px",
-                cursor: entries.length === 1 ? "not-allowed" : "pointer",
-                color: "#6B7280",
-              }}
-            >
-              ×
+            <button type="button" className="button button-secondary" onClick={addManual}>
+              Add
             </button>
           </div>
-        ))}
+        ) : null}
       </div>
-      <button
-        type="button"
-        onClick={addRow}
-        style={{
-          marginTop: 8,
-          background: "transparent",
-          border: "1px dashed #94A3B8",
-          padding: "6px 10px",
-          borderRadius: 4,
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        + Add claim
-      </button>
+
       {error ? <div style={{ color: "#B91C1C", marginTop: 8, fontSize: 13 }}>{error}</div> : null}
       <div style={buttonRow}>
         <button type="button" className="button button-secondary" onClick={onClose} disabled={saving}>
           Cancel
         </button>
-        <button type="button" className="button" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Match"}
+        <button
+          type="button"
+          className="button"
+          onClick={save}
+          disabled={saving || entries.length === 0}
+        >
+          {saving ? "Saving…" : `Match ${entries.length || ""}`.trim()}
         </button>
       </div>
     </ModalShell>
