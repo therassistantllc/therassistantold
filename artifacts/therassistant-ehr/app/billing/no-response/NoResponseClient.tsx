@@ -423,33 +423,60 @@ function StatusCheckHistory({
   bumpKey: number;
 }) {
   type Inquiry = {
-    id?: string;
-    status: string;
-    status_code?: string | null;
-    received_at?: string | null;
-    created_at: string;
+    id: string | null;
+    status: string | null;
+    status_code: string | null;
+    status_text: string | null;
+    requested_at: string | null;
+    received_at: string | null;
+    created_at: string | null;
+    triggered_by_display_name: string | null;
   };
-  const [data, setData] = useState<Inquiry[] | null>(null);
+  type EdiTx = {
+    id: string | null;
+    transaction_type: string | null;
+    direction: string | null;
+    status: string | null;
+    control_number: string | null;
+    sent_at: string | null;
+    received_at: string | null;
+    created_at: string | null;
+  };
+  const [inquiries, setInquiries] = useState<Inquiry[] | null>(null);
+  const [transactions, setTransactions] = useState<EdiTx[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setData(null);
+    setInquiries(null);
+    setTransactions([]);
     setError(null);
-    // No dedicated endpoint for inquiries yet — we display a placeholder
-    // until one is wired up. The bumpKey is honoured for future use.
-    void bumpKey;
-    void organizationId;
-    void claimId;
-    if (!cancelled) setData([]);
+    fetch(
+      `/api/billing/claims/${claimId}/status-inquiries?organizationId=${encodeURIComponent(organizationId)}`,
+      { cache: "no-store" },
+    )
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j?.success === false) {
+          setError(j.error || "Failed to load status check history");
+          setInquiries([]);
+          return;
+        }
+        setInquiries((j?.inquiries ?? []) as Inquiry[]);
+        setTransactions((j?.transactions ?? []) as EdiTx[]);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed");
+      });
     return () => {
       cancelled = true;
     };
   }, [claimId, organizationId, bumpKey]);
 
   if (error) return <div style={{ color: "#B91C1C", fontSize: 13 }}>{error}</div>;
-  if (data == null) return <div style={{ color: "#94A3B8", fontSize: 13 }}>Loading…</div>;
-  if (data.length === 0)
+  if (inquiries == null) return <div style={{ color: "#94A3B8", fontSize: 13 }}>Loading…</div>;
+  if (inquiries.length === 0 && transactions.length === 0)
     return (
       <div style={{ color: "#94A3B8", fontSize: 13 }}>
         No claim status inquiries have been run for this claim yet. Use
@@ -458,24 +485,79 @@ function StatusCheckHistory({
     );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {data.map((i, idx) => (
-        <div
-          key={i.id ?? idx}
-          style={{
-            border: "1px solid #E5E7EB",
-            borderRadius: 6,
-            padding: 10,
-            background: "#F9FAFB",
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 4 }}>
-            {formatDateTime(i.received_at ?? i.created_at)}
+      {inquiries.map((i, idx) => {
+        const when = i.received_at ?? i.requested_at ?? i.created_at;
+        const headline = i.status ?? "unknown";
+        const code = i.status_code ? ` · ${i.status_code}` : "";
+        return (
+          <div
+            key={i.id ?? `inq-${idx}`}
+            style={{
+              border: "1px solid #E5E7EB",
+              borderRadius: 6,
+              padding: 10,
+              background: "#F9FAFB",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 4 }}>
+              {formatDateTime(when)}
+              {i.triggered_by_display_name
+                ? ` · ${i.triggered_by_display_name}`
+                : ""}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              {headline}
+              {code}
+            </div>
+            {i.status_text ? (
+              <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                {i.status_text}
+              </div>
+            ) : null}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            {i.status} {i.status_code ? `· ${i.status_code}` : ""}
+        );
+      })}
+      {transactions.length > 0 ? (
+        <div style={{ marginTop: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#64748B",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              marginBottom: 6,
+            }}
+          >
+            276 / 277 transmissions
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {transactions.map((t, idx) => (
+              <div
+                key={t.id ?? `tx-${idx}`}
+                style={{
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 6,
+                  padding: 8,
+                  background: "#FFFFFF",
+                  fontSize: 12,
+                  color: "#475569",
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "#0F172A" }}>
+                  {t.transaction_type ?? "EDI"}
+                  {t.direction ? ` · ${t.direction}` : ""}
+                  {t.status ? ` · ${t.status}` : ""}
+                </div>
+                <div style={{ marginTop: 2 }}>
+                  {formatDateTime(t.received_at ?? t.sent_at ?? t.created_at)}
+                  {t.control_number ? ` · ctrl ${t.control_number}` : ""}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }
@@ -891,7 +973,10 @@ export default function NoResponseClient() {
           ? `Claim status request sent for ${r.claim_number ?? r.id}.`
           : `Claim status failed: ${result.error}`,
       );
-      if (result.success) void load();
+      if (result.success) {
+        setBumpKey((k) => k + 1);
+        void load();
+      }
     },
     [organizationId, load],
   );
