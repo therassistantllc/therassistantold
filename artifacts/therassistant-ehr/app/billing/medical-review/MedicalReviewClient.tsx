@@ -163,6 +163,9 @@ export default function MedicalReviewClient() {
   const [chartSelection, setChartSelection] = useState<Record<string, boolean>>({});
   const [attaching, setAttaching] = useState(false);
   const [removingDocId, setRemovingDocId] = useState<string | null>(null);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ title: string; documentType: string }>({ title: "", documentType: "" });
+  const [savingDocId, setSavingDocId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -638,6 +641,65 @@ export default function MedicalReviewClient() {
     [organizationId, refreshContext],
   );
 
+  const startEditDocument = useCallback(
+    (doc: { id: string; title: string; documentType: string | null }) => {
+      setEditingDocId(doc.id);
+      setEditDraft({ title: doc.title ?? "", documentType: doc.documentType ?? "" });
+    },
+    [],
+  );
+
+  const cancelEditDocument = useCallback(() => {
+    setEditingDocId(null);
+    setEditDraft({ title: "", documentType: "" });
+  }, []);
+
+  const saveDocumentEdit = useCallback(
+    async (
+      row: MedicalReviewRow,
+      documentId: string,
+      previous: { title: string; documentType: string | null },
+    ) => {
+      const nextTitle = editDraft.title.trim();
+      const nextDocType = editDraft.documentType.trim();
+      if (!nextTitle) {
+        setToast("Title cannot be blank");
+        return;
+      }
+      const payload: { title?: string; documentType?: string | null } = {};
+      if (nextTitle !== (previous.title ?? "")) payload.title = nextTitle;
+      const prevType = previous.documentType ?? "";
+      if (nextDocType !== prevType) payload.documentType = nextDocType ? nextDocType : null;
+      if (Object.keys(payload).length === 0) {
+        cancelEditDocument();
+        return;
+      }
+      setSavingDocId(documentId);
+      try {
+        const params = new URLSearchParams({ organizationId });
+        const res = await fetch(
+          `/api/billing/claims/${row.claimId}/documents/${documentId}?${params.toString()}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json?.success === false) throw new Error(json?.error ?? "Save failed");
+        refreshContext(row.claimId);
+        setRows((prev) => prev.map((r) => r.claimId === row.claimId ? { ...r, lastActionAt: new Date().toISOString() } : r));
+        setToast("Document updated");
+        cancelEditDocument();
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : "Save failed");
+      } finally {
+        setSavingDocId(null);
+      }
+    },
+    [editDraft, organizationId, refreshContext, cancelEditDocument],
+  );
+
   const loadChartDocs = useCallback(
     async (clientId: string) => {
       setChartLoading(true);
@@ -903,35 +965,129 @@ export default function MedicalReviewClient() {
                     const fileHref = `/api/billing/claims/${row.claimId}/documents/${d.id}/file?organizationId=${encodeURIComponent(organizationId)}`;
                     const label = d.title || d.fileName || "Document";
                     const isRemoving = removingDocId === d.id;
+                    const isEditing = editingDocId === d.id;
+                    const isSaving = savingDocId === d.id;
                     return (
                       <li key={d.id} style={{ padding: "8px 0", borderBottom: "1px solid #F1F5F9", display: "flex", gap: 10, alignItems: "flex-start" }}>
                         <span aria-hidden="true" title={d.mimeType ?? "document"} style={{ fontSize: 18, lineHeight: "18px", marginTop: 1 }}>
                           {docTypeIcon(d.mimeType)}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{d.title}</div>
-                          <div style={{ fontSize: 12, color: "#64748B" }}>
-                            {d.fileName}{d.documentType ? ` · ${d.documentType}` : ""}{d.mimeType ? ` · ${d.mimeType}` : ""} · uploaded {formatDateTime(d.uploadedAt)}
-                          </div>
-                          {d.notes ? <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{d.notes}</div> : null}
+                          {isEditing ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <label style={{ fontSize: 11, color: "#475569", display: "flex", flexDirection: "column", gap: 2 }}>
+                                Title
+                                <input
+                                  type="text"
+                                  value={editDraft.title}
+                                  onChange={(e) => setEditDraft((prev) => ({ ...prev, title: e.target.value }))}
+                                  maxLength={200}
+                                  disabled={isSaving}
+                                  style={{ padding: "4px 8px", border: "1px solid #CBD5E1", borderRadius: 4, fontSize: 13 }}
+                                />
+                              </label>
+                              <label style={{ fontSize: 11, color: "#475569", display: "flex", flexDirection: "column", gap: 2 }}>
+                                Document type
+                                <select
+                                  value={editDraft.documentType}
+                                  onChange={(e) => setEditDraft((prev) => ({ ...prev, documentType: e.target.value }))}
+                                  disabled={isSaving}
+                                  style={{ padding: "4px 8px", border: "1px solid #CBD5E1", borderRadius: 4, fontSize: 13, background: "#fff" }}
+                                >
+                                  <option value="">— None —</option>
+                                  <option value="medical_records">Medical records</option>
+                                  <option value="treatment_plan">Treatment plan</option>
+                                  <option value="clinical_note">Clinical note</option>
+                                  <option value="progress_note">Progress note</option>
+                                  <option value="assessment">Assessment</option>
+                                  <option value="prior_auth">Prior authorization</option>
+                                  <option value="payer_correspondence">Payer correspondence</option>
+                                  <option value="eob">EOB</option>
+                                  <option value="insurance_card">Insurance card</option>
+                                  <option value="consent">Consent form</option>
+                                  <option value="intake">Intake form</option>
+                                  <option value="id">ID document</option>
+                                  <option value="other">Other</option>
+                                  {editDraft.documentType &&
+                                    ![
+                                      "medical_records",
+                                      "treatment_plan",
+                                      "clinical_note",
+                                      "progress_note",
+                                      "assessment",
+                                      "prior_auth",
+                                      "payer_correspondence",
+                                      "eob",
+                                      "insurance_card",
+                                      "consent",
+                                      "intake",
+                                      "id",
+                                      "other",
+                                    ].includes(editDraft.documentType) ? (
+                                      <option value={editDraft.documentType}>{editDraft.documentType}</option>
+                                    ) : null}
+                                </select>
+                              </label>
+                              <div style={{ fontSize: 11, color: "#64748B" }}>{d.fileName}</div>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>{d.title}</div>
+                              <div style={{ fontSize: 12, color: "#64748B" }}>
+                                {d.fileName}{d.documentType ? ` · ${d.documentType}` : ""}{d.mimeType ? ` · ${d.mimeType}` : ""} · uploaded {formatDateTime(d.uploadedAt)}
+                              </div>
+                              {d.notes ? <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{d.notes}</div> : null}
+                            </>
+                          )}
                         </div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <a
-                            href={fileHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #2563EB", color: "#2563EB", borderRadius: 4, textDecoration: "none", background: "#fff" }}
-                          >
-                            Open
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => void removeDocument(row, d.id, label)}
-                            disabled={isRemoving}
-                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #DC2626", color: isRemoving ? "#94A3B8" : "#DC2626", background: "#fff", borderRadius: 4, cursor: isRemoving ? "wait" : "pointer" }}
-                          >
-                            {isRemoving ? "Removing…" : "Remove"}
-                          </button>
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void saveDocumentEdit(row, d.id, { title: d.title, documentType: d.documentType })}
+                                disabled={isSaving}
+                                style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #16A34A", color: "#fff", background: isSaving ? "#94A3B8" : "#16A34A", borderRadius: 4, cursor: isSaving ? "wait" : "pointer" }}
+                              >
+                                {isSaving ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditDocument}
+                                disabled={isSaving}
+                                style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #CBD5E1", color: "#0F172A", background: "#fff", borderRadius: 4, cursor: isSaving ? "not-allowed" : "pointer" }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <a
+                                href={fileHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #2563EB", color: "#2563EB", borderRadius: 4, textDecoration: "none", background: "#fff" }}
+                              >
+                                Open
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => startEditDocument({ id: d.id, title: d.title, documentType: d.documentType })}
+                                disabled={isRemoving || Boolean(editingDocId)}
+                                style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #2563EB", color: editingDocId ? "#94A3B8" : "#2563EB", background: "#fff", borderRadius: 4, cursor: editingDocId ? "not-allowed" : "pointer" }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void removeDocument(row, d.id, label)}
+                                disabled={isRemoving || Boolean(editingDocId)}
+                                style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #DC2626", color: isRemoving || editingDocId ? "#94A3B8" : "#DC2626", background: "#fff", borderRadius: 4, cursor: isRemoving ? "wait" : editingDocId ? "not-allowed" : "pointer" }}
+                              >
+                                {isRemoving ? "Removing…" : "Remove"}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </li>
                     );
