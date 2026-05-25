@@ -541,6 +541,7 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
                   return (
                     <tr
                       key={id}
+                      id={`wqrow-${id}`}
                       className={selected ? styles.rowSelected : ""}
                       onClick={() => onSelectRow?.(id)}
                     >

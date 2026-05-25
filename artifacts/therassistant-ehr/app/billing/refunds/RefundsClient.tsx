@@ -86,6 +86,7 @@ interface LedgerEntry {
   status: string | null;
   reasonCode: string | null;
   source: string | null;
+  href: string | null;
 }
 
 interface CreditSource {
@@ -826,6 +827,24 @@ export default function RefundsClient() {
                 loading={detailLoading}
                 error={detailError}
                 entries={detailData?.paymentHistory ?? []}
+                currentRowId={selectedRowId}
+                onSelectRefundRow={(id) => {
+                  const target = rows.find((r) => r.id === id);
+                  if (target && target.tab !== activeTab) {
+                    setActiveTab(target.tab);
+                  }
+                  setSelectedRowId(id);
+                  if (typeof window !== "undefined") {
+                    window.requestAnimationFrame(() => {
+                      const el = document.getElementById(`wqrow-${id}`);
+                      if (el)
+                        el.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
+                    });
+                  }
+                }}
               />
             </div>
           );
@@ -1077,10 +1096,14 @@ function PaymentLedger({
   loading,
   error,
   entries,
+  currentRowId,
+  onSelectRefundRow,
 }: {
   loading: boolean;
   error: string | null;
   entries: LedgerEntry[];
+  currentRowId: string | null;
+  onSelectRefundRow: (id: string) => void;
 }) {
   if (loading) {
     return (
@@ -1132,45 +1155,108 @@ function PaymentLedger({
           </tr>
         </thead>
         <tbody>
-          {entries.map((e) => (
-            <tr key={e.id} style={{ borderTop: "1px solid #E2E8F0" }}>
-              <td style={{ padding: "6px 4px", whiteSpace: "nowrap" }}>
-                {formatDate(e.postedAt)}
-              </td>
-              <td style={{ padding: "6px 4px" }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    padding: "1px 6px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#fff",
-                    background: ledgerKindColor(e.kind),
-                  }}
-                >
-                  {ledgerKindLabel(e.kind)}
-                </span>
-              </td>
-              <td style={{ padding: "6px 4px", color: "#334155" }}>
-                {e.description || "—"}
-              </td>
-              <td style={{ padding: "6px 4px", color: "#475569" }}>
-                {e.status ? statusLabel(e.status) : "—"}
-              </td>
-              <td
+          {entries.map((e) => {
+            const isRefundJump = e.kind === "refund" && e.id !== currentRowId;
+            const clickable = Boolean(e.href) || isRefundJump;
+            const handleClick = clickable
+              ? () => {
+                  if (e.href) {
+                    if (typeof window !== "undefined") {
+                      window.open(e.href, "_blank", "noopener,noreferrer");
+                    }
+                  } else if (isRefundJump) {
+                    onSelectRefundRow(e.id);
+                  }
+                }
+              : undefined;
+            const titleText = e.href
+              ? "Open source payment in a new tab"
+              : isRefundJump
+                ? "Jump to this refund row"
+                : undefined;
+            return (
+              <tr
+                key={e.id}
+                onClick={handleClick}
+                title={titleText}
                 style={{
-                  padding: "6px 4px",
-                  textAlign: "right",
-                  fontVariantNumeric: "tabular-nums",
-                  fontWeight: 600,
-                  color: e.amount < 0 ? "#B45309" : "#0F172A",
+                  borderTop: "1px solid #E2E8F0",
+                  cursor: clickable ? "pointer" : "default",
                 }}
               >
-                {money(e.amount)}
-              </td>
-            </tr>
-          ))}
+                <td style={{ padding: "6px 4px", whiteSpace: "nowrap" }}>
+                  {formatDate(e.postedAt)}
+                </td>
+                <td style={{ padding: "6px 4px" }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#fff",
+                      background: ledgerKindColor(e.kind),
+                    }}
+                  >
+                    {ledgerKindLabel(e.kind)}
+                  </span>
+                </td>
+                <td style={{ padding: "6px 4px", color: "#334155" }}>
+                  {e.href ? (
+                    <a
+                      href={e.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(ev) => ev.stopPropagation()}
+                      style={{
+                        color: "#1D4ED8",
+                        textDecoration: "underline",
+                      }}
+                    >
+                      {e.description || "—"}
+                    </a>
+                  ) : isRefundJump ? (
+                    <button
+                      type="button"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        onSelectRefundRow(e.id);
+                      }}
+                      style={{
+                        background: "none",
+                        border: 0,
+                        padding: 0,
+                        color: "#1D4ED8",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                        font: "inherit",
+                        textAlign: "left",
+                      }}
+                    >
+                      {e.description || "—"}
+                    </button>
+                  ) : (
+                    e.description || "—"
+                  )}
+                </td>
+                <td style={{ padding: "6px 4px", color: "#475569" }}>
+                  {e.status ? statusLabel(e.status) : "—"}
+                </td>
+                <td
+                  style={{
+                    padding: "6px 4px",
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                    fontWeight: 600,
+                    color: e.amount < 0 ? "#B45309" : "#0F172A",
+                  }}
+                >
+                  {money(e.amount)}
+                </td>
+              </tr>
+            );
+          })}
           <tr style={{ borderTop: "2px solid #CBD5E1", background: "#F8FAFC" }}>
             <td colSpan={4} style={{ padding: "6px 4px", fontWeight: 600 }}>
               Net posted

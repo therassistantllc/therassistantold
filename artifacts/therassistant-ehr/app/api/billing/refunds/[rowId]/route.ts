@@ -219,6 +219,7 @@ export interface LedgerEntry {
   status: string | null;
   reasonCode: string | null;
   source: string | null;
+  href: string | null;
 }
 
 interface CasAdjustmentRow {
@@ -440,7 +441,7 @@ export async function GET(
     const invoicesP = ctxIds.claimId
       ? (supabase as any)
           .from("patient_invoices")
-          .select("id, invoice_number")
+          .select("id, invoice_number, client_id")
           .eq("organization_id", organizationId)
           .eq("professional_claim_id", ctxIds.claimId)
           .is("archived_at", null)
@@ -506,6 +507,12 @@ export async function GET(
         text(i.invoice_number) || "",
       ]),
     );
+    const invoiceClientById = new Map<string, string>(
+      ((invoices as DbRow[]) ?? []).map((i) => [
+        text(i.id),
+        text(i.client_id) || "",
+      ]),
+    );
 
     const { data: invoicePayments } = invoiceIds.length
       ? await (supabase as any)
@@ -532,6 +539,7 @@ export async function GET(
         grp && reason ? `${grp}/${reason}` : grp || reason,
         text(e.description),
       ].filter(Boolean);
+      const eraRowId = text(e.era_claim_payment_id);
       ledger.push({
         id: `era_entry:${text(e.id)}`,
         kind: "era_posting",
@@ -541,6 +549,7 @@ export async function GET(
         status: "posted",
         reasonCode: reason || grp || null,
         source: text(e.source_type) || "era",
+        href: eraRowId ? `/billing/payments/era/${eraRowId}` : null,
       });
     }
     for (const p of (claimClientPayments as DbRow[]) ?? []) {
@@ -549,8 +558,9 @@ export async function GET(
         text(p.source_label),
         text(p.reference_number) ? `ref ${text(p.reference_number)}` : "",
       ].filter(Boolean);
+      const cpId = text(p.id);
       ledger.push({
-        id: `client_payment:${text(p.id)}`,
+        id: `client_payment:${cpId}`,
         kind: "client_payment",
         postedAt: text(p.posted_at) || null,
         amount: money(p.amount),
@@ -558,10 +568,13 @@ export async function GET(
         status: text(p.posting_status) || null,
         reasonCode: null,
         source: text(p.source_label) || text(p.payment_method) || null,
+        href: cpId ? `/billing/payments/posted/${cpId}` : null,
       });
     }
     for (const p of (invoicePayments as DbRow[]) ?? []) {
-      const invNum = invoiceNumberById.get(text(p.patient_invoice_id)) || "";
+      const invId = text(p.patient_invoice_id);
+      const invNum = invoiceNumberById.get(invId) || "";
+      const invClientId = invoiceClientById.get(invId) || "";
       const bits = [
         text(p.payment_method) || "patient payment",
         invNum ? `invoice ${invNum}` : "",
@@ -576,6 +589,10 @@ export async function GET(
         status: text(p.payment_status) || null,
         reasonCode: null,
         source: "patient invoice",
+        href:
+          invClientId && invId
+            ? `/patients/${invClientId}/balance/invoice/${invId}`
+            : null,
       });
     }
     for (const r of (refundRows as DbRow[]) ?? []) {
@@ -595,6 +612,10 @@ export async function GET(
         status: text(r.refund_status) || null,
         reasonCode: null,
         source: text(r.refund_type) || "refund",
+        // Refunds are rendered inside the same panel; the client uses this
+        // marker to scroll/select the matching list row instead of
+        // navigating away.
+        href: null,
       });
     }
 
