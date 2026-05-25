@@ -9,21 +9,16 @@ import styles from "./ClaimsWorkspace.module.css";
 // ─── Lifecycle taxonomy ────────────────────────────────────────────────────
 
 type LifecycleTab = "needs_attention" | "submitted" | "denials" | "follow_up" | "resolutions";
-
 type ChipTone = "info" | "pending" | "urgent" | "resolved" | "neutral";
 
 interface ChipDef {
   id: string;
   label: string;
   tone: ChipTone;
-  /** Maps to the no-response API `tab` param when the chip is on the
-   *  Needs Attention tab; null means "no automatic filter — just narrows
-   *  the underlying queue". */
-  noResponseTab?: "no_999" | "no_277ca" | "no_payer_status" | "no_era" | "past_follow_up";
-  /** Optional deep-link target for chips whose detailed view lives in an
-   *  existing per-queue page. Clicking the chip's "Open full queue" link
-   *  routes there; selecting the chip just filters the table. */
-  deepLink?: string;
+  /** Client-side predicate against a NoResponseRow. Returning true means
+   *  the row matches the chip. Chips without a predicate are not shown
+   *  (Task #771 requirement: chips must reliably narrow data). */
+  predicate: (r: NoResponseRow) => boolean;
 }
 
 interface LifecycleDef {
@@ -31,6 +26,10 @@ interface LifecycleDef {
   label: string;
   description: string;
   chips: ChipDef[];
+  /** When true, this tab's data scope is bounded by what the v1 source
+   *  exposes; we render an honest banner explaining the limit. */
+  phaseTwo?: boolean;
+  phaseTwoNote?: string;
 }
 
 const LIFECYCLES: LifecycleDef[] = [
@@ -39,25 +38,23 @@ const LIFECYCLES: LifecycleDef[] = [
     label: "Needs Attention",
     description: "Claims stuck somewhere — pick a reason and clear them.",
     chips: [
-      { id: "no_payer_status", label: "No payer response", tone: "pending", noResponseTab: "no_payer_status", deepLink: "/billing/no-response" },
-      { id: "no_277ca", label: "Missing 277CA", tone: "pending", noResponseTab: "no_277ca", deepLink: "/billing/rejections-277ca" },
-      { id: "no_999", label: "Missing 999", tone: "pending", noResponseTab: "no_999", deepLink: "/billing/rejections-999" },
-      { id: "no_era", label: "Missing ERA", tone: "pending", noResponseTab: "no_era", deepLink: "/billing/era-import" },
-      { id: "past_follow_up", label: "Past follow-up date", tone: "urgent", noResponseTab: "past_follow_up" },
-      { id: "timely_filing", label: "Timely-filing risk", tone: "urgent", deepLink: "/billing/timely-filing" },
-      { id: "auth_required", label: "Auth required", tone: "info", deepLink: "/billing/authorization-required" },
-      { id: "credentialing", label: "Credentialing issue", tone: "info", deepLink: "/billing/provider-enrollment-issues" },
-      { id: "duplicate", label: "Duplicate review", tone: "info", deepLink: "/billing/duplicate-claim-review" },
+      { id: "no_payer_response", label: "No payer response", tone: "pending", predicate: (r) => r.missing_artifact === "no_payer_status" },
+      { id: "no_277ca", label: "Missing 277CA", tone: "pending", predicate: (r) => r.missing_artifact === "no_277ca" },
+      { id: "no_999", label: "Missing 999", tone: "pending", predicate: (r) => r.missing_artifact === "no_999" },
+      { id: "no_era", label: "Missing ERA", tone: "pending", predicate: (r) => r.missing_artifact === "no_era" },
+      { id: "past_follow_up", label: "Past follow-up date", tone: "urgent", predicate: (r) => r.missing_artifact === "past_follow_up" },
+      { id: "timely_filing", label: "Timely-filing risk", tone: "urgent", predicate: (r) => (r.days_outstanding ?? 0) > 90 },
     ],
   },
   {
     id: "submitted",
     label: "Submitted",
-    description: "Out the door, awaiting payer.",
+    description: "Out the door, awaiting payer acknowledgement.",
     chips: [
-      { id: "payer_received", label: "Payer received", tone: "info", deepLink: "/billing/payer-received" },
-      { id: "in_batch", label: "In open batch", tone: "neutral", deepLink: "/billing/837p-batches" },
-      { id: "transmission_failed", label: "Transmission failed", tone: "urgent", deepLink: "/billing/transmission-failures" },
+      { id: "no_999", label: "Awaiting 999 ack", tone: "pending", predicate: (r) => r.missing_artifact === "no_999" },
+      { id: "no_277ca", label: "Awaiting 277CA", tone: "pending", predicate: (r) => r.missing_artifact === "no_277ca" },
+      { id: "no_payer_response", label: "Awaiting payer response", tone: "pending", predicate: (r) => r.missing_artifact === "no_payer_status" },
+      { id: "no_era", label: "Awaiting ERA", tone: "pending", predicate: (r) => r.missing_artifact === "no_era" },
     ],
   },
   {
@@ -65,35 +62,35 @@ const LIFECYCLES: LifecycleDef[] = [
     label: "Denials",
     description: "Payer said no. Appeal, correct, or write off.",
     chips: [
-      { id: "by_carc", label: "By CARC", tone: "info", deepLink: "/billing/denials-by-carc" },
-      { id: "by_rarc", label: "By RARC", tone: "info", deepLink: "/billing/denials-by-rarc" },
-      { id: "partial", label: "Partial denials", tone: "pending", deepLink: "/billing/partial-denials" },
-      { id: "medical_necessity", label: "Medical necessity", tone: "urgent", deepLink: "/billing/medical-necessity" },
-      { id: "medical_review", label: "Records requested", tone: "pending", deepLink: "/billing/medical-review" },
+      // No CARC/RARC data in the v1 source; show all aged claims as a
+      // proxy. The phase-2 note makes the scope explicit.
+      { id: "aged_90", label: "90+ days outstanding", tone: "urgent", predicate: (r) => (r.days_outstanding ?? 0) > 90 },
+      { id: "aged_60", label: "60–90 days", tone: "pending", predicate: (r) => (r.days_outstanding ?? 0) > 60 && (r.days_outstanding ?? 0) <= 90 },
+      { id: "aged_30", label: "30–60 days", tone: "info", predicate: (r) => (r.days_outstanding ?? 0) > 30 && (r.days_outstanding ?? 0) <= 60 },
     ],
+    phaseTwo: true,
+    phaseTwoNote: "Denial-specific data (CARC/RARC, partial denials, medical necessity) is integrating in phase 2. The table below shows aged claims that often turn into denials.",
   },
   {
     id: "follow_up",
     label: "Follow-Up",
     description: "In motion — appeals filed, corrections sent, awaiting outcome.",
     chips: [
-      { id: "appeals", label: "Appeals filed", tone: "info", deepLink: "/billing/appeals" },
-      { id: "corrected", label: "Corrected claims", tone: "info", deepLink: "/billing/corrected-claims" },
-      { id: "resubmissions", label: "Resubmissions", tone: "info", deepLink: "/billing/resubmissions" },
-      { id: "cob", label: "COB updates", tone: "pending", deepLink: "/billing/cob-issues" },
-      { id: "secondary", label: "Secondary billing", tone: "neutral", deepLink: "/billing/secondary-billing" },
+      { id: "past_follow_up", label: "Past follow-up date", tone: "urgent", predicate: (r) => r.missing_artifact === "past_follow_up" },
+      { id: "with_followup_date", label: "Follow-up scheduled", tone: "info", predicate: (r) => !!r.follow_up_due_date },
+      { id: "assigned", label: "Assigned to someone", tone: "info", predicate: (r) => !!r.assigned_to_user_id },
+      { id: "unassigned", label: "Unassigned", tone: "pending", predicate: (r) => !r.assigned_to_user_id },
     ],
+    phaseTwo: true,
+    phaseTwoNote: "Appeals, corrections, and resubmissions feeds land in phase 2. The table below shows claims currently in active follow-up.",
   },
   {
     id: "resolutions",
     label: "Resolutions",
     description: "Closed out — paid, written off, or moved to patient.",
-    chips: [
-      { id: "patient_resp", label: "Patient responsibility", tone: "resolved", deepLink: "/billing/patient-responsibility" },
-      { id: "write_offs", label: "Write-offs", tone: "neutral", deepLink: "/billing/write-offs" },
-      { id: "credit_balance", label: "Credit balance", tone: "pending", deepLink: "/billing/credit-balances" },
-      { id: "recoupments", label: "Recoupments", tone: "urgent", deepLink: "/billing/recoupments" },
-    ],
+    chips: [],
+    phaseTwo: true,
+    phaseTwoNote: "Resolved-claim history (paid, written off, transferred to patient) lives in Payments and Patient Balances today and rolls up here in phase 2.",
   },
 ];
 
@@ -130,7 +127,6 @@ interface ClaimRow {
   id: string;
   claimNumber: string;
   patientName: string;
-  patientSub: string;
   dosFrom: string | null;
   dosTo: string | null;
   payer: string;
@@ -142,7 +138,6 @@ interface ClaimRow {
   assignee: string | null;
   followUp: string | null;
   raw: NoResponseRow;
-  matchingChips: string[];
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -214,10 +209,8 @@ function humanIssueFor(r: NoResponseRow): { label: string; tone: ChipTone } {
   }
 }
 
-function chipIdsForRow(r: NoResponseRow): string[] {
-  const ids: string[] = [r.missing_artifact];
-  if ((r.days_outstanding ?? 0) > 90) ids.push("timely_filing");
-  return ids;
+function findChip(tab: LifecycleTab, chipId: string): ChipDef | undefined {
+  return LIFECYCLE_BY_ID[tab].chips.find((c) => c.id === chipId);
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -234,12 +227,17 @@ export default function ClaimsWorkspace() {
   const [activeTab, setActiveTab] = useState<LifecycleTab>(
     LIFECYCLE_BY_ID[initialTab] ? initialTab : "needs_attention",
   );
-  const [activeChips, setActiveChips] = useState<string[]>(
-    initialFilter ? initialFilter.split(",").filter(Boolean) : [],
-  );
+  const [activeChips, setActiveChips] = useState<string[]>(() => {
+    if (!initialFilter) return [];
+    const startTab = LIFECYCLE_BY_ID[initialTab] ? initialTab : "needs_attention";
+    // Only keep chip ids that actually exist in the starting tab.
+    return initialFilter
+      .split(",")
+      .filter(Boolean)
+      .filter((id) => findChip(startTab, id));
+  });
   const [query, setQuery] = useState(initialQuery);
-  const [rows, setRows] = useState<NoResponseRow[]>([]);
-  const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
+  const [allRows, setAllRows] = useState<NoResponseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -261,17 +259,10 @@ export default function ClaimsWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeChips.join(","), query]);
 
-  // Fetch underlying queue data. v1 sources the Needs Attention tab from
-  // the no-response API which already powers most of today's day-to-day
-  // billing work. Other lifecycle tabs render handoff cards to the
-  // existing per-queue pages until those sources are unified here.
+  // Single fetch for all claim rows. v1 source is /api/billing/no-response
+  // returning every missing_artifact bucket. Lifecycle tabs are pure UI
+  // organizers; chips filter the same client-side dataset.
   useEffect(() => {
-    if (activeTab !== "needs_attention") {
-      setRows([]);
-      setTabCounts({});
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -279,13 +270,6 @@ export default function ClaimsWorkspace() {
       try {
         const params = new URLSearchParams();
         params.set("organizationId", getOrganizationId());
-        // Pick the underlying API tab from the first selected chip that
-        // maps to one. If nothing's selected we default to no_payer_status
-        // (the most populated bucket).
-        const chipWithTab = activeChips
-          .map((id) => LIFECYCLE_BY_ID.needs_attention.chips.find((c) => c.id === id))
-          .find((c) => c?.noResponseTab);
-        params.set("tab", chipWithTab?.noResponseTab ?? "no_payer_status");
         const res = await fetch(`/api/billing/no-response?${params.toString()}`, {
           cache: "no-store",
         });
@@ -293,11 +277,10 @@ export default function ClaimsWorkspace() {
         if (cancelled) return;
         if (!json.success) {
           setError(json.error || "Could not load claims");
-          setRows([]);
+          setAllRows([]);
           return;
         }
-        setRows((json.items as NoResponseRow[]) ?? []);
-        setTabCounts((json.tabCounts as Record<string, number>) ?? {});
+        setAllRows((json.items as NoResponseRow[]) ?? []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Could not load claims");
       } finally {
@@ -308,14 +291,45 @@ export default function ClaimsWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, activeChips.join(",")]);
+  }, []);
 
-  const mapped: ClaimRow[] = useMemo(() => {
+  const lifecycle = LIFECYCLE_BY_ID[activeTab];
+
+  const filtered: ClaimRow[] = useMemo(() => {
+    // Per-tab default scoping: each tab gets a base predicate so that
+    // even with no chips selected the table feels coherent for that tab.
+    const tabBase: Record<LifecycleTab, (r: NoResponseRow) => boolean> = {
+      needs_attention: () => true,
+      submitted: () => true,
+      denials: (r) => (r.days_outstanding ?? 0) > 30,
+      follow_up: (r) => !!r.follow_up_due_date || r.missing_artifact === "past_follow_up",
+      resolutions: () => false,
+    };
+
+    let rows = allRows.filter(tabBase[activeTab]);
+
+    // Chip predicates: OR semantics across selected chips.
+    const selectedPreds = activeChips
+      .map((id) => findChip(activeTab, id)?.predicate)
+      .filter((p): p is (r: NoResponseRow) => boolean => !!p);
+    if (selectedPreds.length > 0) {
+      rows = rows.filter((r) => selectedPreds.some((p) => p(r)));
+    }
+
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.patient_name.toLowerCase().includes(q) ||
+          (r.claim_number ?? "").toLowerCase().includes(q) ||
+          (r.payer_name ?? "").toLowerCase().includes(q),
+      );
+    }
+
     return rows.map((r) => ({
       id: r.id,
       claimNumber: r.claim_number || `(no claim #) ${r.id.slice(0, 6)}`,
       patientName: r.patient_name || "Unknown patient",
-      patientSub: r.payer_name ? "" : "",
       dosFrom: r.service_date_from,
       dosTo: r.service_date_to,
       payer: r.payer_name || "—",
@@ -327,25 +341,8 @@ export default function ClaimsWorkspace() {
       assignee: r.assigned_to_display_name,
       followUp: r.follow_up_due_date,
       raw: r,
-      matchingChips: chipIdsForRow(r),
     }));
-  }, [rows]);
-
-  const filtered: ClaimRow[] = useMemo(() => {
-    let result = mapped;
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      result = result.filter(
-        (r) =>
-          r.patientName.toLowerCase().includes(q) ||
-          r.claimNumber.toLowerCase().includes(q) ||
-          r.payer.toLowerCase().includes(q),
-      );
-    }
-    // Additional chip filtering beyond what's baked into the fetch.
-    // (The fetch already narrows by the first chip with a noResponseTab.)
-    return result;
-  }, [mapped, query]);
+  }, [allRows, activeTab, activeChips, query]);
 
   const kpis = useMemo(() => {
     const openCount = filtered.length;
@@ -358,6 +355,20 @@ export default function ClaimsWorkspace() {
     const urgent = filtered.filter((r) => r.issue.tone === "urgent").length;
     return { openCount, totalValue, avgDays, urgent };
   }, [filtered]);
+
+  // Cross-tab counts for the tab strip (uses each tab's base predicate).
+  const tabCounts: Record<LifecycleTab, number> = useMemo(() => {
+    const tabBase: Record<LifecycleTab, (r: NoResponseRow) => boolean> = {
+      needs_attention: () => true,
+      submitted: () => true,
+      denials: (r) => (r.days_outstanding ?? 0) > 30,
+      follow_up: (r) => !!r.follow_up_due_date || r.missing_artifact === "past_follow_up",
+      resolutions: () => false,
+    };
+    const counts = {} as Record<LifecycleTab, number>;
+    for (const l of LIFECYCLES) counts[l.id] = allRows.filter(tabBase[l.id]).length;
+    return counts;
+  }, [allRows]);
 
   const selectedRow = useMemo(
     () => filtered.find((r) => r.id === selectedRowId) ?? null,
@@ -375,12 +386,16 @@ export default function ClaimsWorkspace() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedRowId, closeDrawer]);
 
-  const lifecycle = LIFECYCLE_BY_ID[activeTab];
-
   const toggleChip = (id: string) => {
     setActiveChips((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
     );
+  };
+
+  const switchTab = (tab: LifecycleTab) => {
+    setActiveTab(tab);
+    setActiveChips([]); // chips are per-tab; reset on switch.
+    setSelectedRowId(null);
   };
 
   return (
@@ -404,14 +419,14 @@ export default function ClaimsWorkspace() {
       {/* KPI tiles */}
       <div className={styles.kpiRow}>
         <div className={styles.kpiTile}>
-          <span className={styles.kpiLabel}>Claims requiring action</span>
+          <span className={styles.kpiLabel}>Claims in view</span>
           <span className={`${styles.kpiValue} ${kpis.urgent > 0 ? styles.kpiValueUrgent : ""}`}>
             {kpis.openCount}
           </span>
           <span className={styles.kpiSub}>{kpis.urgent} urgent</span>
         </div>
         <div className={styles.kpiTile}>
-          <span className={styles.kpiLabel}>At-risk value</span>
+          <span className={styles.kpiLabel}>Total balance</span>
           <span className={`${styles.kpiValue} ${kpis.totalValue > 10000 ? styles.kpiValuePending : ""}`}>
             {fmtMoney(kpis.totalValue)}
           </span>
@@ -425,9 +440,11 @@ export default function ClaimsWorkspace() {
           <span className={styles.kpiSub}>Current view</span>
         </div>
         <div className={styles.kpiTile}>
-          <span className={styles.kpiLabel}>Recently posted today</span>
-          <span className={`${styles.kpiValue} ${styles.kpiValueResolved}`}>{tabCounts.past_follow_up ?? 0}</span>
-          <span className={styles.kpiSub}>From ERA + manual</span>
+          <span className={styles.kpiLabel}>Past follow-up date</span>
+          <span className={`${styles.kpiValue} ${styles.kpiValueUrgent}`}>
+            {allRows.filter((r) => r.missing_artifact === "past_follow_up").length}
+          </span>
+          <span className={styles.kpiSub}>Across all stages</span>
         </div>
       </div>
 
@@ -435,6 +452,7 @@ export default function ClaimsWorkspace() {
       <div className={styles.tabBar} role="tablist" aria-label="Claim lifecycle">
         {LIFECYCLES.map((l) => {
           const isActive = l.id === activeTab;
+          const count = tabCounts[l.id];
           return (
             <button
               key={l.id}
@@ -442,53 +460,58 @@ export default function ClaimsWorkspace() {
               role="tab"
               aria-selected={isActive}
               className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
-              onClick={() => {
-                setActiveTab(l.id);
-                setActiveChips([]);
-                setSelectedRowId(null);
-              }}
+              onClick={() => switchTab(l.id)}
             >
               {l.label}
+              <span className={styles.tabCount}>{count}</span>
             </button>
           );
         })}
       </div>
 
       {/* Filter chip strip */}
-      <div className={styles.chipStrip}>
-        <span className={styles.chipLabel}>Filter</span>
-        {lifecycle.chips.map((c) => {
-          const isActive = activeChips.includes(c.id);
-          return (
-            <button
-              key={c.id}
-              type="button"
-              className={`${styles.chip} ${isActive ? styles.chipActive : ""}`}
-              onClick={() => toggleChip(c.id)}
-              title={c.deepLink ? `${c.label} — also has a detailed queue at ${c.deepLink}` : c.label}
-            >
-              {c.label}
+      {lifecycle.chips.length > 0 ? (
+        <div className={styles.chipStrip}>
+          <span className={styles.chipLabel}>Filter</span>
+          {lifecycle.chips.map((c) => {
+            const isActive = activeChips.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                className={`${styles.chip} ${isActive ? styles.chipActive : ""}`}
+                onClick={() => toggleChip(c.id)}
+                aria-pressed={isActive}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+          {activeChips.length > 0 ? (
+            <button type="button" className={styles.clearLink} onClick={() => setActiveChips([])}>
+              Clear
             </button>
-          );
-        })}
-        {activeChips.length > 0 ? (
-          <button type="button" className={styles.clearLink} onClick={() => setActiveChips([])}>
-            Clear
-          </button>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? <div className={styles.error}>{error}</div> : null}
 
-      {/* Body — table or empty state */}
+      {lifecycle.phaseTwo && lifecycle.phaseTwoNote ? (
+        <div className={styles.phaseBanner}>
+          <strong>Phase 2 in progress.</strong> {lifecycle.phaseTwoNote}
+        </div>
+      ) : null}
+
+      {/* Body — table */}
       <div className={styles.tableWrap}>
-        {activeTab !== "needs_attention" ? (
-          <LifecycleHandoff lifecycle={lifecycle} />
-        ) : loading ? (
+        {loading ? (
           <div className={styles.loading}>Loading claims…</div>
         ) : filtered.length === 0 ? (
           <div className={styles.empty}>
-            Nothing matches the current view. Try clearing filters or switching tabs.
+            {activeTab === "resolutions"
+              ? "Resolved claims will appear here once the phase-2 data source ships."
+              : "Nothing matches the current view. Try clearing filters or switching tabs."}
           </div>
         ) : (
           <table className={styles.table}>
@@ -725,36 +748,6 @@ function DrawerContent({ tab, row }: { tab: DrawerTabId; row: ClaimRow }) {
     case "audit_trail":
       return <div className={styles.emptyTabState}>Every user action against this claim, in order, with who/when.</div>;
   }
-}
-
-// ─── Lifecycle handoff (tabs we haven't unified yet) ──────────────────────
-
-function LifecycleHandoff({ lifecycle }: { lifecycle: LifecycleDef }) {
-  return (
-    <div className={styles.empty} style={{ textAlign: "left", padding: 24 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, color: "#0F172A", marginBottom: 6 }}>
-        {lifecycle.label}
-      </div>
-      <div style={{ marginBottom: 16, color: "#475569" }}>{lifecycle.description}</div>
-      <div style={{ fontSize: 12, color: "#64748B", marginBottom: 8 }}>
-        Open the matching detailed queue while this view is finishing rollout:
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {lifecycle.chips.map((c) =>
-          c.deepLink ? (
-            <Link
-              key={c.id}
-              href={c.deepLink}
-              className={styles.chip}
-              style={{ textDecoration: "none" }}
-            >
-              {c.label} →
-            </Link>
-          ) : null,
-        )}
-      </div>
-    </div>
-  );
 }
 
 function toneClass(t: ChipTone): string {

@@ -200,6 +200,18 @@
   margin-left: 4px;
 }
 
+.phaseBanner {
+  margin: 12px 24px 0;
+  padding: 10px 14px;
+  background: var(--c-info-bg);
+  border: 1px solid var(--c-info-border);
+  color: var(--c-info-ink);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.phaseBanner strong { font-weight: 700; }
+
 /* ── Table ──────────────────────────────────────────────────────── */
 .tableWrap {
   flex: 1;
