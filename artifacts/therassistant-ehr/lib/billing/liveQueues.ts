@@ -1177,7 +1177,20 @@ export const LIVE_QUEUE_ACTIONS: Record<string, Record<string, string>> = {
   },
 };
 
-// ── Generic action recorder ────────────────────────────────────────────────
+
+// ── Generic action recorder (atomic via Postgres RPC) ──────────────────────
+/**
+ * The 12 second-wave billing workqueues all funnel row actions through this
+ * function. Both the underlying-record mutation (claim_status flip, adjustment
+ * row insert, refund row insert, alert resolve, …) AND the audit_logs overlay
+ * stamp must happen in the SAME Postgres transaction — otherwise a failure
+ * after the mutation can leave history out of sync with state, or vice versa.
+ *
+ * Atomicity is enforced by the `record_queue_action_atomic` SQL function
+ * (see supabase/migrations/20260617000000_record_queue_action_atomic.sql),
+ * which wraps both writes in a single PL/pgSQL body and raises on any
+ * sub-step failure — so partial writes cannot occur.
+ */
 export async function recordQueueAction(
   endpoint: string,
   organizationId: string,
@@ -1185,7 +1198,7 @@ export async function recordQueueAction(
   action: string,
   userId: string | null,
   extras: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+): Promise<{ ok: true; mutation: Record<string, unknown> | null } | { ok: false; error: string; status: number }> {
   const prefix = ACTION_PREFIX[endpoint];
   if (!prefix) return { ok: false, error: "Unknown queue", status: 400 };
   const targetTab = LIVE_QUEUE_ACTIONS[endpoint]?.[action];
@@ -1194,18 +1207,30 @@ export async function recordQueueAction(
   }
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) return { ok: false, error: "Database unavailable", status: 500 };
+
   const eventType = `${prefix}_${action}`;
-  const { error } = await (supabase as any)
-    .from("audit_logs")
-    .insert({
-      organization_id: organizationId,
-      event_type: eventType,
-      event_summary: `${endpoint} → ${action}`,
-      object_type: endpoint,
-      object_id: rowId,
-      user_id: userId,
-      event_metadata: { tab: targetTab, ...extras },
-    });
-  if (error) return { ok: false, error: error.message, status: 500 };
-  return { ok: true };
+  const eventSummary = `${endpoint} → ${action}`;
+
+  const { data, error } = await (supabase as any).rpc("record_queue_action_atomic", {
+    p_organization_id: organizationId,
+    p_endpoint: endpoint,
+    p_action: action,
+    p_row_id: rowId,
+    p_user_id: userId,
+    p_extras: extras ?? {},
+    p_target_tab: targetTab,
+    p_event_type: eventType,
+    p_event_summary: eventSummary,
+  });
+
+  if (error) {
+    const msg = String(error.message || "queue action failed");
+    // Postgres no-data ('P0002') → 404 so the route returns the right status.
+    const status = error.code === "P0002" ? 404 : 400;
+    return { ok: false, error: msg, status };
+  }
+  const mutation = (data && typeof data === "object" && "mutation" in data)
+    ? ((data as any).mutation ?? null)
+    : null;
+  return { ok: true, mutation };
 }
