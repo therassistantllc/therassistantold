@@ -142,6 +142,27 @@ export async function GET(
     if (guard instanceof NextResponse) return guard;
 
     const found = await loadLatestSuggestion(supabase, guard.organizationId, id);
+    if (found) {
+      const signSide = async (
+        ref: Row | null,
+      ): Promise<string | null> => {
+        if (!ref) return null;
+        const bucket = text(ref.bucket);
+        const path = text(ref.path);
+        if (!bucket || !path) return null;
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 300);
+        if (error || !data?.signedUrl) return null;
+        return data.signedUrl;
+      };
+      const [frontUrl, backUrl] = await Promise.all([
+        signSide(found.card_photo_front ?? found.card_photo),
+        signSide(found.card_photo_back),
+      ]);
+      (found as Row).card_photo_front_url = frontUrl;
+      (found as Row).card_photo_back_url = backUrl;
+    }
     return NextResponse.json({ success: true, found });
   } catch (error) {
     console.error("Card suggestion GET error:", error);

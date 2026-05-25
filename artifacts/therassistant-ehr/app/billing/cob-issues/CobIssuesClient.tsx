@@ -1236,6 +1236,8 @@ type CardSuggestionPayload = {
     } | null;
     card_photo_front: { bucket: string; path: string } | null;
     card_photo_back: { bucket: string; path: string } | null;
+    card_photo_front_url: string | null;
+    card_photo_back_url: string | null;
     other_coverage_note: string | null;
     decision: {
       type: "accepted" | "discarded";
@@ -1273,6 +1275,7 @@ function CardSuggestionPanel({
   const [priority, setPriority] = useState<"primary" | "secondary" | "tertiary">(
     "secondary",
   );
+  const [zoomedUrl, setZoomedUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1455,6 +1458,89 @@ function CardSuggestionPanel({
         <p style={{ color: "#475569", margin: 0, fontSize: 12 }}>
           Client note: <em>{found.other_coverage_note}</em>
         </p>
+      ) : null}
+
+      {found.card_photo_front_url || found.card_photo_back_url ? (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {([
+            ["Front", found.card_photo_front_url],
+            ["Back", found.card_photo_back_url],
+          ] as const).map(([label, url]) =>
+            url ? (
+              <figure
+                key={label}
+                style={{ margin: 0, display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setZoomedUrl(url)}
+                  title={`Open ${label.toLowerCase()} of card`}
+                  style={{
+                    padding: 0,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 6,
+                    background: "#f8fafc",
+                    cursor: "zoom-in",
+                    overflow: "hidden",
+                    lineHeight: 0,
+                  }}
+                >
+                  <img
+                    src={url}
+                    alt={`Insurance card ${label.toLowerCase()}`}
+                    style={{
+                      display: "block",
+                      width: 180,
+                      height: 110,
+                      objectFit: "cover",
+                    }}
+                  />
+                </button>
+                <figcaption
+                  style={{
+                    fontSize: 11,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  {label}
+                </figcaption>
+              </figure>
+            ) : null,
+          )}
+        </div>
+      ) : null}
+
+      {zoomedUrl ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setZoomedUrl(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 24,
+            cursor: "zoom-out",
+          }}
+        >
+          <img
+            src={zoomedUrl}
+            alt="Insurance card full size"
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "95vh",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+              borderRadius: 6,
+              background: "white",
+            }}
+          />
+        </div>
       ) : null}
 
       <div
