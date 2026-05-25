@@ -41,6 +41,9 @@ type Row = {
   last_statement_at: string | null;
   payment_method: string | null;
   autopay_status: "on" | "off" | "unknown";
+  autopay_last_attempt_at: string | null;
+  autopay_last_attempt_status: "succeeded" | "failed" | null;
+  autopay_last_attempt_error: string | null;
   last_payment_at: string | null;
   last_payment_amount: number | null;
   next_follow_up_at: string | null;
@@ -187,14 +190,45 @@ function statusBadge(s: Row["status"]): ReactNode {
   );
 }
 
-function autopayBadge(a: Row["autopay_status"]): ReactNode {
-  if (a === "on") {
-    return <span style={{ color: "#166534", fontWeight: 600 }}>On</span>;
-  }
-  if (a === "off") {
-    return <span style={{ color: "#9a3412" }}>Off</span>;
-  }
-  return <span style={{ color: "#94a3b8" }}>—</span>;
+function autopayBadge(r: Row): ReactNode {
+  const failed = r.autopay_last_attempt_status === "failed";
+  const onLabel =
+    r.autopay_status === "on" ? (
+      <span style={{ color: "#166534", fontWeight: 600 }}>On</span>
+    ) : r.autopay_status === "off" ? (
+      <span style={{ color: "#9a3412" }}>Off</span>
+    ) : (
+      <span style={{ color: "#94a3b8" }}>—</span>
+    );
+  if (!failed) return onLabel;
+
+  const reason = r.autopay_last_attempt_error || "Card declined";
+  const when = r.autopay_last_attempt_at
+    ? new Date(r.autopay_last_attempt_at).toLocaleString()
+    : null;
+  const title = when ? `${reason} (${when})` : reason;
+  return (
+    <span
+      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+      title={title}
+    >
+      {onLabel}
+      <span
+        style={{
+          background: "#fee2e2",
+          color: "#991b1b",
+          padding: "2px 8px",
+          borderRadius: 999,
+          fontSize: 11,
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+          cursor: "help",
+        }}
+      >
+        Failed
+      </span>
+    </span>
+  );
 }
 
 function labelMethod(m: string | null): string {
@@ -342,6 +376,12 @@ export default function PatientBillingClient() {
         ],
       },
       { id: "followUpDue", label: "Follow-up due by", kind: "date" },
+      {
+        id: "autopayFailed",
+        label: "Autopay",
+        kind: "select",
+        options: [{ value: "failed", label: "Failed last attempt" }],
+      },
     ],
     [clinicianOptions, payerOptions, clientOptions],
   );
@@ -385,7 +425,7 @@ export default function PatientBillingClient() {
       {
         id: "autopay",
         header: "Autopay status",
-        cell: (r) => autopayBadge(r.autopay_status),
+        cell: (r) => autopayBadge(r),
       },
       {
         id: "last_payment",
@@ -691,6 +731,35 @@ export default function PatientBillingClient() {
             )}
             {labeled("Aging bucket", row.aging_bucket.replace("_", "–"))}
             {labeled("Priority", priorityBadge(row.priority))}
+            {labeled("Autopay", autopayBadge(row))}
+            {row.autopay_last_attempt_at
+              ? labeled(
+                  "Last autopay attempt",
+                  <span>
+                    {new Date(row.autopay_last_attempt_at).toLocaleString()}
+                    <span
+                      style={{
+                        color:
+                          row.autopay_last_attempt_status === "failed"
+                            ? "#991b1b"
+                            : "#166534",
+                        marginLeft: 6,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {row.autopay_last_attempt_status === "failed"
+                        ? "Failed"
+                        : "Succeeded"}
+                    </span>
+                    {row.autopay_last_attempt_status === "failed" &&
+                    row.autopay_last_attempt_error ? (
+                      <span style={{ color: "#64748b", marginLeft: 6 }}>
+                        — {row.autopay_last_attempt_error}
+                      </span>
+                    ) : null}
+                  </span>,
+                )
+              : null}
             <div style={{ marginTop: 12 }}>
               <div style={{ color: "#64748b", fontSize: 12, marginBottom: 4 }}>
                 Linked claims

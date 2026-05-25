@@ -165,6 +165,7 @@ export async function GET(request: Request) {
     const filterPractice = (searchParams.get("practice") ?? "").trim();
     const filterAssignedBiller = (searchParams.get("assignedBiller") ?? "").trim();
     const filterCarcRarc = (searchParams.get("carcRarc") ?? "").trim().toUpperCase();
+    const filterAutopayFailed = (searchParams.get("autopayFailed") ?? "").trim();
 
     // ── Pull open patient invoices for this org ────────────────────
     const { data: invoiceRows, error: invErr } = await (supabase as any)
@@ -679,6 +680,12 @@ export async function GET(request: Request) {
         if (row.next_follow_up_at.slice(0, 10) > filterFollowUp) continue;
       }
       if (filterAssignedBiller && row.assigned_biller_id !== filterAssignedBiller) {
+        continue;
+      }
+      if (
+        filterAutopayFailed === "failed" &&
+        row.autopay_last_attempt_status !== "failed"
+      ) {
         continue;
       }
       if (filterCarcRarc) {
