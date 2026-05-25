@@ -153,6 +153,58 @@ function ciContains(haystack: string | null | undefined, needle: string): boolea
   return haystack.toLowerCase().includes(needle.toLowerCase());
 }
 
+/**
+ * Render a list of names into a compact, in-row summary. We try to surface the
+ * one that matches the active filter rail (so billers can see "why" the row is
+ * present) and roll up the rest behind "+N more".
+ */
+function renderNameList(
+  names: string[],
+  highlightNeedle: string,
+): { text: string; matchedIndex: number; highlighted: boolean } {
+  if (!names || names.length === 0) {
+    return { text: "—", matchedIndex: -1, highlighted: false };
+  }
+  const needle = highlightNeedle.trim().toLowerCase();
+  let primaryIdx = 0;
+  let highlighted = false;
+  if (needle) {
+    const m = names.findIndex((n) => n.toLowerCase().includes(needle));
+    if (m >= 0) {
+      primaryIdx = m;
+      highlighted = true;
+    }
+  }
+  const primary = names[primaryIdx];
+  const extra = names.length - 1;
+  const text = extra > 0 ? `${primary} +${extra} more` : primary;
+  return { text, matchedIndex: primaryIdx, highlighted };
+}
+
+function formatDosRange(
+  from: string | null,
+  to: string | null,
+): string {
+  if (!from && !to) return "—";
+  const a = formatDate(from);
+  const b = formatDate(to);
+  if (a === b) return a;
+  return `${a} – ${b}`;
+}
+
+function dosRangeOverlapsFilter(
+  from: string | null,
+  to: string | null,
+  filterFrom: string,
+  filterTo: string,
+): boolean {
+  if (!filterFrom && !filterTo) return false;
+  if (!from && !to) return false;
+  if (filterFrom && to && to < filterFrom) return false;
+  if (filterTo && from && from > filterTo) return false;
+  return true;
+}
+
 function tabFor(b: BatchListItem): TabId {
   if (b.markedDuplicateOf || (b.archivedAt && !!b.markedDuplicateOf)) return "duplicate";
   if (b.importStatus === "failed") return "failed";
@@ -186,6 +238,10 @@ function downloadCsv(filename: string, rows: BatchListItem[]) {
     "Posted",
     "Blocked",
     "Import status",
+    "Patients",
+    "Clinicians",
+    "DOS from",
+    "DOS to",
   ];
   const escape = (v: unknown) => {
     const s = v == null ? "" : String(v);
@@ -209,6 +265,10 @@ function downloadCsv(filename: string, rows: BatchListItem[]) {
         b.counts.posted,
         b.counts.blocked,
         b.importStatus,
+        b.patients.join("; "),
+        b.clinicians.join("; "),
+        b.dosFrom,
+        b.dosTo,
       ]
         .map(escape)
         .join(","),
@@ -510,6 +570,93 @@ export default function EraImportClient() {
           </span>
         ),
       },
+      {
+        id: "patients",
+        header: "Patients",
+        cell: (b) => {
+          const { text, highlighted } = renderNameList(b.patients, filterValues.client ?? "");
+          const title = b.patients.length ? b.patients.join(", ") : undefined;
+          return (
+            <span
+              title={title}
+              style={{
+                display: "inline-block",
+                maxWidth: 200,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "middle",
+                background: highlighted ? "#FEF3C7" : undefined,
+                color: highlighted ? "#92400E" : b.patients.length ? "#0F172A" : "#94A3B8",
+                fontWeight: highlighted ? 600 : 400,
+                padding: highlighted ? "1px 6px" : undefined,
+                borderRadius: highlighted ? 4 : undefined,
+                fontSize: 12,
+              }}
+            >
+              {text}
+            </span>
+          );
+        },
+      },
+      {
+        id: "clinicians",
+        header: "Clinicians",
+        cell: (b) => {
+          const { text, highlighted } = renderNameList(b.clinicians, filterValues.clinician ?? "");
+          const title = b.clinicians.length ? b.clinicians.join(", ") : undefined;
+          return (
+            <span
+              title={title}
+              style={{
+                display: "inline-block",
+                maxWidth: 200,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "middle",
+                background: highlighted ? "#FEF3C7" : undefined,
+                color: highlighted ? "#92400E" : b.clinicians.length ? "#0F172A" : "#94A3B8",
+                fontWeight: highlighted ? 600 : 400,
+                padding: highlighted ? "1px 6px" : undefined,
+                borderRadius: highlighted ? 4 : undefined,
+                fontSize: 12,
+              }}
+            >
+              {text}
+            </span>
+          );
+        },
+      },
+      {
+        id: "dosRange",
+        header: "Dates of service",
+        cell: (b) => {
+          const highlighted = dosRangeOverlapsFilter(
+            b.dosFrom,
+            b.dosTo,
+            filterValues.dosFrom ?? "",
+            filterValues.dosTo ?? "",
+          );
+          const text = formatDosRange(b.dosFrom, b.dosTo);
+          const empty = !b.dosFrom && !b.dosTo;
+          return (
+            <span
+              style={{
+                fontSize: 12,
+                color: highlighted ? "#92400E" : empty ? "#94A3B8" : "#0F172A",
+                background: highlighted ? "#FEF3C7" : undefined,
+                fontWeight: highlighted ? 600 : 400,
+                padding: highlighted ? "1px 6px" : undefined,
+                borderRadius: highlighted ? 4 : undefined,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {text}
+            </span>
+          );
+        },
+      },
       { id: "receivedAt", header: "Received date", cell: (b) => formatDate(b.receivedAt) },
       {
         id: "totalPaymentAmount",
@@ -583,7 +730,7 @@ export default function EraImportClient() {
         ),
       },
     ],
-    [],
+    [filterValues],
   );
 
   // ── Selection lifecycle
