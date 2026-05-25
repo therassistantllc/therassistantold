@@ -3,6 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 
+type PayerCallVolumeEntry = {
+  payerProfileId: string | null;
+  payerName: string;
+  totalAttempts: number;
+  spokeWithRep: number;
+  leftVoicemail: number;
+  noAnswer: number;
+  faxes: number;
+  otherDialed: number;
+};
+
 type ReportPayload = {
   success?: boolean;
   error?: string;
@@ -16,6 +27,16 @@ type ReportPayload = {
   payments?: {
     count: number;
     totalAmount: number;
+  };
+  payerCallVolume?: {
+    totalAttempts: number;
+    spokeWithRep: number;
+    leftVoicemail: number;
+    noAnswer: number;
+    faxes: number;
+    voicemailRate: number;
+    averageAttemptsPerClaim: number;
+    breakdown: PayerCallVolumeEntry[];
   };
 };
 
@@ -183,6 +204,99 @@ export default function BillingReportsClient() {
           </article>
         </section>
       ) : null}
+
+      {!loading && payload?.payerCallVolume ? (
+        <section style={{ marginTop: 32 }}>
+          <h2 style={{ fontSize: 18, margin: "0 0 4px" }}>Payer call activity</h2>
+          <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 16px" }}>
+            Structured call attempts logged from the No Response → Call payer
+            panel this month{scope !== "practice" ? " (practice-wide)" : ""}.
+          </p>
+          <div className="metric-grid">
+            <article className="metric-card">
+              <span>Call attempts</span>
+              <strong>{payload.payerCallVolume.totalAttempts}</strong>
+            </article>
+            <article className="metric-card">
+              <span>Spoke with rep</span>
+              <strong>{payload.payerCallVolume.spokeWithRep}</strong>
+            </article>
+            <article className="metric-card">
+              <span>Voicemail</span>
+              <strong>{payload.payerCallVolume.leftVoicemail}</strong>
+            </article>
+            <article className="metric-card">
+              <span>No answer</span>
+              <strong>{payload.payerCallVolume.noAnswer}</strong>
+            </article>
+            <article className="metric-card">
+              <span>% voicemail</span>
+              <strong>{payload.payerCallVolume.voicemailRate}%</strong>
+            </article>
+            <article className="metric-card">
+              <span>Avg attempts / claim</span>
+              <strong>{payload.payerCallVolume.averageAttemptsPerClaim}</strong>
+            </article>
+          </div>
+          {payload.payerCallVolume.breakdown.length > 0 ? (
+            <div
+              style={{
+                marginTop: 16,
+                border: "1px solid #E5E7EB",
+                borderRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead style={{ background: "#F8FAFC" }}>
+                  <tr>
+                    <th style={cellHead}>Payer</th>
+                    <th style={{ ...cellHead, textAlign: "right" }}>Attempts</th>
+                    <th style={{ ...cellHead, textAlign: "right" }}>Spoke w/ rep</th>
+                    <th style={{ ...cellHead, textAlign: "right" }}>Voicemail</th>
+                    <th style={{ ...cellHead, textAlign: "right" }}>No answer</th>
+                    <th style={{ ...cellHead, textAlign: "right" }}>Faxes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payload.payerCallVolume.breakdown.map((row) => (
+                    <tr
+                      key={row.payerProfileId ?? row.payerName}
+                      style={{ borderTop: "1px solid #F1F5F9" }}
+                    >
+                      <td style={cellBody}>{row.payerName}</td>
+                      <td style={{ ...cellBody, textAlign: "right" }}>{row.totalAttempts}</td>
+                      <td style={{ ...cellBody, textAlign: "right" }}>{row.spokeWithRep}</td>
+                      <td style={{ ...cellBody, textAlign: "right" }}>{row.leftVoicemail}</td>
+                      <td style={{ ...cellBody, textAlign: "right" }}>{row.noAnswer}</td>
+                      <td style={{ ...cellBody, textAlign: "right" }}>{row.faxes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-state" style={{ marginTop: 12 }}>
+              No payer calls logged for this period yet.
+            </div>
+          )}
+        </section>
+      ) : null}
     </main>
   );
 }
+
+const cellHead: React.CSSProperties = {
+  padding: "8px 12px",
+  textAlign: "left",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#475569",
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+};
+
+const cellBody: React.CSSProperties = {
+  padding: "8px 12px",
+  color: "#0F172A",
+};

@@ -50,6 +50,28 @@ type DenialReport = {
   breakdown: DenialEntry[];
 };
 
+type PayerCallVolumeEntry = {
+  payerProfileId: string | null;
+  payerName: string;
+  totalAttempts: number;
+  spokeWithRep: number;
+  leftVoicemail: number;
+  noAnswer: number;
+  faxes: number;
+  otherDialed: number;
+};
+
+type PayerCallVolumeReport = {
+  totalAttempts: number;
+  spokeWithRep: number;
+  leftVoicemail: number;
+  noAnswer: number;
+  faxes: number;
+  voicemailRate: number;
+  averageAttemptsPerClaim: number;
+  breakdown: PayerCallVolumeEntry[];
+};
+
 type PayerPerformanceEntry = {
   payerProfileId: string | null;
   payerName: string;
@@ -426,6 +448,116 @@ export async function GET(request: Request) {
       .sort((a, b) => b.totalClaims - a.totalClaims)
       .slice(0, 10);
 
+    // Payer-call volume & disposition mix (Task #634). Sourced from the
+    // structured payer_call_attempts ledger written by the "Call payer" panel.
+    // We do not scope this by clinician — calls are made against a claim's
+    // payer regardless of which provider rendered the service, so a
+    // provider-scoped view would just hide the calls a biller actually made.
+    const { data: callAttemptsRaw } = await supabase
+      .from("payer_call_attempts")
+      .select("payer_profile_id, contact_channel, disposition, claim_id, created_at")
+      .eq("organization_id", organizationId)
+      .gte("created_at", periodStart)
+      .lt("created_at", periodEnd);
+
+    const callAttempts = (callAttemptsRaw ?? []) as Array<{
+      payer_profile_id: string | null;
+      contact_channel: string | null;
+      disposition: string | null;
+      claim_id: string | null;
+    }>;
+
+    const callPayerIds = Array.from(
+      new Set(
+        callAttempts
+          .map((a) => a.payer_profile_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const missingCallPayerIds = callPayerIds.filter(
+      (id) => !payerNameById.has(id),
+    );
+    if (missingCallPayerIds.length > 0) {
+      const { data: extraPayerRows } = await supabase
+        .from("payer_profiles")
+        .select("id, payer_name")
+        .in("id", missingCallPayerIds);
+      for (const row of extraPayerRows ?? []) {
+        payerNameById.set(row.id, row.payer_name ?? "Unknown payer");
+      }
+    }
+
+    const callAggMap = new Map<string, PayerCallVolumeEntry>();
+    const distinctClaims = new Set<string>();
+    let totalAttempts = 0;
+    let totalSpoke = 0;
+    let totalVm = 0;
+    let totalNoAnswer = 0;
+    let totalFaxes = 0;
+    for (const att of callAttempts) {
+      const key = att.payer_profile_id ?? "__no_payer__";
+      const existing =
+        callAggMap.get(key) ??
+        {
+          payerProfileId: att.payer_profile_id,
+          payerName: att.payer_profile_id
+            ? payerNameById.get(att.payer_profile_id) ?? "Unknown payer"
+            : "Unknown payer",
+          totalAttempts: 0,
+          spokeWithRep: 0,
+          leftVoicemail: 0,
+          noAnswer: 0,
+          faxes: 0,
+          otherDialed: 0,
+        };
+      existing.totalAttempts += 1;
+      totalAttempts += 1;
+      if (att.claim_id) distinctClaims.add(att.claim_id);
+      switch (att.disposition) {
+        case "spoke_with_rep":
+          existing.spokeWithRep += 1;
+          totalSpoke += 1;
+          break;
+        case "left_voicemail":
+          existing.leftVoicemail += 1;
+          totalVm += 1;
+          break;
+        case "no_answer":
+          existing.noAnswer += 1;
+          totalNoAnswer += 1;
+          break;
+        case "sent_fax":
+          existing.faxes += 1;
+          totalFaxes += 1;
+          break;
+        default:
+          existing.otherDialed += 1;
+          break;
+      }
+      callAggMap.set(key, existing);
+    }
+
+    const callVolumeBreakdown = Array.from(callAggMap.values())
+      .sort((a, b) => b.totalAttempts - a.totalAttempts)
+      .slice(0, 10);
+
+    const payerCallVolume: PayerCallVolumeReport = {
+      totalAttempts,
+      spokeWithRep: totalSpoke,
+      leftVoicemail: totalVm,
+      noAnswer: totalNoAnswer,
+      faxes: totalFaxes,
+      voicemailRate:
+        totalAttempts > 0
+          ? Math.round((totalVm / totalAttempts) * 1000) / 10
+          : 0,
+      averageAttemptsPerClaim:
+        distinctClaims.size > 0
+          ? Math.round((totalAttempts / distinctClaims.size) * 10) / 10
+          : 0,
+      breakdown: callVolumeBreakdown,
+    };
+
     const submittedChargeTotal = (submittedClaims ?? []).reduce(
       (sum, claim) => sum + Number(claim.total_charge ?? 0),
       0,
@@ -487,6 +619,7 @@ export async function GET(request: Request) {
       aging,
       denials,
       payerPerformance,
+      payerCallVolume,
     });
   } catch (error) {
     console.error("Billing reports API error:", error);

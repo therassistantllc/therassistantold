@@ -368,8 +368,19 @@ function faxHref(value: string): string {
   return `fax:${value.replace(/[^\d+]/g, "")}`;
 }
 
-const DISPOSITIONS = ["Left voicemail", "Spoke with rep", "No answer"] as const;
-type Disposition = (typeof DISPOSITIONS)[number];
+type CallChannel = "claims_phone" | "claims_fax" | "provider_services" | "other";
+type CallDisposition =
+  | "dialed"
+  | "sent_fax"
+  | "spoke_with_rep"
+  | "left_voicemail"
+  | "no_answer";
+
+const DISPOSITION_OPTIONS: Array<{ value: CallDisposition; label: string }> = [
+  { value: "left_voicemail", label: "Left voicemail" },
+  { value: "spoke_with_rep", label: "Spoke with rep" },
+  { value: "no_answer", label: "No answer" },
+];
 
 function CallPayerModal({
   row,
@@ -390,30 +401,43 @@ function CallPayerModal({
   const [logging, setLogging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastContact, setLastContact] = useState<{
+    channel: CallChannel;
     label: string;
     number: string;
     kind: "phone" | "fax";
   } | null>(null);
   const [callLogged, setCallLogged] = useState(false);
 
-  async function postNote(body: string): Promise<boolean> {
+  async function postAttempt(args: {
+    channel: CallChannel;
+    number: string | null;
+    disposition: CallDisposition;
+  }): Promise<boolean> {
     setLogging(true);
     setError(null);
     try {
-      const res = await fetch(`/api/billing/claims/${row.id}/notes`, {
+      const res = await fetch(`/api/billing/claims/${row.id}/call-attempts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId, body }),
+        body: JSON.stringify({
+          organizationId,
+          contact_channel: args.channel,
+          number_dialed: args.number,
+          disposition: args.disposition,
+          payer_profile_id: row.payer_profile_id,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.success === false) {
         setError(json?.error || "Failed to log call");
         return false;
       }
-      onLogged({
-        body,
-        created_at: json?.note?.created_at ?? new Date().toISOString(),
-      });
+      if (json?.note?.body) {
+        onLogged({
+          body: json.note.body,
+          created_at: json.note.created_at ?? new Date().toISOString(),
+        });
+      }
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to log call");
@@ -424,23 +448,28 @@ function CallPayerModal({
   }
 
   function handleDial(
+    channel: CallChannel,
     label: string,
     number: string,
     kind: "phone" | "fax",
   ) {
-    setLastContact({ label, number, kind });
-    const verb = kind === "fax" ? "Faxed payer at" : "Called payer at";
-    void postNote(`${verb} ${number} (${label})`).then((ok) => {
+    setLastContact({ channel, label, number, kind });
+    void postAttempt({
+      channel,
+      number,
+      disposition: kind === "fax" ? "sent_fax" : "dialed",
+    }).then((ok) => {
       if (ok) setCallLogged(true);
     });
     // Do not preventDefault — the tel:/fax: link should still dial.
   }
 
-  async function handleDisposition(disp: Disposition) {
-    const ref = lastContact
-      ? ` — ${lastContact.label} ${lastContact.number}`
-      : "";
-    await postNote(`${disp}${ref}`);
+  async function handleDisposition(disp: CallDisposition) {
+    await postAttempt({
+      channel: lastContact?.channel ?? "other",
+      number: lastContact?.number ?? null,
+      disposition: disp,
+    });
   }
 
   function ContactLink({
@@ -453,8 +482,16 @@ function CallPayerModal({
     kind: "phone" | "fax";
   }) {
     const href = kind === "fax" ? faxHref(number) : telHref(number);
+    const channel: CallChannel =
+      label === "Claims phone"
+        ? "claims_phone"
+        : label === "Claims fax"
+          ? "claims_fax"
+          : label === "Provider services"
+            ? "provider_services"
+            : "other";
     return (
-      <a href={href} onClick={() => handleDial(label, number, kind)}>
+      <a href={href} onClick={() => handleDial(channel, label, number, kind)}>
         {number}
       </a>
     );
@@ -542,11 +579,11 @@ function CallPayerModal({
               Log disposition
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {DISPOSITIONS.map((d) => (
+              {DISPOSITION_OPTIONS.map((d) => (
                 <button
-                  key={d}
+                  key={d.value}
                   type="button"
-                  onClick={() => void handleDisposition(d)}
+                  onClick={() => void handleDisposition(d.value)}
                   disabled={logging}
                   style={{
                     border: "1px solid #CBD5E1",
@@ -559,7 +596,7 @@ function CallPayerModal({
                     cursor: logging ? "wait" : "pointer",
                   }}
                 >
-                  {d}
+                  {d.label}
                 </button>
               ))}
             </div>
