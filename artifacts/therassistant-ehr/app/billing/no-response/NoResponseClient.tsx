@@ -1216,6 +1216,128 @@ function NotesPanel({
   );
 }
 
+type CallAttempt = {
+  id: string;
+  contact_channel: string;
+  number_dialed: string | null;
+  disposition: string;
+  acted_by_display_name: string | null;
+  created_at: string;
+};
+
+const CALL_CHANNEL_LABEL: Record<string, string> = {
+  claims_phone: "Claims phone",
+  claims_fax: "Claims fax",
+  provider_services: "Provider services",
+  other: "Other",
+};
+
+const CALL_DISPOSITION_LABEL: Record<string, string> = {
+  dialed: "Dialed",
+  sent_fax: "Sent fax",
+  spoke_with_rep: "Spoke with rep",
+  left_voicemail: "Left voicemail",
+  no_answer: "No answer",
+};
+
+function CallHistoryPanel({
+  claimId,
+  organizationId,
+  bumpKey,
+}: {
+  claimId: string;
+  organizationId: string;
+  bumpKey: number;
+}) {
+  const [attempts, setAttempts] = useState<CallAttempt[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setAttempts(null);
+    setError(null);
+    fetch(
+      `/api/billing/claims/${claimId}/call-attempts?organizationId=${encodeURIComponent(organizationId)}`,
+      { cache: "no-store" },
+    )
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j?.success === false) setError(j.error || "Failed");
+        else setAttempts((j?.attempts ?? []) as CallAttempt[]);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [claimId, organizationId, bumpKey]);
+
+  if (error) return <div style={{ color: "#B91C1C", fontSize: 13 }}>{error}</div>;
+  if (attempts == null)
+    return <div style={{ color: "#94A3B8", fontSize: 13 }}>Loading…</div>;
+  if (attempts.length === 0)
+    return (
+      <div style={{ color: "#94A3B8", fontSize: 13 }}>
+        No payer calls logged yet.
+      </div>
+    );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 12, color: "#6B7280" }}>
+        {attempts.length} attempt{attempts.length === 1 ? "" : "s"} · last{" "}
+        {CALL_DISPOSITION_LABEL[attempts[0]!.disposition] ??
+          attempts[0]!.disposition}{" "}
+        via{" "}
+        {CALL_CHANNEL_LABEL[attempts[0]!.contact_channel] ??
+          attempts[0]!.contact_channel}
+      </div>
+      {attempts.map((a) => (
+        <div
+          key={a.id}
+          style={{
+            border: "1px solid #E5E7EB",
+            borderRadius: 6,
+            padding: 10,
+            background: "#F9FAFB",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 8,
+              fontSize: 12,
+              color: "#6B7280",
+              marginBottom: 4,
+            }}
+          >
+            <span>
+              {a.acted_by_display_name ?? "Staff"} ·{" "}
+              {formatDateTime(a.created_at)}
+            </span>
+            <span style={{ fontWeight: 600, color: "#1D4ED8" }}>
+              {CALL_DISPOSITION_LABEL[a.disposition] ?? a.disposition}
+            </span>
+          </div>
+          <div style={{ fontSize: 13 }}>
+            {CALL_CHANNEL_LABEL[a.contact_channel] ?? a.contact_channel}
+            {a.number_dialed ? (
+              <>
+                {" · "}
+                <span style={{ fontFamily: "ui-monospace, monospace" }}>
+                  {a.number_dialed}
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Action helpers ───────────────────────────────────────────────────────────
 
 async function runClaimStatus(
@@ -1698,6 +1820,18 @@ export default function NoResponseClient() {
                 {selectedRow.payer_notes ?? "No payer contact info on file. Add phone / fax in Settings → Payers."}
               </div>
             </div>
+          ) : null,
+      },
+      {
+        id: "call_history",
+        label: "Call history",
+        render: () =>
+          selectedRow ? (
+            <CallHistoryPanel
+              claimId={selectedRow.id}
+              organizationId={organizationId}
+              bumpKey={bumpKey}
+            />
           ) : null,
       },
       {
