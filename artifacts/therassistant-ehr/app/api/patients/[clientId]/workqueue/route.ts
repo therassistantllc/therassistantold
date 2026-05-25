@@ -43,9 +43,66 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
       deferReason: item.defer_reason as string | null,
       createdAt: item.created_at as string | null,
       updatedAt: item.updated_at as string | null,
+      synthetic: false,
     }));
 
-    return NextResponse.json({ success: true, items: result, total: result.length });
+    // Surface blocked charge_capture_items as synthetic workqueue entries so
+    // the patient's workqueue tab shows signed visits that can't progress to
+    // a claim yet (missing payer info, diagnosis codes, credentialing, etc.).
+    // These are not persisted rows — they reflect the live blocker state.
+    const seenChargeIds = new Set(
+      (items ?? [])
+        .filter((it: DbRow) => String(it.source_object_type ?? "") === "charge_capture_item")
+        .map((it: DbRow) => String(it.source_object_id ?? "")),
+    );
+
+    const { data: blockedCharges } = await supabase
+      .from("charge_capture_items")
+      .select("id, encounter_id, appointment_id, service_date, total_charge, charge_status, blocker_reasons, claim_id, created_at, updated_at")
+      .eq("organization_id", organizationId)
+      .eq("client_id", clientId)
+      .is("archived_at", null)
+      .is("claim_id", null)
+      .eq("charge_status", "blocked")
+      .order("created_at", { ascending: false })
+      .limit(25);
+
+    const syntheticItems = ((blockedCharges ?? []) as DbRow[])
+      .filter((row) => !seenChargeIds.has(String(row.id)))
+      .map((row) => {
+        const reasons = Array.isArray(row.blocker_reasons) ? row.blocker_reasons : [];
+        const description = reasons
+          .map((r: unknown) => {
+            if (typeof r === "string") return r;
+            if (r && typeof r === "object") {
+              const obj = r as Record<string, unknown>;
+              return String(obj.message ?? obj.reason ?? obj.code ?? "");
+            }
+            return "";
+          })
+          .filter(Boolean)
+          .join("; ");
+        return {
+          id: `charge:${String(row.id)}`,
+          title: "Signed visit blocked from billing",
+          workType: "clinician_routed_billing_review",
+          status: "open",
+          priority: "medium",
+          description: description || "Charge capture is blocked. Resolve in Charge Capture to create a claim.",
+          professionalClaimId: null,
+          claimId: null,
+          encounterId: (row.encounter_id ?? null) as string | null,
+          appointmentId: (row.appointment_id ?? null) as string | null,
+          deferredUntil: null,
+          deferReason: null,
+          createdAt: (row.created_at ?? null) as string | null,
+          updatedAt: (row.updated_at ?? null) as string | null,
+          synthetic: true,
+        };
+      });
+
+    const merged = [...syntheticItems, ...result];
+    return NextResponse.json({ success: true, items: merged, total: merged.length });
   } catch (err) {
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : "Failed to load workqueue items" },

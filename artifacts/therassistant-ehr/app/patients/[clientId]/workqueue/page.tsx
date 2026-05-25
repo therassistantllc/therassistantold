@@ -17,6 +17,7 @@ type WorkItem = {
   appointmentId: string | null;
   deferredUntil: string | null;
   createdAt: string | null;
+  synthetic?: boolean;
 };
 
 const QUEUE_LABELS: Record<string, string> = {
@@ -191,15 +192,25 @@ export default function ClientWorkqueuePage() {
                       </div>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="button button-secondary"
-                        disabled={alreadyBilling || busyId === item.id}
-                        title={alreadyBilling ? "Already in billing queue" : "Route to billing review queue"}
-                        onClick={() => void routeToBill(item)}
-                      >
-                        {busyId === item.id ? "Routing…" : alreadyBilling ? "In billing queue" : "Route to bill"}
-                      </button>
+                      {item.synthetic ? (
+                        <Link
+                          className="inline-link"
+                          href={`/billing/charge-capture${orgQ}`}
+                          title="Resolve blockers in Charge Capture"
+                        >
+                          Open Charge Capture
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          className="button button-secondary"
+                          disabled={alreadyBilling || busyId === item.id}
+                          title={alreadyBilling ? "Already in billing queue" : "Route to billing review queue"}
+                          onClick={() => void routeToBill(item)}
+                        >
+                          {busyId === item.id ? "Routing…" : alreadyBilling ? "In billing queue" : "Route to bill"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
