@@ -9,6 +9,11 @@ import {
 } from "@/lib/intake/scoring";
 import { writeChartObjectAuditLogs } from "@/lib/audit/chartObjectAudit";
 import { upsertPolicyFromIntake } from "@/lib/intake/upsertPolicyFromIntake";
+import {
+  parseInsuranceCard,
+  suggestionIsConfident,
+  type CardSuggestion,
+} from "@/lib/insurance/parseCardImage";
 
 type Row = Record<string, unknown>;
 
@@ -337,11 +342,55 @@ export async function POST(
       uploadCard("back", cardBackSanitized),
     ]);
 
-    if (storedFront || storedBack) {
+    // Mirror the COB-update flow (see app/api/cob-update/[token]/route.ts):
+    // when a card photo arrives, run the same vision parser so front-desk
+    // staff get a pre-filled draft instead of hand-keying the payer /
+    // member id / group #. Low-confidence parses are flagged for review;
+    // an AI-unavailable response falls back cleanly to manual entry.
+    let cardSuggestion: CardSuggestion | null = null;
+    let cardSuggestionStatus:
+      | "pending"
+      | "low_confidence"
+      | "not_attempted"
+      | "no_card"
+      | "ai_unavailable" = "not_attempted";
+    const frontForParse = cardFrontSanitized
+      ? { bytes: cardFrontSanitized.bytes, contentType: cardFrontSanitized.type ?? `image/${cardFrontSanitized.extension === "jpg" ? "jpeg" : cardFrontSanitized.extension}` }
+      : null;
+    const backForParse = cardBackSanitized
+      ? { bytes: cardBackSanitized.bytes, contentType: cardBackSanitized.type ?? `image/${cardBackSanitized.extension === "jpg" ? "jpeg" : cardBackSanitized.extension}` }
+      : null;
+    if (!frontForParse && !backForParse) {
+      cardSuggestionStatus = "no_card";
+    } else {
+      const parseInput = frontForParse
+        ? { front: frontForParse, back: backForParse }
+        : { front: backForParse!, back: null };
+      try {
+        cardSuggestion = await parseInsuranceCard(parseInput);
+      } catch (err) {
+        console.warn(
+          "Intake card parse failed:",
+          err instanceof Error ? err.message : err,
+        );
+        cardSuggestion = null;
+      }
+      if (!cardSuggestion) {
+        cardSuggestionStatus = "ai_unavailable";
+      } else if (suggestionIsConfident(cardSuggestion)) {
+        cardSuggestionStatus = "pending";
+      } else {
+        cardSuggestionStatus = "low_confidence";
+      }
+    }
+
+    if (storedFront || storedBack || cardSuggestion) {
       const updatedInsurance: Row = {
         ...insurance,
         cardFront: storedFront,
         cardBack: storedBack,
+        cardSuggestion,
+        cardSuggestionStatus,
       };
       const { error: insUpdateErr } = await supabase!
         .from("intake_submissions")
@@ -377,8 +426,21 @@ export async function POST(
     // single insurance_policies row instead of producing two "primary"
     // policies. See lib/intake/upsertPolicyFromIntake.ts and migration
     // 20260602000000_insurance_policies_intake_dedupe_unique.sql.
-    const planName = value(insurance.planName);
-    const policyNumber = value(insurance.policyNumber);
+    // Fall back to confident vision-parsed values when the client didn't
+    // type the plan / member id themselves. Low-confidence parses are NOT
+    // used to auto-create a policy — they only surface as a suggestion on
+    // the submission so the front-desk reviewer can accept or edit. This
+    // mirrors the COB-update behavior.
+    const confidentSuggestion =
+      cardSuggestion && suggestionIsConfident(cardSuggestion) ? cardSuggestion : null;
+    const planName =
+      value(insurance.planName) ||
+      (confidentSuggestion?.payer_name ?? confidentSuggestion?.plan_name ?? "");
+    const policyNumber =
+      value(insurance.policyNumber) || (confidentSuggestion?.member_id ?? "");
+    if (!value(insurance.groupNumber) && confidentSuggestion?.group_number) {
+      insurance.groupNumber = confidentSuggestion.group_number;
+    }
     if (planName && policyNumber) {
       // Capture the pre-upsert snapshot so the audit log (added in the
       // chart-object audit work) can record before/after diffs. The

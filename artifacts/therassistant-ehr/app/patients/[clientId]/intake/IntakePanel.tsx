@@ -378,6 +378,54 @@ export default function IntakePanel({
                 );
               })}
             </div>
+            {(() => {
+              const status = typeof latestInsurance.cardSuggestionStatus === "string"
+                ? latestInsurance.cardSuggestionStatus
+                : null;
+              const sug = (latestInsurance.cardSuggestion && typeof latestInsurance.cardSuggestion === "object")
+                ? (latestInsurance.cardSuggestion as Record<string, unknown>)
+                : null;
+              if (!status || status === "no_card" || status === "not_attempted") return null;
+              const badge =
+                status === "pending"
+                  ? { className: "status status-green", text: "Auto-filled from card" }
+                  : status === "low_confidence"
+                    ? { className: "status status-yellow", text: "Low-confidence parse — please review" }
+                    : { className: "status status-red", text: "Auto-fill unavailable — key from image" };
+              const row = (label: string, key: string) => {
+                const v = sug && typeof sug[key] === "string" ? (sug[key] as string) : null;
+                return v ? (
+                  <div style={{ display: "flex", flexDirection: "column", minWidth: 160 }}>
+                    <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted, #777)" }}>{label}</span>
+                    <span style={{ fontSize: 13 }}>{v}</span>
+                  </div>
+                ) : null;
+              };
+              return (
+                <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--border, #ddd)", borderRadius: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <strong style={{ fontSize: 13 }}>Card OCR suggestion</strong>
+                    <span className={badge.className}>{badge.text}</span>
+                  </div>
+                  {sug ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                      {row("Payer", "payer_name")}
+                      {row("Member ID", "member_id")}
+                      {row("Group #", "group_number")}
+                      {row("Plan", "plan_name")}
+                      {row("Subscriber", "subscriber_name")}
+                      {row("RX BIN", "rx_bin")}
+                      {row("RX PCN", "rx_pcn")}
+                      {row("Member services", "payer_phone")}
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+                      The vision parser could not read this card. Enter the policy by hand.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </section>
 
           {submissions.length > 1 ? (
