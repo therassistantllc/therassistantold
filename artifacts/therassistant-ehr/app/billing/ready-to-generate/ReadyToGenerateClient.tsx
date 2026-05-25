@@ -127,6 +127,33 @@ function applyTab(items: Item[], tab: TabId): Item[] {
 
 const queueDef = getWorkqueue("ready_to_generate");
 
+type GenerationErrorBatch = {
+  batchId: string;
+  batchNumber: string;
+  payerName?: string | null;
+  payerProfileId?: string | null;
+  claimCount: number;
+  totalChargeAmount?: number;
+  status: "generated" | "ready_to_generate";
+  fileName?: string;
+  error?: string;
+};
+
+type GenerationErrorDetail =
+  | {
+      kind: "single";
+      message: string;
+      claimId: string;
+      claimLabel: string;
+      batchId?: string;
+      batchNumber?: string;
+    }
+  | {
+      kind: "bulk";
+      message: string;
+      batches: GenerationErrorBatch[];
+    };
+
 export default function ReadyToGenerateClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [items, setItems] = useState<Item[]>([]);
@@ -152,6 +179,8 @@ export default function ReadyToGenerateClient() {
     rows: Array<{ key: string; payerName: string; payerProfileId: string | null; claimCount: number; total: number }>;
   } | null>(null);
   const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
+  const [generationError, setGenerationError] = useState<GenerationErrorDetail | null>(null);
+  const [retryingBatchId, setRetryingBatchId] = useState<string | null>(null);
 
   // ── Initial load + URL tab sync ─────────────────────────────────────────
   useEffect(() => {
@@ -535,7 +564,37 @@ export default function ReadyToGenerateClient() {
           },
         );
         const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error ?? "Action failed");
+        if (!res.ok || !json.success) {
+          // Validator failure on generate: the atomic RPC already flipped
+          // the claim to "batched" and the batch sits in
+          // 'ready_to_generate' waiting on a rebuild. Surface a rich
+          // inline panel (with Fix claim + Retry generation) instead of a
+          // generic toast, and drop the row from the list since it's no
+          // longer ready_for_batch.
+          if (
+            (action === "generate" || action === "add_to_batch") &&
+            res.status === 422 &&
+            typeof json.batchId === "string"
+          ) {
+            const claimRow = items.find((i) => i.id === claimId);
+            setGenerationError({
+              kind: "single",
+              message: json.error ?? "Generation failed",
+              claimId,
+              claimLabel:
+                claimRow?.claim_number ||
+                claimRow?.client_name ||
+                claimId,
+              batchId: json.batchId,
+              batchNumber: typeof json.batchNumber === "string" ? json.batchNumber : undefined,
+            });
+            setItems((prev) => prev.filter((i) => i.id !== claimId));
+            setSelectedIds((prev) => prev.filter((id) => id !== claimId));
+            setMessage(null);
+            return;
+          }
+          throw new Error(json.error ?? "Action failed");
+        }
 
         // Optimistic local update — drop the row for terminal transitions,
         // mutate for hold/unhold so the user sees the change immediately.
@@ -580,7 +639,7 @@ export default function ReadyToGenerateClient() {
         setBusy(false);
       }
     },
-    [busy, organizationId],
+    [busy, organizationId, items],
   );
 
   // Submit the actual bulk-batch call. `splitByPayer` decides whether the
@@ -604,7 +663,44 @@ export default function ReadyToGenerateClient() {
           }),
         });
         const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error ?? "Bulk batch failed");
+        if (!res.ok || !json.success) {
+          // Per-batch validator results: the atomic RPC already created
+          // and linked every batch, so the selection is no longer ready
+          // regardless of which file(s) failed validation. Drop the rows
+          // and surface the per-batch breakdown so the operator can see
+          // which payer batch(es) need fixing.
+          if (res.status === 422 && Array.isArray(json.batches) && json.batches.length > 0) {
+            const payerNameByProfileId = new Map<string, string>();
+            for (const r of selectedRows) {
+              if (r.payer_profile_id && r.payer_name) {
+                payerNameByProfileId.set(r.payer_profile_id, r.payer_name);
+              }
+            }
+            const batches: GenerationErrorBatch[] = json.batches.map((b: any) => ({
+              batchId: b.batchId,
+              batchNumber: b.batchNumber,
+              payerProfileId: b.payerProfileId ?? null,
+              payerName: b.payerProfileId ? payerNameByProfileId.get(b.payerProfileId) ?? null : null,
+              claimCount: Number(b.claimCount ?? 0),
+              totalChargeAmount: Number(b.totalChargeAmount ?? 0),
+              status: b.status === "generated" ? "generated" : "ready_to_generate",
+              fileName: typeof b.fileName === "string" ? b.fileName : undefined,
+              error: typeof b.error === "string" ? b.error : undefined,
+            }));
+            const batchedIds = new Set<string>(selectedIds);
+            setItems((prev) => prev.filter((i) => !batchedIds.has(i.id)));
+            setSelectedIds([]);
+            setPayerPreflight(null);
+            setGenerationError({
+              kind: "bulk",
+              message: json.error ?? "One or more batches failed validation",
+              batches,
+            });
+            setMessage(null);
+            return;
+          }
+          throw new Error(json.error ?? "Bulk batch failed");
+        }
 
         const batchedIds = new Set<string>(selectedIds);
         setItems((prev) => prev.filter((i) => !batchedIds.has(i.id)));
@@ -633,7 +729,93 @@ export default function ReadyToGenerateClient() {
         setBusy(false);
       }
     },
-    [busy, selectedIds, selectedTotal, organizationId],
+    [busy, selectedIds, selectedRows, selectedTotal, organizationId],
+  );
+
+  // Retry generating an 837P file for a batch the validator rejected. Uses
+  // the existing Rebuild route, which re-runs the generator and flips
+  // batch_status to 'generated' on success.
+  const retryRebuild = useCallback(
+    async (batchId: string) => {
+      if (retryingBatchId) return;
+      setRetryingBatchId(batchId);
+      try {
+        const res = await fetch(
+          `/api/claims/837p/batch/${encodeURIComponent(batchId)}/rebuild`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ organizationId }),
+          },
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          const errMsg = json?.error ?? "Retry failed";
+          setGenerationError((prev) => {
+            if (!prev) return prev;
+            if (prev.kind === "single" && prev.batchId === batchId) {
+              return { ...prev, message: errMsg };
+            }
+            if (prev.kind === "bulk") {
+              return {
+                ...prev,
+                batches: prev.batches.map((b) =>
+                  b.batchId === batchId ? { ...b, error: errMsg, status: "ready_to_generate" } : b,
+                ),
+              };
+            }
+            return prev;
+          });
+          return;
+        }
+        // Success: mark this batch as generated in the panel. If every
+        // batch is now generated, dismiss the panel entirely.
+        setGenerationError((prev) => {
+          if (!prev) return prev;
+          if (prev.kind === "single" && prev.batchId === batchId) {
+            setMessage({
+              tone: "success",
+              text: `Batch ${prev.batchNumber ?? batchId} generated successfully.`,
+            });
+            return null;
+          }
+          if (prev.kind === "bulk") {
+            const next = prev.batches.map((b) =>
+              b.batchId === batchId
+                ? { ...b, status: "generated" as const, error: undefined, fileName: json.fileName }
+                : b,
+            );
+            if (next.every((b) => b.status === "generated")) {
+              setMessage({
+                tone: "success",
+                text: `All ${next.length} batch${next.length === 1 ? "" : "es"} generated successfully.`,
+              });
+              return null;
+            }
+            return { ...prev, batches: next };
+          }
+          return prev;
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Retry failed";
+        setGenerationError((prev) => {
+          if (!prev) return prev;
+          if (prev.kind === "single" && prev.batchId === batchId) {
+            return { ...prev, message: msg };
+          }
+          if (prev.kind === "bulk") {
+            return {
+              ...prev,
+              batches: prev.batches.map((b) => (b.batchId === batchId ? { ...b, error: msg } : b)),
+            };
+          }
+          return prev;
+        });
+      } finally {
+        setRetryingBatchId(null);
+      }
+    },
+    [organizationId, retryingBatchId],
   );
 
   // Entry point: validate selection, then either open the per-payer
@@ -1141,6 +1323,14 @@ export default function ReadyToGenerateClient() {
 
   return (
     <>
+      {generationError ? (
+        <GenerationErrorPanel
+          detail={generationError}
+          retryingBatchId={retryingBatchId}
+          onRetry={(batchId) => void retryRebuild(batchId)}
+          onDismiss={() => setGenerationError(null)}
+        />
+      ) : null}
       <WorkqueueShell<Item>
         title={queueDef?.title ?? "Ready to Generate"}
         description={queueDef?.description}
@@ -1381,6 +1571,219 @@ function PerPayerPreflightModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function GenerationErrorPanel({
+  detail,
+  retryingBatchId,
+  onRetry,
+  onDismiss,
+}: {
+  detail: GenerationErrorDetail;
+  retryingBatchId: string | null;
+  onRetry: (batchId: string) => void;
+  onDismiss: () => void;
+}) {
+  const baseWrap: React.CSSProperties = {
+    margin: "0 0 12px",
+    padding: 14,
+    border: "1px solid #FCA5A5",
+    background: "#FEF2F2",
+    borderRadius: 6,
+    fontSize: 13,
+    color: "#7F1D1D",
+  };
+  if (detail.kind === "single") {
+    const fixHref = detail.batchId
+      ? `/billing/batches/${encodeURIComponent(detail.batchId)}`
+      : undefined;
+    return (
+      <div role="alert" style={baseWrap}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontWeight: 700 }}>
+            Generation failed for claim {detail.claimLabel}
+            {detail.batchNumber ? ` · batch ${detail.batchNumber}` : ""}
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "#7F1D1D",
+              fontSize: 16,
+              cursor: "pointer",
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ marginTop: 6, color: "#991B1B", whiteSpace: "pre-wrap" }}>
+          {detail.message}
+        </div>
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {fixHref ? (
+            <a
+              href={fixHref}
+              style={{
+                padding: "6px 12px",
+                background: "white",
+                border: "1px solid #CBD5E1",
+                borderRadius: 4,
+                color: "#0F172A",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              Fix claim
+            </a>
+          ) : null}
+          {detail.batchId ? (
+            <button
+              type="button"
+              disabled={retryingBatchId === detail.batchId}
+              onClick={() => onRetry(detail.batchId!)}
+              style={{
+                padding: "6px 12px",
+                background: retryingBatchId === detail.batchId ? "#A7F3D0" : "#10B981",
+                border: "1px solid #047857",
+                borderRadius: 4,
+                color: "white",
+                cursor: retryingBatchId === detail.batchId ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {retryingBatchId === detail.batchId ? "Retrying…" : "Retry generation"}
+            </button>
+          ) : null}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "#7F1D1D" }}>
+          The claim is now linked to a batch in <strong>ready_to_generate</strong>. Open
+          the batch to remove or edit the claim, then retry generation.
+        </div>
+      </div>
+    );
+  }
+
+  const failed = detail.batches.filter((b) => b.status !== "generated");
+  const generated = detail.batches.filter((b) => b.status === "generated");
+  return (
+    <div role="alert" style={baseWrap}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontWeight: 700 }}>
+          {generated.length} of {detail.batches.length} batch
+          {detail.batches.length === 1 ? "" : "es"} generated · {failed.length} failed
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          style={{
+            border: "none",
+            background: "transparent",
+            color: "#7F1D1D",
+            fontSize: 16,
+            cursor: "pointer",
+            padding: 0,
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ marginTop: 6, color: "#991B1B" }}>{detail.message}</div>
+      <table
+        style={{
+          width: "100%",
+          marginTop: 10,
+          borderCollapse: "collapse",
+          fontSize: 12.5,
+          background: "white",
+          borderRadius: 4,
+          overflow: "hidden",
+        }}
+      >
+        <thead>
+          <tr style={{ background: "#FEE2E2", textAlign: "left", color: "#7F1D1D" }}>
+            <th style={{ padding: "6px 8px" }}>Batch</th>
+            <th style={{ padding: "6px 8px" }}>Payer</th>
+            <th style={{ padding: "6px 8px", textAlign: "right" }}>Claims</th>
+            <th style={{ padding: "6px 8px" }}>Status</th>
+            <th style={{ padding: "6px 8px" }}>Detail</th>
+            <th style={{ padding: "6px 8px" }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {detail.batches.map((b) => {
+            const ok = b.status === "generated";
+            return (
+              <tr key={b.batchId} style={{ borderTop: "1px solid #FCA5A5" }}>
+                <td style={{ padding: "6px 8px", fontFamily: "ui-monospace, monospace" }}>
+                  <a
+                    href={`/billing/batches/${encodeURIComponent(b.batchId)}`}
+                    style={{ color: "#1D4ED8", textDecoration: "none" }}
+                  >
+                    {b.batchNumber}
+                  </a>
+                </td>
+                <td style={{ padding: "6px 8px", color: "#0F172A" }}>{b.payerName ?? "—"}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#0F172A" }}>
+                  {b.claimCount}
+                </td>
+                <td style={{ padding: "6px 8px", color: ok ? "#15803D" : "#B91C1C", fontWeight: 600 }}>
+                  {ok ? "Generated" : "Ready to generate"}
+                </td>
+                <td style={{ padding: "6px 8px", color: ok ? "#0F172A" : "#991B1B" }}>
+                  {ok ? b.fileName ?? "—" : b.error ?? "Validation failed"}
+                </td>
+                <td style={{ padding: "6px 8px" }}>
+                  {ok ? null : (
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                      <a
+                        href={`/billing/batches/${encodeURIComponent(b.batchId)}`}
+                        style={{
+                          padding: "4px 8px",
+                          background: "white",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: 4,
+                          color: "#0F172A",
+                          textDecoration: "none",
+                          fontWeight: 600,
+                          fontSize: 11.5,
+                        }}
+                      >
+                        Fix claim
+                      </a>
+                      <button
+                        type="button"
+                        disabled={retryingBatchId === b.batchId}
+                        onClick={() => onRetry(b.batchId)}
+                        style={{
+                          padding: "4px 8px",
+                          background: retryingBatchId === b.batchId ? "#A7F3D0" : "#10B981",
+                          border: "1px solid #047857",
+                          borderRadius: 4,
+                          color: "white",
+                          cursor: retryingBatchId === b.batchId ? "not-allowed" : "pointer",
+                          fontWeight: 600,
+                          fontSize: 11.5,
+                        }}
+                      >
+                        {retryingBatchId === b.batchId ? "Retrying…" : "Retry"}
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
