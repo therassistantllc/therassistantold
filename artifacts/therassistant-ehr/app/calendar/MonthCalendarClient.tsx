@@ -216,6 +216,8 @@ export default function MonthCalendarClient() {
   const checkingInRef = useRef(false);
 
   const [collectOpen, setCollectOpen] = useState(false);
+  const [collectPrefill, setCollectPrefill] = useState<{ amount: number; note: string; title: string } | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createInitialDate, setCreateInitialDate] = useState<string | null>(null);
 
@@ -425,6 +427,8 @@ export default function MonthCalendarClient() {
     setDetailError(null);
     setDrawerBanner(null);
     setCollectOpen(false);
+    setCollectPrefill(null);
+    setCancelOpen(false);
   }
 
   async function saveDetailChanges() {
@@ -947,12 +951,22 @@ export default function MonthCalendarClient() {
                     >
                       {savingDetail ? "Saving…" : "Save changes"}
                     </button>
-                    <button
-                      className={styles.secondaryBtn}
-                      onClick={handleStartNote}
-                    >
-                      {detail.encounter ? "Open note" : "Start note"}
-                    </button>
+                    {detail.encounter ? (
+                      <button
+                        className={styles.secondaryBtn}
+                        onClick={() => setCancelOpen(true)}
+                        disabled={detail.appointment.status === "cancelled"}
+                      >
+                        {detail.appointment.status === "cancelled" ? "Cancelled" : "Cancel"}
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.secondaryBtn}
+                        onClick={handleStartNote}
+                      >
+                        Start note
+                      </button>
+                    )}
                     {detail.appointment.clientId ? (
                       <button
                         className={styles.secondaryBtn}
@@ -976,11 +990,37 @@ export default function MonthCalendarClient() {
           appointmentId={detail.appointment.id}
           providerId={detail.appointment.providerId}
           openBalance={detail.balance.openBalance}
-          onClose={() => setCollectOpen(false)}
+          initialAmount={collectPrefill?.amount ?? null}
+          initialNote={collectPrefill?.note ?? null}
+          title={collectPrefill?.title ?? "Collect copay"}
+          onClose={() => { setCollectOpen(false); setCollectPrefill(null); }}
           onCollected={async () => {
             setCollectOpen(false);
+            setCollectPrefill(null);
             setDrawerBanner({ kind: "success", text: "Payment posted." });
             if (detail) await loadDetail(detail.appointment.id);
+          }}
+        />
+      ) : null}
+
+      {cancelOpen && detail ? (
+        <CancelAppointmentModal
+          appointmentId={detail.appointment.id}
+          alreadyCancelled={detail.appointment.status === "cancelled"}
+          onClose={() => setCancelOpen(false)}
+          onCancelled={async ({ fee, reason }) => {
+            setCancelOpen(false);
+            setDrawerBanner({ kind: "success", text: "Appointment cancelled." });
+            if (detail) await loadDetail(detail.appointment.id);
+            await loadAppointments();
+            if (fee && fee > 0 && detail.appointment.clientId) {
+              setCollectPrefill({
+                amount: fee,
+                note: reason ? `Cancellation fee — ${reason}` : "Cancellation fee",
+                title: "Charge cancellation fee",
+              });
+              setCollectOpen(true);
+            }
           }}
         />
       ) : null}
@@ -1040,12 +1080,140 @@ function loadStripeJs(): Promise<void> {
   });
 }
 
+function CancelAppointmentModal({
+  appointmentId,
+  alreadyCancelled,
+  onClose,
+  onCancelled,
+}: {
+  appointmentId: string;
+  alreadyCancelled: boolean;
+  onClose: () => void;
+  onCancelled: (args: { fee: number | null; reason: string }) => void | Promise<void>;
+}) {
+  const [chargeFee, setChargeFee] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      let fee: number | null = null;
+      if (chargeFee) {
+        const n = Number(amount);
+        const cents = Math.round(n * 100);
+        if (!Number.isFinite(n) || cents < 1) {
+          throw new Error("Enter a cancellation fee of at least $0.01");
+        }
+        fee = cents / 100;
+      }
+      if (!alreadyCancelled) {
+        const trimmedReason = reason.trim();
+        const internalNote = [
+          "Cancelled via appointment drawer",
+          trimmedReason ? `Reason: ${trimmedReason}` : null,
+          fee ? `Cancellation fee: $${fee.toFixed(2)}` : null,
+        ].filter(Boolean).join(" — ");
+        const res = await fetch(`/api/scheduling/appointments/${appointmentId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scope: "single",
+            updates: {
+              appointment_status: "cancelled",
+              internal_note: internalNote,
+            },
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error ?? "Could not cancel appointment");
+        }
+      }
+      await onCancelled({ fee, reason: reason.trim() });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cancel failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <h3>{alreadyCancelled ? "Charge cancellation fee" : "Cancel appointment"}</h3>
+        {error ? <div className={`${styles.banner} ${styles.bannerError}`}>{error}</div> : null}
+
+        {!alreadyCancelled ? (
+          <div className={styles.modalRow}>
+            <label className={styles.modalLabel}>Reason (optional)</label>
+            <input
+              className={styles.input}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. patient called, late cancel"
+              disabled={busy}
+            />
+          </div>
+        ) : null}
+
+        <div className={styles.modalRow}>
+          <label className={styles.modalLabel}>
+            <input
+              type="checkbox"
+              checked={chargeFee}
+              onChange={(e) => setChargeFee(e.target.checked)}
+              disabled={busy}
+              style={{ marginRight: 6 }}
+            />
+            Charge the patient a cancellation fee
+          </label>
+        </div>
+
+        {chargeFee ? (
+          <div className={styles.modalRow}>
+            <label className={styles.modalLabel}>Fee amount</label>
+            <input
+              className={styles.input}
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              disabled={busy}
+              autoFocus
+            />
+          </div>
+        ) : null}
+
+        <div className={styles.modalActions}>
+          <button className={styles.secondaryBtn} onClick={onClose} disabled={busy}>
+            Never mind
+          </button>
+          <button className={styles.primaryBtn} onClick={submit} disabled={busy}>
+            {busy
+              ? "Working…"
+              : alreadyCancelled
+                ? (chargeFee ? "Continue to charge" : "Close")
+                : (chargeFee ? "Cancel & charge fee" : "Cancel appointment")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CollectModal({
   organizationId,
   clientId,
   appointmentId,
   providerId,
   openBalance,
+  initialAmount,
+  initialNote,
+  title,
   onClose,
   onCollected,
 }: {
@@ -1054,12 +1222,18 @@ function CollectModal({
   appointmentId: string;
   providerId: string | null;
   openBalance: number;
+  initialAmount?: number | null;
+  initialNote?: string | null;
+  title?: string;
   onClose: () => void;
   onCollected: () => void | Promise<void>;
 }) {
-  const [amount, setAmount] = useState<string>(openBalance > 0 ? openBalance.toFixed(2) : "0.00");
-  const [applyTo, setApplyTo] = useState<string>(openBalance > 0 ? "account_balance" : "encounter");
-  const [note, setNote] = useState("");
+  const defaultAmount = initialAmount && initialAmount > 0
+    ? initialAmount.toFixed(2)
+    : openBalance > 0 ? openBalance.toFixed(2) : "0.00";
+  const [amount, setAmount] = useState<string>(defaultAmount);
+  const [applyTo, setApplyTo] = useState<string>(initialAmount && initialAmount > 0 ? "account_balance" : openBalance > 0 ? "account_balance" : "encounter");
+  const [note, setNote] = useState(initialNote ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1133,7 +1307,7 @@ function CollectModal({
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <h3>Collect copay</h3>
+        <h3>{title ?? "Collect copay"}</h3>
         {error ? <div className={`${styles.banner} ${styles.bannerError}`}>{error}</div> : null}
 
         {!connectLoading && connect && (
