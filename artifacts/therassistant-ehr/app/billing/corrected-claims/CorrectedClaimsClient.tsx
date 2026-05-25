@@ -11,6 +11,7 @@ import WorkqueueShell, {
   type SummaryMetric,
 } from "@/components/billing/WorkqueueShell";
 import { getWorkqueue } from "@/lib/billing/workqueues";
+import { ClaimDocumentsPanel } from "@/components/billing/ClaimDocumentsPanel";
 
 type Tab = "needed" | "replacement" | "void" | "ready" | "sent";
 
@@ -864,6 +865,17 @@ export default function CorrectedClaimsClient() {
                 value={selectedRow.correctionStatus ?? "—"}
               />
             </DetailSection>
+          ) : null,
+      },
+      {
+        id: "documents",
+        label: "Related documents",
+        render: () =>
+          selectedRow ? (
+            <ClaimDocumentsPanel
+              claimId={selectedRow.correctedClaimId ?? selectedRow.originalClaimId}
+              organizationId={organizationId}
+            />
           ) : null,
       },
       {

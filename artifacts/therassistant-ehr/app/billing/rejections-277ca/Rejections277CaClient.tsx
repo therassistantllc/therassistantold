@@ -18,6 +18,7 @@ import {
 } from "@/lib/billing/rejections277ca";
 import { getWorkqueue } from "@/lib/billing/workqueues";
 import { buildClaimDetailHref } from "@/lib/claims/claimDetailRouting";
+import { ClaimDocumentsPanel } from "@/components/billing/ClaimDocumentsPanel";
 
 type ActionId =
   | "correct_claim"
@@ -670,7 +671,7 @@ export default function Rejections277CaClient() {
   const detailTabs: DetailTab[] = useMemo(() => {
     if (!selectedRow) return [];
     const r = selectedRow;
-    return [
+    const list: DetailTab[] = [
       {
         id: "message",
         label: "277CA message",
@@ -900,6 +901,14 @@ export default function Rejections277CaClient() {
           ),
       },
     ];
+    list.push({
+      id: "documents",
+      label: "Related documents",
+      render: () => (
+        <ClaimDocumentsPanel claimId={r.claimId} organizationId={organizationId} />
+      ),
+    });
+    return list;
   }, [selectedRow, organizationId, correctHref]);
 
   const countsByTab = useMemo(() => {
