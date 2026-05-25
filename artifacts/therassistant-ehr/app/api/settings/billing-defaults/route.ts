@@ -8,6 +8,10 @@ import {
 } from "@/lib/billing/rejections277ca";
 const BILLING_DEFAULTS_KEY = "billing.defaults";
 
+const AUTOROUTE_AUDIT_ACTION = "rejections_277ca_autoroute_updated";
+const AUTOROUTE_OBJECT_TYPE = "system_setting";
+const RECENT_AUTOROUTE_CHANGES_LIMIT = 20;
+
 
 const DEFAULTS = {
   claim_frequency_code: "1",
@@ -24,6 +28,12 @@ const AUTOROUTE_DEFAULTS = {
   enabled: REJECTION_277CA_AUTOROUTE_DEFAULTS.enabled,
   route_invalid_member: REJECTION_277CA_AUTOROUTE_DEFAULTS.routeInvalidMember,
   route_invalid_provider: REJECTION_277CA_AUTOROUTE_DEFAULTS.routeInvalidProvider,
+};
+
+const AUTOROUTE_FIELD_LABELS: Record<keyof typeof AUTOROUTE_DEFAULTS, string> = {
+  enabled: "Enable 277CA auto-routing",
+  route_invalid_member: "Auto-defer Invalid Member rejections",
+  route_invalid_provider: "Auto-defer Invalid Provider rejections",
 };
 
 function pickBooleans<T extends Record<string, boolean>>(
@@ -73,9 +83,15 @@ export async function GET(req: NextRequest) {
       ? (autorouteRow.setting_value as Record<string, unknown>)
       : {};
 
+  const recentAutorouteChanges = await loadRecentAutorouteChanges(
+    supabase,
+    organizationId,
+  );
+
   return NextResponse.json({
     billing_defaults: { ...DEFAULTS, ...storedDefaults },
     rejections_277ca_autoroute: pickBooleans(AUTOROUTE_DEFAULTS, storedAutoroute),
+    recent_autoroute_changes: recentAutorouteChanges,
   });
 }
 
@@ -123,6 +139,11 @@ export async function PUT(req: NextRequest) {
     });
   }
 
+  let autorouteAuditPayload: {
+    before: Record<string, boolean>;
+    after: Record<string, boolean>;
+  } | null = null;
+
   const autorouteBody =
     body.rejections_277ca_autoroute && typeof body.rejections_277ca_autoroute === "object"
       ? (body.rejections_277ca_autoroute as Record<string, unknown>)
@@ -135,6 +156,32 @@ export async function PUT(req: NextRequest) {
       }
     }
     if (Object.keys(autorouteUpdates).length > 0) {
+      // Load the prior value first so we can diff it for the audit log.
+      const { data: existingRow, error: loadErr } = await supabase
+        .from("system_settings")
+        .select("setting_value")
+        .eq("organization_id", organizationId)
+        .eq("setting_key", REJECTION_277CA_AUTOROUTE_SETTING_KEY)
+        .maybeSingle();
+      if (loadErr) {
+        console.error("[PUT /api/settings/billing-defaults] load prior autoroute", loadErr);
+        return NextResponse.json(
+          { error: "Failed to save billing defaults" },
+          { status: 500 },
+        );
+      }
+      const storedPrior =
+        existingRow?.setting_value && typeof existingRow.setting_value === "object" && !Array.isArray(existingRow.setting_value)
+          ? (existingRow.setting_value as Record<string, unknown>)
+          : {};
+      const beforeValues = pickBooleans(AUTOROUTE_DEFAULTS, storedPrior);
+      const afterValues = pickBooleans(AUTOROUTE_DEFAULTS, {
+        ...beforeValues,
+        ...autorouteUpdates,
+      });
+
+      autorouteAuditPayload = { before: beforeValues, after: afterValues };
+
       upserts.push({
         organization_id: organizationId,
         setting_key: REJECTION_277CA_AUTOROUTE_SETTING_KEY,
@@ -158,5 +205,166 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Failed to save billing defaults" }, { status: 500 });
   }
 
+  if (autorouteAuditPayload) {
+    await writeAutorouteAuditLogs({
+      supabase,
+      organizationId,
+      userId: guard.userId,
+      userRole: guard.roles[0] ?? null,
+      before: autorouteAuditPayload.before,
+      after: autorouteAuditPayload.after,
+    });
+  }
+
   return NextResponse.json({ success: true });
+}
+
+type AdminClient = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
+
+async function writeAutorouteAuditLogs(params: {
+  supabase: AdminClient;
+  organizationId: string;
+  userId: string | null;
+  userRole: string | null;
+  before: Record<string, boolean>;
+  after: Record<string, boolean>;
+}): Promise<void> {
+  const { supabase, organizationId, userId, userRole, before, after } = params;
+  const rows: Array<Record<string, unknown>> = [];
+  for (const key of Object.keys(AUTOROUTE_DEFAULTS) as (keyof typeof AUTOROUTE_DEFAULTS)[]) {
+    const priorValue = before[key];
+    const newValue = after[key];
+    if (priorValue === newValue) continue;
+    const label = AUTOROUTE_FIELD_LABELS[key];
+    rows.push({
+      organization_id: organizationId,
+      user_id: userId,
+      user_role: userRole,
+      action: AUTOROUTE_AUDIT_ACTION,
+      object_type: AUTOROUTE_OBJECT_TYPE,
+      object_id: null,
+      before_value: { [key]: priorValue },
+      after_value: { [key]: newValue },
+      event_type: AUTOROUTE_AUDIT_ACTION,
+      event_summary: `277CA auto-routing: ${label} turned ${newValue ? "on" : "off"}`,
+      event_metadata: {
+        setting_key: REJECTION_277CA_AUTOROUTE_SETTING_KEY,
+        field: key,
+        field_label: label,
+      },
+    });
+  }
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("audit_logs").insert(rows as never);
+  if (error) {
+    // Audit failure should not block the user's save (the upsert already
+    // succeeded), but it must be loud so it gets noticed.
+    console.error(
+      "[PUT /api/settings/billing-defaults] audit_logs insert failed",
+      error.message,
+    );
+  }
+}
+
+export interface AutorouteAuditChange {
+  id: string;
+  created_at: string;
+  field: string;
+  field_label: string;
+  before_value: boolean | null;
+  after_value: boolean | null;
+  user_id: string | null;
+  user_role: string | null;
+  actor_label: string | null;
+}
+
+async function loadRecentAutorouteChanges(
+  supabase: AdminClient,
+  organizationId: string,
+): Promise<AutorouteAuditChange[]> {
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .select(
+      "id, created_at, action, before_value, after_value, event_metadata, user_id, user_role",
+    )
+    .eq("organization_id", organizationId)
+    .eq("action", AUTOROUTE_AUDIT_ACTION)
+    .order("created_at", { ascending: false })
+    .limit(RECENT_AUTOROUTE_CHANGES_LIMIT);
+
+  if (error) {
+    console.error(
+      "[GET /api/settings/billing-defaults] recent autoroute changes",
+      error,
+    );
+    return [];
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const userIds = Array.from(
+    new Set(
+      rows
+        .map((r) => (r as { user_id?: string | null }).user_id)
+        .filter((v): v is string => typeof v === "string" && v.length > 0),
+    ),
+  );
+
+  const actorByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: staffRows, error: staffErr } = await supabase
+      .from("staff_profiles")
+      .select("auth_user_id, email, first_name, last_name")
+      .in("auth_user_id", userIds);
+    if (staffErr) {
+      console.error(
+        "[GET /api/settings/billing-defaults] staff lookup",
+        staffErr,
+      );
+    } else if (Array.isArray(staffRows)) {
+      for (const s of staffRows as Array<{
+        auth_user_id: string | null;
+        email: string | null;
+        first_name: string | null;
+        last_name: string | null;
+      }>) {
+        if (!s.auth_user_id) continue;
+        const name = [s.first_name, s.last_name].filter(Boolean).join(" ");
+        actorByUserId.set(s.auth_user_id, name || s.email || s.auth_user_id);
+      }
+    }
+  }
+
+  return rows.map((raw) => {
+    const r = raw as {
+      id: string;
+      created_at: string;
+      before_value: Record<string, unknown> | null;
+      after_value: Record<string, unknown> | null;
+      event_metadata: Record<string, unknown> | null;
+      user_id: string | null;
+      user_role: string | null;
+    };
+    const meta = r.event_metadata ?? {};
+    const field =
+      typeof meta.field === "string"
+        ? meta.field
+        : Object.keys(r.before_value ?? r.after_value ?? {})[0] ?? "";
+    const fieldLabel =
+      typeof meta.field_label === "string"
+        ? meta.field_label
+        : AUTOROUTE_FIELD_LABELS[field as keyof typeof AUTOROUTE_DEFAULTS] ?? field;
+    const beforeVal = r.before_value?.[field];
+    const afterVal = r.after_value?.[field];
+    return {
+      id: r.id,
+      created_at: r.created_at,
+      field,
+      field_label: fieldLabel,
+      before_value: typeof beforeVal === "boolean" ? beforeVal : null,
+      after_value: typeof afterVal === "boolean" ? afterVal : null,
+      user_id: r.user_id,
+      user_role: r.user_role,
+      actor_label: r.user_id ? actorByUserId.get(r.user_id) ?? null : null,
+    };
+  });
 }

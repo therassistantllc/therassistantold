@@ -21,6 +21,18 @@ type Rejections277CaAutoroute = {
   route_invalid_provider: boolean;
 };
 
+type AutorouteChange = {
+  id: string;
+  created_at: string;
+  field: string;
+  field_label: string;
+  before_value: boolean | null;
+  after_value: boolean | null;
+  user_id: string | null;
+  user_role: string | null;
+  actor_label: string | null;
+};
+
 const INITIAL: BillingDefaults = {
   claim_frequency_code: "1",
   default_pos: "11",
@@ -48,24 +60,35 @@ export default function BillingDefaultsClient() {
   const organizationId = useMemo(() => getOrganizationId(), []);
   const [form, setForm] = useState<BillingDefaults>(INITIAL);
   const [autoroute, setAutoroute] = useState<Rejections277CaAutoroute>(INITIAL_AUTOROUTE);
+  const [recentChanges, setRecentChanges] = useState<AutorouteChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
+  const loadDefaults = useCallback(async () => {
+    if (!organizationId) return;
+    const r = await fetch(
+      `/api/settings/billing-defaults?organizationId=${encodeURIComponent(organizationId)}`,
+    );
+    const json = (await r.json()) as {
+      billing_defaults?: BillingDefaults;
+      rejections_277ca_autoroute?: Rejections277CaAutoroute;
+      recent_autoroute_changes?: AutorouteChange[];
+    };
+    if (json.billing_defaults) setForm((prev) => ({ ...prev, ...json.billing_defaults }));
+    if (json.rejections_277ca_autoroute) {
+      setAutoroute((prev) => ({ ...prev, ...json.rejections_277ca_autoroute }));
+    }
+    setRecentChanges(Array.isArray(json.recent_autoroute_changes) ? json.recent_autoroute_changes : []);
+  }, [organizationId]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
-    fetch(`/api/settings/billing-defaults?organizationId=${encodeURIComponent(organizationId)}`)
-      .then((r) => r.json())
-      .then((json: { billing_defaults?: BillingDefaults; rejections_277ca_autoroute?: Rejections277CaAutoroute }) => {
-        if (json.billing_defaults) setForm((prev) => ({ ...prev, ...json.billing_defaults }));
-        if (json.rejections_277ca_autoroute) {
-          setAutoroute((prev) => ({ ...prev, ...json.rejections_277ca_autoroute }));
-        }
-      })
+    loadDefaults()
       .catch(() => setStatusMsg({ type: "err", text: "Failed to load billing defaults." }))
       .finally(() => setLoading(false));
-  }, [organizationId]);
+  }, [organizationId, loadDefaults]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -81,12 +104,22 @@ export default function BillingDefaultsClient() {
       );
       if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Save failed");
       setStatusMsg({ type: "ok", text: "Billing defaults saved." });
+      // Refresh recent-changes list so the just-saved edits show up.
+      await loadDefaults().catch(() => {});
     } catch (err) {
       setStatusMsg({ type: "err", text: err instanceof Error ? err.message : "Save failed" });
     } finally {
       setSaving(false);
     }
-  }, [form, autoroute, organizationId]);
+  }, [form, autoroute, organizationId, loadDefaults]);
+
+  const formatChangeTimestamp = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return iso;
+    }
+  };
 
   return (
     <main className="app-shell">
@@ -259,6 +292,47 @@ export default function BillingDefaultsClient() {
                   </span>
                 </span>
               </label>
+            </div>
+
+            <div style={{ marginTop: "var(--space-5)" }}>
+              <h3 style={{ marginBottom: "var(--space-2)" }}>Recent changes</h3>
+              <p style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)", marginBottom: "var(--space-3)" }}>
+                Audit trail of who flipped these toggles and when. Shows the last {recentChanges.length || "20"} edits.
+              </p>
+              {recentChanges.length === 0 ? (
+                <div className="empty-state" style={{ padding: "var(--space-3)" }}>
+                  No changes recorded yet for this organization.
+                </div>
+              ) : (
+                <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                  {recentChanges.map((change) => {
+                    const actor = change.actor_label
+                      ?? (change.user_id ? `User ${change.user_id.slice(0, 8)}` : "Unknown user");
+                    const role = change.user_role ? ` (${change.user_role})` : "";
+                    const beforeStr = change.before_value === null ? "—" : change.before_value ? "On" : "Off";
+                    const afterStr = change.after_value === null ? "—" : change.after_value ? "On" : "Off";
+                    return (
+                      <li
+                        key={change.id}
+                        style={{
+                          padding: "var(--space-3)",
+                          background: "var(--surface-subtle, #f8fafc)",
+                          borderRadius: "var(--radius-md, 6px)",
+                          fontSize: "var(--text-sm)",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{change.field_label}</div>
+                        <div>
+                          <code>{beforeStr}</code> → <code>{afterStr}</code>
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+                          {formatChangeTimestamp(change.created_at)} · {actor}{role}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </div>
           </section>
 
