@@ -82,6 +82,11 @@ function kindTone(k: InboxKind): { bg: string; fg: string; label: string } {
     : { bg: "#E0F2FE", fg: "#075985", label: "Admin follow-up" };
 }
 
+type NotificationPrefs = {
+  emailOnEligibilityRouting: boolean;
+  inAppOnEligibilityRouting: boolean;
+};
+
 export default function MyInboxClient() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +94,8 @@ export default function MyInboxClient() {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | InboxKind>("all");
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
+  const [savingPref, setSavingPref] = useState(false);
 
   const organizationId = useMemo(() => getOrganizationId(), []);
 
@@ -115,6 +122,61 @@ export default function MyInboxClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadPrefs = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/billing/notification-preferences?organizationId=${encodeURIComponent(organizationId)}`,
+        { cache: "no-store" },
+      );
+      const json = await res.json();
+      if (res.ok && json?.success && json.preferences) {
+        setPrefs(json.preferences as NotificationPrefs);
+      }
+    } catch {
+      // Non-fatal — the toggle just won't render until the next load.
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    void loadPrefs();
+  }, [loadPrefs]);
+
+  const togglePref = useCallback(
+    async (key: keyof NotificationPrefs) => {
+      if (!prefs) return;
+      const next = { ...prefs, [key]: !prefs[key] };
+      setPrefs(next);
+      setSavingPref(true);
+      try {
+        const res = await fetch("/api/billing/notification-preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            emailOnEligibilityRouting: next.emailOnEligibilityRouting,
+            inAppOnEligibilityRouting: next.inAppOnEligibilityRouting,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error ?? "Failed to save preference");
+        }
+        if (json.preferences) setPrefs(json.preferences as NotificationPrefs);
+        setToast(
+          next.emailOnEligibilityRouting
+            ? "Routing emails on"
+            : "Routing emails off",
+        );
+      } catch (e) {
+        setPrefs(prefs);
+        setToast(e instanceof Error ? e.message : "Failed to save preference");
+      } finally {
+        setSavingPref(false);
+      }
+    },
+    [organizationId, prefs],
+  );
 
   const resolve = useCallback(
     async (item: InboxItem) => {
@@ -166,14 +228,42 @@ export default function MyInboxClient() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1100 }}>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
-          My Inbox
-        </h1>
-        <p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>
-          Eligibility issues routed to you. Resolve an item once you've
-          completed the follow-up — it will disappear from your inbox.
-        </p>
+      <header style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
+            My Inbox
+          </h1>
+          <p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>
+            Eligibility issues routed to you. Resolve an item once you've
+            completed the follow-up — it will disappear from your inbox.
+          </p>
+        </div>
+        {prefs ? (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12.5,
+              color: "#334155",
+              border: "1px solid #E2E8F0",
+              borderRadius: 6,
+              padding: "8px 10px",
+              background: "#FFFFFF",
+              cursor: savingPref ? "default" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+            title="Send me an email when an eligibility issue is routed to me"
+          >
+            <input
+              type="checkbox"
+              checked={prefs.emailOnEligibilityRouting}
+              onChange={() => void togglePref("emailOnEligibilityRouting")}
+              disabled={savingPref}
+            />
+            <span>Email me when issues are routed to me</span>
+          </label>
+        ) : null}
       </header>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>

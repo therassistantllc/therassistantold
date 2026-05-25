@@ -331,6 +331,112 @@ export async function sendPayerDocumentationEmail(
   }
 }
 
+export type SendEligibilityRoutedEmailInput = {
+  to: string;
+  assigneeName: string;
+  routedByName: string | null;
+  patientName: string | null;
+  appointmentAt: string | null;
+  kind: "clinician" | "admin";
+  note: string | null;
+  inboxUrl: string;
+};
+
+export type SendEligibilityRoutedEmailResult =
+  | { ok: true; providerId: string | null; fromEmail: string }
+  | { ok: false; error: string };
+
+export async function sendEligibilityRoutedEmail(
+  input: SendEligibilityRoutedEmailInput,
+): Promise<SendEligibilityRoutedEmailResult> {
+  const credentials = await resolveResendCredentials();
+  if (!credentials) {
+    return {
+      ok: false,
+      error:
+        "Email is not configured. Connect Resend in Integrations (or set RESEND_API_KEY) before sending eligibility routing notifications.",
+    };
+  }
+
+  const fromEmail =
+    credentials.fromEmail ??
+    process.env.RESEND_FROM_EMAIL?.trim() ??
+    "onboarding@resend.dev";
+
+  const safeAssignee = input.assigneeName.trim() || "there";
+  const kindLabel =
+    input.kind === "clinician"
+      ? "verify a patient's insurance before their next visit"
+      : "follow up on an eligibility issue";
+  const routedBy = input.routedByName?.trim()
+    ? `${input.routedByName.trim()} routed`
+    : "A biller routed";
+  const patientLine = input.patientName?.trim()
+    ? `Patient: ${input.patientName.trim()}`
+    : null;
+  const apptLine = input.appointmentAt
+    ? `Appointment: ${formatExpiration(input.appointmentAt)}`
+    : null;
+  const noteLine = input.note?.trim() ? `Note: ${input.note.trim()}` : null;
+
+  const subject =
+    input.kind === "clinician"
+      ? "Action needed: verify patient insurance"
+      : "Action needed: resolve eligibility issue";
+
+  const lines = [
+    `Hello ${safeAssignee},`,
+    "",
+    `${routedBy} an eligibility issue to your inbox — please ${kindLabel}.`,
+    "",
+    ...[patientLine, apptLine, noteLine].filter(Boolean) as string[],
+    "",
+    `Open My Inbox: ${input.inboxUrl}`,
+    "",
+    "You can opt out of these emails from My Inbox.",
+  ];
+  const textBody = lines.join("\n");
+
+  const detailsHtml = [
+    patientLine ? `<li>${escapeHtml(patientLine)}</li>` : "",
+    apptLine ? `<li>${escapeHtml(apptLine)}</li>` : "",
+    noteLine ? `<li>${escapeHtml(noteLine)}</li>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const htmlBody = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; color: #1f2937; max-width: 560px; margin: 0 auto;">
+      <p>Hello ${escapeHtml(safeAssignee)},</p>
+      <p>${escapeHtml(routedBy)} an eligibility issue to your inbox — please ${escapeHtml(kindLabel)}.</p>
+      ${detailsHtml ? `<ul style="font-size:13px;color:#374151;margin:8px 0 16px 18px;padding:0;">${detailsHtml}</ul>` : ""}
+      <p style="margin: 24px 0;">
+        <a href="${escapeHtml(input.inboxUrl)}" style="background:#1D4ED8;color:#ffffff;padding:12px 18px;border-radius:6px;text-decoration:none;display:inline-block;">Open My Inbox</a>
+      </p>
+      <p style="font-size: 12px; color: #6b7280;">You're receiving this because an eligibility issue was routed to you. You can opt out of these emails from the My Inbox screen.</p>
+    </div>
+  `;
+
+  try {
+    const client = new Resend(credentials.apiKey);
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject,
+      text: textBody,
+      html: htmlBody,
+    });
+    if (result.error) {
+      const message = result.error.message || "Resend rejected the email";
+      return { ok: false, error: message };
+    }
+    return { ok: true, providerId: result.data?.id ?? null, fromEmail };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to send email";
+    return { ok: false, error: message };
+  }
+}
+
 export type SendPortalInviteEmailInput = {
   to: string;
   patientName: string;

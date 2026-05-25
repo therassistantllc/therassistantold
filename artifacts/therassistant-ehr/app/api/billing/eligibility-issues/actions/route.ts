@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import {
+  deliverEligibilityRoutingNotification,
+  type NotificationDeliveryResult,
+} from "@/lib/billing/eligibilityRoutingNotifier";
 
 type ActionName =
   | "mark_verified"
@@ -310,6 +314,84 @@ export async function POST(request: Request) {
           note,
         });
 
+        // Look up enrichment data for the email body — patient name + the
+        // routed-by display name. Best-effort: any failure here just drops
+        // the field; we never want enrichment to break the routing call.
+        let patientName: string | null = null;
+        let appointmentAt: string | null = null;
+        let routedByName: string | null = null;
+        try {
+          if (clientId) {
+            const { data: c } = await sb
+              .from("clients")
+              .select("first_name, last_name, preferred_name")
+              .eq("id", clientId)
+              .eq("organization_id", organizationId)
+              .maybeSingle();
+            if (c) {
+              const row = c as {
+                first_name: string | null;
+                last_name: string | null;
+                preferred_name: string | null;
+              };
+              patientName =
+                row.preferred_name ||
+                [row.first_name, row.last_name].filter(Boolean).join(" ").trim() ||
+                null;
+            }
+          }
+          if (appointmentId) {
+            const { data: a } = await sb
+              .from("appointments")
+              .select("scheduled_start_at")
+              .eq("id", appointmentId)
+              .eq("organization_id", organizationId)
+              .maybeSingle();
+            if (a) {
+              appointmentAt =
+                (a as { scheduled_start_at: string | null }).scheduled_start_at ?? null;
+            }
+          }
+          if (userId) {
+            const { data: s } = await sb
+              .from("staff_profiles")
+              .select("first_name, last_name, email")
+              .eq("auth_user_id", userId)
+              .eq("organization_id", organizationId)
+              .maybeSingle();
+            if (s) {
+              const row = s as {
+                first_name: string | null;
+                last_name: string | null;
+                email: string | null;
+              };
+              routedByName =
+                [row.first_name, row.last_name].filter(Boolean).join(" ").trim() ||
+                row.email ||
+                null;
+            }
+          }
+        } catch (e) {
+          console.warn("eligibility-issues notification enrichment failed:", e);
+        }
+
+        let notification: NotificationDeliveryResult | null = null;
+        try {
+          notification = await deliverEligibilityRoutingNotification({
+            sb,
+            organizationId,
+            assignee,
+            kind,
+            inboxItemId,
+            routedByName,
+            patientName,
+            appointmentAt,
+            note,
+          });
+        } catch (e) {
+          console.warn("eligibility-issues notification delivery failed:", e);
+        }
+
         const summary = note
           ? `Routed to ${assignee.name}: ${note}`
           : `Routed to ${assignee.name}`;
@@ -338,6 +420,9 @@ export async function POST(request: Request) {
             // the audit log; only the clinician path actually carries one.
             providerId: kind === "clinician" ? body.providerId ?? null : null,
             assignedToDisplay: assignee.name,
+            // Task #625: record whether the routing notification went out so
+            // admins can audit "did the assignee actually get pinged?".
+            notification: notification ?? { attempts: [], emailSent: false, inAppSent: false },
           },
         });
 
@@ -350,6 +435,7 @@ export async function POST(request: Request) {
             email: assignee.email,
           },
           inboxItemId,
+          notification,
         });
       }
       case "assign_biller": {
