@@ -39,6 +39,14 @@ type PayerStatusAutoCheck = {
   auto_recheck_interval_days: number;
 };
 
+type AutoCheckHeartbeat = {
+  status: "ok" | "stale" | "never_run";
+  lastRunAt: string | null;
+  hoursSinceLastRun: number | null;
+  thresholdHours: number;
+  message: string;
+};
+
 const INITIAL: BillingDefaults = {
   claim_frequency_code: "1",
   default_pos: "11",
@@ -74,6 +82,7 @@ export default function BillingDefaultsClient() {
   const [autoroute, setAutoroute] = useState<Rejections277CaAutoroute>(INITIAL_AUTOROUTE);
   const [recentChanges, setRecentChanges] = useState<AutorouteChange[]>([]);
   const [payerAutoCheck, setPayerAutoCheck] = useState<PayerStatusAutoCheck>(INITIAL_PAYER_AUTOCHECK);
+  const [autoCheckHeartbeat, setAutoCheckHeartbeat] = useState<AutoCheckHeartbeat | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -99,13 +108,33 @@ export default function BillingDefaultsClient() {
     setRecentChanges(Array.isArray(json.recent_autoroute_changes) ? json.recent_autoroute_changes : []);
   }, [organizationId]);
 
+  const loadAutoCheckHeartbeat = useCallback(async () => {
+    if (!organizationId) return;
+    try {
+      const r = await fetch(
+        `/api/admin/cron-heartbeat/claim-status-auto-check?organizationId=${encodeURIComponent(organizationId)}`,
+      );
+      if (!r.ok) {
+        setAutoCheckHeartbeat(null);
+        return;
+      }
+      const json = (await r.json()) as AutoCheckHeartbeat;
+      setAutoCheckHeartbeat(json);
+    } catch {
+      setAutoCheckHeartbeat(null);
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!organizationId) { setLoading(false); return; }
-    loadDefaults()
-      .catch(() => setStatusMsg({ type: "err", text: "Failed to load billing defaults." }))
-      .finally(() => setLoading(false));
-  }, [organizationId, loadDefaults]);
+    Promise.all([
+      loadDefaults().catch(() => {
+        setStatusMsg({ type: "err", text: "Failed to load billing defaults." });
+      }),
+      loadAutoCheckHeartbeat(),
+    ]).finally(() => setLoading(false));
+  }, [organizationId, loadDefaults, loadAutoCheckHeartbeat]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -367,6 +396,28 @@ export default function BillingDefaultsClient() {
               how aggressively the scheduled job re-checks claims sitting in
               the Payer Received queue.
             </p>
+            {autoCheckHeartbeat && autoCheckHeartbeat.status !== "ok" && (
+              <div
+                className="alert-panel"
+                role="alert"
+                data-testid="auto-check-heartbeat-banner"
+                style={{
+                  marginBottom: "var(--space-4)",
+                  borderLeft: "4px solid var(--color-danger, #b91c1c)",
+                }}
+              >
+                <strong>Nightly payer auto-check looks broken.</strong>{" "}
+                {autoCheckHeartbeat.message}{" "}
+                {autoCheckHeartbeat.lastRunAt && (
+                  <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                    Last successful run: {new Date(autoCheckHeartbeat.lastRunAt).toLocaleString()}.
+                  </span>
+                )}{" "}
+                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                  See <code>CLAIM_STATUS_AUTO_CHECK_RUNBOOK.md</code> for recovery steps.
+                </span>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
               <label className="checkbox-label">
                 <input

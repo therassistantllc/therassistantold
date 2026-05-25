@@ -70,6 +70,46 @@ window.
   `accepted_payer`, then check its `submitted_at` against that org's
   `payer_status.auto_check_age_days` setting.
 
+## Heartbeat alert
+
+A heartbeat check answers the question "is the cron still running?" by
+looking at the latest `claim_status_inquiries` row with
+`trigger_source = 'auto'`. If nothing has been written in the last 36
+hours, the cron has silently stopped (lost pg_cron schedule, mismatched
+`CRON_SECRET`, deployment URL drift, etc.).
+
+Two surfaces:
+
+- **Billing Defaults page banner** — when an admin opens
+  `/settings/billing-defaults`, the "Payer Status Auto-Check" section
+  renders a red banner if the org's last auto inquiry is past the 36h
+  threshold (or has never happened).
+- **External uptime monitor** — point UptimeRobot / BetterStack / Pingdom
+  at:
+
+  ```
+  GET $APP_BASE_URL/api/admin/cron-heartbeat/claim-status-auto-check
+  Header: x-cron-secret: $CRON_SECRET
+  ```
+
+  Returns **HTTP 200** when fresh and **HTTP 503** when stale, so any
+  generic uptime check (configured to alert on non-2xx) will page.
+  Response body always includes the heartbeat JSON:
+
+  ```json
+  {
+    "status": "ok" | "stale" | "never_run",
+    "lastRunAt": "2026-05-24T09:00:01Z",
+    "hoursSinceLastRun": 27.5,
+    "thresholdHours": 36,
+    "message": "Last auto-check ran 27.5h ago."
+  }
+  ```
+
+  Override the staleness window with `?thresholdHours=48`. Scope to one
+  org with `?organizationId=<uuid>`; omit it for a global cron-level
+  check (the recommended uptime-monitor configuration).
+
 ## Manual / catch-up run
 
 A biller (admin or biller role) can trigger a one-off run for a single org
