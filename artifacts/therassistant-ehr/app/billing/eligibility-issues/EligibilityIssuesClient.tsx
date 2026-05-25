@@ -113,6 +113,9 @@ export default function EligibilityIssuesClient() {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("appointmentId");
   });
+  // Row id to briefly pulse after a deep-link jump, then cleared so a
+  // re-render or normal click doesn't re-trigger the animation.
+  const [pulseRowId, setPulseRowId] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [insuranceEditRow, setInsuranceEditRow] = useState<EligibilityIssueRow | null>(null);
 
@@ -249,6 +252,8 @@ export default function EligibilityIssuesClient() {
     setSelectedRowId(match.id);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPendingAppointmentId(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPulseRowId(match.id);
     // Wait for the tab/filter state to flush, then scroll.
     const raf1 = requestAnimationFrame(() => {
       const raf2 = requestAnimationFrame(() => {
@@ -257,7 +262,13 @@ export default function EligibilityIssuesClient() {
       });
       return () => cancelAnimationFrame(raf2);
     });
-    return () => cancelAnimationFrame(raf1);
+    // Clear the pulse after the animation finishes (3 × 1s keyframe pass)
+    // so normal clicks/re-renders don't trigger it again.
+    const pulseTimer = setTimeout(() => setPulseRowId(null), 3200);
+    return () => {
+      cancelAnimationFrame(raf1);
+      clearTimeout(pulseTimer);
+    };
   }, [pendingAppointmentId, rows, loading]);
 
   // ── Filter rail ─────────────────────────────────────────────────────────
@@ -1044,6 +1055,7 @@ export default function EligibilityIssuesClient() {
         emptyMessage="No items in this tab."
         selectedRowId={selectedRowId}
         onSelectRow={setSelectedRowId}
+        pulseRowId={pulseRowId}
         detailTabs={detailTabs}
         detailActions={detailActions}
         message={error ? { tone: "error", text: error } : null}

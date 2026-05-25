@@ -109,6 +109,10 @@ export interface WorkqueueShellProps<TRow> {
   emptyMessage?: string;
   selectedRowId?: string | null;
   onSelectRow?: (rowId: string | null) => void;
+  /** When set, this row briefly pulses (highlight that fades) to draw the
+   *  eye, e.g. after a deep-link navigation. The caller is responsible
+   *  for clearing this back to null after the animation ends. */
+  pulseRowId?: string | null;
   /** When provided, enables multi-select with a checkbox column. */
   selectedRowIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
@@ -260,6 +264,7 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
     emptyMessage,
     selectedRowId,
     onSelectRow,
+    pulseRowId,
     selectedRowIds,
     onSelectionChange,
     rowActions,
@@ -578,11 +583,18 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
                   const id = rowId(row);
                   const selected = selectedRowId === id;
                   const checked = selectedSet.has(id);
+                  const pulsing = pulseRowId === id;
+                  const rowClass = [
+                    selected ? styles.rowSelected : "",
+                    pulsing ? styles.rowPulse : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return (
                     <tr
                       key={id}
                       id={`wqrow-${id}`}
-                      className={selected ? styles.rowSelected : ""}
+                      className={rowClass}
                       onClick={() => onSelectRow?.(id)}
                     >
                       {selectionEnabled ? (

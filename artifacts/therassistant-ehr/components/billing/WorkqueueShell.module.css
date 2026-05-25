@@ -278,6 +278,23 @@
 .table tbody tr:hover { background: #F8FAFC; }
 .table tbody tr.rowSelected { background: #EFF6FF; }
 
+.table tbody tr.rowPulse {
+  animation: wqRowPulse 1s ease-out 0s 3;
+  position: relative;
+  z-index: 0;
+}
+
+@keyframes wqRowPulse {
+  0% {
+    background: #FEF3C7;
+    box-shadow: inset 0 0 0 2px #F59E0B;
+  }
+  100% {
+    background: #EFF6FF;
+    box-shadow: inset 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
 .tableEmpty {
   text-align: center;
   padding: 60px 20px;
