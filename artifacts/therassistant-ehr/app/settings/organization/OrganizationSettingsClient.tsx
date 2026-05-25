@@ -332,6 +332,16 @@ export default function OrganizationSettingsClient() {
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
   const [previewOpen, setPreviewOpen] = useState(true);
+  const [letterheadOpen, setLetterheadOpen] = useState(true);
+
+  const hasLetterheadLogo = Boolean(billing.letterhead_logo_bucket && billing.letterhead_logo_path);
+  const letterheadLogoUrl = hasLetterheadLogo
+    ? `/api/settings/organization/logo/preview?organizationId=${encodeURIComponent(organizationId)}&v=${encodeURIComponent(billing.letterhead_logo_path)}`
+    : null;
+  const letterheadContactParts: string[] = [];
+  if (billing.billing_phone.trim()) letterheadContactParts.push(`Phone: ${fmtPhone(billing.billing_phone)}`);
+  if (billing.billing_fax.trim()) letterheadContactParts.push(`Fax: ${fmtPhone(billing.billing_fax)}`);
+  if (billing.billing_email.trim()) letterheadContactParts.push(billing.billing_email.trim());
 
   useEffect(() => {
     if (!organizationId) { setLoading(false); return; }
@@ -581,6 +591,122 @@ export default function OrganizationSettingsClient() {
                 }))
               }
             />
+          </section>
+
+          {/* ── Letterhead Preview ── */}
+          <section className="panel" style={{ padding: 0, overflow: "hidden" }}>
+            <button
+              type="button"
+              onClick={() => setLetterheadOpen((o) => !o)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "var(--space-4) var(--space-5)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+              aria-expanded={letterheadOpen}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 22, height: 22, borderRadius: 6, background: "var(--navy, #10243f)",
+                  color: "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0,
+                }}>
+                  ✉
+                </span>
+                <span style={{ fontSize: "var(--text-base, 15px)", fontWeight: 700, color: "var(--text, #1a2332)" }}>
+                  Letterhead Preview
+                </span>
+                <span style={{ fontSize: "var(--text-xs, 11px)", color: "var(--muted, #5c6e82)", fontWeight: 400 }}>
+                  — live view of how the header appears on generated billing PDFs
+                </span>
+              </span>
+              <span style={{ fontSize: 12, color: "var(--muted, #5c6e82)", transform: letterheadOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
+            </button>
+
+            {letterheadOpen && (
+              <div style={{ borderTop: "1px solid var(--line, #d8e1e9)", padding: "var(--space-5)", background: "#eef1f5" }}>
+                {/* Sheet of paper mock */}
+                <div style={{
+                  background: "#fff",
+                  border: "1px solid #c8d4de",
+                  borderRadius: 4,
+                  maxWidth: 612,
+                  margin: "0 auto",
+                  padding: "36px 48px 28px",
+                  fontFamily: "Helvetica, Arial, sans-serif",
+                  color: "#1a2332",
+                  boxShadow: "0 2px 8px rgba(16, 36, 63, 0.08)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
+                        {billing.billing_provider_name || <PlaceholderText>Billing Provider Name</PlaceholderText>}
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
+                        <div>
+                          {billing.billing_address_line1 || <PlaceholderText>Address Line 1</PlaceholderText>}
+                        </div>
+                        {billing.billing_address_line2 && <div>{billing.billing_address_line2}</div>}
+                        <div>
+                          {billing.billing_city || <PlaceholderText>City</PlaceholderText>}
+                          {billing.billing_city ? ", " : " "}
+                          {billing.billing_state || <PlaceholderText>ST</PlaceholderText>}
+                          {" "}
+                          {billing.billing_zip || <PlaceholderText>ZIP</PlaceholderText>}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                        {letterheadContactParts.length > 0
+                          ? letterheadContactParts.join("  |  ")
+                          : <PlaceholderText>Phone | Fax | Email</PlaceholderText>}
+                      </div>
+                    </div>
+                    {hasLetterheadLogo && letterheadLogoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={letterheadLogoUrl}
+                        alt="Letterhead logo"
+                        style={{ maxHeight: 64, maxWidth: 160, objectFit: "contain", flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: 120, height: 48,
+                        border: "1px dashed #c8d4de",
+                        borderRadius: 3,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, color: "#94A3B8",
+                        flexShrink: 0,
+                      }}>
+                        No logo
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Faint divider, sample body */}
+                  <div style={{ borderTop: "1px solid #e8edf2", margin: "18px 0 14px" }} />
+                  <div style={{ fontSize: 10, color: "#94A3B8", lineHeight: 1.6 }}>
+                    <div>[Date]</div>
+                    <div style={{ marginTop: 10 }}>[Payer Name]</div>
+                    <div>Attn: Claims / Medical Review</div>
+                    <div style={{ marginTop: 10, fontStyle: "italic" }}>
+                      RE: Documentation submission for claim [#####]
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  marginTop: 12, fontSize: 11, color: "var(--muted, #5c6e82)",
+                  textAlign: "center",
+                }}>
+                  Live preview — reflects unsaved edits above. Greyed values indicate empty fields.
+                </div>
+              </div>
+            )}
           </section>
 
           {/* ── Claim Header Preview ── */}
