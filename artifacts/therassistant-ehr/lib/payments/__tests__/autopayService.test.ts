@@ -26,7 +26,16 @@ function fakeBuilder(table: string) {
   let rows = [...(tables[table] ?? [])];
   let pendingInsert: Row | Row[] | null = null;
   const chain: Record<string, unknown> = {};
-  chain.select = () => chain;
+  let countMode = false;
+  let headMode = false;
+  chain.select = (
+    _cols?: string,
+    opts?: { count?: string; head?: boolean },
+  ) => {
+    if (opts?.count) countMode = true;
+    if (opts?.head) headMode = true;
+    return chain;
+  };
   chain.eq = (field: string, value: unknown) => {
     rows = rows.filter((r) => r[field] === value);
     return chain;
@@ -39,6 +48,16 @@ function fakeBuilder(table: string) {
   chain.is = (field: string, value: unknown) => {
     rows = rows.filter((r) =>
       value === null ? r[field] == null : r[field] === value,
+    );
+    return chain;
+  };
+  chain.gte = (field: string, value: unknown) => {
+    rows = rows.filter((r) => String(r[field]) >= String(value));
+    return chain;
+  };
+  chain.not = (field: string, op: string, value: unknown) => {
+    rows = rows.filter((r) =>
+      op === "is" && value === null ? r[field] != null : r[field] !== value,
     );
     return chain;
   };
@@ -59,15 +78,24 @@ function fakeBuilder(table: string) {
     for (const r of rows) Object.assign(r, patch);
     return chain;
   };
-  chain.then = (resolve: (v: { data: Row[]; error: null }) => unknown) =>
+  chain.then = (
+    resolve: (v: {
+      data: Row[] | null;
+      error: null;
+      count?: number;
+    }) => unknown,
+  ) =>
     Promise.resolve(
       resolve({
-        data: pendingInsert
-          ? Array.isArray(pendingInsert)
-            ? (pendingInsert as Row[])
-            : [pendingInsert as Row]
-          : rows,
+        data: headMode
+          ? null
+          : pendingInsert
+            ? Array.isArray(pendingInsert)
+              ? (pendingInsert as Row[])
+              : [pendingInsert as Row]
+            : rows,
         error: null,
+        ...(countMode ? { count: rows.length } : {}),
       }),
     );
   return chain;
@@ -111,9 +139,29 @@ let attemptAutopayForInvoice: (input: {
   patientInvoiceId: string;
 }) => Promise<{ attempted: boolean; ok: boolean; code: string; message: string }>;
 
+let retryEligibleAutopayFailures: (opts: {
+  organizationId?: string;
+  now?: Date;
+  backoffHours?: readonly number[];
+}) => Promise<{
+  scanned: number;
+  retried: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  decisions: Array<{
+    organizationId: string;
+    patientInvoiceId: string;
+    outcome: string;
+    attemptCountBefore: number;
+    nextRetryAt?: string | null;
+  }>;
+}>;
+
 before(async () => {
   const mod = await import("../autopayService");
   attemptAutopayForInvoice = mod.attemptAutopayForInvoice;
+  retryEligibleAutopayFailures = mod.retryEligibleAutopayFailures;
 });
 
 beforeEach(() => {
@@ -297,4 +345,218 @@ test("invoice already paid → skipped_no_balance, no side effects", async () =>
   });
   assert.equal(r.code, "skipped_no_balance");
   assert.equal(inserted.length, 0);
+});
+
+/* -------- Retry sweep tests (Task #669) -------- */
+
+const NOW = new Date("2026-05-25T12:00:00.000Z");
+const hoursAgo = (h: number) =>
+  new Date(NOW.getTime() - h * 3600 * 1000).toISOString();
+
+function seedRetryFixtures(opts: {
+  autopay?: boolean;
+  hasCard?: boolean;
+  invoiceStatus?: string;
+  balance?: number;
+}) {
+  tables.patient_invoices = [
+    {
+      id: "inv-r",
+      organization_id: "org-1",
+      client_id: "cli-r",
+      invoice_status: opts.invoiceStatus ?? "open",
+      balance_amount: opts.balance ?? 50,
+      archived_at: null,
+    },
+  ];
+  tables.clients = [
+    {
+      id: "cli-r",
+      organization_id: "org-1",
+      first_name: "Ray",
+      last_name: "Tri",
+      autopay_enabled: opts.autopay ?? true,
+      stripe_customer_id: opts.hasCard ?? true ? "cus_r" : null,
+      stripe_payment_method_id: opts.hasCard ?? true ? "pm_r" : null,
+      stripe_payment_method_brand: "visa",
+      stripe_payment_method_last4: "0000",
+      stripe_connect_account_id: opts.hasCard ?? true ? "acct_r" : null,
+      archived_at: null,
+    },
+  ];
+}
+
+function seedAuditEvents(events: Array<{ type: "failed" | "succeeded"; at: string }>) {
+  tables.audit_logs = events.map((e, i) => ({
+    organization_id: "org-1",
+    object_type: "patient_invoice",
+    object_id: "inv-r",
+    event_type:
+      e.type === "failed"
+        ? "patient_billing_autopay_failed"
+        : "patient_billing_autopay_succeeded",
+    event_metadata: {},
+    created_at: e.at,
+    _seed_order: i,
+  }));
+}
+
+test("retry: skips when most recent attempt was within the backoff window", async () => {
+  seedRetryFixtures({});
+  seedAuditEvents([{ type: "failed", at: hoursAgo(2) }]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 0);
+  assert.equal(r.skipped, 1);
+  assert.equal(r.decisions[0].outcome, "skipped_not_due");
+});
+
+test("retry: charges when the 24h backoff has elapsed and balance is open", async () => {
+  seedRetryFixtures({});
+  seedAuditEvents([{ type: "failed", at: hoursAgo(25) }]);
+  chargeOutcome = { ok: true, paymentIntentId: "pi_retry_ok" };
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 1);
+  assert.equal(r.succeeded, 1);
+  assert.equal(r.decisions[0].outcome, "retried");
+  const successAudit = inserted.find(
+    (i) =>
+      i.table === "audit_logs" &&
+      i.row.event_type === "patient_billing_autopay_succeeded",
+  );
+  assert.ok(successAudit, "expected a new success audit after the retry");
+});
+
+test("retry: skips after max attempts is exhausted (1 original + 3 retries)", async () => {
+  seedRetryFixtures({});
+  seedAuditEvents([
+    { type: "failed", at: hoursAgo(200) },
+    { type: "failed", at: hoursAgo(176) },
+    { type: "failed", at: hoursAgo(104) },
+    { type: "failed", at: hoursAgo(32) },
+  ]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 0);
+  assert.equal(r.decisions[0].outcome, "skipped_exhausted");
+});
+
+test("retry: exhausted invoice stays exhausted even after old failure events age out of the look-back window", async () => {
+  // Regression: prior implementation counted attempts only within a
+  // sliding look-back window (~sum-of-backoffs+24h). Once the older
+  // failures aged out, an already-exhausted invoice would look like it
+  // had only 1 prior attempt and get re-charged again, violating the
+  // max-3-retries contract. The fix runs an unbounded count query, so
+  // this test seeds only one in-window event but pretends three older
+  // failures already happened (still present in the audit_logs table).
+  seedRetryFixtures({});
+  // All four failures are in audit_logs, but only the most recent is
+  // inside the cron's look-back window (288h with default backoffs).
+  tables.audit_logs = [
+    { organization_id: "org-1", object_type: "patient_invoice", object_id: "inv-r", event_type: "patient_billing_autopay_failed", event_metadata: {}, created_at: hoursAgo(600) },
+    { organization_id: "org-1", object_type: "patient_invoice", object_id: "inv-r", event_type: "patient_billing_autopay_failed", event_metadata: {}, created_at: hoursAgo(550) },
+    { organization_id: "org-1", object_type: "patient_invoice", object_id: "inv-r", event_type: "patient_billing_autopay_failed", event_metadata: {}, created_at: hoursAgo(500) },
+    { organization_id: "org-1", object_type: "patient_invoice", object_id: "inv-r", event_type: "patient_billing_autopay_failed", event_metadata: {}, created_at: hoursAgo(48) },
+  ];
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 0);
+  assert.equal(r.decisions[0].outcome, "skipped_exhausted");
+  assert.equal(r.decisions[0].attemptCountBefore, 4);
+});
+
+test("retry: skips when the latest event is a success (already recovered)", async () => {
+  seedRetryFixtures({});
+  seedAuditEvents([
+    { type: "failed", at: hoursAgo(48) },
+    { type: "succeeded", at: hoursAgo(2) },
+  ]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.decisions[0].outcome, "skipped_recovered");
+});
+
+test("retry: skips silently when patient has turned autopay off", async () => {
+  seedRetryFixtures({ autopay: false });
+  seedAuditEvents([{ type: "failed", at: hoursAgo(48) }]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.decisions[0].outcome, "skipped_autopay_off");
+  // Must not emit another failed audit or failed payment row when the
+  // patient opted out — that is the explicit Task #669 acceptance bar.
+  assert.equal(
+    inserted.filter(
+      (i) =>
+        i.table === "audit_logs" &&
+        i.row.event_type === "patient_billing_autopay_failed",
+    ).length,
+    0,
+  );
+  assert.equal(
+    inserted.filter((i) => i.table === "patient_invoice_payments").length,
+    0,
+  );
+});
+
+test("retry: skips silently when the saved card has been removed", async () => {
+  seedRetryFixtures({ hasCard: false });
+  seedAuditEvents([{ type: "failed", at: hoursAgo(48) }]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.decisions[0].outcome, "skipped_no_card");
+  assert.equal(
+    inserted.filter(
+      (i) =>
+        i.table === "audit_logs" &&
+        i.row.event_type === "patient_billing_autopay_failed",
+    ).length,
+    0,
+  );
+});
+
+test("retry: skips when invoice has been paid out of band", async () => {
+  seedRetryFixtures({ invoiceStatus: "paid", balance: 0 });
+  seedAuditEvents([{ type: "failed", at: hoursAgo(48) }]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.decisions[0].outcome, "skipped_invoice_closed");
+});
+
+test("retry: failed retry writes a new failed audit so its timestamp resets the backoff", async () => {
+  seedRetryFixtures({});
+  seedAuditEvents([{ type: "failed", at: hoursAgo(48) }]);
+  chargeOutcome = {
+    ok: false,
+    code: "card_declined",
+    message: "Your card was declined.",
+  };
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 1);
+  assert.equal(r.failed, 1);
+  const newFailureAudit = inserted.find(
+    (i) =>
+      i.table === "audit_logs" &&
+      i.row.event_type === "patient_billing_autopay_failed",
+  );
+  assert.ok(newFailureAudit, "expected a fresh failed audit so the retry is auditable");
 });

@@ -525,3 +525,295 @@ export async function attemptAutopayForInvoice(input: {
     message: outcome.message,
   };
 }
+
+/**
+ * Retry loop (Task #669).
+ *
+ * Default backoff schedule between failed autopay attempts, in hours.
+ * Index N is the wait after the (N+1)-th failure: after the original
+ * failure we wait 24h, then 72h, then 168h. With 3 entries the engine
+ * runs the original attempt + up to 3 retries (max 4 total).
+ *
+ * The list is exported so a future settings UI can override it per-org;
+ * the cron route currently uses the default.
+ */
+export const DEFAULT_AUTOPAY_RETRY_BACKOFF_HOURS = [24, 72, 168] as const;
+
+export interface AutopayRetryDecision {
+  organizationId: string;
+  patientInvoiceId: string;
+  /** Why we skipped, or "retried" if we ran attemptAutopayForInvoice. */
+  outcome:
+    | "retried"
+    | "skipped_not_due"
+    | "skipped_exhausted"
+    | "skipped_autopay_off"
+    | "skipped_no_card"
+    | "skipped_recovered"
+    | "skipped_invoice_closed";
+  attemptCountBefore: number;
+  nextRetryAt?: string | null;
+  /** Set when outcome === "retried". */
+  retryResult?: AutopayAttemptResult;
+}
+
+export interface AutopayRetrySummary {
+  scanned: number;
+  retried: number;
+  skipped: number;
+  succeeded: number;
+  failed: number;
+  decisions: AutopayRetryDecision[];
+}
+
+/**
+ * Scan recent failed autopay attempts and retry the ones whose backoff
+ * window has elapsed. Safe to invoke from a daily cron — idempotent
+ * within a backoff window because each successful or failed run writes
+ * a new audit event that resets the "last attempt at" timestamp.
+ *
+ * Skips, per Task #669:
+ *   - patient turned autopay off  (clients.autopay_enabled = false)
+ *   - patient removed the saved card (stripe_payment_method_id null)
+ *   - invoice is already paid/voided or balance ≤ 0
+ *   - the most recent autopay event is a success (already recovered)
+ *   - the max retry count has been hit
+ *   - the backoff window has not yet elapsed
+ */
+export async function retryEligibleAutopayFailures(opts: {
+  organizationId?: string;
+  supabase?: SupabaseAdmin | null;
+  now?: Date;
+  backoffHours?: readonly number[];
+  /**
+   * Cap on how many failed-event rows to scan per invocation. The cron
+   * fans out per-org, so this only matters if a single org has produced
+   * thousands of failures in the look-back window.
+   */
+  limit?: number;
+}): Promise<AutopayRetrySummary> {
+  const supabase = opts.supabase ?? createServerSupabaseAdminClient();
+  const empty: AutopayRetrySummary = {
+    scanned: 0,
+    retried: 0,
+    skipped: 0,
+    succeeded: 0,
+    failed: 0,
+    decisions: [],
+  };
+  if (!supabase) return empty;
+
+  const backoff =
+    opts.backoffHours && opts.backoffHours.length > 0
+      ? opts.backoffHours
+      : DEFAULT_AUTOPAY_RETRY_BACKOFF_HOURS;
+  const maxAttempts = backoff.length + 1; // original + N retries
+  const now = opts.now ?? new Date();
+  const nowMs = now.getTime();
+
+  // Look-back must cover the longest possible backoff plus a small grace
+  // so a failure that landed right before the window edge still gets
+  // its final retry.
+  const lookBackHours = backoff.reduce((a, b) => a + b, 0) + 24;
+  const cutoffIso = new Date(nowMs - lookBackHours * 3600 * 1000).toISOString();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as unknown as { from: (t: string) => any };
+
+  // Pull recent autopay audit events across both success + failure so
+  // we can correctly identify "already recovered" invoices (latest event
+  // is a success → do not retry).
+  let q = sb
+    .from("audit_logs")
+    .select("organization_id, object_id, event_type, created_at, event_metadata")
+    .in("event_type", [AUTOPAY_SUCCESS_EVT, AUTOPAY_FAILURE_EVT])
+    .eq("object_type", "patient_invoice")
+    .gte("created_at", cutoffIso)
+    .order("created_at", { ascending: true })
+    .limit(opts.limit ?? 5000);
+  if (opts.organizationId) q = q.eq("organization_id", opts.organizationId);
+
+  const { data: evRows, error } = await q;
+  if (error) {
+    console.warn("[autopay-retry] audit_logs scan failed", error.message);
+    return empty;
+  }
+
+  interface EvRow {
+    organization_id: string;
+    object_id: string;
+    event_type: string;
+    created_at: string;
+    event_metadata: Record<string, unknown> | null;
+  }
+  const events = (evRows ?? []) as EvRow[];
+
+  // Group by (org, invoice). Events are already ASC by created_at, so
+  // the last entry per group is the most recent attempt.
+  const groups = new Map<string, EvRow[]>();
+  for (const ev of events) {
+    if (!ev.object_id || !ev.organization_id) continue;
+    const key = `${ev.organization_id}::${ev.object_id}`;
+    let arr = groups.get(key);
+    if (!arr) {
+      arr = [];
+      groups.set(key, arr);
+    }
+    arr.push(ev);
+  }
+
+  const summary: AutopayRetrySummary = {
+    scanned: groups.size,
+    retried: 0,
+    skipped: 0,
+    succeeded: 0,
+    failed: 0,
+    decisions: [],
+  };
+
+  for (const [, evList] of groups) {
+    const latest = evList[evList.length - 1];
+    const organizationId = latest.organization_id;
+    const patientInvoiceId = latest.object_id;
+
+    // Count the full autopay history for this invoice, not just the
+    // window-bounded slice. The look-back filter above is fine for
+    // *finding* candidates (the latest failure must be recent enough
+    // for a retry to be due), but using window-bounded `evList.length`
+    // as the attempt count is unsafe: once the original failures age
+    // out of the window, an already-exhausted invoice would look like
+    // it had only 1 prior attempt and get retried again, violating the
+    // max-attempts contract. So we run an unbounded count query for
+    // this single invoice.
+    const { count: fullHistoryCount, error: countErr } = await sb
+      .from("audit_logs")
+      .select("id", { count: "exact", head: true })
+      .in("event_type", [AUTOPAY_SUCCESS_EVT, AUTOPAY_FAILURE_EVT])
+      .eq("object_type", "patient_invoice")
+      .eq("organization_id", organizationId)
+      .eq("object_id", patientInvoiceId);
+    if (countErr) {
+      console.warn(
+        "[autopay-retry] full-history count failed",
+        organizationId,
+        patientInvoiceId,
+        countErr.message,
+      );
+    }
+    const attemptCountBefore =
+      typeof fullHistoryCount === "number" && fullHistoryCount > 0
+        ? fullHistoryCount
+        : evList.length;
+
+    const push = (
+      outcome: AutopayRetryDecision["outcome"],
+      extra?: Partial<AutopayRetryDecision>,
+    ) => {
+      summary.decisions.push({
+        organizationId,
+        patientInvoiceId,
+        outcome,
+        attemptCountBefore,
+        ...extra,
+      });
+      if (outcome === "retried") {
+        summary.retried += 1;
+      } else {
+        summary.skipped += 1;
+      }
+    };
+
+    if (latest.event_type === AUTOPAY_SUCCESS_EVT) {
+      push("skipped_recovered");
+      continue;
+    }
+
+    if (attemptCountBefore >= maxAttempts) {
+      push("skipped_exhausted");
+      continue;
+    }
+
+    const backoffHours = backoff[attemptCountBefore - 1];
+    const lastMs = new Date(latest.created_at).getTime();
+    if (!Number.isFinite(lastMs)) {
+      push("skipped_not_due");
+      continue;
+    }
+    const nextRetryMs = lastMs + backoffHours * 3600 * 1000;
+    if (nowMs < nextRetryMs) {
+      push("skipped_not_due", { nextRetryAt: new Date(nextRetryMs).toISOString() });
+      continue;
+    }
+
+    // Re-check the invoice and patient state before charging again.
+    // Task #669 explicitly requires that we do NOT keep emitting failed
+    // audits once the patient turned autopay off or removed their card —
+    // attemptAutopayForInvoice would otherwise write another failure row
+    // for "no saved card on file", which the cron would then keep
+    // retrying forever.
+    const { data: invRow } = await sb
+      .from("patient_invoices")
+      .select("id, client_id, invoice_status, balance_amount")
+      .eq("organization_id", organizationId)
+      .eq("id", patientInvoiceId)
+      .is("archived_at", null)
+      .maybeSingle();
+    const invoice = invRow as
+      | {
+          id: string;
+          client_id: string;
+          invoice_status: string;
+          balance_amount: number;
+        }
+      | null;
+    if (
+      !invoice ||
+      Number(invoice.balance_amount ?? 0) <= 0 ||
+      ["paid", "voided"].includes(invoice.invoice_status)
+    ) {
+      push("skipped_invoice_closed");
+      continue;
+    }
+
+    const { data: cliRow } = await sb
+      .from("clients")
+      .select(
+        "id, autopay_enabled, stripe_payment_method_id, stripe_customer_id, stripe_connect_account_id",
+      )
+      .eq("organization_id", organizationId)
+      .eq("id", invoice.client_id)
+      .is("archived_at", null)
+      .maybeSingle();
+    const client = cliRow as
+      | {
+          autopay_enabled: boolean;
+          stripe_payment_method_id: string | null;
+          stripe_customer_id: string | null;
+          stripe_connect_account_id: string | null;
+        }
+      | null;
+    if (!client || !client.autopay_enabled) {
+      push("skipped_autopay_off");
+      continue;
+    }
+    if (
+      !client.stripe_payment_method_id ||
+      !client.stripe_customer_id ||
+      !client.stripe_connect_account_id
+    ) {
+      push("skipped_no_card");
+      continue;
+    }
+
+    const result = await attemptAutopayForInvoice({
+      organizationId,
+      patientInvoiceId,
+      supabase,
+    });
+    if (result.ok && result.code === "succeeded") summary.succeeded += 1;
+    else if (result.code === "failed") summary.failed += 1;
+    push("retried", { retryResult: result });
+  }
+
+  return summary;
+}
