@@ -87,6 +87,22 @@ type NotificationPrefs = {
   inAppOnEligibilityRouting: boolean;
 };
 
+type CommentRow = {
+  id: string;
+  body: string;
+  type: string;
+  createdAt: string;
+  authorUserId: string | null;
+  authorName: string;
+};
+
+type CommentsState = {
+  loading: boolean;
+  error: string | null;
+  comments: CommentRow[];
+  canComment: boolean;
+};
+
 export default function MyInboxClient() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +112,10 @@ export default function MyInboxClient() {
   const [filter, setFilter] = useState<"all" | InboxKind>("all");
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [savingPref, setSavingPref] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [commentsById, setCommentsById] = useState<Record<string, CommentsState>>({});
+  const [draftById, setDraftById] = useState<Record<string, string>>({});
+  const [postingId, setPostingId] = useState<string | null>(null);
 
   const organizationId = useMemo(() => getOrganizationId(), []);
 
@@ -211,6 +231,94 @@ export default function MyInboxClient() {
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const loadComments = useCallback(
+    async (workqueueItemId: string) => {
+      setCommentsById((prev) => ({
+        ...prev,
+        [workqueueItemId]: {
+          loading: true,
+          error: null,
+          comments: prev[workqueueItemId]?.comments ?? [],
+          canComment: prev[workqueueItemId]?.canComment ?? false,
+        },
+      }));
+      try {
+        const res = await fetch(
+          `/api/billing/workqueue-comments?workqueueItemId=${encodeURIComponent(
+            workqueueItemId,
+          )}&organizationId=${encodeURIComponent(organizationId)}`,
+          { cache: "no-store" },
+        );
+        const json = await res.json();
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error ?? "Failed to load comments");
+        }
+        setCommentsById((prev) => ({
+          ...prev,
+          [workqueueItemId]: {
+            loading: false,
+            error: null,
+            comments: (json.comments ?? []) as CommentRow[],
+            canComment: Boolean(json.canComment),
+          },
+        }));
+      } catch (e) {
+        setCommentsById((prev) => ({
+          ...prev,
+          [workqueueItemId]: {
+            loading: false,
+            error: e instanceof Error ? e.message : "Failed to load comments",
+            comments: prev[workqueueItemId]?.comments ?? [],
+            canComment: prev[workqueueItemId]?.canComment ?? false,
+          },
+        }));
+      }
+    },
+    [organizationId],
+  );
+
+  const toggleExpanded = useCallback(
+    (item: InboxItem) => {
+      const next = expandedId === item.id ? null : item.id;
+      setExpandedId(next);
+      if (next && !commentsById[item.id]) {
+        void loadComments(item.id);
+      }
+    },
+    [expandedId, commentsById, loadComments],
+  );
+
+  const postComment = useCallback(
+    async (workqueueItemId: string) => {
+      const text = (draftById[workqueueItemId] ?? "").trim();
+      if (!text) return;
+      setPostingId(workqueueItemId);
+      try {
+        const res = await fetch("/api/billing/workqueue-comments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workqueueItemId,
+            organizationId,
+            comment: text,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error ?? "Failed to add comment");
+        }
+        setDraftById((prev) => ({ ...prev, [workqueueItemId]: "" }));
+        await loadComments(workqueueItemId);
+        setToast("Comment added");
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : "Failed to add comment");
+      } finally {
+        setPostingId(null);
+      }
+    },
+    [draftById, organizationId, loadComments],
+  );
 
   const visible = useMemo(
     () => (filter === "all" ? items : items.filter((i) => i.kind === filter)),
@@ -363,6 +471,9 @@ export default function MyInboxClient() {
           {visible.map((item) => {
             const pt = priorityTone(item.priority);
             const kt = kindTone(item.kind);
+            const isExpanded = expandedId === item.id;
+            const commentsState = commentsById[item.id];
+            const draft = draftById[item.id] ?? "";
             return (
               <li
                 key={item.id}
@@ -372,10 +483,11 @@ export default function MyInboxClient() {
                   background: "#FFFFFF",
                   padding: 14,
                   display: "flex",
-                  gap: 14,
-                  alignItems: "flex-start",
+                  flexDirection: "column",
+                  gap: 12,
                 }}
               >
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span
@@ -483,7 +595,165 @@ export default function MyInboxClient() {
                   >
                     {resolvingId === item.id ? "Resolving…" : "Mark resolved"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(item)}
+                    aria-expanded={isExpanded}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #CBD5E1",
+                      background: isExpanded ? "#F1F5F9" : "#FFFFFF",
+                      color: "#334155",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isExpanded ? "Hide comments" : "Comments"}
+                  </button>
                 </div>
+                </div>
+                {isExpanded ? (
+                  <div
+                    style={{
+                      borderTop: "1px solid #E2E8F0",
+                      paddingTop: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>
+                      Conversation
+                    </div>
+                    {commentsState?.loading && !commentsState.comments.length ? (
+                      <div style={{ color: "#64748B", fontSize: 12.5 }}>Loading comments…</div>
+                    ) : commentsState?.error ? (
+                      <div style={{ color: "#B91C1C", fontSize: 12.5 }}>{commentsState.error}</div>
+                    ) : commentsState?.comments.length ? (
+                      <ul
+                        style={{
+                          listStyle: "none",
+                          padding: 0,
+                          margin: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                        }}
+                      >
+                        {commentsState.comments.map((c) => (
+                          <li
+                            key={c.id}
+                            style={{
+                              background: "#F8FAFC",
+                              border: "1px solid #E2E8F0",
+                              borderRadius: 6,
+                              padding: "8px 10px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "baseline",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0F172A" }}>
+                                {c.authorName}
+                                {c.type && c.type !== "note" ? (
+                                  <span
+                                    style={{
+                                      marginLeft: 6,
+                                      fontSize: 10.5,
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      color: "#475569",
+                                      background: "#E2E8F0",
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                    }}
+                                  >
+                                    {c.type.replace(/_/g, " ")}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span
+                                style={{ fontSize: 11.5, color: "#94A3B8" }}
+                                title={c.createdAt}
+                              >
+                                {relative(c.createdAt)}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                marginTop: 4,
+                                fontSize: 13,
+                                color: "#334155",
+                                whiteSpace: "pre-wrap",
+                              }}
+                            >
+                              {c.body}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ color: "#94A3B8", fontSize: 12.5 }}>
+                        No comments yet. Add one to keep the biller in the loop.
+                      </div>
+                    )}
+
+                    {commentsState && !commentsState.canComment && !commentsState.loading ? (
+                      <div style={{ color: "#94A3B8", fontSize: 12 }}>
+                        Only the current assignee can post here.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <textarea
+                          value={draft}
+                          onChange={(e) =>
+                            setDraftById((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          }
+                          placeholder="e.g. Left voicemail with patient — will follow up tomorrow"
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            resize: "vertical",
+                            padding: 8,
+                            border: "1px solid #CBD5E1",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontFamily: "inherit",
+                          }}
+                        />
+                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            onClick={() => void postComment(item.id)}
+                            disabled={postingId === item.id || !draft.trim()}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              border: "1px solid #1D4ED8",
+                              background:
+                                postingId === item.id || !draft.trim() ? "#EFF6FF" : "#1D4ED8",
+                              color:
+                                postingId === item.id || !draft.trim() ? "#1D4ED8" : "#FFFFFF",
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              cursor:
+                                postingId === item.id || !draft.trim() ? "default" : "pointer",
+                            }}
+                          >
+                            {postingId === item.id ? "Posting…" : "Add comment"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </li>
             );
           })}

@@ -136,6 +136,68 @@ export default function EligibilityIssuesClient() {
   };
   const [routingPicker, setRoutingPicker] = useState<RoutingPickerState | null>(null);
 
+  // Inbox-comments cache, keyed by workqueue item id (a.k.a. row.inboxItemId).
+  // Loaded lazily when the user opens the "Inbox comments" detail tab so
+  // the original biller can read what the assignee said back.
+  type InboxComment = {
+    id: string;
+    body: string;
+    type: string;
+    createdAt: string;
+    authorName: string;
+  };
+  type InboxCommentsState = {
+    loading: boolean;
+    error: string | null;
+    comments: InboxComment[];
+  };
+  const [inboxCommentsById, setInboxCommentsById] = useState<
+    Record<string, InboxCommentsState>
+  >({});
+
+  const loadInboxComments = useCallback(
+    async (workqueueItemId: string) => {
+      setInboxCommentsById((prev) => ({
+        ...prev,
+        [workqueueItemId]: {
+          loading: true,
+          error: null,
+          comments: prev[workqueueItemId]?.comments ?? [],
+        },
+      }));
+      try {
+        const res = await fetch(
+          `/api/billing/workqueue-comments?workqueueItemId=${encodeURIComponent(
+            workqueueItemId,
+          )}&organizationId=${encodeURIComponent(organizationId)}`,
+          { cache: "no-store" },
+        );
+        const json = await res.json();
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error ?? "Failed to load comments");
+        }
+        setInboxCommentsById((prev) => ({
+          ...prev,
+          [workqueueItemId]: {
+            loading: false,
+            error: null,
+            comments: (json.comments ?? []) as InboxComment[],
+          },
+        }));
+      } catch (e) {
+        setInboxCommentsById((prev) => ({
+          ...prev,
+          [workqueueItemId]: {
+            loading: false,
+            error: e instanceof Error ? e.message : "Failed to load comments",
+            comments: prev[workqueueItemId]?.comments ?? [],
+          },
+        }));
+      }
+    },
+    [organizationId],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -751,6 +813,120 @@ export default function EligibilityIssuesClient() {
         ) : null,
       },
       {
+        id: "inboxComments",
+        label: "Inbox comments",
+        render: () => {
+          if (!selectedRow) return null;
+          if (!selectedRow.inboxItemId) {
+            return (
+              <p style={{ color: "#94A3B8", fontSize: 13 }}>
+                This issue hasn&apos;t been routed to anyone yet. Once you route
+                it to a clinician or admin, their replies will show up here.
+              </p>
+            );
+          }
+          const state = inboxCommentsById[selectedRow.inboxItemId];
+          if (!state) {
+            return (
+              <button
+                type="button"
+                onClick={() => void loadInboxComments(selectedRow.inboxItemId!)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #CBD5E1",
+                  background: "#FFFFFF",
+                  color: "#334155",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Load comments
+              </button>
+            );
+          }
+          if (state.loading && state.comments.length === 0) {
+            return <p style={{ color: "#64748B", fontSize: 13 }}>Loading comments…</p>;
+          }
+          if (state.error) {
+            return <p style={{ color: "#B91C1C", fontSize: 13 }}>{state.error}</p>;
+          }
+          if (state.comments.length === 0) {
+            return (
+              <p style={{ color: "#94A3B8", fontSize: 13 }}>
+                No replies from {selectedRow.assignedTo ?? "the assignee"} yet.
+              </p>
+            );
+          }
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: "#64748B" }}>
+                  Routed to <strong style={{ color: "#0F172A" }}>{selectedRow.assignedTo ?? "—"}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void loadInboxComments(selectedRow.inboxItemId!)}
+                  disabled={state.loading}
+                  style={{
+                    fontSize: 11.5,
+                    border: "none",
+                    background: "transparent",
+                    color: "#1D4ED8",
+                    cursor: state.loading ? "default" : "pointer",
+                    padding: 0,
+                  }}
+                >
+                  {state.loading ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                {state.comments.map((c) => (
+                  <li
+                    key={c.id}
+                    style={{
+                      background: "#F8FAFC",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0F172A" }}>
+                        {c.authorName}
+                        {c.type && c.type !== "note" ? (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              color: "#475569",
+                              background: "#E2E8F0",
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            {c.type.replace(/_/g, " ")}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span style={{ fontSize: 11.5, color: "#94A3B8" }} title={c.createdAt}>
+                        {formatDateTime(c.createdAt)}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 13, color: "#334155", whiteSpace: "pre-wrap" }}>
+                      {c.body}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        },
+      },
+      {
         id: "affectedClaims",
         label: "Affected claims",
         render: () => selectedRow ? (
@@ -773,7 +949,7 @@ export default function EligibilityIssuesClient() {
         ) : null,
       },
     ],
-    [selectedRow],
+    [selectedRow, inboxCommentsById, loadInboxComments],
   );
 
   const detailActions: PrimaryAction[] = useMemo(() => {
