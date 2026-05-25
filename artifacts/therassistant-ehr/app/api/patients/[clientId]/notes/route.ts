@@ -33,8 +33,8 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
 
     const { data: notes, error: noteErr } = encounterIds.length > 0
       ? await supabase
-          .from("encounter_notes")
-          .select("id, encounter_id, note_status, note_type, note_body, signed_at, created_at")
+          .from("encounter_clinical_notes")
+          .select("id, encounter_id, note_status, subjective, objective, assessment, plan, signed_at, created_at")
           .in("encounter_id", encounterIds)
           .is("archived_at", null)
           .order("created_at", { ascending: false })
@@ -52,10 +52,10 @@ export async function GET(request: Request, context: { params: Promise<{ clientI
       encounterDate: (encMap[note.encounter_id as string]?.service_date as string | null) ?? null,
       encounterStatus: (encMap[note.encounter_id as string]?.encounter_status as string | null) ?? null,
       noteStatus: note.note_status as string | null,
-      noteType: note.note_type as string | null,
+      noteType: "SOAP",
       signedAt: note.signed_at as string | null,
       createdAt: note.created_at as string | null,
-      hasSoapNote: Boolean(note.note_body),
+      hasSoapNote: Boolean(note.subjective || note.objective || note.assessment || note.plan),
     }));
 
     return NextResponse.json({ success: true, notes: items, encounters: encounters ?? [], total: items.length });
