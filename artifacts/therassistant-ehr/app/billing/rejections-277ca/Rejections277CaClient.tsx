@@ -393,7 +393,7 @@ export default function Rejections277CaClient() {
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const runAction = useCallback(
-    async (row: RejectionRow, action: ActionId) => {
+    async (row: RejectionRow, action: ActionId, note?: string) => {
       setBusyId(row.id);
       setMessage(null);
 
@@ -433,7 +433,7 @@ export default function Rejections277CaClient() {
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ organizationId, action }),
+            body: JSON.stringify({ organizationId, action, note }),
           },
         );
         const json = await res.json();
@@ -479,6 +479,7 @@ export default function Rejections277CaClient() {
         | "route_to_enrollment"
         | "mark_resolved"
         | "undo_auto_route",
+      note?: string,
     ) => {
       if (selectedIds.length === 0 || bulkBusy) return;
       setBulkBusy(true);
@@ -515,6 +516,7 @@ export default function Rejections277CaClient() {
             organizationId,
             action,
             itemIds: [...targetIds],
+            note,
           }),
         });
         const json = (await res.json()) as {
@@ -642,7 +644,22 @@ export default function Rejections277CaClient() {
         id: "undo-auto-route",
         label: "Undo auto-route",
         variant: "primary",
-        onClick: () => void runAction(selectedRow, "undo_auto_route"),
+        onClick: () => {
+          const raw =
+            typeof window !== "undefined"
+              ? window.prompt(
+                  "Why are you overriding the auto-route? (optional — helps tune the rules)",
+                  "",
+                )
+              : null;
+          if (raw === null) return;
+          const trimmed = raw.trim();
+          void runAction(
+            selectedRow,
+            "undo_auto_route",
+            trimmed.length > 0 ? trimmed : undefined,
+          );
+        },
         disabled: busyId === selectedRow.id,
       });
     }
@@ -960,7 +977,21 @@ export default function Rejections277CaClient() {
           id: "bulk-undo-auto-route",
           label: `Undo auto-route (${autoRoutedSelectedCount})`,
           variant: "primary",
-          onClick: () => void runBulkAction("undo_auto_route"),
+          onClick: () => {
+            const raw =
+              typeof window !== "undefined"
+                ? window.prompt(
+                    `Why are you overriding the auto-route for ${autoRoutedSelectedCount} item(s)? (optional — helps tune the rules)`,
+                    "",
+                  )
+                : null;
+            if (raw === null) return;
+            const trimmed = raw.trim();
+            void runBulkAction(
+              "undo_auto_route",
+              trimmed.length > 0 ? trimmed : undefined,
+            );
+          },
           disabled: bulkBusy,
         });
       }

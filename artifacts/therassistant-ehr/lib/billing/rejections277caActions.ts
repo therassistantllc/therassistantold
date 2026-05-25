@@ -297,7 +297,11 @@ export async function applyRejection277CaAction(
       claimId,
       eventType: "rejection_277ca_auto_route_undone",
       summary: "Biller cleared 277CA auto-route and returned item to manual triage.",
-      metadata: { workqueueItemId: itemId, staffId },
+      metadata: {
+        workqueueItemId: itemId,
+        staffId,
+        ...(note && note.trim().length > 0 ? { note: note.trim() } : {}),
+      },
     });
     return { ok: true, itemId, action, status: r.status, httpStatus: 200 };
   }
