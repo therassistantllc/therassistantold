@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { commitPosting, type PostingActor } from "@/lib/payments/postingEngine";
 
 type DbRow = Record<string, unknown>;
 const text = (v: unknown) => String(v ?? "").trim();
@@ -107,8 +108,11 @@ export async function POST(
         break;
       }
       case "post_payment": {
-        // Load every matched claim along with its client_id so we can write
-        // insurance_manual_payments + payment_applications rows for each one.
+        // Route every matched claim through the central posting engine so
+        // paper-check posts produce the same downstream effects as ERA 835
+        // and the standalone manual-EOB form: insurance_manual_payments +
+        // era_posting_ledger_entries rows, professional_claims.claim_status
+        // flip, patient_invoices for residual PR, and applyWorkqueueRules.
         const { data: matchRows, error: matchErr } = await (supabase as any)
           .from("paper_check_claim_matches")
           .select("claim_id, applied_amount")
@@ -125,7 +129,8 @@ export async function POST(
         const noteText =
           typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
 
-        // Hydrate claim → client_id for the insurance_manual_payments insert.
+        // Hydrate claim → client_id so we can hand the engine a clientId
+        // (insurance_manual_payments.client_id is NOT NULL).
         const claimIds = matchList.map((m) => text(m.claim_id));
         const { data: claimRows, error: claimErr } = await (supabase as any)
           .from("professional_claims")
@@ -140,14 +145,10 @@ export async function POST(
           ]),
         );
 
-        // Up-front validation pass: every matched claim must have a patient
-        // linkage (both insurance_manual_payments.client_id and
-        // payment_applications.client_id are NOT NULL) and a positive
-        // applied_amount (payment_applications CHECKs applied_amount > 0,
-        // and a zero-amount match means no money moves on that claim — we
-        // refuse to mark the whole check 'posted' in that state). Bail
-        // before any insert so we never end up with a half-posted check or
-        // a "posted" check with zero ledger impact.
+        // Up-front validation pass: every matched claim must belong to this
+        // org, have a patient linkage, and a positive applied_amount. Bail
+        // before any engine call so we never half-post a check or mark it
+        // "posted" with zero ledger impact.
         const missingClient = matchList
           .map((m) => text(m.claim_id))
           .filter((cid) => !clientByClaim.get(cid));
@@ -173,145 +174,103 @@ export async function POST(
           );
         }
 
-        // Idempotency: every manual-payment row we write for this check is
-        // tagged with this deterministic marker. We treat a (check, claim) as
-        // "posted" only when *both* the insurance_manual_payments row and its
-        // payment_applications row exist. If a previous attempt crashed after
-        // writing the manual payment but before writing its application, we
-        // detect the orphan via payment_source_id and finish it on retry
-        // instead of silently skipping the claim (which would leave the claim
-        // balance untouched even though the manual payment was recorded).
+        // Idempotency: every manual-payment row we route through the engine
+        // for this check is tagged with this deterministic marker. If a row
+        // with this (org, eob_reference, claim_id) already exists, the
+        // engine has already produced its ledger entries / claim-status
+        // flip / patient invoice for that (check, claim) — skip so a
+        // re-press of "Post payment" doesn't double-post.
         const eobMarker = `paper_check:${checkId}`;
         const { data: alreadyPosted, error: dupErr } = await (supabase as any)
           .from("insurance_manual_payments")
-          .select("id, claim_id, client_id, paid_amount")
+          .select("claim_id")
           .eq("organization_id", organizationId)
           .eq("eob_reference", eobMarker)
           .is("archived_at", null);
         if (dupErr) throw dupErr;
-        const existingByClaim = new Map<string, DbRow>();
-        for (const r of (alreadyPosted ?? []) as DbRow[]) {
-          existingByClaim.set(text(r.claim_id), r);
-        }
-        let existingApps: DbRow[] = [];
-        if (existingByClaim.size > 0) {
-          const sourceIds = Array.from(existingByClaim.values()).map((r) => text(r.id));
-          const { data: appRows, error: appLookupErr } = await (supabase as any)
-            .from("payment_applications")
-            .select("payment_source_id")
-            .eq("organization_id", organizationId)
-            .eq("payment_kind", "insurance")
-            .in("payment_source_id", sourceIds)
-            .is("archived_at", null);
-          if (appLookupErr) throw appLookupErr;
-          existingApps = (appRows ?? []) as DbRow[];
-        }
-        const appliedSourceIds = new Set(
-          existingApps.map((r) => text(r.payment_source_id)),
+        const postedClaimSet = new Set(
+          ((alreadyPosted ?? []) as DbRow[]).map((r) => text(r.claim_id)),
         );
 
+        const postingActor: PostingActor = {
+          staffId: guard.staffId ?? null,
+          userId: guard.userId ?? null,
+          role: (guard.roles?.[0] as string | undefined) ?? null,
+          source: "ui:paper-check-post",
+        };
+
         const postedClaimIds: string[] = [];
-        const recoveredClaimIds: string[] = [];
         const skippedClaimIds: string[] = [];
+        const failedClaimIds: string[] = [];
+        const failureMessages: string[] = [];
 
         for (const m of matchList) {
           const claimId = text(m.claim_id);
           const appliedAmount = money(m.applied_amount);
 
-          const prior = existingByClaim.get(claimId);
-          if (prior) {
-            // Already have a manual payment row for this (check, claim).
-            // Just make sure its paired payment_applications row exists.
-            const priorId = text(prior.id);
-            if (appliedSourceIds.has(priorId)) {
-              skippedClaimIds.push(claimId);
-              continue;
-            }
-            const priorAmount = money(prior.paid_amount);
-            if (priorAmount <= 0) {
-              skippedClaimIds.push(claimId);
-              continue;
-            }
-            const { error: recoverErr } = await (supabase as any)
-              .from("payment_applications")
-              .insert({
-                organization_id: organizationId,
-                payment_kind: "insurance",
-                payment_source_id: priorId,
-                client_id: (prior.client_id as string | null) ?? clientByClaim.get(claimId),
-                claim_id: claimId,
-                applied_amount: priorAmount,
-              });
-            if (recoverErr) throw recoverErr;
-            recoveredClaimIds.push(claimId);
-            continue;
-          }
-
-          // Skip zero/negative applied amounts — payment_applications has a
-          // CHECK applied_amount > 0 and posting nothing matches reality.
-          if (appliedAmount <= 0) {
+          if (postedClaimSet.has(claimId)) {
             skippedClaimIds.push(claimId);
             continue;
           }
-          const clientId = clientByClaim.get(claimId)!; // guaranteed by upfront validation
 
-          const { data: impRow, error: impErr } = await (supabase as any)
-            .from("insurance_manual_payments")
-            .insert({
-              organization_id: organizationId,
-              claim_id: claimId,
-              client_id: clientId,
-              eob_reference: eobMarker,
-              allowed_amount: appliedAmount,
-              paid_amount: appliedAmount,
-              adjustment_amount: 0,
-              patient_responsibility_amount: 0,
+          const result = await commitPosting({
+            organizationId,
+            actor: postingActor,
+            source: {
+              type: "manual_insurance",
+              professionalClaimId: claimId,
+              clientId: clientByClaim.get(claimId) ?? null,
+              payerPaymentAmount: appliedAmount,
+              patientResponsibilityAmount: 0,
+              contractualAdjustmentAmount: 0,
+              // Paper-check posting captures only the applied amount —
+              // there is no adj/PR breakdown at intake. Tell the engine
+              // the recognised charge IS the applied amount so its
+              // balance check (paid + adj + pr == charge) passes when the
+              // claim's billed total is larger (partial-payment case).
+              totalChargeAmount: appliedAmount,
+              checkOrEftNumber: (existing.check_number as string | null) ?? null,
+              paymentDate: (existing.check_date as string | null) ?? today,
+              eobReference: eobMarker,
+              payerProfileId: (existing.payer_profile_id as string | null) ?? null,
               note: noteText,
-              payer_profile_id:
-                (existing.payer_profile_id as string | null) ?? null,
-              check_number: (existing.check_number as string | null) ?? null,
-              payment_date:
-                (existing.check_date as string | null) ?? today,
-              posted_actor_id: guard.userId ?? null,
-              posting_status: "posted",
-            })
-            .select("id")
-            .single();
-          if (impErr) throw impErr;
-          const manualPaymentId = text((impRow as DbRow).id);
+            },
+          });
 
-          const { error: appErr } = await (supabase as any)
-            .from("payment_applications")
-            .insert({
-              organization_id: organizationId,
-              payment_kind: "insurance",
-              payment_source_id: manualPaymentId,
-              client_id: clientId,
-              claim_id: claimId,
-              applied_amount: appliedAmount,
-            });
-          if (appErr) {
-            // We just wrote the manual-payment row but the application
-            // failed. Re-throw so the request 500s — on the next retry the
-            // recovery branch above will find the orphaned manual payment
-            // by eob_reference and finish writing its application.
-            throw appErr;
+          if (!result.ok) {
+            failedClaimIds.push(claimId);
+            failureMessages.push(
+              ...result.errors.map((e) => `${claimId}: ${e.message}`),
+            );
+            continue;
           }
-
           postedClaimIds.push(claimId);
         }
 
+        if (failedClaimIds.length > 0) {
+          // Any engine failure aborts the "posted" flip so the biller can
+          // fix the bad claim and retry. Already-successful claims stay
+          // posted (their insurance_manual_payments row + eobMarker block
+          // double-posts on the retry).
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Failed to post claim(s) ${failedClaimIds.join(", ")}: ${failureMessages.join("; ")}`,
+              posted_claim_ids: postedClaimIds,
+              skipped_claim_ids: skippedClaimIds,
+            },
+            { status: 422 },
+          );
+        }
+
         patch = { posting_status: "posted" };
-        const totalAffected = postedClaimIds.length + recoveredClaimIds.length;
+        const totalAffected = postedClaimIds.length;
         eventMessage =
           totalAffected > 0
             ? `Payment posted to ${totalAffected} claim(s)`
-            : "Payment already posted (no new applications)";
+            : "Payment already posted (no new claims)";
         if (noteText) eventPayload.note = noteText;
         eventPayload.posted_claim_ids = postedClaimIds;
-        if (recoveredClaimIds.length > 0) {
-          eventPayload.recovered_claim_ids = recoveredClaimIds;
-        }
         if (skippedClaimIds.length > 0) {
           eventPayload.skipped_claim_ids = skippedClaimIds;
         }
