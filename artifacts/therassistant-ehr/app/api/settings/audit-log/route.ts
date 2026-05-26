@@ -16,6 +16,31 @@ import { createServerSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { STAFF_ROLES } from "@/lib/rbac/constants";
 
 const SETTING_OBJECT_TYPE = "system_setting";
+const CSV_PAGE_SIZE = 1000;
+
+function csvEscape(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  let str: string;
+  if (typeof value === "string") str = value;
+  else if (typeof value === "number" || typeof value === "boolean") str = String(value);
+  else {
+    try {
+      str = JSON.stringify(value);
+    } catch {
+      str = String(value);
+    }
+  }
+  // CSV formula-injection hardening: a leading =, +, -, @, tab, or CR in a
+  // cell can be interpreted as a formula by Excel/Sheets. Prefix with a
+  // single quote so the value renders as plain text.
+  if (str.length > 0 && /^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
 
 type AuditRow = {
   id: string;
@@ -58,6 +83,8 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
+  const format = (searchParams.get("format") ?? "").trim().toLowerCase();
+  const isCsv = format === "csv";
   const limit = Math.min(
     Math.max(Number(searchParams.get("limit") ?? "50") || 50, 1),
     200,
@@ -68,40 +95,68 @@ export async function GET(request: NextRequest) {
   const settingKey = (searchParams.get("settingKey") ?? "").trim();
   const actorId = (searchParams.get("actorId") ?? "").trim();
 
-  let query = supabase
-    .from("audit_logs")
-    .select(
-      "id, created_at, user_id, user_role, action, object_type, object_id, event_summary, event_metadata, before_value, after_value",
-      { count: "exact" },
-    )
-    .eq("organization_id", organizationId)
-    .eq("object_type", SETTING_OBJECT_TYPE)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  const buildBaseQuery = (withCount: boolean) => {
+    let q = supabase
+      .from("audit_logs")
+      .select(
+        "id, created_at, user_id, user_role, action, object_type, object_id, event_summary, event_metadata, before_value, after_value",
+        withCount ? { count: "exact" } : undefined,
+      )
+      .eq("organization_id", organizationId)
+      .eq("object_type", SETTING_OBJECT_TYPE)
+      .order("created_at", { ascending: false });
+    if (from) q = q.gte("created_at", from);
+    if (to) q = q.lte("created_at", to);
+    if (actorId) q = q.eq("user_id", actorId);
+    if (settingKey) {
+      // event_metadata.setting_key is the canonical home for the key (see the
+      // 277CA writer in `app/api/settings/billing-defaults/route.ts`). Fall back
+      // to matching the `action` column so older entries written before that
+      // convention landed are still findable.
+      q = q.or(
+        `event_metadata->>setting_key.eq.${settingKey},action.eq.${settingKey}`,
+      );
+    }
+    return q;
+  };
 
-  if (from) query = query.gte("created_at", from);
-  if (to) query = query.lte("created_at", to);
-  if (actorId) query = query.eq("user_id", actorId);
-  if (settingKey) {
-    // event_metadata.setting_key is the canonical home for the key (see the
-    // 277CA writer in `app/api/settings/billing-defaults/route.ts`). Fall back
-    // to matching the `action` column so older entries written before that
-    // convention landed are still findable.
-    query = query.or(
-      `event_metadata->>setting_key.eq.${settingKey},action.eq.${settingKey}`,
+  let rows: AuditRow[] = [];
+  let totalCount: number | null = null;
+
+  if (isCsv) {
+    // CSV export returns ALL matching rows; supabase caps single requests
+    // (default 1000), so loop in pages until exhausted.
+    let pageStart = 0;
+    for (;;) {
+      const { data: pageData, error: pageError } = await buildBaseQuery(false).range(
+        pageStart,
+        pageStart + CSV_PAGE_SIZE - 1,
+      );
+      if (pageError) {
+        return NextResponse.json(
+          { error: `Failed to read settings audit log: ${pageError.message}` },
+          { status: 500 },
+        );
+      }
+      const batch = (pageData ?? []) as unknown as AuditRow[];
+      rows.push(...batch);
+      if (batch.length < CSV_PAGE_SIZE) break;
+      pageStart += CSV_PAGE_SIZE;
+    }
+  } else {
+    const { data, error, count } = await buildBaseQuery(true).range(
+      offset,
+      offset + limit - 1,
     );
+    if (error) {
+      return NextResponse.json(
+        { error: `Failed to read settings audit log: ${error.message}` },
+        { status: 500 },
+      );
+    }
+    rows = (data ?? []) as unknown as AuditRow[];
+    totalCount = typeof count === "number" ? count : null;
   }
-
-  const { data, error, count } = await query;
-  if (error) {
-    return NextResponse.json(
-      { error: `Failed to read settings audit log: ${error.message}` },
-      { status: 500 },
-    );
-  }
-
-  const rows = (data ?? []) as unknown as AuditRow[];
-  const totalCount = typeof count === "number" ? count : null;
 
   // Actor resolution — same two-source pattern as the security audit endpoint.
   const authIds = Array.from(
@@ -158,6 +213,44 @@ export async function GET(request: NextRequest) {
       metadata: meta,
     };
   });
+
+  if (isCsv) {
+    const header = [
+      "timestamp",
+      "setting_key",
+      "field",
+      "before",
+      "after",
+      "actor_name",
+      "actor_email",
+      "role",
+    ];
+    const lines = [header.join(",")];
+    for (const e of entries) {
+      lines.push(
+        [
+          csvEscape(e.createdAt),
+          csvEscape(e.settingKey ?? ""),
+          csvEscape(e.fieldLabel ?? e.field ?? ""),
+          csvEscape(e.beforeValue),
+          csvEscape(e.afterValue),
+          csvEscape(e.actorName ?? ""),
+          csvEscape(e.actorEmail ?? ""),
+          csvEscape(e.userRole ?? ""),
+        ].join(","),
+      );
+    }
+    const body = lines.join("\r\n") + "\r\n";
+    const stamp = new Date().toISOString().slice(0, 10);
+    return new NextResponse(body, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="settings-audit-log-${stamp}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   // Distinct setting-key options pulled from existing entries (capped scan).
   const { data: keyRows } = await supabase

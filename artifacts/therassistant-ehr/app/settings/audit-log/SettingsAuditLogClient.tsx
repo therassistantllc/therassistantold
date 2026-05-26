@@ -65,6 +65,52 @@ export default function SettingsAuditLogClient() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const buildFilterParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (settingKey) params.set("settingKey", settingKey);
+    if (actorId) params.set("actorId", actorId);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return params;
+  }, [settingKey, actorId, from, to]);
+
+  const handleExportCsv = useCallback(async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const params = buildFilterParams();
+      params.set("format", "csv");
+      const resp = await fetch(`/api/settings/audit-log?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!resp.ok) {
+        let msg = `Export failed (${resp.status})`;
+        try {
+          const j = await resp.json();
+          if (j?.error) msg = j.error;
+        } catch {
+          /* not JSON */
+        }
+        throw new Error(msg);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.download = `settings-audit-log-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  }, [buildFilterParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -214,6 +260,15 @@ export default function SettingsAuditLogClient() {
             onClick={() => load()}
           >
             Refresh
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={handleExportCsv}
+            disabled={exporting || loading}
+            title="Download all rows matching the current filters as CSV"
+          >
+            {exporting ? "Exporting…" : "Export CSV"}
           </button>
         </div>
       </section>
