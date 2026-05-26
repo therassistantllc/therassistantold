@@ -429,8 +429,8 @@ export default function BillingReportsClient() {
     <main className="app-shell reports-shell">
       <section className="reports-hero">
         <div>
-          <p className="eyebrow">Billing</p>
-          <h1>Revenue Overview</h1>
+          <p className="eyebrow">Billing{organizationName ? <> · {organizationName}</> : null}</p>
+          <h1>{organizationName ? `${organizationName} — Revenue Overview` : "Revenue Overview"}</h1>
           <p className="hero-copy">
             {formatMonth(payload?.month || month)} · <strong>{scopeLabel}</strong>
             {viewerRoles.length > 0 ? <> · Viewing as <strong>{ROLE_LABEL[role]}</strong></> : null}
@@ -483,7 +483,7 @@ export default function BillingReportsClient() {
                 const practicePart = slug(organizationName ?? "") || "Practice";
                 const safeScope = slug(scopeLabel) || "Practice";
                 const monthPart = (payload?.month || month).replace(/[^0-9-]/g, "") || month;
-                const fileName = `BillingReport_${practicePart}_${safeScope}_${monthPart}`;
+                const fileName = `${practicePart}_${safeScope}_${monthPart}`;
                 const originalTitle = document.title;
                 document.title = fileName;
                 const restore = () => {
