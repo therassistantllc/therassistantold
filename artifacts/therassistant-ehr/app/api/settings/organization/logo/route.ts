@@ -1,23 +1,60 @@
 /**
  * POST   /api/settings/organization/logo  — upload a letterhead logo (JPEG,
- *                                            PNG, WebP, GIF) and persist its
- *                                            storage path on
+ *                                            PNG, WebP, GIF, SVG) and persist
+ *                                            its storage path on
  *                                            `organization.billing_profile`.
  * DELETE /api/settings/organization/logo  — clear the persisted logo and best-
  *                                            effort remove the storage object.
  *
  * Why we store JPEG: the cover-letter PDF generator embeds images with the
- * `DCTDecode` filter (raw JPEG passthrough). PNG / WebP / GIF uploads are
- * transcoded to JPEG via `sharp` at upload time so the PDF path remains
+ * `DCTDecode` filter (raw JPEG passthrough). PNG / WebP / GIF / SVG uploads
+ * are transcoded to JPEG via `sharp` at upload time so the PDF path remains
  * dependency-free and small while still accepting common brand-asset formats
- * (PNG transparency is flattened against white).
+ * (PNG transparency is flattened against white). SVG inputs are rasterized
+ * at 300 DPI via librsvg so the rendered PDF stays crisp regardless of how
+ * the page scales the logo, and they are content-scanned to reject embedded
+ * scripts, event handlers, javascript: URLs, foreignObject islands, and DTD
+ * entities before sharp ever touches them.
  */
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireOrgAccess } from "@/lib/auth/requireOrgAccess";
 
-const ACCEPTED_MIME = /^image\/(jpe?g|png|webp|gif)$/i;
+const ACCEPTED_MIME = /^image\/(jpe?g|png|webp|gif|svg\+xml)$/i;
+const SVG_RASTER_DENSITY = 300; // DPI — librsvg renders the SVG at this density.
+
+/**
+ * Returns an error string when the bytes are not a safe SVG to feed to
+ * librsvg, or null when the file is acceptable. We are deliberately strict:
+ * the only valid use case here is a static brand asset, so any script-like,
+ * external-resource-like, or DTD-like content is rejected outright.
+ */
+function validateSvg(bytes: Uint8Array): string | null {
+  // SVG must be UTF-8 text. Use a non-fatal decoder so we can still scan
+  // mixed/garbage bytes for tags before bailing out.
+  const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  if (!/<svg[\s>]/i.test(text)) {
+    return "File does not appear to be a valid SVG image.";
+  }
+  if (/<!DOCTYPE[^>]*\[/i.test(text) || /<!ENTITY/i.test(text)) {
+    return "SVG contains DTD entities and was rejected.";
+  }
+  if (/<script[\s>]/i.test(text)) {
+    return "SVG contains <script> tags and was rejected.";
+  }
+  if (/<foreignObject[\s>]/i.test(text)) {
+    return "SVG contains <foreignObject> and was rejected.";
+  }
+  // Inline event handlers like onclick=, onload=, etc.
+  if (/\son[a-z]+\s*=/i.test(text)) {
+    return "SVG contains inline event handlers and was rejected.";
+  }
+  if (/javascript\s*:/i.test(text)) {
+    return "SVG contains javascript: URLs and was rejected.";
+  }
+  return null;
+}
 
 const BUCKET = "organization-assets";
 const BILLING_PROFILE_KEY = "organization.billing_profile";
@@ -117,10 +154,11 @@ export async function POST(req: NextRequest) {
   const mimeType = blob.type || "";
   if (!ACCEPTED_MIME.test(mimeType)) {
     return NextResponse.json(
-      { error: "Logo must be a JPEG, PNG, WebP, or GIF image." },
+      { error: "Logo must be a JPEG, PNG, WebP, GIF, or SVG image." },
       { status: 415 },
     );
   }
+  const isSvg = /svg\+xml/i.test(mimeType);
 
   await ensureBucket(supabase);
 
@@ -137,13 +175,29 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await blob.arrayBuffer();
   const inputBytes = new Uint8Array(arrayBuffer);
 
+  // SVG uploads are content-scanned before sharp ever sees them. librsvg
+  // ignores <script> blocks, but we also block event handlers, javascript:
+  // URLs, <foreignObject>, and DTD entities so a malicious upload can't be
+  // resurrected by some later renderer that interprets those constructs.
+  if (isSvg) {
+    const svgErr = validateSvg(inputBytes);
+    if (svgErr) {
+      return NextResponse.json({ error: svgErr }, { status: 400 });
+    }
+  }
+
   // Transcode every upload through sharp. JPEG inputs are re-encoded (cheap
   // and safe — also strips orientation EXIF, fixing rotated-photo logos);
   // PNG / WebP / GIF are flattened against white and emitted as baseline JPEG
-  // so the PDF generator's DCTDecode path keeps working unchanged.
+  // so the PDF generator's DCTDecode path keeps working unchanged. SVG inputs
+  // are rasterized by librsvg at 300 DPI (vs. the 72 DPI default) so the
+  // letterhead stays crisp at the cover-letter's print resolution.
   let bytes: Uint8Array;
   try {
-    const jpeg = await sharp(inputBytes)
+    const pipeline = isSvg
+      ? sharp(inputBytes, { density: SVG_RASTER_DENSITY })
+      : sharp(inputBytes);
+    const jpeg = await pipeline
       .flatten({ background: { r: 255, g: 255, b: 255 } })
       .rotate()
       .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: false })

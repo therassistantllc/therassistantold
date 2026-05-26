@@ -208,8 +208,8 @@ function LetterheadLogoField({
   }, [hasLogo, organizationId, path]);
 
   async function handleFile(file: File) {
-    if (!/^image\/(jpe?g|png|webp|gif)$/i.test(file.type)) {
-      setMsg("Logo must be a JPEG, PNG, WebP, or GIF image.");
+    if (!/^image\/(jpe?g|png|webp|gif|svg\+xml)$/i.test(file.type)) {
+      setMsg("Logo must be a JPEG, PNG, WebP, GIF, or SVG image.");
       return;
     }
     setBusy("upload");
@@ -259,7 +259,8 @@ function LetterheadLogoField({
   return (
     <div style={{ marginTop: "var(--space-4)" }}>
       <label className="field-label" style={{ display: "block", marginBottom: "var(--space-2)" }}>
-        Letterhead Logo (JPEG, PNG, WebP, or GIF — up to 2 MB)
+        Letterhead Logo (JPEG, PNG, WebP, GIF, or SVG — up to 2 MB; SVG is
+        rasterized at print resolution for the cover-letter PDF)
       </label>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
         {hasLogo && previewUrl ? (
@@ -286,7 +287,7 @@ function LetterheadLogoField({
         )}
         <input
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/svg+xml,.svg"
           disabled={busy !== null || !organizationId}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -573,7 +574,7 @@ export default function OrganizationSettingsClient() {
               These contact details and logo appear on generated billing PDFs (cover
               letters, appeal packets) so payers can reach the practice and recognise
               its brand. The billing address and phone above are reused; add fax,
-              email, and an optional logo (JPEG, PNG, WebP, or GIF) here.
+              email, and an optional logo (JPEG, PNG, WebP, GIF, or SVG) here.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
               {bf("billing_fax", "Billing Fax")}
