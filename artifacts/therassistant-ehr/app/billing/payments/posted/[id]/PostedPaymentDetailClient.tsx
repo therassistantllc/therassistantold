@@ -1,0 +1,880 @@
+"use client";
+
+/**
+ * Posted-payment detail page (Task #110, PP-4).
+ *
+ * Renders a unified detail view for any posted payment regardless of source
+ * (ERA-835, manual EOB, or client_payment), plus controls for the four
+ * destructive operations: reverse, void, recoup, refund. All actions POST
+ * to `/api/billing/payments/posted/[id]/<action>` which route through the
+ * posting engine (validation + ledger writes + audit).
+ *
+ * The composite id format is `era:|cp:|mi:<uuid>` — see the GET route for
+ * details.
+ */
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_ORG_ID } from "@/lib/config";
+import {
+  CancelRefundModal,
+  ConfirmRefundModal,
+  RecoupModal,
+  RefundModal,
+  ReverseModal,
+  SimpleReasonModal,
+  type RowSummary,
+} from "../../PaymentRowActions";
+
+function getOrganizationId() {
+  if (typeof window === "undefined") return DEFAULT_ORG_ID;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || DEFAULT_ORG_ID;
+}
+
+type DetailResponse = {
+  success: boolean;
+  compositeId: string;
+  kind: "era_835" | "client_payment" | "insurance_manual";
+  paymentId: string;
+  sourceTitle: string;
+  postingStatus: string;
+  totalImpact: number;
+  header: Record<string, unknown> | null;
+  claim: Record<string, unknown> | null;
+  patientInvoice: Record<string, unknown> | null;
+  ledgerEntries: Array<Record<string, unknown>>;
+  refunds: Array<Record<string, unknown>>;
+  recoupments: Array<Record<string, unknown>>;
+  disputes?: Array<{
+    workqueueItemId: string;
+    status: string | null;
+    stripeDisputeId: string | null;
+    stripeChargeId: string | null;
+    disputeReason: string | null;
+    disputeStatus: string | null;
+    amount: number | null;
+    createdAt: string | null;
+    resolvedAt: string | null;
+    isActive: boolean;
+  }>;
+  remainingRefundable?: number;
+  workqueueItems: Array<Record<string, unknown>>;
+  auditChain: Array<Record<string, unknown>>;
+  sourceLink?: { kind: string; id: string; label: string } | null;
+  casAdjustments?: unknown;
+  attachments?: Array<Record<string, unknown>>;
+  billingNotes?: string | null;
+  denial?: {
+    reason: string | null;
+    reasonCode: string | null;
+    reasonDescription: string | null;
+    deniedAt: string | null;
+  } | null;
+  error?: string;
+};
+
+function fmtCurrency(n: unknown) {
+  const num = Number(n ?? 0);
+  if (!Number.isFinite(num)) return "—";
+  return `$${num.toFixed(2)}`;
+}
+
+function fmtDate(s: unknown) {
+  if (!s) return "—";
+  const d = new Date(String(s));
+  if (Number.isNaN(d.getTime())) return String(s);
+  return d.toLocaleString();
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const color =
+    status === "reversed"
+      ? "#b45309"
+      : status === "voided"
+        ? "#6b7280"
+        : status === "blocked"
+          ? "#b91c1c"
+          : status === "posted"
+            ? "#15803d"
+            : "#374151";
+  return (
+    <span
+      style={{
+        background: `${color}15`,
+        color,
+        padding: "2px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+      }}
+    >
+      {status || "—"}
+    </span>
+  );
+}
+
+export default function PostedPaymentDetailClient({ compositeId }: { compositeId: string }) {
+  const organizationId = useMemo(() => getOrganizationId(), []);
+  const [detail, setDetail] = useState<DetailResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [active, setActive] = useState<
+    | null
+    | { kind: "refund" }
+    | { kind: "reverse" }
+    | { kind: "void" }
+    | { kind: "recoup" }
+    | { kind: "confirm-refund"; refundId?: string }
+    | { kind: "cancel-refund"; refundId?: string }
+  >(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/billing/payments/posted/${encodeURIComponent(compositeId)}?organizationId=${organizationId}`,
+        { cache: "no-store" },
+      );
+      const j = (await r.json()) as DetailResponse;
+      if (!r.ok || !j.success) {
+        setError(j.error || `Request failed (${r.status})`);
+        setDetail(null);
+      } else {
+        setDetail(j);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [compositeId, organizationId]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  const rowSummary: RowSummary | null = useMemo(() => {
+    if (!detail) return null;
+    const source: RowSummary["source"] =
+      detail.kind === "era_835"
+        ? "era"
+        : detail.kind === "client_payment"
+          ? "patient"
+          : "manual_insurance";
+    return {
+      id: detail.compositeId,
+      paymentType: detail.kind === "client_payment" ? "patient" : "insurance",
+      postingStatus: detail.postingStatus,
+      amount: Number(detail.totalImpact ?? 0),
+      payerName: null,
+      source,
+    };
+  }, [detail]);
+
+  const closeModal = useCallback(() => setActive(null), []);
+  const onModalDone = useCallback(
+    (msg: string) => {
+      setActionMsg({ tone: "ok", text: msg });
+      setActive(null);
+      void reload();
+    },
+    [reload],
+  );
+  const onModalError = useCallback((msg: string) => {
+    setActionMsg({ tone: "err", text: msg });
+  }, []);
+
+  if (loading) {
+    return (
+      <main style={{ padding: 24 }}>
+        <p>Loading posted payment…</p>
+      </main>
+    );
+  }
+  if (error || !detail) {
+    return (
+      <main style={{ padding: 24 }}>
+        <Link href="/billing/payments" style={{ color: "#2563eb" }}>← Back to Payments</Link>
+        <h1 style={{ marginTop: 16 }}>Posted payment</h1>
+        <p style={{ color: "#b91c1c", marginTop: 12 }}>{error || "Not found."}</p>
+      </main>
+    );
+  }
+
+  const isReversed = detail.postingStatus === "reversed";
+  const isVoided = detail.postingStatus === "voided";
+  const lifecycleOpen = detail.postingStatus === "posted";
+
+  return (
+    <main style={{ padding: 24, maxWidth: 1180, margin: "0 auto" }}>
+      <Link href="/billing/payments" style={{ color: "#2563eb" }}>← Back to Payments</Link>
+
+      <header style={{ display: "flex", alignItems: "baseline", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+        <h1 style={{ margin: 0, fontSize: 24 }}>{detail.sourceTitle}</h1>
+        <StatusBadge status={detail.postingStatus} />
+        <span style={{ marginLeft: "auto", fontSize: 14, color: "#6b7280" }}>
+          ID: <code>{detail.compositeId}</code>
+        </span>
+      </header>
+
+      {/* Active dispute / chargeback banner (Stripe charge disputes) */}
+      {(detail.disputes ?? []).some((d) => d.isActive) ? (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 8,
+          }}
+          role="alert"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <strong style={{ color: "#991b1b", fontSize: 14 }}>
+              {(detail.disputes ?? []).filter((d) => d.isActive).length === 1
+                ? "Active chargeback / dispute"
+                : `${(detail.disputes ?? []).filter((d) => d.isActive).length} active chargebacks`}
+            </strong>
+          </div>
+          <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+            {(detail.disputes ?? [])
+              .filter((d) => d.isActive)
+              .map((d) => (
+                <div key={d.workqueueItemId} style={{ fontSize: 13, color: "#7f1d1d" }}>
+                  <div>
+                    <strong>Reason:</strong> {d.disputeReason ?? "—"}
+                    {" · "}
+                    <strong>Status:</strong> {d.disputeStatus ?? d.status ?? "—"}
+                    {d.amount != null ? (
+                      <>
+                        {" · "}
+                        <strong>Amount:</strong> {fmtCurrency(d.amount)}
+                      </>
+                    ) : null}
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12 }}>
+                    {d.stripeDisputeId ? (
+                      <>
+                        Stripe dispute <code>{d.stripeDisputeId}</code>
+                        {" · "}
+                      </>
+                    ) : null}
+                    Opened {fmtDate(d.createdAt)}
+                    {" · "}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Resolved disputes summary (kept compact, non-alarming) */}
+      {(detail.disputes ?? []).some((d) => !d.isActive) ? (
+        <p style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
+          {(detail.disputes ?? []).filter((d) => !d.isActive).length} resolved/closed dispute(s) on this charge.
+        </p>
+      ) : null}
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 16 }}>
+        <Card label="Total impact" value={fmtCurrency(detail.totalImpact)} />
+        {typeof detail.remainingRefundable === "number" ? (
+          <Card
+            label="Remaining refundable"
+            value={fmtCurrency(detail.remainingRefundable)}
+            sub={
+              detail.refunds.length > 0
+                ? `${detail.refunds.length} refund${detail.refunds.length === 1 ? "" : "s"} on file`
+                : undefined
+            }
+          />
+        ) : null}
+        <Card label="Source kind" value={detail.kind} />
+        {detail.claim ? (
+          <Card
+            label="Claim"
+            value={String((detail.claim as { claim_number?: string }).claim_number ?? "—")}
+            sub={`Status: ${String((detail.claim as { claim_status?: string }).claim_status ?? "—")}`}
+          />
+        ) : null}
+        {detail.patientInvoice ? (
+          <Card
+            label="Patient invoice"
+            value={String((detail.patientInvoice as { invoice_number?: string }).invoice_number ?? "—")}
+            sub={`Balance ${fmtCurrency((detail.patientInvoice as { balance_amount?: number }).balance_amount)}`}
+          />
+        ) : null}
+      </section>
+
+      {/* Source link */}
+      {detail.sourceLink ? (
+        <p style={{ marginTop: 12, fontSize: 13 }}>
+          Source: <strong>{detail.sourceLink.label}</strong>{" "}
+          <span style={{ color: "#6b7280" }}>({detail.sourceLink.kind})</span>
+        </p>
+      ) : null}
+
+      {/* CAS adjustments (CARC/RARC breakdown carried on the source row) */}
+      {Array.isArray(detail.casAdjustments) && detail.casAdjustments.length > 0 ? (
+        <Section title={`Claim/line adjustments (CARC) — ${detail.casAdjustments.length}`}>
+          <Table
+            cols={["Group", "Reason", "Amount", "Quantity", "Description"]}
+            rows={(detail.casAdjustments as Array<Record<string, unknown>>).map((c) => [
+              String(c.group_code ?? c.cas01 ?? "—"),
+              String(c.reason_code ?? c.cas02 ?? "—"),
+              fmtCurrency(c.amount ?? c.cas03),
+              String(c.quantity ?? c.cas04 ?? "—"),
+              String(c.description ?? "—"),
+            ])}
+          />
+        </Section>
+      ) : null}
+
+      {/* Denial info (when claim was denied or has CARC denial codes) */}
+      {detail.denial && (detail.denial.reason || detail.denial.reasonCode || detail.denial.reasonDescription) ? (
+        <Section title="Denial / payer action">
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+            {detail.denial.deniedAt ? (
+              <div>
+                <strong>Denied at:</strong> {fmtDate(detail.denial.deniedAt)}
+              </div>
+            ) : null}
+            {detail.denial.reasonCode ? (
+              <div>
+                <strong>Reason code:</strong> {detail.denial.reasonCode}
+              </div>
+            ) : null}
+            {detail.denial.reasonDescription ? (
+              <div>
+                <strong>Description:</strong> {detail.denial.reasonDescription}
+              </div>
+            ) : null}
+            {detail.denial.reason ? (
+              <div>
+                <strong>Reason:</strong> {detail.denial.reason}
+              </div>
+            ) : null}
+          </div>
+        </Section>
+      ) : null}
+
+      {/* Biller notes pulled from the linked claim */}
+      {detail.billingNotes ? (
+        <Section title="Biller notes">
+          <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, margin: 0 }}>
+            {detail.billingNotes}
+          </pre>
+        </Section>
+      ) : null}
+
+      {/* Attachments — claim/mailroom-linked documents */}
+      {Array.isArray(detail.attachments) && detail.attachments.length > 0 ? (
+        <Section title={`Attachments (${detail.attachments.length})`}>
+          <Table
+            cols={["Title", "Type", "File", "Size", "Uploaded"]}
+            rows={detail.attachments.map((d) => [
+              String(d.title ?? d.file_name ?? d.id ?? "—"),
+              String(d.document_type ?? "—"),
+              String(d.file_name ?? "—"),
+              d.file_size_bytes ? `${Math.round(Number(d.file_size_bytes) / 1024)} KB` : "—",
+              fmtDate(d.created_at),
+            ])}
+          />
+        </Section>
+      ) : null}
+
+      {/* Lifecycle controls */}
+      <section style={{ marginTop: 24, padding: 16, background: "#f9fafb", borderRadius: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Actions</h2>
+        <p style={{ marginTop: 4, color: "#6b7280", fontSize: 13 }}>
+          All actions route through the posting engine (validation + audit). Reverse writes
+          paired negative ledger entries. Void is only available for posted payments with
+          no ledger impact (use Reverse otherwise).
+        </p>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setActive({ kind: "reverse" })}
+            disabled={!lifecycleOpen}
+            style={btnStyle(!lifecycleOpen)}
+          >
+            Reverse…
+          </button>
+          <button
+            onClick={() => setActive({ kind: "void" })}
+            disabled={!lifecycleOpen}
+            style={btnStyle(!lifecycleOpen)}
+          >
+            Void…
+          </button>
+          {detail.kind !== "insurance_manual" ? (
+            <button
+              onClick={() => setActive({ kind: "recoup" })}
+              disabled={!lifecycleOpen}
+              style={btnStyle(!lifecycleOpen)}
+            >
+              Record Recoupment…
+            </button>
+          ) : null}
+          <button
+            onClick={() => setActive({ kind: "refund" })}
+            disabled={isVoided}
+            style={btnStyle(isVoided)}
+          >
+            {detail.kind === "client_payment" ? "Refund Patient…" : "Refund Insurance…"}
+          </button>
+        </div>
+        {isReversed ? (
+          <p style={{ marginTop: 12, fontSize: 13, color: "#b45309" }}>
+            This payment has been reversed{" "}
+            {(detail.header as { reversal_reason?: string })?.reversal_reason
+              ? `("${(detail.header as { reversal_reason?: string }).reversal_reason}")`
+              : ""}
+            . Ledger contains compensating negative entries.
+          </p>
+        ) : null}
+        {isVoided ? (
+          <p style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
+            This payment has been voided{" "}
+            {(detail.header as { void_reason?: string })?.void_reason
+              ? `("${(detail.header as { void_reason?: string }).void_reason}")`
+              : ""}
+            . No financial impact.
+          </p>
+        ) : null}
+        {actionMsg ? (
+          <p style={{ marginTop: 12, fontSize: 13, color: actionMsg.tone === "err" ? "#b91c1c" : "#15803d" }}>
+            {actionMsg.text}
+          </p>
+        ) : null}
+      </section>
+
+      {rowSummary && active?.kind === "refund" ? (
+        <RefundModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "reverse" ? (
+        <ReverseModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "void" ? (
+        <SimpleReasonModal
+          title="Void payment"
+          intro={`Void this ${rowSummary.source} payment of $${rowSummary.amount.toFixed(2)}? Voiding is only allowed when no ledger entries exist (data-entry mistake caught early). It does NOT move money.`}
+          submitLabel="Void payment"
+          danger
+          row={rowSummary}
+          orgId={organizationId}
+          path="void"
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "recoup" ? (
+        <RecoupModal
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "confirm-refund" ? (
+        <ConfirmRefundModal
+          row={rowSummary}
+          orgId={organizationId}
+          presetRefundId={active.refundId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+      {rowSummary && active?.kind === "cancel-refund" ? (
+        <CancelRefundModal
+          presetRefundId={active.refundId}
+          row={rowSummary}
+          orgId={organizationId}
+          onClose={closeModal}
+          onDone={onModalDone}
+          onError={onModalError}
+        />
+      ) : null}
+
+      {/* Ledger entries */}
+      <Section title={`Posted ledger entries (${detail.ledgerEntries.length})`}>
+        {detail.ledgerEntries.length === 0 ? (
+          <Empty>No ledger entries.</Empty>
+        ) : (
+          <Table
+            cols={["Type", "Amount", "Group/Reason", "Source", "Description", "Posted"]}
+            rows={detail.ledgerEntries.map((e) => [
+              String(e.entry_type ?? "—"),
+              fmtCurrency(e.amount),
+              `${String(e.group_code ?? "")}${e.reason_code ? "/" + String(e.reason_code) : ""}` || "—",
+              String(e.source_type ?? "—"),
+              String(e.description ?? "—"),
+              fmtDate(e.posted_at),
+            ])}
+          />
+        )}
+      </Section>
+
+      {/* Refunds timeline (issued / pending / cancelled) */}
+      <Section title={`Refunds (${detail.refunds.length})`}>
+        {detail.refunds.length === 0 ? (
+          <Empty>No refunds against this payment.</Empty>
+        ) : (
+          <RefundTimeline
+            refunds={detail.refunds}
+            auditChain={detail.auditChain}
+            onConfirm={(refundId) => setActive({ kind: "confirm-refund", refundId })}
+            onCancel={(refundId) => setActive({ kind: "cancel-refund", refundId })}
+          />
+        )}
+      </Section>
+
+      {/* Recoupments */}
+      <Section title={`Recoupments (${detail.recoupments.length})`}>
+        {detail.recoupments.length === 0 ? (
+          <Empty>No recoupments against this payment.</Empty>
+        ) : (
+          <Table
+            cols={["Amount", "Reason code", "Reason", "Offset ERA", "Recouped"]}
+            rows={detail.recoupments.map((r) => [
+              fmtCurrency(r.amount),
+              String(r.reason_code ?? "—"),
+              String(r.reason ?? "—"),
+              String(r.offset_era_claim_payment_id ?? "—"),
+              fmtDate(r.recouped_at),
+            ])}
+          />
+        )}
+      </Section>
+
+      {/* Workqueue items */}
+      <Section title={`Workqueue items (${detail.workqueueItems.length})`}>
+        {detail.workqueueItems.length === 0 ? (
+          <Empty>No workqueue items.</Empty>
+        ) : (
+          <Table
+            cols={["Type", "Status", "Priority", "Title", "Created", "Resolved"]}
+            rows={detail.workqueueItems.map((w) => [
+              String(w.work_type ?? w.queue_type ?? "—"),
+              String(w.status ?? "—"),
+              String(w.priority ?? "—"),
+              String(w.title ?? "—"),
+              fmtDate(w.created_at),
+              fmtDate(w.resolved_at),
+            ])}
+          />
+        )}
+      </Section>
+
+      {/* Audit chain */}
+      <Section title={`Audit history (${detail.auditChain.length})`}>
+        {detail.auditChain.length === 0 ? (
+          <Empty>No audit entries.</Empty>
+        ) : (
+          <Table
+            cols={["When", "Actor", "Action", "Object", "Summary"]}
+            rows={detail.auditChain.map((a) => [
+              fmtDate(a.created_at),
+              `${String(a.user_role ?? "—")} ${String(a.user_id ?? "")}`.trim(),
+              String(a.action ?? "—"),
+              `${String(a.object_type ?? "—")} ${String(a.object_id ?? "").slice(0, 8)}`,
+              String(a.event_summary ?? "—"),
+            ])}
+          />
+        )}
+      </Section>
+    </main>
+  );
+}
+
+function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div style={{ padding: 12, border: "1px solid #e5e7eb", borderRadius: 8 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>{value}</div>
+      {sub ? <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ marginTop: 24 }}>
+      <h2 style={{ fontSize: 16, marginBottom: 8 }}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p style={{ fontSize: 13, color: "#6b7280" }}>{children}</p>;
+}
+
+function Table({ cols, rows }: { cols: string[]; rows: Array<Array<string>> }) {
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead style={{ background: "#f9fafb" }}>
+          <tr>
+            {cols.map((c) => (
+              <th key={c} style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "#374151" }}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} style={{ borderTop: "1px solid #e5e7eb" }}>
+              {row.map((cell, j) => (
+                <td key={j} style={{ padding: "8px 12px", color: "#111827" }}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Single chronological strip of every refund tied to the payment — pending,
+ * issued, and cancelled. Cancelled rows are visually de-emphasised but still
+ * clickable to reveal the cancellation reason (stored on payment_refunds.note
+ * by reversal.cancelPendingRefund). Creation + terminal-action actors and
+ * timestamps come from the audit_logs chain already loaded with the detail
+ * payload — refund_requested / refund_issued / refund_cancelled rows keyed
+ * on the refund_id.
+ */
+function RefundTimeline({
+  refunds,
+  auditChain,
+  onConfirm,
+  onCancel,
+}: {
+  refunds: Array<Record<string, unknown>>;
+  auditChain: Array<Record<string, unknown>>;
+  onConfirm: (refundId: string) => void;
+  onCancel: (refundId: string) => void;
+}) {
+  // Build a quick { refundId -> { created, terminal } } index from the audit
+  // chain so we don't repeat the .find() per render row.
+  const auditByRefund = useMemo(() => {
+    const idx = new Map<
+      string,
+      {
+        created: Record<string, unknown> | null;
+        terminal: Record<string, unknown> | null;
+      }
+    >();
+    for (const row of auditChain) {
+      if (String(row.object_type ?? "") !== "payment_refund") continue;
+      const oid = String(row.object_id ?? "");
+      if (!oid) continue;
+      const entry = idx.get(oid) ?? { created: null, terminal: null };
+      const action = String(row.action ?? "");
+      if (action === "refund_requested" && !entry.created) {
+        entry.created = row;
+      } else if (action === "refund_issued" || action === "refund_cancelled" || action === "refund_failed") {
+        // Last terminal action wins (audit chain is already ascending).
+        entry.terminal = row;
+        // If a refund was issued directly (no separate request audit row),
+        // fall back to using the same row as the creation marker.
+        if (!entry.created && action === "refund_issued") entry.created = row;
+      }
+      idx.set(oid, entry);
+    }
+    return idx;
+  }, [auditChain]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {refunds.map((r) => {
+        const id = String(r.id);
+        const status = String(r.refund_status ?? "");
+        const type = String(r.refund_type ?? "");
+        const amount = Number(r.amount ?? 0);
+        const reason = String(r.reason ?? "");
+        const note = String(r.note ?? "");
+        const isCancelled = status === "cancelled";
+        const isPendingInsurance = status === "pending" && type === "insurance";
+        const audit = auditByRefund.get(id) ?? { created: null, terminal: null };
+        const createdActor = audit.created
+          ? `${String(audit.created.user_role ?? "—")} ${String(audit.created.user_id ?? "")}`.trim()
+          : null;
+        const terminalActor = audit.terminal
+          ? `${String(audit.terminal.user_role ?? "—")} ${String(audit.terminal.user_id ?? "")}`.trim()
+          : null;
+        const terminalAt =
+          status === "issued"
+            ? (r.issued_at as string | null) ?? (audit.terminal?.created_at as string | null) ?? null
+            : status === "cancelled"
+              ? (r.archived_at as string | null) ?? (audit.terminal?.created_at as string | null) ?? null
+              : null;
+        const open = expanded[id] === true;
+        const clickable = isCancelled && note.length > 0;
+
+        return (
+          <div
+            key={id}
+            onClick={clickable ? () => setExpanded((s) => ({ ...s, [id]: !s[id] })) : undefined}
+            style={{
+              padding: 12,
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              background: isPendingInsurance ? "#fffbeb" : isCancelled ? "#fafafa" : "white",
+              opacity: isCancelled ? 0.7 : 1,
+              cursor: clickable ? "pointer" : "default",
+            }}
+            title={clickable ? (open ? "Hide cancellation reason" : "Show cancellation reason") : undefined}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <RefundStatusBadge status={status} />
+              <strong style={{ fontSize: 14 }}>{fmtCurrency(amount)}</strong>
+              <span style={{ fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                {type}
+              </span>
+              {r.stripe_refund_id ? (
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  Stripe <code>{String(r.stripe_refund_id)}</code>
+                </span>
+              ) : null}
+              {isPendingInsurance ? (
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConfirm(id);
+                    }}
+                    style={{ ...btnStyle(false), padding: "6px 12px" }}
+                  >
+                    Confirm issued…
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancel(id);
+                    }}
+                    style={{ ...btnStyle(false), padding: "6px 12px" }}
+                  >
+                    Cancel…
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {reason ? (
+              <div style={{ marginTop: 6, fontSize: 13, color: "#374151" }}>{reason}</div>
+            ) : null}
+
+            <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280", display: "grid", gap: 2 }}>
+              <div>
+                <strong>Requested</strong> {fmtDate(r.requested_at)}
+                {createdActor ? <> · by {createdActor}</> : null}
+              </div>
+              {terminalAt || audit.terminal ? (
+                <div>
+                  <strong>
+                    {status === "issued" ? "Issued" : status === "cancelled" ? "Cancelled" : "Updated"}
+                  </strong>{" "}
+                  {fmtDate(terminalAt)}
+                  {terminalActor ? <> · by {terminalActor}</> : null}
+                </div>
+              ) : null}
+              {isPendingInsurance ? (
+                <div style={{ color: "#92400e" }}>
+                  Awaiting issuance — confirming flips to <strong>issued</strong> and posts the compensating ledger entry.
+                </div>
+              ) : null}
+            </div>
+
+            {isCancelled && note ? (
+              open ? (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 8,
+                    background: "#f3f4f6",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: "#374151",
+                  }}
+                >
+                  <strong>Cancellation reason:</strong> {note}
+                </div>
+              ) : (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#2563eb" }}>
+                  Click to see cancellation reason
+                </div>
+              )
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RefundStatusBadge({ status }: { status: string }) {
+  const color =
+    status === "issued"
+      ? "#15803d"
+      : status === "pending"
+        ? "#b45309"
+        : status === "cancelled"
+          ? "#6b7280"
+          : status === "failed"
+            ? "#b91c1c"
+            : "#374151";
+  return (
+    <span
+      style={{
+        background: `${color}15`,
+        color,
+        padding: "2px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+      }}
+    >
+      {status || "—"}
+    </span>
+  );
+}
+
+function btnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "8px 14px",
+    background: disabled ? "#e5e7eb" : "#2563eb",
+    color: disabled ? "#9ca3af" : "white",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}

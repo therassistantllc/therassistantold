@@ -1,0 +1,1106 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_ORG_ID } from "@/lib/config";
+import WorkqueueShell, {
+  type ColumnDef,
+  type DetailTab,
+  type FilterDef,
+  type PrimaryAction,
+  type PrimaryTab,
+  type RowAction,
+  type SummaryMetric,
+} from "@/components/billing/WorkqueueShell";
+import {
+  REJECTION_277CA_TABS,
+  type Rejection277CaTabId,
+} from "@/lib/billing/rejections277ca";
+import { getWorkqueue } from "@/lib/billing/workqueues";
+import { buildClaimDetailHref } from "@/lib/claims/claimDetailRouting";
+import { ClaimDocumentsPanel } from "@/components/billing/ClaimDocumentsPanel";
+import {
+  ClaimDocumentUploadsOverlay,
+  useClaimDocumentUploads,
+} from "@/components/billing/ClaimDocumentUploads";
+
+type ActionId =
+  | "correct_claim"
+  | "resubmit_corrected_claim"
+  | "route_to_eligibility"
+  | "route_to_enrollment"
+  | "mark_resolved"
+  | "undo_auto_route";
+
+interface RejectionRow {
+  id: string;
+  workqueueItemId: string;
+  claimId: string;
+  claimNumber: string | null;
+  clientId: string | null;
+  clientName: string;
+  payerId: string | null;
+  payerName: string | null;
+  practiceName: string | null;
+  clinicianName: string | null;
+  dos: string | null;
+  ca277Status: string;
+  rejectionReason: string;
+  category: string;
+  categoryCode: string | null;
+  statusCode: string | null;
+  entityCode: string | null;
+  tab: Rejection277CaTabId;
+  totalCharge: number;
+  dateRejected: string | null;
+  assignedTo: string | null;
+  status: string;
+  priority: string | null;
+  followUpDue: string | null;
+  agingDays: number | null;
+  autoRouted: boolean;
+  autoRoutedTab: Rejection277CaTabId | null;
+  autoRoutedReason: string | null;
+  autoRoutedAt: string | null;
+  correctionHistory: Array<{
+    id: string;
+    body: string;
+    type: string;
+    createdAt: string | null;
+    createdBy: string | null;
+  }>;
+  contextPayload: Record<string, unknown>;
+}
+
+interface ApiPayload {
+  success: boolean;
+  error?: string;
+  items?: RejectionRow[];
+}
+
+function getOrganizationId(): string {
+  if (typeof window === "undefined") return DEFAULT_ORG_ID;
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get("organizationId") ||
+    process.env.NEXT_PUBLIC_ORGANIZATION_ID ||
+    DEFAULT_ORG_ID
+  );
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+function money(value: number): string {
+  return Number(value ?? 0).toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+  });
+}
+
+function ciContains(haystack: string | null, needle: string): boolean {
+  if (!needle) return true;
+  if (!haystack) return false;
+  return haystack.toLowerCase().includes(needle.toLowerCase());
+}
+
+const queueDef = getWorkqueue("rejections_277ca");
+
+export default function Rejections277CaClient() {
+  const organizationId = useMemo(() => getOrganizationId(), []);
+  const docUploads = useClaimDocumentUploads(organizationId);
+  const [items, setItems] = useState<RejectionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<Rejection277CaTabId>(
+    REJECTION_277CA_TABS[0].id,
+  );
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [message, setMessage] = useState<
+    { tone: "success" | "error"; text: string } | null
+  >(null);
+
+  // ── Load ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const qs = new URLSearchParams({ organizationId });
+    for (const [k, v] of Object.entries(filterValues)) {
+      if (v) qs.set(k, v);
+    }
+    fetch(`/api/billing/rejections-277ca?${qs.toString()}`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiPayload>)
+      .then((json) => {
+        if (json.success && Array.isArray(json.items)) {
+          setItems(json.items);
+        } else {
+          setItems([]);
+          if (json.error) {
+            setMessage({ tone: "error", text: json.error });
+          }
+        }
+      })
+      .catch((e) => {
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Failed to load",
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [organizationId, reloadKey, filterValues]);
+
+  // ── Filter facets + universal rail ──────────────────────────────────────
+  const payerOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of items) {
+      if (r.payerId && r.payerName) map.set(r.payerId, r.payerName);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [items]);
+
+  const clientOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of items) {
+      if (r.clientId && r.clientName) map.set(r.clientId, r.clientName);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [items]);
+
+  const filters: FilterDef[] = useMemo(
+    () => [
+      { id: "practice", label: "Practice", kind: "text", placeholder: "Service location…" },
+      { id: "clinician", label: "Clinician", kind: "text", placeholder: "Rendering provider…" },
+      { id: "payer", label: "Payer", kind: "select", options: payerOptions },
+      { id: "client", label: "Client", kind: "select", options: clientOptions },
+      { id: "dosFrom", label: "DOS from", kind: "date" },
+      { id: "dosTo", label: "DOS to", kind: "date" },
+      {
+        id: "status",
+        label: "Status",
+        kind: "select",
+        options: [
+          { value: "open", label: "Open" },
+          { value: "in_progress", label: "In progress" },
+          { value: "blocked", label: "Blocked" },
+          { value: "resolved", label: "Resolved" },
+        ],
+      },
+      { id: "assignedBiller", label: "Assigned biller", kind: "text", placeholder: "Name or 'unassigned'" },
+      { id: "minAmount", label: "Min $", kind: "number", placeholder: "0" },
+      { id: "maxAmount", label: "Max $", kind: "number" },
+      {
+        id: "agingBucket",
+        label: "Aging",
+        kind: "select",
+        options: [
+          { value: "0-7", label: "0-7 days" },
+          { value: "8-30", label: "8-30 days" },
+          { value: "31-60", label: "31-60 days" },
+          { value: "60+", label: "60+ days" },
+        ],
+      },
+      { id: "carcRarc", label: "CARC/RARC", kind: "text", placeholder: "STC code or text…" },
+      {
+        id: "priority",
+        label: "Priority",
+        kind: "select",
+        options: [
+          { value: "urgent", label: "Urgent" },
+          { value: "high", label: "High" },
+          { value: "normal", label: "Normal" },
+          { value: "low", label: "Low" },
+        ],
+      },
+      { id: "followUpDue", label: "Follow-up due", kind: "date" },
+    ],
+    [payerOptions, clientOptions],
+  );
+
+  // ── Tab narrowing + client-side filter re-apply ────────────────────────
+  const tabRows = useMemo(
+    () => items.filter((r) => r.tab === activeTab),
+    [items, activeTab],
+  );
+
+  const filtered = useMemo(() => {
+    const v = filterValues;
+    return tabRows.filter((r) => {
+      if (v.priority) {
+        const p = (r.priority ?? "").toLowerCase();
+        if (v.priority === "urgent") {
+          if (p !== "urgent" && (r.agingDays ?? 0) <= 14) return false;
+        } else if (p !== v.priority) {
+          return false;
+        }
+      }
+      if (v.carcRarc) {
+        if (
+          !ciContains(r.rejectionReason, v.carcRarc) &&
+          !ciContains(r.category, v.carcRarc) &&
+          !ciContains(r.ca277Status, v.carcRarc) &&
+          !ciContains(r.categoryCode, v.carcRarc) &&
+          !ciContains(r.statusCode, v.carcRarc)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [tabRows, filterValues]);
+
+  // ── Summary strip ──────────────────────────────────────────────────────
+  const summary: SummaryMetric[] = useMemo(() => {
+    const dollars = tabRows.reduce((s, r) => s + (r.totalCharge || 0), 0);
+    const ages = tabRows
+      .map((r) => r.agingDays)
+      .filter((n): n is number => n != null);
+    const oldest = ages.length ? Math.max(...ages) : 0;
+    const urgent = tabRows.filter(
+      (r) => (r.priority ?? "").toLowerCase() === "urgent" || (r.agingDays ?? 0) > 14,
+    ).length;
+    return [
+      { id: "count", label: "Rejections", value: tabRows.length.toLocaleString() },
+      { id: "dollars", label: "Total $", value: money(dollars) },
+      {
+        id: "oldest",
+        label: "Oldest (days)",
+        value: oldest,
+        tone: oldest > 30 ? "red" : oldest > 14 ? "amber" : "default",
+      },
+      {
+        id: "urgent",
+        label: "Urgent",
+        value: urgent,
+        tone: urgent > 0 ? "amber" : "default",
+      },
+    ];
+  }, [tabRows]);
+
+  // ── Columns: spec order ─────────────────────────────────────────────────
+  const columns: ColumnDef<RejectionRow>[] = useMemo(
+    () => [
+      {
+        id: "claimId",
+        header: "Claim ID",
+        cell: (r) => (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
+              {r.claimNumber ?? r.claimId.slice(0, 8)}
+            </span>
+            {r.autoRouted ? (
+              <span
+                title={
+                  r.autoRoutedReason === "routed_to_eligibility"
+                    ? "Auto-routed to eligibility on intake. Open the row to override."
+                    : r.autoRoutedReason === "routed_to_credentialing"
+                      ? "Auto-routed to credentialing/enrollment on intake. Open the row to override."
+                      : "Auto-routed on intake. Open the row to override."
+                }
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: 999,
+                  background: "#E0E7FF",
+                  color: "#3730A3",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.3,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {r.autoRoutedReason === "routed_to_eligibility"
+                  ? "Auto-routed → Eligibility"
+                  : r.autoRoutedReason === "routed_to_credentialing"
+                    ? "Auto-routed → Credentialing"
+                    : "Auto-routed"}
+              </span>
+            ) : null}
+          </span>
+        ),
+      },
+      { id: "client", header: "Client", cell: (r) => r.clientName },
+      { id: "payer", header: "Payer", cell: (r) => r.payerName ?? "—" },
+      { id: "dos", header: "DOS", cell: (r) => formatDate(r.dos) },
+      {
+        id: "ca277Status",
+        header: "277CA status",
+        cell: (r) => (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "2px 8px",
+              borderRadius: 999,
+              background: "#FEE2E2",
+              color: "#991B1B",
+            }}
+          >
+            {r.ca277Status}
+          </span>
+        ),
+      },
+      {
+        id: "reason",
+        header: "Rejection reason",
+        cell: (r) => (
+          <span title={r.rejectionReason} style={{ display: "inline-block", maxWidth: 320, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {r.rejectionReason || "—"}
+          </span>
+        ),
+      },
+      { id: "category", header: "Category", cell: (r) => r.category },
+      {
+        id: "charge",
+        header: "Charge amount",
+        align: "right",
+        cell: (r) => money(r.totalCharge),
+      },
+      {
+        id: "dateRejected",
+        header: "Date rejected",
+        cell: (r) => formatDate(r.dateRejected),
+      },
+      {
+        id: "assignedTo",
+        header: "Assigned to",
+        cell: (r) => r.assignedTo ?? "—",
+      },
+    ],
+    [],
+  );
+
+  // ── Keep selection valid when the visible set shrinks ──────────────────
+  useEffect(() => {
+    if (!selectedRowId) return;
+    if (!filtered.some((r) => r.id === selectedRowId)) setSelectedRowId(null);
+  }, [filtered, selectedRowId]);
+
+  const selectedRow = useMemo(
+    () => filtered.find((r) => r.id === selectedRowId) ?? null,
+    [filtered, selectedRowId],
+  );
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+  const runAction = useCallback(
+    async (row: RejectionRow, action: ActionId, note?: string) => {
+      setBusyId(row.id);
+      setMessage(null);
+
+      // Optimistic patch: actions that close/defer the item should drop the
+      // row from the visible list immediately.
+      const snapshot = items;
+      if (
+        action === "resubmit_corrected_claim" ||
+        action === "mark_resolved" ||
+        action === "route_to_eligibility" ||
+        action === "route_to_enrollment"
+      ) {
+        setItems((prev) => prev.filter((r) => r.id !== row.id));
+      } else if (action === "undo_auto_route" || action === "correct_claim") {
+        // Optimistically clear the auto-routed badge — the row stays put,
+        // but the user sees their override take effect immediately.
+        setItems((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? {
+                  ...r,
+                  autoRouted: false,
+                  autoRoutedTab: null,
+                  autoRoutedReason: null,
+                  autoRoutedAt: null,
+                  followUpDue:
+                    action === "undo_auto_route" ? null : r.followUpDue,
+                }
+              : r,
+          ),
+        );
+      }
+
+      try {
+        const res = await fetch(
+          `/api/billing/rejections-277ca/${encodeURIComponent(row.workqueueItemId)}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ organizationId, action, note }),
+          },
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Action failed");
+        }
+        const label =
+          action === "correct_claim"
+            ? "Opened correction note."
+            : action === "resubmit_corrected_claim"
+              ? "Resubmission queued."
+              : action === "route_to_eligibility"
+                ? "Routed to eligibility."
+                : action === "route_to_enrollment"
+                  ? "Routed to credentialing/enrollment."
+                  : action === "undo_auto_route"
+                    ? "Auto-route cleared — back in manual triage."
+                    : "Marked resolved.";
+        setMessage({ tone: "success", text: label });
+        // Pull fresh state so any server-side recomputation (e.g. comment
+        // list, status flip) is reflected.
+        setReloadKey((k) => k + 1);
+      } catch (e) {
+        // Roll back optimistic patch.
+        setItems(snapshot);
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Action failed",
+        });
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [organizationId, items],
+  );
+
+  // ── Bulk action runner ─────────────────────────────────────────────────
+  const runBulkAction = useCallback(
+    async (
+      action:
+        | "resubmit_corrected_claim"
+        | "route_to_eligibility"
+        | "route_to_enrollment"
+        | "mark_resolved"
+        | "undo_auto_route",
+      note?: string,
+    ) => {
+      if (selectedIds.length === 0 || bulkBusy) return;
+      setBulkBusy(true);
+      setMessage(null);
+
+      // Optimistic patch — close/defer actions drop rows from view; undo
+      // keeps them visible but clears the auto-routed badge.
+      const snapshot = items;
+      const targetIds = new Set(selectedIds);
+      if (action === "undo_auto_route") {
+        setItems((prev) =>
+          prev.map((r) =>
+            targetIds.has(r.id) && r.autoRouted
+              ? {
+                  ...r,
+                  autoRouted: false,
+                  autoRoutedTab: null,
+                  autoRoutedReason: null,
+                  autoRoutedAt: null,
+                  followUpDue: null,
+                }
+              : r,
+          ),
+        );
+      } else {
+        setItems((prev) => prev.filter((r) => !targetIds.has(r.id)));
+      }
+
+      try {
+        const res = await fetch(`/api/billing/rejections-277ca/bulk`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            action,
+            itemIds: [...targetIds],
+            note,
+          }),
+        });
+        const json = (await res.json()) as {
+          success?: boolean;
+          error?: string;
+          successCount?: number;
+          failedCount?: number;
+          totalCount?: number;
+          results?: Array<{ itemId: string; ok: boolean; error?: string }>;
+        };
+        if (!res.ok && !json.results) {
+          throw new Error(json.error || "Bulk action failed");
+        }
+
+        const successCount = json.successCount ?? 0;
+        const failedCount = json.failedCount ?? 0;
+        const totalCount = json.totalCount ?? targetIds.size;
+        const verb =
+          action === "resubmit_corrected_claim"
+            ? "Resubmitted"
+            : action === "route_to_eligibility"
+              ? "Routed to eligibility"
+              : action === "route_to_enrollment"
+                ? "Routed to credentialing/enrollment"
+                : action === "undo_auto_route"
+                  ? "Auto-route cleared"
+                  : "Marked resolved";
+
+        if (failedCount === 0) {
+          setMessage({
+            tone: "success",
+            text: `${verb}: ${successCount} of ${totalCount} item(s).`,
+          });
+        } else {
+          // Roll back failed rows so the biller can retry them.
+          const failedIds = new Set(
+            (json.results ?? [])
+              .filter((r) => !r.ok)
+              .map((r) => r.itemId),
+          );
+          if (failedIds.size > 0) {
+            setItems((prev) => {
+              const have = new Set(prev.map((r) => r.id));
+              const restored = snapshot.filter(
+                (r) => failedIds.has(r.id) && !have.has(r.id),
+              );
+              return restored.length > 0 ? [...prev, ...restored] : prev;
+            });
+          }
+          const firstError = (json.results ?? []).find((r) => !r.ok)?.error;
+          setMessage({
+            tone: "error",
+            text:
+              `${verb}: ${successCount} of ${totalCount} succeeded, ${failedCount} failed` +
+              (firstError ? ` — first error: ${firstError}` : "."),
+          });
+        }
+        // Only keep failed ids selected so the biller can act on them again.
+        const failedIds = new Set(
+          (json.results ?? [])
+            .filter((r) => !r.ok)
+            .map((r) => r.itemId),
+        );
+        setSelectedIds((prev) => prev.filter((id) => failedIds.has(id)));
+        setReloadKey((k) => k + 1);
+      } catch (e) {
+        // Full rollback on transport-level failure.
+        setItems(snapshot);
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Bulk action failed",
+        });
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [bulkBusy, items, organizationId, selectedIds],
+  );
+
+  const correctHref = useCallback(
+    (row: RejectionRow) =>
+      `${buildClaimDetailHref({
+        professionalClaimId: row.claimId,
+        organizationId,
+      })}`,
+    [organizationId],
+  );
+
+  const rowActions: RowAction<RejectionRow>[] = useMemo(
+    () => [
+      {
+        id: "correct",
+        label: "Correct claim",
+        variant: "primary",
+        onClick: (row) => {
+          void runAction(row, "correct_claim");
+          if (typeof window !== "undefined") {
+            window.open(correctHref(row), "_blank", "noopener");
+          }
+        },
+        disabled: (r) => busyId === r.id,
+      },
+      {
+        id: "resubmit",
+        label: "Resubmit",
+        onClick: (row) => void runAction(row, "resubmit_corrected_claim"),
+        disabled: (r) => busyId === r.id,
+      },
+      {
+        id: "resolve",
+        label: "Resolve",
+        variant: "success",
+        onClick: (row) => void runAction(row, "mark_resolved"),
+        disabled: (r) => busyId === r.id,
+      },
+    ],
+    [busyId, runAction, correctHref],
+  );
+
+  const detailActions: PrimaryAction[] = useMemo(() => {
+    if (!selectedRow) return [];
+    const acts: PrimaryAction[] = [];
+    if (selectedRow.autoRouted) {
+      acts.push({
+        id: "undo-auto-route",
+        label: "Undo auto-route",
+        variant: "primary",
+        onClick: () => {
+          const raw =
+            typeof window !== "undefined"
+              ? window.prompt(
+                  "Why are you overriding the auto-route? (optional — helps tune the rules)",
+                  "",
+                )
+              : null;
+          if (raw === null) return;
+          const trimmed = raw.trim();
+          void runAction(
+            selectedRow,
+            "undo_auto_route",
+            trimmed.length > 0 ? trimmed : undefined,
+          );
+        },
+        disabled: busyId === selectedRow.id,
+      });
+    }
+    acts.push(
+      {
+        id: "correct",
+        label: "Correct claim",
+        variant: selectedRow.autoRouted ? "default" : "primary",
+        onClick: () => {
+          void runAction(selectedRow, "correct_claim");
+          if (typeof window !== "undefined") {
+            window.open(correctHref(selectedRow), "_blank", "noopener");
+          }
+        },
+        disabled: busyId === selectedRow.id,
+      },
+      {
+        id: "resubmit",
+        label: "Resubmit corrected claim",
+        onClick: () => void runAction(selectedRow, "resubmit_corrected_claim"),
+        disabled: busyId === selectedRow.id,
+      },
+      {
+        id: "eligibility",
+        label: "Route to eligibility",
+        onClick: () => void runAction(selectedRow, "route_to_eligibility"),
+        disabled: busyId === selectedRow.id,
+      },
+      {
+        id: "enrollment",
+        label: "Route to credentialing/enrollment",
+        onClick: () => void runAction(selectedRow, "route_to_enrollment"),
+        disabled: busyId === selectedRow.id,
+      },
+      {
+        id: "resolve",
+        label: "Mark resolved",
+        variant: "success",
+        onClick: () => void runAction(selectedRow, "mark_resolved"),
+        disabled: busyId === selectedRow.id,
+      },
+    );
+    return acts;
+  }, [selectedRow, busyId, runAction, correctHref]);
+
+  // ── Detail tabs (per spec) ──────────────────────────────────────────────
+  const detailTabs: DetailTab[] = useMemo(() => {
+    if (!selectedRow) return [];
+    const r = selectedRow;
+    const list: DetailTab[] = [
+      {
+        id: "message",
+        label: "277CA message",
+        render: () => (
+          <div style={{ display: "grid", gap: 12 }}>
+            {r.autoRouted ? (
+              <div
+                style={{
+                  padding: 10,
+                  borderRadius: 6,
+                  background: "#EEF2FF",
+                  border: "1px solid #C7D2FE",
+                  fontSize: 13,
+                  color: "#3730A3",
+                }}
+              >
+                <strong>Auto-routed on intake</strong> —{" "}
+                {r.autoRoutedReason === "routed_to_eligibility"
+                  ? "this looks like a member/eligibility problem, so it was deferred to the eligibility hand-off automatically."
+                  : r.autoRoutedReason === "routed_to_credentialing"
+                    ? "this looks like a provider credentialing/enrollment problem, so it was deferred to credentialing automatically."
+                    : "this rejection was deferred to a downstream hand-off automatically."}
+                {r.autoRoutedAt ? (
+                  <span style={{ display: "block", marginTop: 4, color: "#4338CA", fontSize: 12 }}>
+                    Routed {formatDateTime(r.autoRoutedAt)}. Use the actions below
+                    (e.g. Correct claim, Resubmit, Resolve) to override.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            <div>
+              <strong style={{ fontSize: 12, color: "#475569" }}>STATUS</strong>
+              <p style={{ margin: "4px 0 0", fontSize: 14, fontWeight: 600 }}>
+                {r.ca277Status}
+              </p>
+            </div>
+            <div>
+              <strong style={{ fontSize: 12, color: "#475569" }}>REASON</strong>
+              <p style={{ margin: "4px 0 0", fontSize: 13 }}>
+                {r.rejectionReason || "—"}
+              </p>
+            </div>
+            <dl
+              style={{
+                display: "grid",
+                gridTemplateColumns: "max-content 1fr",
+                gap: "6px 12px",
+                margin: 0,
+                fontSize: 13,
+              }}
+            >
+              <dt style={{ color: "#64748B" }}>Category code (STC01-1)</dt>
+              <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                {r.categoryCode ?? "—"}
+              </dd>
+              <dt style={{ color: "#64748B" }}>Status code (STC01-2)</dt>
+              <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                {r.statusCode ?? "—"}
+              </dd>
+              <dt style={{ color: "#64748B" }}>Entity code (STC01-3)</dt>
+              <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                {r.entityCode ?? "—"}
+              </dd>
+              <dt style={{ color: "#64748B" }}>Date rejected</dt>
+              <dd style={{ margin: 0 }}>{formatDateTime(r.dateRejected)}</dd>
+            </dl>
+          </div>
+        ),
+      },
+      {
+        id: "validation",
+        label: "Claim validation details",
+        render: () => {
+          const ctx = r.contextPayload ?? {};
+          const parsed =
+            (ctx.parsed_content as Record<string, unknown> | undefined) ?? {};
+          const ackId = ctx.acknowledgement_id ? String(ctx.acknowledgement_id) : null;
+          const batchId = ctx.edi_batch_id ? String(ctx.edi_batch_id) : null;
+          const claimStatus = ctx.claim_status ? String(ctx.claim_status) : null;
+          return (
+            <div style={{ display: "grid", gap: 12 }}>
+              <dl
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "max-content 1fr",
+                  gap: "6px 12px",
+                  margin: 0,
+                  fontSize: 13,
+                }}
+              >
+                <dt style={{ color: "#64748B" }}>Claim status</dt>
+                <dd style={{ margin: 0 }}>{claimStatus ?? "—"}</dd>
+                <dt style={{ color: "#64748B" }}>Acknowledgement</dt>
+                <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                  {ackId ?? "—"}
+                </dd>
+                <dt style={{ color: "#64748B" }}>EDI batch</dt>
+                <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                  {batchId ?? "—"}
+                </dd>
+                <dt style={{ color: "#64748B" }}>Charge amount</dt>
+                <dd style={{ margin: 0 }}>{money(r.totalCharge)}</dd>
+                <dt style={{ color: "#64748B" }}>DOS</dt>
+                <dd style={{ margin: 0 }}>{formatDate(r.dos)}</dd>
+                <dt style={{ color: "#64748B" }}>Aging</dt>
+                <dd style={{ margin: 0 }}>
+                  {r.agingDays == null ? "—" : `${r.agingDays} day(s)`}
+                </dd>
+              </dl>
+              {Object.keys(parsed).length > 0 ? (
+                <details>
+                  <summary style={{ cursor: "pointer", fontSize: 12, color: "#475569" }}>
+                    Raw parsed STC payload
+                  </summary>
+                  <pre
+                    style={{
+                      margin: "8px 0 0",
+                      padding: 8,
+                      background: "#F8FAFC",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 4,
+                      fontSize: 11.5,
+                      overflow: "auto",
+                      maxHeight: 200,
+                    }}
+                  >
+                    {JSON.stringify(parsed, null, 2)}
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "fields",
+        label: "Payer / provider / client fields",
+        render: () => (
+          <ul
+            style={{
+              margin: 0,
+              padding: 0,
+              listStyle: "none",
+              display: "grid",
+              gap: 10,
+              fontSize: 13,
+            }}
+          >
+            <li>
+              <strong>Client: </strong>
+              {r.clientId ? (
+                <Link
+                  href={`/clients/${r.clientId}?organizationId=${encodeURIComponent(
+                    organizationId,
+                  )}`}
+                >
+                  {r.clientName}
+                </Link>
+              ) : (
+                r.clientName
+              )}
+            </li>
+            <li>
+              <strong>Payer: </strong>
+              {r.payerId ? (
+                <Link
+                  href={`/insurance-payers?payerId=${encodeURIComponent(
+                    r.payerId,
+                  )}&organizationId=${encodeURIComponent(organizationId)}`}
+                >
+                  {r.payerName ?? "Open payer profile"}
+                </Link>
+              ) : (
+                r.payerName ?? "—"
+              )}
+            </li>
+            <li>
+              <strong>Rendering provider: </strong>
+              {r.clinicianName ?? "—"}
+            </li>
+            <li>
+              <strong>Service location: </strong>
+              {r.practiceName ?? "—"}
+            </li>
+            <li>
+              <strong>Claim: </strong>
+              <Link href={correctHref(r)}>
+                {r.claimNumber ?? r.claimId.slice(0, 8)}
+              </Link>
+            </li>
+          </ul>
+        ),
+      },
+      {
+        id: "history",
+        label: "Correction history",
+        render: () =>
+          r.correctionHistory.length === 0 ? (
+            <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
+              No correction notes yet.
+            </p>
+          ) : (
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: "none",
+                display: "grid",
+                gap: 10,
+              }}
+            >
+              {r.correctionHistory.map((c) => (
+                <li
+                  key={c.id}
+                  style={{
+                    borderLeft: "3px solid #CBD5E1",
+                    paddingLeft: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: "#64748B" }}>
+                    {c.type.replace(/_/g, " ")} · {formatDateTime(c.createdAt)}
+                  </div>
+                  <div style={{ fontSize: 13 }}>{c.body}</div>
+                </li>
+              ))}
+            </ul>
+          ),
+      },
+    ];
+    list.push({
+      id: "documents",
+      label: "Related documents",
+      render: () => (
+        <ClaimDocumentsPanel claimId={r.claimId} organizationId={organizationId} />
+      ),
+    });
+    return list;
+  }, [selectedRow, organizationId, correctHref]);
+
+  const countsByTab = useMemo(() => {
+    const m: Record<Rejection277CaTabId, number> = {
+      rejected_by_clearinghouse: 0,
+      rejected_by_payer: 0,
+      invalid_member: 0,
+      invalid_provider: 0,
+      invalid_payer_id: 0,
+      invalid_claim_data: 0,
+    };
+    for (const r of items) m[r.tab] += 1;
+    return m;
+  }, [items]);
+
+  const headerActions: PrimaryAction[] = useMemo(() => {
+    const acts: PrimaryAction[] = [];
+    if (selectedIds.length > 0) {
+      const n = selectedIds.length;
+      const suffix = ` (${n})`;
+      const selectedSet = new Set(selectedIds);
+      const autoRoutedSelectedCount = items.reduce(
+        (sum, r) => sum + (selectedSet.has(r.id) && r.autoRouted ? 1 : 0),
+        0,
+      );
+      if (autoRoutedSelectedCount > 0) {
+        acts.push({
+          id: "bulk-undo-auto-route",
+          label: `Undo auto-route (${autoRoutedSelectedCount})`,
+          variant: "primary",
+          onClick: () => {
+            const raw =
+              typeof window !== "undefined"
+                ? window.prompt(
+                    `Why are you overriding the auto-route for ${autoRoutedSelectedCount} item(s)? (optional — helps tune the rules)`,
+                    "",
+                  )
+                : null;
+            if (raw === null) return;
+            const trimmed = raw.trim();
+            void runBulkAction(
+              "undo_auto_route",
+              trimmed.length > 0 ? trimmed : undefined,
+            );
+          },
+          disabled: bulkBusy,
+        });
+      }
+      acts.push(
+        {
+          id: "bulk-resubmit",
+          label: bulkBusy ? "Working…" : `Resubmit corrected claims${suffix}`,
+          variant: "primary",
+          onClick: () => void runBulkAction("resubmit_corrected_claim"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-eligibility",
+          label: `Route to eligibility${suffix}`,
+          onClick: () => void runBulkAction("route_to_eligibility"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-enrollment",
+          label: `Route to credentialing/enrollment${suffix}`,
+          onClick: () => void runBulkAction("route_to_enrollment"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-resolve",
+          label: `Mark resolved${suffix}`,
+          variant: "success",
+          onClick: () => void runBulkAction("mark_resolved"),
+          disabled: bulkBusy,
+        },
+        {
+          id: "bulk-clear",
+          label: "Clear selection",
+          onClick: () => setSelectedIds([]),
+          disabled: bulkBusy,
+        },
+      );
+    }
+    acts.push({
+      id: "refresh",
+      label: loading ? "Refreshing…" : "Refresh",
+      onClick: () => setReloadKey((k) => k + 1),
+      disabled: loading || bulkBusy,
+    });
+    return acts;
+  }, [loading, selectedIds, bulkBusy, runBulkAction, items]);
+
+  const primaryTabs: PrimaryTab[] = useMemo(
+    () =>
+      REJECTION_277CA_TABS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        count: countsByTab[t.id],
+      })),
+    [countsByTab],
+  );
+
+  return (
+    <main className="app-shell">
+      <WorkqueueShell<RejectionRow>
+        title={queueDef?.title ?? "277CA Rejections"}
+        description={queueDef?.description}
+        headerActions={headerActions}
+        summary={summary}
+        primaryTabs={primaryTabs}
+        activePrimaryTabId={activeTab}
+        onPrimaryTabChange={(tabId) => {
+          setActiveTab(tabId as Rejection277CaTabId);
+          setSelectedRowId(null);
+          setSelectedIds([]);
+        }}
+        filters={filters}
+        filterValues={filterValues}
+        onFilterChange={setFilterValues}
+        filterUrlNamespace="r277"
+        rows={filtered}
+        columns={columns}
+        rowId={(r) => r.id}
+        rowActions={rowActions}
+        loading={loading}
+        emptyMessage={`No ${
+          REJECTION_277CA_TABS.find((t) => t.id === activeTab)?.label.toLowerCase() ??
+          "rejections"
+        }.`}
+        selectedRowId={selectedRowId}
+        onSelectRow={setSelectedRowId}
+        selectedRowIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        detailTabs={detailTabs}
+        detailActions={detailActions}
+        message={message}
+        onRowDrop={(row, files) => {
+          const label = row.claimNumber ?? row.claimId.slice(0, 8);
+          docUploads.uploadFiles(
+            row.claimId,
+            `Claim ${label}${row.payerName ? ` · ${row.payerName}` : ""}`,
+            files,
+          );
+        }}
+      />
+      <ClaimDocumentUploadsOverlay
+        uploads={docUploads.uploads}
+        onDismiss={docUploads.dismiss}
+      />
+    </main>
+  );
+}

@@ -1,0 +1,495 @@
+/**
+ * POST /api/billing/cob-issues/:id/action
+ *
+ * `:id` is the professional_claims.id. Body shape:
+ *   {
+ *     action:
+ *       | "update_insurance_order"   // ordered_policy_ids[]
+ *       | "bill_primary"
+ *       | "bill_secondary"
+ *       | "request_eob"
+ *       | "record_eob"
+ *       | "route_to_client_admin"    // delivery: "clipboard" | "email" | "sms"
+ *       | "reopen",
+ *     organizationId: string,
+ *     ordered_policy_ids?: string[],
+ *     note?: string,
+ *     delivery?: "clipboard" | "email" | "sms",
+ *   }
+ *
+ * Every action writes an audit_logs row under the `cob_<action>`
+ * event_type. The GET route reduces those rows into the queue's
+ * authoritative state (resolved, awaiting_eob, client_update_needed).
+ *
+ * `route_to_client_admin` additionally provisions a one-time tokenized
+ * link in cob_client_update_links and (when delivery=email) emails it
+ * to the client via Resend. The audit row's event_metadata carries the
+ * link URL + expiry so the queue UI can surface it to billers.
+ */
+import { NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { sendCobUpdateEmail } from "@/lib/email/resend";
+import { normalizePhoneForSms, sendCobUpdateSms } from "@/lib/sms/twilio";
+import { billPrimary, billSecondary } from "@/lib/billing/cobBilling";
+
+const ALLOWED = [
+  "update_insurance_order",
+  "bill_primary",
+  "bill_secondary",
+  "request_eob",
+  "record_eob",
+  "route_to_client_admin",
+  "reopen",
+] as const;
+type Action = (typeof ALLOWED)[number];
+
+const SUMMARIES: Record<Action, string> = {
+  update_insurance_order: "Insurance order updated for COB",
+  bill_primary: "Claim queued to bill primary payer",
+  bill_secondary: "Claim queued to bill secondary payer",
+  request_eob: "Prior-payer EOB requested",
+  record_eob: "Prior-payer EOB recorded",
+  route_to_client_admin: "Routed to client/admin for insurance update",
+  reopen: "COB issue reopened",
+};
+
+function generateToken() {
+  return randomBytes(24).toString("base64url");
+}
+
+function resolveCanonicalBaseUrl(): string | null {
+  const fromEnv =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+  return null;
+}
+
+function resolveBaseUrlForClipboard(request: Request): string {
+  const canonical = resolveCanonicalBaseUrl();
+  if (canonical) return canonical;
+  try {
+    const url = new URL(request.url);
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto");
+    const host = forwardedHost || url.host;
+    const proto = forwardedProto || url.protocol.replace(/:$/, "");
+    return `${proto}://${host}`;
+  } catch {
+    return "";
+  }
+}
+
+export async function POST(
+  request: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await ctx.params;
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "Missing claim id" },
+        { status: 400 },
+      );
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      action?: string;
+      organizationId?: string;
+      ordered_policy_ids?: string[];
+      note?: string;
+      delivery?: string;
+    };
+
+    const action = body.action as Action | undefined;
+    if (!action || !ALLOWED.includes(action)) {
+      return NextResponse.json(
+        { success: false, error: `Unknown action: ${body.action ?? ""}` },
+        { status: 400 },
+      );
+    }
+
+    const guard = await requireBillingAccess({
+      requestedOrganizationId: body.organizationId ?? null,
+    });
+    if (guard instanceof NextResponse) return guard;
+    const organizationId = guard.organizationId;
+
+    const supabase = createServerSupabaseAdminClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Database connection not available" },
+        { status: 500 },
+      );
+    }
+
+    const { data: claim, error: claimErr } = await (supabase as any)
+      .from("professional_claims")
+      .select("id, organization_id, patient_id, appointment_id, claim_status")
+      .eq("id", id)
+      .maybeSingle();
+    if (claimErr) throw claimErr;
+    if (!claim || claim.organization_id !== organizationId) {
+      return NextResponse.json(
+        { success: false, error: "Claim not found" },
+        { status: 404 },
+      );
+    }
+
+    const metadata: Record<string, unknown> = {};
+    if (body.note) metadata.note = String(body.note).slice(0, 2000);
+    const orderedPolicyIds = Array.isArray(body.ordered_policy_ids)
+      ? body.ordered_policy_ids.map((x) => String(x)).filter(Boolean)
+      : [];
+    if (action === "update_insurance_order" && orderedPolicyIds.length) {
+      metadata.ordered_policy_ids = orderedPolicyIds;
+    }
+
+    // ── Bill primary / Bill secondary: do the real work ───────────────
+    // These actions don't just flip status — they actually clone the
+    // claim against the chosen payer (secondary) or re-point the
+    // existing claim (primary). The audit row is written *after* the
+    // mutation so a failed clone never leaves an orphan "resolved" row.
+    if (action === "bill_secondary") {
+      const result = await billSecondary({
+        supabase,
+        organizationId,
+        claimId: id,
+        orderedPolicyIds,
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.status },
+        );
+      }
+      if (result.childClaimId) metadata.child_claim_id = result.childClaimId;
+      if (result.childClaimNumber)
+        metadata.child_claim_number = result.childClaimNumber;
+      if (result.appliedPriorities?.length)
+        metadata.applied_priorities = result.appliedPriorities;
+    } else if (action === "bill_primary") {
+      const result = await billPrimary({
+        supabase,
+        organizationId,
+        claimId: id,
+        orderedPolicyIds,
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.status },
+        );
+      }
+      if (result.appliedPriorities?.length)
+        metadata.applied_priorities = result.appliedPriorities;
+    }
+
+    // ── route_to_client_admin: mint a one-time link + (optional) email ──
+    let clientUpdate: {
+      linkId: string;
+      token: string;
+      url: string;
+      fullUrl: string;
+      expiresAt: string | null;
+      deliveryMethod: "clipboard" | "email" | "sms";
+      email: { sent: boolean; to: string | null; error: string | null };
+      sms: { sent: boolean; to: string | null; error: string | null };
+    } | null = null;
+
+    if (action === "route_to_client_admin") {
+      const clientId = String(claim.patient_id ?? "").trim();
+      if (!clientId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Cannot route to client — claim is not linked to a client.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const requestedDelivery = String(body.delivery ?? "clipboard").toLowerCase();
+      const deliveryMethod: "clipboard" | "email" | "sms" =
+        requestedDelivery === "email"
+          ? "email"
+          : requestedDelivery === "sms" || requestedDelivery === "text"
+            ? "sms"
+            : "clipboard";
+
+      const { data: clientRow } = await (supabase as any)
+        .from("clients")
+        .select("id, email, phone, first_name, last_name, preferred_name")
+        .eq("id", clientId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const patientEmail = String(clientRow?.email ?? "").trim();
+      const patientPhoneRaw = String(clientRow?.phone ?? "").trim();
+      const patientPhone = normalizePhoneForSms(patientPhoneRaw);
+
+      const canonicalBase = resolveCanonicalBaseUrl();
+      if (deliveryMethod === "email") {
+        if (!patientEmail) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "This client does not have an email on file. Add one to the chart, or copy the link manually instead.",
+            },
+            { status: 400 },
+          );
+        }
+        if (!canonicalBase) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Cannot email an insurance-update link without a canonical app URL. Set APP_URL or NEXT_PUBLIC_APP_URL.",
+            },
+            { status: 500 },
+          );
+        }
+      }
+      if (deliveryMethod === "sms") {
+        if (!patientPhone) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: patientPhoneRaw
+                ? "This client's phone number is not in a recognizable format. Fix it on the chart, or copy the link manually instead."
+                : "This client does not have a phone number on file. Add one to the chart, or copy the link manually instead.",
+            },
+            { status: 400 },
+          );
+        }
+        if (!canonicalBase) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Cannot text an insurance-update link without a canonical app URL. Set APP_URL or NEXT_PUBLIC_APP_URL.",
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      let practiceName = "your care team";
+      try {
+        const { data: orgRow } = await (supabase as any)
+          .from("organizations")
+          .select("name")
+          .eq("id", organizationId)
+          .maybeSingle();
+        const name = String(orgRow?.name ?? "").trim();
+        if (name) practiceName = name;
+      } catch {
+        // ignore
+      }
+
+      // One active link per claim — revoke any prior pending links so the
+      // client always lands on the freshest workflow.
+      await (supabase as any)
+        .from("cob_client_update_links")
+        .update({ status: "revoked" })
+        .eq("claim_id", id)
+        .eq("status", "pending");
+
+      const token = generateToken();
+      const { data: inserted, error: insertErr } = await (supabase as any)
+        .from("cob_client_update_links")
+        .insert({
+          organization_id: organizationId,
+          client_id: clientId,
+          claim_id: id,
+          token,
+          created_by_user_id: guard.userId,
+          delivery_method: deliveryMethod,
+        })
+        .select("id, token, expires_at")
+        .single();
+      if (insertErr || !inserted) {
+        throw insertErr ?? new Error("Failed to create client-update link");
+      }
+
+      const relativeUrl = `/cob-update/${inserted.token}`;
+      const baseUrl =
+        deliveryMethod === "email" || deliveryMethod === "sms"
+          ? (canonicalBase as string)
+          : resolveBaseUrlForClipboard(request);
+      const fullUrl = baseUrl ? `${baseUrl}${relativeUrl}` : relativeUrl;
+      const expiresAt = (inserted.expires_at as string | null) ?? null;
+
+      clientUpdate = {
+        linkId: String(inserted.id),
+        token: String(inserted.token),
+        url: relativeUrl,
+        fullUrl,
+        expiresAt,
+        deliveryMethod,
+        email: { sent: false, to: null, error: null },
+        sms: { sent: false, to: null, error: null },
+      };
+
+      if (deliveryMethod === "email") {
+        const patientName = [
+          String(clientRow?.preferred_name ?? "").trim() ||
+            String(clientRow?.first_name ?? "").trim(),
+          String(clientRow?.last_name ?? "").trim(),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const send = await sendCobUpdateEmail({
+          to: patientEmail,
+          patientName,
+          practiceName,
+          updateUrl: fullUrl,
+          expiresAt,
+        });
+
+        const nowIso = new Date().toISOString();
+        if (send.ok) {
+          clientUpdate.email = { sent: true, to: patientEmail, error: null };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_email: patientEmail,
+              delivered_at: nowIso,
+              delivery_error: null,
+              delivery_provider_id: send.providerId,
+              delivery_status: "sent",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+        } else {
+          clientUpdate.email = { sent: false, to: patientEmail, error: send.error };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_email: patientEmail,
+              delivery_error: send.error,
+              delivery_status: "failed",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+          return NextResponse.json(
+            {
+              success: false,
+              error: send.error,
+              clientUpdate,
+            },
+            { status: 502 },
+          );
+        }
+      }
+
+      if (deliveryMethod === "sms") {
+        const patientName = [
+          String(clientRow?.preferred_name ?? "").trim() ||
+            String(clientRow?.first_name ?? "").trim(),
+          String(clientRow?.last_name ?? "").trim(),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const send = await sendCobUpdateSms({
+          to: patientPhone as string,
+          patientName,
+          practiceName,
+          updateUrl: fullUrl,
+        });
+
+        const nowIso = new Date().toISOString();
+        if (send.ok) {
+          clientUpdate.sms = { sent: true, to: send.to, error: null };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_phone: send.to,
+              delivered_at: nowIso,
+              delivery_error: null,
+              delivery_provider_id: send.providerId,
+              delivery_status: "sent",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+        } else {
+          clientUpdate.sms = {
+            sent: false,
+            to: patientPhone,
+            error: send.error,
+          };
+          await (supabase as any)
+            .from("cob_client_update_links")
+            .update({
+              delivered_to_phone: patientPhone,
+              delivery_error: send.error,
+              delivery_status: "failed",
+              delivery_status_at: nowIso,
+            })
+            .eq("id", clientUpdate.linkId);
+          return NextResponse.json(
+            {
+              success: false,
+              error: send.error,
+              clientUpdate,
+            },
+            { status: 502 },
+          );
+        }
+      }
+
+      metadata.link_id = clientUpdate.linkId;
+      metadata.link_url = relativeUrl;
+      metadata.link_expires_at = expiresAt;
+      metadata.delivery_method = deliveryMethod;
+      if (clientUpdate.email.sent) {
+        metadata.delivered_to_email = clientUpdate.email.to;
+      }
+      if (clientUpdate.sms.sent) {
+        metadata.delivered_to_phone = clientUpdate.sms.to;
+      }
+    }
+
+    const eventType = `cob_${action}`;
+    const summary = SUMMARIES[action];
+
+    const { error: auditErr } = await (supabase as any).from("audit_logs").insert({
+      organization_id: organizationId,
+      claim_id: id,
+      patient_id: claim.patient_id ?? null,
+      appointment_id: claim.appointment_id ?? null,
+      event_type: eventType,
+      event_summary: summary,
+      event_metadata: metadata,
+      user_id: guard.userId,
+      action: eventType,
+      object_type: "claim",
+      object_id: id,
+    });
+    if (auditErr) throw auditErr;
+
+    return NextResponse.json({
+      success: true,
+      organizationId,
+      claimId: id,
+      action,
+      summary,
+      clientUpdate,
+      ...(metadata.child_claim_id
+        ? { childClaimId: metadata.child_claim_id }
+        : {}),
+    });
+  } catch (error) {
+    console.error("COB Issues action error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Action failed",
+      },
+      { status: 500 },
+    );
+  }
+}
