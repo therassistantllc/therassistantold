@@ -445,6 +445,104 @@ export async function sendEligibilityRoutedEmail(
   }
 }
 
+export type SendAutopayRetryNoticeEmailInput = {
+  to: string;
+  patientName: string;
+  practiceName: string;
+  amountDollars: number;
+  brand: string;
+  last4: string;
+  retryDate: string | null;
+  portalUrl: string;
+};
+
+export type SendAutopayRetryNoticeEmailResult =
+  | { ok: true; providerId: string | null; fromEmail: string }
+  | { ok: false; error: string };
+
+function formatRetryDate(iso: string | null): string {
+  if (!iso) return "soon";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "soon";
+  return d.toLocaleDateString(undefined, { dateStyle: "long" });
+}
+
+/**
+ * Heads-up email sent just before the FINAL autopay retry attempt
+ * (Task #732). Gives the patient a chance to update their saved card
+ * before the card gets re-charged one last time.
+ */
+export async function sendAutopayRetryNoticeEmail(
+  input: SendAutopayRetryNoticeEmailInput,
+): Promise<SendAutopayRetryNoticeEmailResult> {
+  const credentials = await resolveResendCredentials();
+  if (!credentials) {
+    return {
+      ok: false,
+      error:
+        "Email is not configured. Connect Resend in Integrations (or set RESEND_API_KEY) before emailing autopay retry notices.",
+    };
+  }
+
+  const fromEmail =
+    credentials.fromEmail ??
+    process.env.RESEND_FROM_EMAIL?.trim() ??
+    "onboarding@resend.dev";
+
+  const safeName = input.patientName.trim() || "there";
+  const safePractice = input.practiceName.trim() || "your care team";
+  const dateText = formatRetryDate(input.retryDate);
+  const amountText = `$${input.amountDollars.toFixed(2)}`;
+  const cardText =
+    input.brand && input.last4
+      ? `${input.brand} •••• ${input.last4}`
+      : "the card on file";
+
+  const subject = `${safePractice}: please update your card before your next charge`;
+  const textBody =
+    `Hello ${safeName},\n\n` +
+    `${safePractice} tried to automatically charge ${cardText} ${amountText} for your recent visit, but the card was declined.\n\n` +
+    `We will try one more time on ${dateText}. To avoid a manual collections call, please update your card on file before ${dateText} from your patient portal:\n\n` +
+    `${input.portalUrl}\n\n` +
+    `If you have already updated your card, no further action is needed.\n\n` +
+    `Thank you,\n${safePractice}`;
+
+  const htmlBody = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; color: #1f2937; max-width: 560px; margin: 0 auto;">
+      <p>Hello ${escapeHtml(safeName)},</p>
+      <p><strong>${escapeHtml(safePractice)}</strong> tried to automatically charge ${escapeHtml(cardText)} <strong>${escapeHtml(amountText)}</strong> for your recent visit, but the card was declined.</p>
+      <p>We will try one more time on <strong>${escapeHtml(dateText)}</strong>. To avoid a manual collections call, please update your card on file before then.</p>
+      <p style="margin: 24px 0;">
+        <a href="${escapeHtml(input.portalUrl)}" style="background:#2563eb;color:#ffffff;padding:12px 18px;border-radius:6px;text-decoration:none;display:inline-block;">Update your card</a>
+      </p>
+      <p style="font-size: 13px; color: #4b5563;">Or paste this link into your browser:<br/>
+        <a href="${escapeHtml(input.portalUrl)}">${escapeHtml(input.portalUrl)}</a>
+      </p>
+      <p style="font-size: 13px; color: #4b5563;">If you have already updated your card, no further action is needed.</p>
+      <p style="margin-top: 32px;">Thank you,<br/>${escapeHtml(safePractice)}</p>
+    </div>
+  `;
+
+  try {
+    const client = new Resend(credentials.apiKey);
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject,
+      text: textBody,
+      html: htmlBody,
+    });
+    if (result.error) {
+      const message = result.error.message || "Resend rejected the email";
+      return { ok: false, error: message };
+    }
+    return { ok: true, providerId: result.data?.id ?? null, fromEmail };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to send email";
+    return { ok: false, error: message };
+  }
+}
+
 export type SendPortalInviteEmailInput = {
   to: string;
   patientName: string;

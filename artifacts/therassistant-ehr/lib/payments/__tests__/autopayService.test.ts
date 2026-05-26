@@ -116,6 +116,19 @@ let chargeOutcome:
   paymentIntentId: "pi_test_1",
 };
 
+const sentEmails: Array<Record<string, unknown>> = [];
+let emailOk = true;
+mock.module("@/lib/email/resend", {
+  namedExports: {
+    sendAutopayRetryNoticeEmail: async (input: Record<string, unknown>) => {
+      sentEmails.push(input);
+      return emailOk
+        ? { ok: true, providerId: "msg_test", fromEmail: "noreply@test" }
+        : { ok: false, error: "resend_unavailable" };
+    },
+  },
+});
+
 mock.module("@/lib/payments/savedCardService", {
   namedExports: {
     chargeSavedCardForInvoice: async () =>
@@ -195,6 +208,8 @@ beforeEach(() => {
   chargeOutcome = { ok: true, paymentIntentId: "pi_test_1" };
   sentFailureEmails.length = 0;
   failureEmailResult = { ok: true };
+  sentEmails.length = 0;
+  emailOk = true;
 });
 
 function seedInvoiceAndClient(opts: {
@@ -482,6 +497,7 @@ function seedRetryFixtures(opts: {
   hasCard?: boolean;
   invoiceStatus?: string;
   balance?: number;
+  email?: string | null;
 }) {
   tables.patient_invoices = [
     {
@@ -499,6 +515,7 @@ function seedRetryFixtures(opts: {
       organization_id: "org-1",
       first_name: "Ray",
       last_name: "Tri",
+      email: opts.email === undefined ? "ray@example.com" : opts.email,
       autopay_enabled: opts.autopay ?? true,
       stripe_customer_id: opts.hasCard ?? true ? "cus_r" : null,
       stripe_payment_method_id: opts.hasCard ?? true ? "pm_r" : null,
@@ -508,6 +525,7 @@ function seedRetryFixtures(opts: {
       archived_at: null,
     },
   ];
+  tables.organizations = [{ id: "org-1", name: "Test Practice" }];
 }
 
 function seedAuditEvents(events: Array<{ type: "failed" | "succeeded"; at: string }>) {
@@ -683,4 +701,86 @@ test("retry: failed retry writes a new failed audit so its timestamp resets the 
       i.row.event_type === "patient_billing_autopay_failed",
   );
   assert.ok(newFailureAudit, "expected a fresh failed audit so the retry is auditable");
+});
+
+/* -------- Final-retry heads-up email (Task #732) -------- */
+
+test("retry-notice: sends heads-up email before the FINAL retry and records audit", async () => {
+  seedRetryFixtures({});
+  // 3 prior failures → upcoming attempt would be #4 (the final one).
+  // Backoff between the 3rd failure and the upcoming attempt is 168h,
+  // so the most recent failure must be ≥ 168h old for the retry to be
+  // due. NOW - 200h satisfies that while still being inside the
+  // engine's look-back window (288h with default backoffs).
+  seedAuditEvents([
+    { type: "failed", at: hoursAgo(400) },
+    { type: "failed", at: hoursAgo(300) },
+    { type: "failed", at: hoursAgo(200) },
+  ]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 1, "the final retry should still execute");
+  assert.equal(sentEmails.length, 1, "expected exactly one heads-up email");
+  assert.equal(sentEmails[0]!.to, "ray@example.com");
+  assert.equal(sentEmails[0]!.practiceName, "Test Practice");
+  const noticeAudit = inserted.find(
+    (i) =>
+      i.table === "audit_logs" &&
+      i.row.event_type === "patient_billing_autopay_retry_notice_sent",
+  );
+  assert.ok(noticeAudit, "expected a patient_billing_autopay_retry_notice_sent audit row");
+  const md = noticeAudit!.row.event_metadata as Record<string, unknown>;
+  assert.equal(md.attempt, 4);
+  assert.equal(md.patient_invoice_id, "inv-r");
+  assert.equal(md.ok, true);
+});
+
+test("retry-notice: does NOT send before an intermediate (non-final) retry", async () => {
+  seedRetryFixtures({});
+  // Only 1 prior failure → upcoming attempt is #2 (not final)
+  seedAuditEvents([{ type: "failed", at: hoursAgo(25) }]);
+  const r = await retryEligibleAutopayFailures({
+    organizationId: "org-1",
+    now: NOW,
+  });
+  assert.equal(r.retried, 1);
+  assert.equal(sentEmails.length, 0, "no email should fire for intermediate retries");
+  const noticeAudit = inserted.find(
+    (i) =>
+      i.table === "audit_logs" &&
+      i.row.event_type === "patient_billing_autopay_retry_notice_sent",
+  );
+  assert.equal(noticeAudit, undefined);
+});
+
+test("retry-notice: dedupes per (invoice, attempt) — second run of the same day does not re-email", async () => {
+  seedRetryFixtures({});
+  // 3 prior failures → upcoming is the final attempt; spacing chosen
+  // so the 168h backoff after the 3rd failure has elapsed.
+  seedAuditEvents([
+    { type: "failed", at: hoursAgo(400) },
+    { type: "failed", at: hoursAgo(300) },
+    { type: "failed", at: hoursAgo(200) },
+  ]);
+  // First sweep: stripe fails so the retry doesn't recover; we still
+  // sent the notice. Set failure so the invoice stays open + we don't
+  // mark exhausted incorrectly via success.
+  chargeOutcome = {
+    ok: false,
+    code: "card_declined",
+    message: "Your card was declined.",
+  };
+  await retryEligibleAutopayFailures({ organizationId: "org-1", now: NOW });
+  const firstCount = sentEmails.length;
+  assert.equal(firstCount, 1);
+
+  // Simulate the cron running again later the same day: the new failure
+  // audit from the prior call bumped the attempt history to 4, which
+  // means the upcoming attempt would be #5 — i.e. exhausted — so no
+  // additional retry should run AND no new email. This is exactly the
+  // behavior we want (one heads-up per final attempt, never spam).
+  await retryEligibleAutopayFailures({ organizationId: "org-1", now: NOW });
+  assert.equal(sentEmails.length, 1, "second sweep must not re-send the heads-up email");
 });

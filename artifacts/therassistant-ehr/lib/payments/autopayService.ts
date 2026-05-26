@@ -27,7 +27,10 @@
  */
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { chargeSavedCardForInvoice } from "@/lib/payments/savedCardService";
-import { sendAutopayFailureEmail } from "@/lib/email/resend";
+import {
+  sendAutopayFailureEmail,
+  sendAutopayRetryNoticeEmail,
+} from "@/lib/email/resend";
 
 type SupabaseAdmin = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
 
@@ -81,6 +84,190 @@ const AUTOPAY_FAILURE_EMAIL_EVT = "patient_billing_autopay_failure_email_sent";
  *  `DEFAULT_AUTOPAY_RETRY_BACKOFF_HOURS`), so 20h gives the email a
  *  little grace and still pairs one email with each retry boundary. */
 const AUTOPAY_FAILURE_EMAIL_THROTTLE_HOURS = 20;
+/** Task #732: heads-up email before the final retry. */
+const AUTOPAY_RETRY_NOTICE_EVT = "patient_billing_autopay_retry_notice_sent";
+
+/**
+ * Task #732. Right before the FINAL scheduled autopay retry runs, send
+ * the patient a heads-up email so they can update their saved card
+ * before we re-charge it (and before a biller has to chase them
+ * manually).
+ *
+ * Idempotency:
+ *   - Looks for an existing `patient_billing_autopay_retry_notice_sent`
+ *     audit row for the same (invoice, attempt). If one exists we skip
+ *     the send — so re-running the cron the same day, or running it
+ *     after a transient failure, will not spam the patient.
+ *   - The audit row is written even when Resend isn't configured / the
+ *     send fails, so a future cron pass does not retry the email and
+ *     accidentally spam either. Failures are logged.
+ *
+ * Returns the audit row insert outcome only so the caller can log;
+ * never throws.
+ *
+ * Note: uses the shared `resolvePortalBaseUrl` defined later in this
+ * file (added by Task #736) for app URL resolution.
+ */
+async function sendFinalRetryNoticeIfNeeded(
+  supabase: SupabaseAdmin,
+  args: {
+    organizationId: string;
+    patientInvoiceId: string;
+    upcomingAttemptNumber: number;
+    retryAt: string;
+  },
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as unknown as { from: (t: string) => any };
+
+  // Dedup per (invoice, attempt). We scope by the upcoming attempt
+  // number so that if the retry budget were ever expanded later, a
+  // brand-new "final" attempt would still warrant a fresh notice.
+  try {
+    const { data: existingRows } = await sb
+      .from("audit_logs")
+      .select("id, event_metadata")
+      .eq("organization_id", args.organizationId)
+      .eq("object_type", "patient_invoice")
+      .eq("object_id", args.patientInvoiceId)
+      .eq("event_type", AUTOPAY_RETRY_NOTICE_EVT)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const existing = ((existingRows ?? []) as Array<{
+      event_metadata?: Record<string, unknown> | null;
+    }>).find((r) => {
+      const md = (r.event_metadata ?? {}) as Record<string, unknown>;
+      return Number(md.attempt ?? -1) === args.upcomingAttemptNumber;
+    });
+    if (existing) return;
+  } catch (err) {
+    console.warn(
+      "[autopay-retry-notice] dedup lookup failed (will attempt send anyway)",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  // Resolve recipient + practice name. If we can't find an email we
+  // still record the audit so we don't loop on it the next pass.
+  let toEmail: string | null = null;
+  let patientName = "";
+  let practiceName = "";
+  let brand = "card";
+  let last4 = "";
+  let amount = 0;
+
+  try {
+    const { data: invRow } = await sb
+      .from("patient_invoices")
+      .select("id, client_id, balance_amount")
+      .eq("organization_id", args.organizationId)
+      .eq("id", args.patientInvoiceId)
+      .is("archived_at", null)
+      .maybeSingle();
+    const invoice = invRow as
+      | { id: string; client_id: string; balance_amount: number }
+      | null;
+    if (invoice) {
+      amount = Math.round(Number(invoice.balance_amount ?? 0) * 100) / 100;
+      const { data: cliRow } = await sb
+        .from("clients")
+        .select(
+          "id, first_name, last_name, email, stripe_payment_method_brand, stripe_payment_method_last4",
+        )
+        .eq("organization_id", args.organizationId)
+        .eq("id", invoice.client_id)
+        .is("archived_at", null)
+        .maybeSingle();
+      const client = cliRow as {
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        stripe_payment_method_brand: string | null;
+        stripe_payment_method_last4: string | null;
+      } | null;
+      if (client) {
+        toEmail = client.email?.trim() || null;
+        patientName = [client.first_name, client.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        brand = client.stripe_payment_method_brand ?? "card";
+        last4 = client.stripe_payment_method_last4 ?? "";
+      }
+    }
+    const { data: orgRow } = await sb
+      .from("organizations")
+      .select("name")
+      .eq("id", args.organizationId)
+      .maybeSingle();
+    practiceName = (orgRow as { name?: string | null } | null)?.name?.trim() ?? "";
+  } catch (err) {
+    console.warn(
+      "[autopay-retry-notice] failed to resolve recipient",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  let sendResult: { ok: boolean; providerId?: string | null; error?: string } = {
+    ok: false,
+    error: "no_email_on_file",
+  };
+  if (toEmail) {
+    const portalBase = resolvePortalBaseUrl();
+    const portalUrl = portalBase ? `${portalBase}/portal/home` : "/portal/home";
+    try {
+      const r = await sendAutopayRetryNoticeEmail({
+        to: toEmail,
+        patientName,
+        practiceName,
+        amountDollars: amount,
+        brand,
+        last4,
+        retryDate: args.retryAt,
+        portalUrl,
+      });
+      sendResult = r.ok
+        ? { ok: true, providerId: r.providerId }
+        : { ok: false, error: r.error };
+    } catch (err) {
+      sendResult = {
+        ok: false,
+        error: err instanceof Error ? err.message : "send_threw",
+      };
+    }
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("audit_logs").insert({
+      organization_id: args.organizationId,
+      object_type: "patient_invoice",
+      object_id: args.patientInvoiceId,
+      event_type: AUTOPAY_RETRY_NOTICE_EVT,
+      event_summary: sendResult.ok
+        ? `Sent final-retry heads-up email to ${toEmail}`
+        : `Final-retry heads-up email NOT sent: ${sendResult.error ?? "unknown"}`,
+      event_metadata: {
+        patient_invoice_id: args.patientInvoiceId,
+        attempt: args.upcomingAttemptNumber,
+        retry_at: args.retryAt,
+        to: toEmail,
+        amount,
+        brand,
+        last4,
+        ok: sendResult.ok,
+        provider_id: sendResult.providerId ?? null,
+        error: sendResult.ok ? null : sendResult.error ?? null,
+      },
+      action: AUTOPAY_RETRY_NOTICE_EVT,
+    });
+  } catch (err) {
+    console.warn(
+      "[autopay-retry-notice] audit insert failed",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
 
 /** Work-type for the WQ row a failed autopay attempt files. */
 export const AUTOPAY_CHARGE_FAILED_WORK_TYPE = "autopay_charge_failed";
@@ -1006,6 +1193,20 @@ export async function retryEligibleAutopayFailures(opts: {
     ) {
       push("skipped_no_card");
       continue;
+    }
+
+    // Task #732: if this retry is the FINAL one in the schedule, send
+    // the patient a heads-up email first so they have a chance to
+    // update their card before we re-charge it. Dedupe per (invoice,
+    // upcoming attempt) lives inside sendFinalRetryNoticeIfNeeded.
+    const upcomingAttemptNumber = attemptCountBefore + 1;
+    if (upcomingAttemptNumber === maxAttempts) {
+      await sendFinalRetryNoticeIfNeeded(supabase, {
+        organizationId,
+        patientInvoiceId,
+        upcomingAttemptNumber,
+        retryAt: new Date(nextRetryMs).toISOString(),
+      });
     }
 
     const result = await attemptAutopayForInvoice({
