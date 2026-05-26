@@ -36,9 +36,9 @@ A Next.js 16 EHR and Practice Management billing app for mental health clinics. 
 
 The app is single-tenant per deployment, scoped to one `organization_id`.
 
-| Variable | Value | Description |
-| --- | --- | --- |
-| `NEXT_PUBLIC_ORGANIZATION_ID` | `11111111-1111-1111-1111-111111111111` | UUID of the active organization |
+| Variable                      | Value                                  | Description                       |
+| ----------------------------- | -------------------------------------- | --------------------------------- |
+| `NEXT_PUBLIC_ORGANIZATION_ID` | `11111111-1111-1111-1111-111111111111` | UUID of the active organization   |
 
 This is set as a **shared env var** in Replit Secrets. The resolution order in `lib/config.ts` is:
 
@@ -51,9 +51,9 @@ To deploy for a different clinic: update `NEXT_PUBLIC_ORGANIZATION_ID` to the ne
 
 ### Supabase
 
-| Variable | Description |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| Variable                     | Description              |
+| ---------------------------- | ------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`   | Supabase project URL     |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public anon key |
 
 ## Architecture decisions
