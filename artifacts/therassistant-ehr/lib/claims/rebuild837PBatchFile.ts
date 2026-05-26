@@ -372,6 +372,41 @@ export async function rebuild837PBatchFile(args: {
     claimInputs.push({ claim, serviceLines, parties, payerProfile });
   }
 
+  // Helper: persist a generation failure on the batch so the
+  // orphaned-batches workqueue (Task #694) can surface it. Best-effort —
+  // a write failure here should never mask the original validator error
+  // we are returning to the caller, but it MUST surface in the logs so
+  // the silent-orphan regression we are fixing cannot reappear.
+  async function persistGenerationFailure(
+    error: string,
+    errorDetail: Rebuild837PBatchErrorDetail,
+  ): Promise<void> {
+    try {
+      const { error: persistErr } = await (supabase as any)
+        .from("claim_837p_batches")
+        .update({
+          last_generation_error: error,
+          last_generation_error_detail: errorDetail,
+          last_generation_attempted_at: new Date().toISOString(),
+        })
+        .eq("id", batchId)
+        .eq("organization_id", organizationId);
+      if (persistErr) {
+        console.warn("[rebuild837PBatchFile] failed to persist generation error", {
+          batchId,
+          organizationId,
+          error: persistErr.message ?? persistErr,
+        });
+      }
+    } catch (e) {
+      console.warn("[rebuild837PBatchFile] persist generation error threw", {
+        batchId,
+        organizationId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
   let generated;
   try {
     generated = generateAvaility837PMultiClaimBatch({
@@ -387,27 +422,21 @@ export async function rebuild837PBatchFile(args: {
       // as a focus hint.
       const firstFailing = e.perClaimErrors.find((p) => p.errors.length > 0);
       const firstError = firstFailing?.errors[0];
-      return {
-        ok: false,
-        batchId,
-        error: e.message,
-        errorDetail: {
-          code: "validation_failed",
-          message: firstError?.message ?? e.message,
-          claimId: firstFailing?.claimId,
-          loop: firstError?.loop,
-          segment: firstError?.segment,
-          field: firstError?.field,
-        },
+      const errorDetail: Rebuild837PBatchErrorDetail = {
+        code: "validation_failed",
+        message: firstError?.message ?? e.message,
+        claimId: firstFailing?.claimId,
+        loop: firstError?.loop,
+        segment: firstError?.segment,
+        field: firstError?.field,
       };
+      await persistGenerationFailure(e.message, errorDetail);
+      return { ok: false, batchId, error: e.message, errorDetail };
     }
     const msg = e instanceof Error ? e.message : "Failed to build 837P content";
-    return {
-      ok: false,
-      batchId,
-      error: msg,
-      errorDetail: { code: "infrastructure_error", message: msg },
-    };
+    const errorDetail: Rebuild837PBatchErrorDetail = { code: "infrastructure_error", message: msg };
+    await persistGenerationFailure(msg, errorDetail);
+    return { ok: false, batchId, error: msg, errorDetail };
   }
 
   const now = new Date().toISOString();
@@ -419,6 +448,12 @@ export async function rebuild837PBatchFile(args: {
       generated_file_name: generated.fileName,
       claim_count: generated.claimCount,
       submission_error: null,
+      // Clear the persisted generation-failure marker so a successful
+      // rebuild removes this batch from the orphaned-batches workqueue
+      // (Task #694) without needing a separate flip.
+      last_generation_error: null,
+      last_generation_error_detail: null,
+      last_generation_attempted_at: now,
       updated_at: now,
     })
     .eq("id", batchId)

@@ -88,6 +88,7 @@ export async function POST(
     });
     if (guard instanceof NextResponse) return guard;
     const organizationId = guard.organizationId;
+    const createdByUserId = guard.userId ?? null;
 
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
@@ -195,6 +196,24 @@ export async function POST(
           { success: false, error: "Batch creation returned no batch id" },
           { status: 500 },
         );
+      }
+
+      // Stamp the originating biller on the freshly created batch so a
+      // failed generation can be auto-routed back to them by the
+      // orphaned-batches workqueue (Task #694). Best-effort.
+      if (createdByUserId) {
+        try {
+          await (supabase as any)
+            .from("claim_837p_batches")
+            .update({ created_by_user_id: createdByUserId })
+            .eq("id", result.batch_id)
+            .eq("organization_id", organizationId);
+        } catch (err) {
+          console.warn("[ready-to-generate/action] failed to stamp created_by", {
+            batchId: result.batch_id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
 
       await recordEvent(supabase, organizationId, claimId, "ready_to_generate", {

@@ -147,6 +147,14 @@ export const WORKQUEUES: WorkqueueDef[] = [
     status: "live",
   },
   {
+    id: "orphaned_batches",
+    title: "Orphaned Generation Failures",
+    description: "837P batches that failed the validator during Generate or Bulk Batch and are stuck in ready_to_generate — auto-routed back to the biller who triggered the run.",
+    href: "/billing/orphaned-batches",
+    stage: "submission_rejections",
+    status: "live",
+  },
+  {
     id: "submitted_claims",
     title: "Submitted Claims",
     description: "Individual claims that have been transmitted and are awaiting payer response.",

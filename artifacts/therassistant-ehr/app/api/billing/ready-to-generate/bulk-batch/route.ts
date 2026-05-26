@@ -96,6 +96,7 @@ export async function POST(request: Request) {
     });
     if (guard instanceof NextResponse) return guard;
     const organizationId = guard.organizationId;
+    const createdByUserId = guard.userId ?? null;
 
     const supabase = createServerSupabaseAdminClient();
     if (!supabase) {
@@ -293,6 +294,26 @@ export async function POST(request: Request) {
         totalChargeAmount,
         claimIds: ids,
       });
+
+      // Stamp the originating biller on the freshly created batch so the
+      // orphaned-batches workqueue (Task #694) can route a generation
+      // failure back to them. Best-effort: a write failure here should
+      // not undo the just-created batch — the row is still valid, just
+      // un-routable to a specific biller.
+      if (createdByUserId) {
+        try {
+          await (supabase as any)
+            .from("claim_837p_batches")
+            .update({ created_by_user_id: createdByUserId })
+            .eq("id", result.batch_id!)
+            .eq("organization_id", organizationId);
+        } catch (err) {
+          console.warn("[bulk-batch] failed to stamp created_by", {
+            batchId: result.batch_id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
     }
 
     // Best-effort audit trail per claim (do not fail the batch if it errors).
