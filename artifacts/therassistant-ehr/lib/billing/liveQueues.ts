@@ -1238,3 +1238,48 @@ export async function recordQueueAction(
     : null;
   return { ok: true, mutation };
 }
+
+// ── Undo dispatcher ────────────────────────────────────────────────────────
+/**
+ * Reverse the most recent action recorded on `<endpoint>:<rowId>`. The SQL
+ * function (`undo_queue_action_atomic`) finds the latest `<prefix>_*` audit
+ * row, applies the inverse mutation (restore captured `previous_patch`,
+ * archive an inserted adjustment / cancel an inserted refund, or un-link a
+ * reversal pair), and stamps a `<prefix>_undo` audit_logs entry — all in a
+ * single transaction. It refuses (raises 22023) when a downstream action
+ * (refund issued, reversal already archived, claim status drifted) would
+ * make the undo unsafe.
+ */
+export async function undoQueueAction(
+  endpoint: string,
+  organizationId: string,
+  rowId: string,
+  userId: string | null,
+): Promise<
+  | { ok: true; mutation: Record<string, unknown> | null; undoneEventType: string | null; tab: string | null }
+  | { ok: false; error: string; status: number }
+> {
+  const prefix = ACTION_PREFIX[endpoint];
+  if (!prefix) return { ok: false, error: "Unknown queue", status: 400 };
+  const supabase = createServerSupabaseAdminClient();
+  if (!supabase) return { ok: false, error: "Database unavailable", status: 500 };
+
+  const { data, error } = await (supabase as any).rpc("undo_queue_action_atomic", {
+    p_organization_id: organizationId,
+    p_endpoint: endpoint,
+    p_row_id: rowId,
+    p_user_id: userId,
+  });
+  if (error) {
+    const msg = String(error.message || "undo failed");
+    const status = error.code === "P0002" ? 404 : 400;
+    return { ok: false, error: msg, status };
+  }
+  const obj = (data && typeof data === "object") ? (data as any) : {};
+  return {
+    ok: true,
+    mutation: obj.mutation ?? null,
+    undoneEventType: obj.undone_event_type ?? null,
+    tab: obj.tab ?? null,
+  };
+}

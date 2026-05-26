@@ -18,6 +18,7 @@ import {
   LIVE_QUEUE_LOADERS,
   readUniversalFilters,
   recordQueueAction,
+  undoQueueAction,
 } from "@/lib/billing/liveQueues";
 
 export function makeLiveQueueGet(endpoint: string) {
@@ -111,6 +112,67 @@ export function makeLiveQueueAction(endpoint: string) {
         {
           success: false,
           error: e instanceof Error ? e.message : "Action failed",
+        },
+        { status: 500 },
+      );
+    }
+  }
+  return { POST };
+}
+
+/**
+ * Per-row "Undo last action" endpoint for the second-wave billing queues.
+ *
+ * POST body: { rowId: string, organizationId?: string }
+ *
+ * Dispatches to `undoQueueAction`, which (in a single Postgres txn) reverses
+ * the most recent `<prefix>_*` audit_logs entry's mutation and stamps a
+ * compensating `<prefix>_undo` log so the row moves back to its prior tab.
+ * Returns 404 when there is no action to undo, 400 when a downstream action
+ * (refund issued, reversal already archived, claim status drifted) makes the
+ * undo unsafe.
+ */
+export function makeLiveQueueUndo(endpoint: string) {
+  async function POST(request: Request) {
+    try {
+      const body = (await request.json().catch(() => ({}))) as {
+        rowId?: string;
+        organizationId?: string;
+      };
+      const guard = await requireBillingAccess({
+        requestedOrganizationId: body.organizationId ?? null,
+      });
+      if (guard instanceof NextResponse) return guard;
+      const rowId = String(body.rowId ?? "").trim();
+      if (!rowId) {
+        return NextResponse.json(
+          { success: false, error: "rowId is required" },
+          { status: 400 },
+        );
+      }
+      const result = await undoQueueAction(
+        endpoint,
+        guard.organizationId,
+        rowId,
+        guard.userId ?? null,
+      );
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.status },
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        mutation: result.mutation,
+        undoneEventType: result.undoneEventType,
+        tab: result.tab,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: e instanceof Error ? e.message : "Undo failed",
         },
         { status: 500 },
       );

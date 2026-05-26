@@ -269,6 +269,53 @@ export default function LiveQueueClient(props: LiveQueueConfig) {
     [endpoint, organizationId, load],
   );
 
+  // Undo dispatches to a separate endpoint that reads the latest audit_logs
+  // entry for the row and reverses its mutation atomically. Disabled when
+  // there is no recorded action (last_action is null) or the latest action
+  // is itself an undo, AND server-side it also refuses when a downstream
+  // action (refund issued, claim status drifted, …) makes undo unsafe.
+  const runUndo = useCallback(
+    async (rowId: string) => {
+      setBusyRow(rowId);
+      try {
+        const res = await fetch(`/api/billing/${endpoint}/action/undo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rowId, organizationId }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          success?: boolean;
+          error?: string;
+          undoneEventType?: string | null;
+        };
+        if (!res.ok || !json.success) {
+          throw new Error(json.error ?? "Undo failed");
+        }
+        const label = json.undoneEventType
+          ? json.undoneEventType.split("_").slice(1).join(" ") || json.undoneEventType
+          : "last action";
+        setMessage({ tone: "success", text: `Undid "${label}".` });
+        void load();
+      } catch (e) {
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Undo failed",
+        });
+      } finally {
+        setBusyRow(null);
+      }
+    },
+    [endpoint, organizationId, load],
+  );
+
+  const canUndo = useCallback((r: LiveRow): boolean => {
+    const la = (r as Record<string, unknown>).last_action;
+    if (typeof la !== "string" || la.length === 0) return false;
+    // The most recent entry being itself an `<prefix>_undo` means there is
+    // nothing left to undo.
+    return !la.endsWith("_undo");
+  }, []);
+
   const filters: FilterDef[] = useMemo(
     () => [...UNIVERSAL_FILTERS, ...(extraFilters ?? [])],
     [extraFilters],
@@ -297,24 +344,35 @@ export default function LiveQueueClient(props: LiveQueueConfig) {
   );
 
   const rowActions: RowAction<LiveRow>[] = useMemo(() => {
-    if (!actions || actions.length === 0) return [];
-    return actions.map((a) => ({
-      id: a.id,
-      label: a.label,
-      variant: a.variant,
-      disabled: (r) => {
-        if (busyRow === r.id) return true;
-        if (a.enabled && !a.enabled(r)) return true;
-        return false;
-      },
-      onClick: (r) => {
-        const extras = a.prompt ? a.prompt(r) : true;
-        if (extras == null) return;
-        const payload = typeof extras === "object" ? extras : {};
-        void runAction(r.id, a.id, payload);
-      },
-    }));
-  }, [actions, busyRow, runAction]);
+    const list: RowAction<LiveRow>[] = [];
+    if (actions && actions.length > 0) {
+      for (const a of actions) {
+        list.push({
+          id: a.id,
+          label: a.label,
+          variant: a.variant,
+          disabled: (r) => {
+            if (busyRow === r.id) return true;
+            if (a.enabled && !a.enabled(r)) return true;
+            return false;
+          },
+          onClick: (r) => {
+            const extras = a.prompt ? a.prompt(r) : true;
+            if (extras == null) return;
+            const payload = typeof extras === "object" ? extras : {};
+            void runAction(r.id, a.id, payload);
+          },
+        });
+      }
+    }
+    list.push({
+      id: "undo",
+      label: "Undo last action",
+      disabled: (r) => busyRow === r.id || !canUndo(r),
+      onClick: (r) => void runUndo(r.id),
+    });
+    return list;
+  }, [actions, busyRow, runAction, runUndo, canUndo]);
 
   const selectedRow = useMemo(
     () => items.find((r) => r.id === selectedId) ?? null,
@@ -375,20 +433,30 @@ export default function LiveQueueClient(props: LiveQueueConfig) {
   }, [selectedRow, detailFields, getClaimId, organizationId]);
 
   const detailActions: PrimaryAction[] = useMemo(() => {
-    if (!selectedRow || !actions) return [];
-    return actions.map((a) => ({
-      id: a.id,
-      label: a.label,
-      variant: a.variant,
-      disabled: busyRow === selectedRow.id || (a.enabled ? !a.enabled(selectedRow) : false),
-      onClick: () => {
-        const extras = a.prompt ? a.prompt(selectedRow) : true;
-        if (extras == null) return;
-        const payload = typeof extras === "object" ? extras : {};
-        void runAction(selectedRow.id, a.id, payload);
-      },
-    }));
-  }, [selectedRow, actions, busyRow, runAction]);
+    if (!selectedRow) return [];
+    const list: PrimaryAction[] = [];
+    for (const a of actions ?? []) {
+      list.push({
+        id: a.id,
+        label: a.label,
+        variant: a.variant,
+        disabled: busyRow === selectedRow.id || (a.enabled ? !a.enabled(selectedRow) : false),
+        onClick: () => {
+          const extras = a.prompt ? a.prompt(selectedRow) : true;
+          if (extras == null) return;
+          const payload = typeof extras === "object" ? extras : {};
+          void runAction(selectedRow.id, a.id, payload);
+        },
+      });
+    }
+    list.push({
+      id: "undo",
+      label: "Undo last action",
+      disabled: busyRow === selectedRow.id || !canUndo(selectedRow),
+      onClick: () => void runUndo(selectedRow.id),
+    });
+    return list;
+  }, [selectedRow, actions, busyRow, runAction, runUndo, canUndo]);
 
   const headerActions: PrimaryAction[] = useMemo(
     () => [
