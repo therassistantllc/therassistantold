@@ -9909,6 +9909,57 @@ export type Database = {
           },
         ]
       }
+      professional_claim_status_history: {
+        Row: {
+          appointment_id: string | null
+          changed_at: string
+          claim_status: string
+          id: string
+          organization_id: string
+          professional_claim_id: string
+          source: string
+          submitted_at: string | null
+          total_charge: number | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          changed_at?: string
+          claim_status: string
+          id?: string
+          organization_id: string
+          professional_claim_id: string
+          source?: string
+          submitted_at?: string | null
+          total_charge?: number | null
+        }
+        Update: {
+          appointment_id?: string | null
+          changed_at?: string
+          claim_status?: string
+          id?: string
+          organization_id?: string
+          professional_claim_id?: string
+          source?: string
+          submitted_at?: string | null
+          total_charge?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_claim_status_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_claim_status_history_professional_claim_id_fkey"
+            columns: ["professional_claim_id"]
+            isOneToOne: false
+            referencedRelation: "professional_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professional_claims: {
         Row: {
           accept_assignment: boolean | null
@@ -12524,6 +12575,20 @@ export type Database = {
       apply_updated_at_trigger: {
         Args: { table_name: unknown }
         Returns: undefined
+      }
+      billing_claim_status_snapshot: {
+        Args: {
+          p_appointment_ids?: string[]
+          p_as_of: string
+          p_organization_id: string
+        }
+        Returns: {
+          appointment_id: string | null
+          claim_status: string
+          professional_claim_id: string
+          submitted_at: string | null
+          total_charge: number | null
+        }[]
       }
       claim_next_external_transaction: {
         Args: never
