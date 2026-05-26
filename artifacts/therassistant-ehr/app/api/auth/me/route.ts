@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthentication } from "@/lib/rbac/middleware";
 import { getAuthenticatedUser, getProviderIdForUser } from "@/lib/rbac/auth";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 export async function GET() {
   const contextOrError = await requireAuthentication();
@@ -24,9 +25,21 @@ export async function GET() {
     ? await getProviderIdForUser(authUser.userId, organizationId)
     : null;
 
+  let organizationName: string | null = null;
+  const supabase = createServerSupabaseAdminClient();
+  if (supabase && organizationId) {
+    const { data } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", organizationId)
+      .maybeSingle();
+    organizationName = (data as { name?: string | null } | null)?.name ?? null;
+  }
+
   return NextResponse.json({
     staffId,
     organizationId,
+    organizationName,
     email,
     firstName,
     lastName,

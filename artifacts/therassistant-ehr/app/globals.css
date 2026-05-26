@@ -1668,3 +1668,146 @@ textarea {
     font-size: 16px; /* prevent iOS zoom on focus */
   }
 }
+
+/* ── Billing Reports: Download PDF button + print rules (Task #778) ─────── */
+.reports-control-action {
+  justify-content: flex-end;
+}
+
+.reports-download-btn {
+  min-width: 160px;
+  padding: 6px 14px;
+  border: 1px solid var(--navy);
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.reports-download-btn:hover:not(:disabled) {
+  background: #1a2f4f;
+}
+
+.reports-download-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media print {
+  @page {
+    size: Letter landscape;
+    margin: 0.35in;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Hide everything by default, then opt the report shell back in. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .reports-shell,
+  .reports-shell * {
+    visibility: visible !important;
+  }
+
+  .reports-shell {
+    position: absolute;
+    inset: 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100%;
+    box-shadow: none !important;
+  }
+
+  /* Hide interactive controls / chrome that don't belong on the printed page. */
+  .reports-toolbar,
+  .reports-download-btn,
+  .reports-control-action {
+    display: none !important;
+  }
+
+  /* Only print the snapshot + insights + trends sections; collapse the rest. */
+  .reports-section-wrap {
+    display: none !important;
+  }
+  .reports-section-wrap--print {
+    display: block !important;
+    visibility: visible !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .reports-hero {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 0 6px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .reports-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-top: 6px !important;
+  }
+
+  .reports-section-title {
+    font-size: 12px !important;
+    margin: 0 0 4px !important;
+  }
+
+  /* Compact the KPI grid so the snapshot fits on one page. */
+  .kpi-grid {
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 5px !important;
+  }
+
+  .kpi-card {
+    padding: 6px 8px !important;
+    border-radius: 4px !important;
+  }
+
+  .kpi-value {
+    font-size: 15px !important;
+  }
+
+  .kpi-label,
+  .kpi-delta-row,
+  .kpi-footnote {
+    font-size: 9px !important;
+  }
+
+  .kpi-card,
+  .ops-card,
+  .insight-banner,
+  .reports-hero {
+    box-shadow: none !important;
+  }
+
+  .insight-stack {
+    margin: 4px 0 !important;
+    gap: 4px !important;
+  }
+
+  .insight-banner {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* Drop the global nav / shells if any are rendered above the report. */
+  nav,
+  header,
+  aside,
+  .app-header,
+  .app-nav,
+  .app-sidebar {
+    display: none !important;
+  }
+}

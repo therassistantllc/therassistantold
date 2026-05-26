@@ -301,6 +301,7 @@ export default function BillingReportsClient() {
   const [loading, setLoading] = useState(Boolean(organizationId));
   const [error, setError] = useState<string | null>(null);
   const [viewerRoles, setViewerRoles] = useState<string[]>([]);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [role, setRole] = useState<ViewerRole>("owner");
   const [roleManuallySet, setRoleManuallySet] = useState(false);
   const missingOrgMessage =
@@ -313,9 +314,10 @@ export default function BillingReportsClient() {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         if (!res.ok) return;
-        const json = (await res.json()) as { roles?: string[] };
+        const json = (await res.json()) as { roles?: string[]; organizationName?: string | null };
         if (cancelled) return;
         setViewerRoles(Array.isArray(json.roles) ? json.roles : []);
+        setOrganizationName(json.organizationName ?? null);
         if (!roleManuallySet) setRole(pickPrimaryRole(json.roles));
       } catch {
         /* role detection is best-effort */
@@ -469,6 +471,34 @@ export default function BillingReportsClient() {
               </select>
             </label>
           ) : null}
+          <div className="reports-control reports-control-action">
+            <span>&nbsp;</span>
+            <button
+              type="button"
+              className="reports-download-btn"
+              disabled={!payload || loading}
+              onClick={() => {
+                const slug = (value: string) =>
+                  value.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+                const practicePart = slug(organizationName ?? "") || "Practice";
+                const safeScope = slug(scopeLabel) || "Practice";
+                const monthPart = (payload?.month || month).replace(/[^0-9-]/g, "") || month;
+                const fileName = `BillingReport_${practicePart}_${safeScope}_${monthPart}`;
+                const originalTitle = document.title;
+                document.title = fileName;
+                const restore = () => {
+                  document.title = originalTitle;
+                  window.removeEventListener("afterprint", restore);
+                };
+                window.addEventListener("afterprint", restore);
+                window.print();
+                window.setTimeout(restore, 2000);
+              }}
+              title="Open the print dialog and choose 'Save as PDF' to download a snapshot of this report."
+            >
+              Download PDF
+            </button>
+          </div>
         </div>
       </section>
 
@@ -480,11 +510,13 @@ export default function BillingReportsClient() {
 
       {!loading && payload
         ? sectionOrder.map((section) => {
+            const printable = section === "snapshot" || section === "trends";
+            const wrapperClass = printable ? "reports-section-wrap reports-section-wrap--print" : "reports-section-wrap";
+            let body: React.ReactNode = null;
             switch (section) {
               case "snapshot":
-                return (
+                body = (
                   <SnapshotSection
-                    key={section}
                     payload={payload}
                     prior={prior}
                     derived={derived}
@@ -500,29 +532,40 @@ export default function BillingReportsClient() {
                     scope={scope}
                   />
                 );
+                break;
               case "operational":
-                return <OperationalSection key={section} payload={payload} />;
+                body = <OperationalSection payload={payload} />;
+                break;
               case "trends":
-                return (
+                body = (
                   <TrendsSection
-                    key={section}
                     payload={payload}
                     series={series}
                     scope={scope}
                     providerLookup={providers}
                   />
                 );
+                break;
               case "denials":
-                return <DenialsSection key={section} payload={payload} />;
+                body = <DenialsSection payload={payload} />;
+                break;
               case "payer":
-                return <PayerSection key={section} payload={payload} />;
+                body = <PayerSection payload={payload} />;
+                break;
               case "calls":
-                return <CallsSection key={section} payload={payload} scope={scope} />;
+                body = <CallsSection payload={payload} scope={scope} />;
+                break;
               case "clinician":
-                return <ClinicianSection key={section} payload={payload} scope={scope} />;
+                body = <ClinicianSection payload={payload} scope={scope} />;
+                break;
               default:
-                return null;
+                body = null;
             }
+            return (
+              <div key={section} className={wrapperClass}>
+                {body}
+              </div>
+            );
           })
         : null}
     </main>
