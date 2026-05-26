@@ -52,7 +52,7 @@ To deploy for a different clinic: update `NEXT_PUBLIC_ORGANIZATION_ID` to the ne
 ### Supabase
 
 | Variable | Description |
-|---|---|
+| --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public anon key |
 
