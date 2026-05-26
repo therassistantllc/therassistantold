@@ -19,7 +19,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 
-import { runFaxQueueDispatch } from "../faxQueueWorker";
+import { MAX_FAX_ATTEMPTS, runFaxQueueDispatch } from "../faxQueueWorker";
 import type { FaxProvider } from "@/lib/fax/provider";
 
 const ORG = "00000000-0000-0000-0000-000000000001";
@@ -55,6 +55,9 @@ interface Fax {
   sent_at: string | null;
   created_at: string;
   claim_id: string | null;
+  attempt_count: number;
+  next_attempt_at: string | null;
+  last_attempted_at: string | null;
 }
 interface Doc {
   id: string;
@@ -246,6 +249,9 @@ function seedHappyPath(): Seed {
         sent_at: null,
         created_at: "2026-05-01T00:00:00Z",
         claim_id: "claim-1",
+        attempt_count: 0,
+        next_attempt_at: null,
+        last_attempted_at: null,
       },
       // Wrong org — must be ignored.
       {
@@ -257,6 +263,9 @@ function seedHappyPath(): Seed {
         sent_at: null,
         created_at: "2026-05-01T00:00:00Z",
         claim_id: "claim-x",
+        attempt_count: 0,
+        next_attempt_at: null,
+        last_attempted_at: null,
       },
       // Already sent — must be ignored.
       {
@@ -268,6 +277,9 @@ function seedHappyPath(): Seed {
         sent_at: "2026-04-30T00:00:00Z",
         created_at: "2026-04-30T00:00:00Z",
         claim_id: "claim-2",
+        attempt_count: 1,
+        next_attempt_at: null,
+        last_attempted_at: "2026-04-30T00:00:00Z",
       },
     ],
     transmissions: [
@@ -351,7 +363,7 @@ describe("runFaxQueueDispatch", () => {
     assert.ok(tx.sent_at);
   });
 
-  it("flips both rows to failed with the provider error on failure", async () => {
+  it("schedules an automatic retry on a transient provider failure instead of marking the row failed immediately (Task #790)", async () => {
     const seed = seedHappyPath();
     const { supabase } = makeFakeSupabase(seed);
 
@@ -361,15 +373,85 @@ describe("runFaxQueueDispatch", () => {
     });
 
     assert.equal(result.sent, 0);
-    assert.equal(result.failed, 1);
+    assert.equal(result.failed, 1, "this invocation reports a failed send");
 
     const fax = seed.faxes.find((f) => f.id === "fax-1")!;
-    assert.equal(fax.status, "failed");
-    assert.match(String(fax.error), /Telnyx 422/);
+    assert.equal(fax.status, "pending", "row stays pending so a future cron tick can retry");
+    assert.equal(fax.attempt_count, 1, "attempt counter increments per send attempt");
+    assert.ok(fax.next_attempt_at, "backoff window is set into the future");
+    assert.ok(
+      Date.parse(String(fax.next_attempt_at)) > Date.now(),
+      "next_attempt_at is in the future",
+    );
+    assert.match(String(fax.error), /Telnyx 422/, "latest error is preserved on the row");
+
+    // The transmission must NOT regress to 'failed' while we're still
+    // going to retry — Submission history should keep showing "queued"
+    // until we either succeed or hit the cap. The latest error still
+    // gets surfaced so reviewers can see what tripped the last try.
+    const tx = seed.transmissions.find((t) => t.id === "tx-1")!;
+    assert.equal(tx.status, "queued", "transmission stays in flight across automatic retries");
+    assert.match(String(tx.error), /Telnyx 422/);
+  });
+
+  it("stops auto-retrying after MAX_FAX_ATTEMPTS and marks the row terminally failed (Task #790)", async () => {
+    const seed = seedHappyPath();
+    // Pre-seed attempt_count one short of the cap so the next failure
+    // is the terminal one. Keeps the test fast (one dispatch instead of
+    // five) and exercises the cap-check branch directly.
+    const fax = seed.faxes.find((f) => f.id === "fax-1")!;
+    fax.attempt_count = MAX_FAX_ATTEMPTS - 1;
+    const { supabase } = makeFakeSupabase(seed);
+
+    const result = await runFaxQueueDispatch(supabase, {
+      organizationId: ORG,
+      provider: failProvider,
+    });
+
+    assert.equal(result.failed, 1);
+    assert.equal(fax.status, "failed", "cap reached → row terminally failed");
+    assert.equal(fax.attempt_count, MAX_FAX_ATTEMPTS);
+    assert.equal(fax.next_attempt_at, null, "no further retries scheduled");
+    assert.match(
+      String(fax.error),
+      /Max retries exceeded/,
+      "error message clearly explains the dispatcher gave up",
+    );
 
     const tx = seed.transmissions.find((t) => t.id === "tx-1")!;
-    assert.equal(tx.status, "failed");
-    assert.match(String(tx.error), /Telnyx 422/);
+    assert.equal(tx.status, "failed", "transmission flips to failed once the cap is hit");
+  });
+
+  it("refuses to claim a row whose next_attempt_at is still in the future (Task #790)", async () => {
+    const seed = seedHappyPath();
+    const fax = seed.faxes.find((f) => f.id === "fax-1")!;
+    // Pretend a prior failure scheduled the next attempt an hour out.
+    fax.attempt_count = 1;
+    fax.next_attempt_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    let sends = 0;
+    const countingProvider: FaxProvider = {
+      name: "test-counting",
+      configured: true,
+      async send() {
+        sends += 1;
+        return { ok: true, providerId: "prov-xyz", providerStatus: "queued" };
+      },
+      async getStatus() {
+        return { ok: true, providerStatus: "queued", normalized: "sending" };
+      },
+    };
+    const { supabase } = makeFakeSupabase(seed);
+
+    const result = await runFaxQueueDispatch(supabase, {
+      organizationId: ORG,
+      provider: countingProvider,
+    });
+
+    assert.equal(sends, 0, "provider is never called while the backoff window is open");
+    assert.equal(result.sent, 0);
+    assert.equal(result.skipped, 1, "row is skipped (backoff), not failed");
+    assert.equal(fax.status, "pending", "row stays pending across the wait");
+    assert.equal(fax.attempt_count, 1, "attempt_count is not bumped for a skipped row");
   });
 
   it("only lets one of two concurrent dispatchers send the same fax", async () => {

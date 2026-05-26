@@ -30,6 +30,32 @@ import {
 const FAX_OUTBOUND_BUCKET = "fax-outbound";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
+/**
+ * Maximum number of times the dispatcher will automatically attempt a
+ * single fax_queue row before declaring it terminally failed. A biller
+ * can still bypass this by hitting Retry in the UI (which resets the
+ * counter). Task #790.
+ */
+export const MAX_FAX_ATTEMPTS = 5;
+
+/**
+ * Exponential backoff between automatic retries.
+ *
+ *   attempt 1 fail → wait  5m before next try
+ *   attempt 2 fail → wait 15m
+ *   attempt 3 fail → wait 45m
+ *   attempt 4 fail → wait  2h15m
+ *
+ * Capped at 6 hours so a long-running outage doesn't push the next try
+ * out by days. We never use the value past `MAX_FAX_ATTEMPTS - 1` because
+ * the last failure is terminal.
+ */
+export function faxRetryBackoffMs(attemptCount: number): number {
+  const base = 5 * 60 * 1000;
+  const grow = base * Math.pow(3, Math.max(0, attemptCount - 1));
+  return Math.min(grow, 6 * 60 * 60 * 1000);
+}
+
 // Minimal structural type so this file does not have to import the entire
 // generated Supabase types (and so the test suite can pass a hand-rolled
 // fake client). We only touch a handful of operations.
@@ -243,22 +269,25 @@ async function claimPendingFax(
   supabase: SupabaseLike,
   faxId: string,
   organizationId: string,
-): Promise<boolean> {
+): Promise<{ ok: true; priorAttemptCount: number } | { ok: false }> {
   try {
+    const nowIso = new Date().toISOString();
     const { data, error } = (await (supabase
       .from("fax_queue")
-      .update({ status: "processing", error: null })
+      .update({ status: "processing", error: null, last_attempted_at: nowIso })
       .eq("organization_id", organizationId)
       .eq("id", faxId)
       .eq("status", "pending")
-      .select("id") as unknown as Promise<{
-        data: Array<{ id: string }> | null;
+      .select("id, attempt_count") as unknown as Promise<{
+        data: Array<{ id: string; attempt_count: number | null }> | null;
         error: { message?: string } | null;
       }>));
-    if (error) return false;
-    return Array.isArray(data) && data.length === 1;
+    if (error) return { ok: false };
+    if (!Array.isArray(data) || data.length !== 1) return { ok: false };
+    const prior = Number(data[0].attempt_count ?? 0);
+    return { ok: true, priorAttemptCount: Number.isFinite(prior) ? prior : 0 };
   } catch {
-    return false;
+    return { ok: false };
   }
 }
 
@@ -274,13 +303,19 @@ export async function runFaxQueueDispatch(
 
   const pendingQuery = supabase
     .from("fax_queue")
-    .select("id, to_fax_number, claim_id")
+    .select("id, to_fax_number, claim_id, attempt_count, next_attempt_at")
     .eq("organization_id", organizationId)
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(maxFaxes);
   const { data: rows, error } = (await (pendingQuery as unknown as Promise<{
-    data: Array<{ id: string; to_fax_number: string; claim_id: string | null }> | null;
+    data: Array<{
+      id: string;
+      to_fax_number: string;
+      claim_id: string | null;
+      attempt_count: number | null;
+      next_attempt_at: string | null;
+    }> | null;
     error: { message?: string } | null;
   }>));
   if (error) {
@@ -304,18 +339,39 @@ export async function runFaxQueueDispatch(
     perFax: [],
   };
 
+  const nowMs = Date.now();
+
   for (const fax of candidates) {
     const faxId = String(fax.id);
     const recipient = String(fax.to_fax_number ?? "").trim();
 
+    // Backoff gate: a previous automatic failure may have pushed
+    // `next_attempt_at` into the future. Honor that window so we don't
+    // pound a downed payer fax line every cron tick. Manual Retry from
+    // the UI resets next_attempt_at to null, so a biller's explicit ask
+    // is never delayed by this filter.
+    if (fax.next_attempt_at && Date.parse(String(fax.next_attempt_at)) > nowMs) {
+      result.skipped += 1;
+      result.perFax.push({
+        faxId,
+        status: "skipped",
+        error: `backoff: next attempt not due until ${String(fax.next_attempt_at)}`,
+      });
+      continue;
+    }
+
     // Atomic claim: only one dispatcher wins the pending→processing flip.
     // Concurrent invocations of this worker see zero affected rows and skip.
-    const claimed = await claimPendingFax(supabase, faxId, organizationId);
-    if (!claimed) {
+    // The claim also returns the prior attempt_count so we can compute the
+    // post-attempt counter on success/failure persistence below.
+    const claim = await claimPendingFax(supabase, faxId, organizationId);
+    if (!claim.ok) {
       result.skipped += 1;
       result.perFax.push({ faxId, status: "skipped", error: "another dispatcher already claimed this fax" });
       continue;
     }
+    const priorAttemptCount = claim.priorAttemptCount;
+    const newAttemptCount = priorAttemptCount + 1;
 
     // Find the matching transmission. Medical-review's enqueue stores the
     // fax_queue.id in transmission.provider_message_id; that becomes our
@@ -337,30 +393,69 @@ export async function runFaxQueueDispatch(
 
     const sentAt = new Date();
 
-    // Persist a terminal failure on both rows. If either persistence step
-    // itself fails we count this fax as failed AND surface a loud error in
-    // perFax so ops can see that the in-DB state may not match reality.
-    const failBoth = async (msg: string): Promise<void> => {
+    // Persist a failure on both rows. Two flavors:
+    //
+    //   - Transient (default): if we haven't hit MAX_FAX_ATTEMPTS yet,
+    //     keep fax_queue.status='pending' and push next_attempt_at into
+    //     the future using exponential backoff so the next cron tick
+    //     waits a polite interval before trying again. The matching
+    //     transmission row keeps its current 'queued' status (still in
+    //     flight from the biller's perspective) but its error column is
+    //     updated so Submission history surfaces the latest reason.
+    //
+    //   - Terminal: either an explicit terminal failure (structural data
+    //     issue that won't be fixed by retrying — missing destination,
+    //     missing transmission, no document_ids) OR the auto-retry cap
+    //     was reached. Both rows flip to 'failed' with a clear "max
+    //     retries exceeded" prefix so billers know it stopped on its own.
+    //
+    // attempt_count is incremented on every call regardless so the row's
+    // history reflects every send attempt the dispatcher actually made.
+    const failBoth = async (
+      msg: string,
+      opts?: { terminal?: boolean },
+    ): Promise<void> => {
+      const reachedCap = newAttemptCount >= MAX_FAX_ATTEMPTS;
+      const isTerminal = opts?.terminal === true || reachedCap;
+      const finalMsg =
+        reachedCap && opts?.terminal !== true
+          ? `Max retries exceeded after ${newAttemptCount} attempts: ${msg}`
+          : msg;
+      const nextAt = isTerminal
+        ? null
+        : new Date(Date.now() + faxRetryBackoffMs(newAttemptCount)).toISOString();
+
       const faxUpdate = await updateFaxRow(supabase, faxId, organizationId, {
-        status: "failed",
-        error: msg,
+        status: isTerminal ? "failed" : "pending",
+        error: finalMsg,
+        attempt_count: newAttemptCount,
+        next_attempt_at: nextAt,
       });
       let txUpdate: { ok: true } | { ok: false; error: string } = { ok: true };
       if (transmissionId) {
-        txUpdate = await updateTransmission(supabase, transmissionId, organizationId, {
-          status: "failed",
-          error: msg,
-        });
+        // On a transient failure, do NOT regress the transmission to
+        // 'failed' — it's still pending another automatic attempt and the
+        // Submission history shouldn't flip-flop. We do record the latest
+        // error so reviewers can see what tripped the last try.
+        const txPatch: Record<string, unknown> = isTerminal
+          ? { status: "failed", error: finalMsg }
+          : { error: finalMsg };
+        txUpdate = await updateTransmission(
+          supabase,
+          transmissionId,
+          organizationId,
+          txPatch,
+        );
       }
       result.failed += 1;
       const persistMsg =
         !faxUpdate.ok && !txUpdate.ok
-          ? `${msg} | persistence failed: ${faxUpdate.error}; ${(txUpdate as { error: string }).error}`
+          ? `${finalMsg} | persistence failed: ${faxUpdate.error}; ${(txUpdate as { error: string }).error}`
           : !faxUpdate.ok
-            ? `${msg} | fax_queue persistence failed: ${faxUpdate.error}`
+            ? `${finalMsg} | fax_queue persistence failed: ${faxUpdate.error}`
             : !txUpdate.ok
-              ? `${msg} | transmission persistence failed: ${(txUpdate as { error: string }).error}`
-              : msg;
+              ? `${finalMsg} | transmission persistence failed: ${(txUpdate as { error: string }).error}`
+              : finalMsg;
       if (!faxUpdate.ok || !txUpdate.ok) {
         console.warn(`[fax-worker] state drift on fax ${faxId}: ${persistMsg}`);
       }
@@ -368,21 +463,27 @@ export async function runFaxQueueDispatch(
     };
 
     if (!recipient) {
-      await failBoth("fax_queue row has no destination number");
+      // Structural: no recipient = no possible retry. Terminal.
+      await failBoth("fax_queue row has no destination number", { terminal: true });
       continue;
     }
 
     if (!transmissionId) {
       // No transmission to point at — most likely a row created by the
       // direct fax-queue POST endpoint rather than medical-review. Fail
-      // it loudly so it doesn't sit pending forever.
+      // it loudly so it doesn't sit pending forever. Retrying won't
+      // change the linkage, so this is terminal.
       await failBoth(
         "No matching documentation transmission found for this fax — cannot resolve attached files.",
+        { terminal: true },
       );
       continue;
     }
     if (documentIds.length === 0) {
-      await failBoth("Documentation transmission has no document_ids to send.");
+      // Empty payload — retrying won't materialize attachments. Terminal.
+      await failBoth("Documentation transmission has no document_ids to send.", {
+        terminal: true,
+      });
       continue;
     }
 
@@ -429,6 +530,8 @@ export async function runFaxQueueDispatch(
       status: "sent",
       error: null,
       sent_at: sentAt.toISOString(),
+      attempt_count: newAttemptCount,
+      next_attempt_at: null,
     });
     // Telnyx delivery is asynchronous — accepting the job means the
     // provider has the document, not that the recipient's machine has

@@ -88,9 +88,21 @@ export async function POST(
         );
       }
       // Step 1 — reset row to 'pending' so the dispatcher can claim it.
+      // Manual Retry is an explicit biller ask: reset attempt_count and
+      // clear next_attempt_at so the dispatcher's backoff/cap don't gate
+      // this attempt. If this manual retry also fails, the auto-retry
+      // counter starts fresh from zero, which is the desired behavior —
+      // a biller hitting Retry is asserting "the underlying problem is
+      // probably resolved now, try again".
       const { error: resetErr } = await (supabase as any)
         .from("fax_queue")
-        .update({ status: "pending", error: null, sent_at: null })
+        .update({
+          status: "pending",
+          error: null,
+          sent_at: null,
+          attempt_count: 0,
+          next_attempt_at: null,
+        })
         .eq("organization_id", organizationId)
         .eq("id", faxId);
       if (resetErr) throw resetErr;
