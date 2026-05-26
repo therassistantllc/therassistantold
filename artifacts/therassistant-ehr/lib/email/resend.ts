@@ -735,3 +735,115 @@ export async function sendAutopayFailureEmail(
     return { ok: false, error: message };
   }
 }
+
+export type BillingReportEmailAttachment = {
+  filename: string;
+  content: Buffer | string;
+};
+
+export type SendBillingReportEmailInput = {
+  to: string[];
+  practiceName: string;
+  monthLabel: string;
+  scopeLabel: string;
+  senderName: string | null;
+  note: string | null;
+  reportUrl: string;
+  htmlSnapshot: string;
+  textSnapshot: string;
+  attachments?: BillingReportEmailAttachment[];
+};
+
+export type SendBillingReportEmailResult =
+  | { ok: true; providerId: string | null; fromEmail: string }
+  | { ok: false; error: string };
+
+/**
+ * Send the Revenue Overview snapshot (Task #781) to one or more
+ * recipients. The body is the same single-page summary the on-screen
+ * Download PDF button captures, plus a link back to the live report
+ * with the current month/scope filters preserved.
+ */
+export async function sendBillingReportEmail(
+  input: SendBillingReportEmailInput,
+): Promise<SendBillingReportEmailResult> {
+  const credentials = await resolveResendCredentials();
+  if (!credentials) {
+    return {
+      ok: false,
+      error:
+        "Email is not configured. Connect Resend in Integrations (or set RESEND_API_KEY) before emailing billing reports.",
+    };
+  }
+
+  const fromEmail =
+    credentials.fromEmail ??
+    process.env.RESEND_FROM_EMAIL?.trim() ??
+    "onboarding@resend.dev";
+
+  const safePractice = input.practiceName.trim() || "Practice";
+  const safeMonth = input.monthLabel.trim() || "Current month";
+  const safeScope = input.scopeLabel.trim() || "Practice (all clinicians)";
+  const sender = input.senderName?.trim();
+  const note = input.note?.trim();
+
+  const subject = `${safePractice} — Revenue Overview, ${safeMonth} (${safeScope})`;
+
+  const senderLine = sender ? `${sender} shared this report with you.` : `Shared from ${safePractice}.`;
+  const noteBlockText = note ? `\nNote from ${sender || "the sender"}:\n${note}\n` : "";
+  const textBody =
+    `${senderLine}\n\n` +
+    `Revenue Overview — ${safeMonth}\n` +
+    `Scope: ${safeScope}\n` +
+    `Practice: ${safePractice}\n` +
+    `${noteBlockText}\n` +
+    `${input.textSnapshot}\n\n` +
+    `Open the live report: ${input.reportUrl}\n`;
+
+  const noteBlockHtml = note
+    ? `<p style="background:#f8fafc;border-left:3px solid #1D4ED8;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap;margin:16px 0;">` +
+      `<strong style="display:block;color:#1f2937;margin-bottom:4px;">Note from ${escapeHtml(sender || "the sender")}</strong>` +
+      `${escapeHtml(note)}</p>`
+    : "";
+
+  const htmlBody = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2937;max-width:720px;margin:0 auto;">
+      <p style="font-size:13px;color:#6b7280;margin:0 0 4px 0;">${escapeHtml(safePractice)} · Billing</p>
+      <h1 style="font-size:22px;margin:0 0 4px 0;color:#10243f;">Revenue Overview — ${escapeHtml(safeMonth)}</h1>
+      <p style="font-size:13px;color:#4b5563;margin:0 0 18px 0;">Scope: <strong>${escapeHtml(safeScope)}</strong></p>
+      <p style="font-size:13px;color:#374151;margin:0 0 12px 0;">${escapeHtml(senderLine)}</p>
+      ${noteBlockHtml}
+      ${input.htmlSnapshot}
+      <p style="margin:24px 0;">
+        <a href="${escapeHtml(input.reportUrl)}" style="background:#1D4ED8;color:#ffffff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;font-size:14px;">Open the live report</a>
+      </p>
+      <p style="font-size:12px;color:#6b7280;">Or paste this link into your browser:<br/>
+        <a href="${escapeHtml(input.reportUrl)}" style="color:#1D4ED8;">${escapeHtml(input.reportUrl)}</a>
+      </p>
+      <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Sent from ${escapeHtml(safePractice)} via Therassistant.</p>
+    </div>
+  `;
+
+  try {
+    const client = new Resend(credentials.apiKey);
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject,
+      text: textBody,
+      html: htmlBody,
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      })),
+    });
+    if (result.error) {
+      const message = result.error.message || "Resend rejected the email";
+      return { ok: false, error: message };
+    }
+    return { ok: true, providerId: result.data?.id ?? null, fromEmail };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to send email";
+    return { ok: false, error: message };
+  }
+}

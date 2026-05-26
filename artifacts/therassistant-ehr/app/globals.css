@@ -1702,6 +1702,54 @@ textarea {
   cursor: not-allowed;
 }
 
+/* Send Report panel (Task #781) */
+.reports-send-panel {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin: 12px 0 18px 0;
+}
+.reports-send-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.reports-send-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted, #4b5563);
+}
+.reports-send-field input,
+.reports-send-field textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text, #111827);
+}
+.reports-send-field small {
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+}
+.reports-send-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.reports-send-error {
+  color: var(--danger, #b02020);
+  font-size: 13px;
+}
+.reports-send-success {
+  color: var(--success, #2f7a4e);
+  font-size: 13px;
+}
+
 @media print {
   @page {
     size: Letter landscape;
@@ -1736,6 +1784,8 @@ textarea {
   /* Hide interactive controls / chrome that don't belong on the printed page. */
   .reports-toolbar,
   .reports-download-btn,
+  .reports-send-btn,
+  .reports-send-panel,
   .reports-control-action {
     display: none !important;
   }

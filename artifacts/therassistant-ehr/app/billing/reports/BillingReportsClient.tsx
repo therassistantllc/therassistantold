@@ -304,6 +304,12 @@ export default function BillingReportsClient() {
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [role, setRole] = useState<ViewerRole>("owner");
   const [roleManuallySet, setRoleManuallySet] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendRecipients, setSendRecipients] = useState("");
+  const [sendNote, setSendNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const missingOrgMessage =
     "Missing organizationId. Add ?organizationId=... or configure NEXT_PUBLIC_ORGANIZATION_ID.";
 
@@ -499,8 +505,104 @@ export default function BillingReportsClient() {
               Download PDF
             </button>
           </div>
+          <div className="reports-control reports-control-action">
+            <span>&nbsp;</span>
+            <button
+              type="button"
+              className="reports-download-btn reports-send-btn"
+              disabled={!payload || loading}
+              onClick={() => {
+                setSendOpen((open) => !open);
+                setSendError(null);
+                setSendSuccess(null);
+              }}
+              title="Email this snapshot to an accountant, board member, or anyone outside the practice."
+            >
+              {sendOpen ? "Close" : "Send report"}
+            </button>
+          </div>
         </div>
       </section>
+
+      {sendOpen ? (
+        <section className="reports-send-panel" aria-label="Send report by email">
+          <div className="reports-send-form">
+            <label className="reports-send-field">
+              <span>Recipient emails</span>
+              <input
+                type="text"
+                value={sendRecipients}
+                onChange={(e) => setSendRecipients(e.target.value)}
+                placeholder="accountant@example.com, board@example.com"
+                disabled={sending}
+                aria-label="Recipient emails"
+              />
+              <small>Separate multiple addresses with commas. Up to 10 at a time.</small>
+            </label>
+            <label className="reports-send-field">
+              <span>Note (optional)</span>
+              <textarea
+                value={sendNote}
+                onChange={(e) => setSendNote(e.target.value.slice(0, 1000))}
+                rows={3}
+                placeholder="A short message that appears at the top of the email."
+                disabled={sending}
+                aria-label="Note to include in the email"
+              />
+            </label>
+            <div className="reports-send-actions">
+              <button
+                type="button"
+                className="reports-download-btn"
+                disabled={sending || !sendRecipients.trim()}
+                onClick={async () => {
+                  setSending(true);
+                  setSendError(null);
+                  setSendSuccess(null);
+                  try {
+                    const body = {
+                      organizationId,
+                      month: payload?.month || month,
+                      providerId: scope !== "practice" ? scope : null,
+                      recipients: sendRecipients,
+                      note: sendNote.trim() || null,
+                    };
+                    const res = await fetch("/api/billing/reports/send", {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(body),
+                    });
+                    const json = (await res.json()) as {
+                      success?: boolean;
+                      error?: string;
+                      sent?: { recipients: string[] };
+                    };
+                    if (!res.ok || !json.success) {
+                      throw new Error(json.error || "Failed to send report");
+                    }
+                    const count = json.sent?.recipients?.length ?? 0;
+                    setSendSuccess(
+                      count === 1
+                        ? `Sent to ${json.sent?.recipients?.[0]}.`
+                        : `Sent to ${count} recipients.`,
+                    );
+                    setSendRecipients("");
+                    setSendNote("");
+                  } catch (err) {
+                    setSendError(err instanceof Error ? err.message : "Failed to send report");
+                  } finally {
+                    setSending(false);
+                  }
+                }}
+              >
+                {sending ? "Sending…" : "Send"}
+              </button>
+              {sendError ? <span className="reports-send-error">{sendError}</span> : null}
+              {sendSuccess ? <span className="reports-send-success">{sendSuccess}</span> : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {!organizationId ? <div className="alert-panel">{missingOrgMessage}</div> : null}
       {error ? <div className="alert-panel">{error}</div> : null}
