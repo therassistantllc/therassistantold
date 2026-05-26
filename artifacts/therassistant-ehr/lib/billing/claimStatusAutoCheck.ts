@@ -56,6 +56,26 @@ export interface RunClaimStatusAutoCheckResult {
   disabled?: boolean;
 }
 
+/**
+ * Setting key used to persist a per-org snapshot of the most recent cron
+ * run so the Billing Defaults page can show "last cron run: 2h ago —
+ * scanned 14, polled 6, skipped 8" without depending on log scraping.
+ *
+ * The cron updates this AFTER each per-org run (including the disabled
+ * short-circuit). The Billing Defaults UI reads it via the heartbeat
+ * endpoint and renders a tile.
+ */
+export const AUTO_CHECK_LAST_RUN_SETTING_KEY = "payer_status.auto_check_last_run";
+
+export interface AutoCheckLastRunSummary {
+  ran_at: string;
+  scanned: number;
+  dispatched: number;
+  skipped: number;
+  failures: number;
+  disabled: boolean;
+}
+
 const DEFAULT_AGE_DAYS = 3;
 const DEFAULT_RECHECK_DAYS = 2;
 const DEFAULT_MAX_CLAIMS = 200;
@@ -179,6 +199,39 @@ function uuid(): string {
   return `auto-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Persist a per-org snapshot of the most recent cron run into
+ * `organization_settings`. Wrapped in try/catch so a settings-write
+ * failure can never blow up the cron run itself; the heartbeat tile
+ * is best-effort observability, not a hard dependency.
+ */
+async function persistAutoCheckLastRun(
+  supabase: Sb,
+  organizationId: string,
+  summary: AutoCheckLastRunSummary,
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as unknown as { from: (t: string) => any };
+    const now = new Date().toISOString();
+    await sb.from("organization_settings").upsert(
+      {
+        organization_id: organizationId,
+        setting_key: AUTO_CHECK_LAST_RUN_SETTING_KEY,
+        setting_value: summary,
+        created_at: now,
+        updated_at: now,
+      },
+      { onConflict: "organization_id,setting_key" },
+    );
+  } catch (e) {
+    console.warn(
+      `[claimStatusAutoCheck] failed to persist last-run summary for ${organizationId}:`,
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
 export async function runClaimStatusAutoCheck(
   supabase: Sb,
   input: RunClaimStatusAutoCheckInput,
@@ -190,6 +243,14 @@ export async function runClaimStatusAutoCheck(
     input,
   );
   if (!enabled) {
+    await persistAutoCheckLastRun(supabase, organizationId, {
+      ran_at: new Date().toISOString(),
+      scanned: 0,
+      dispatched: 0,
+      skipped: 0,
+      failures: 0,
+      disabled: true,
+    });
     return {
       scanned: 0,
       dispatched: 0,
@@ -230,7 +291,17 @@ export async function runClaimStatusAutoCheck(
     failures: 0,
     outcomes: [],
   };
-  if (candidates.length === 0) return result;
+  if (candidates.length === 0) {
+    await persistAutoCheckLastRun(supabase, organizationId, {
+      ran_at: new Date().toISOString(),
+      scanned: 0,
+      dispatched: 0,
+      skipped: 0,
+      failures: 0,
+      disabled: false,
+    });
+    return result;
+  }
 
   // Look up the most recent inquiry per claim in one query — claims whose
   // latest inquiry is more recent than `recheckCutoff` are skipped.
@@ -314,6 +385,15 @@ export async function runClaimStatusAutoCheck(
       });
     }
   }
+
+  await persistAutoCheckLastRun(supabase, organizationId, {
+    ran_at: new Date().toISOString(),
+    scanned: result.scanned,
+    dispatched: result.dispatched,
+    skipped: result.skipped,
+    failures: result.failures,
+    disabled: false,
+  });
 
   return result;
 }

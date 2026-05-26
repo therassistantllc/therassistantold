@@ -2,6 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  AUTO_CHECK_LAST_RUN_SETTING_KEY,
+  type AutoCheckLastRunSummary,
+} from "@/lib/billing/claimStatusAutoCheck";
+
 /**
  * Heartbeat check for the nightly claim-status auto-check cron (Task #706).
  *
@@ -24,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const DEFAULT_STALE_AFTER_HOURS = 36;
 
-export type AutoCheckHeartbeatStatus = "ok" | "stale" | "never_run";
+export type AutoCheckHeartbeatStatus = "ok" | "stale" | "never_run" | "disabled";
 
 export interface AutoCheckHeartbeat {
   status: AutoCheckHeartbeatStatus;
@@ -33,6 +38,15 @@ export interface AutoCheckHeartbeat {
   thresholdHours: number;
   /** Human-readable reason — safe to drop into a banner or email body. */
   message: string;
+  /**
+   * Snapshot of the most recent per-org cron run, persisted by
+   * `runClaimStatusAutoCheck` into `organization_settings`. Used by the
+   * Billing Defaults page to show "scanned X, polled Y, skipped Z" and
+   * an explicit "auto-check disabled" note when the org has the feature
+   * turned off. Null when no run summary has been recorded yet (e.g.
+   * never run, or scoped to all orgs).
+   */
+  lastRunSummary?: AutoCheckLastRunSummary | null;
 }
 
 export interface GetAutoCheckHeartbeatOptions {
@@ -74,6 +88,59 @@ export async function getClaimStatusAutoCheckHeartbeat(
   const row = Array.isArray(data) ? (data[0] as { created_at?: string } | undefined) : null;
   const lastRunAt = row?.created_at ?? null;
 
+  // Best-effort: load the per-org last-run summary so the UI can show
+  // "scanned X, polled Y, skipped Z" alongside the freshness verdict.
+  // Skipped (and unrecoverable from claim_status_inquiries) only lands
+  // here when the cron wrote it. Globally-scoped heartbeat calls have
+  // no org context, so the summary is omitted in that mode.
+  let lastRunSummary: AutoCheckLastRunSummary | null = null;
+  if (options.organizationId) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as unknown as { from: (t: string) => any };
+      const { data: settingRow } = await sb
+        .from("organization_settings")
+        .select("setting_value")
+        .eq("organization_id", options.organizationId)
+        .eq("setting_key", AUTO_CHECK_LAST_RUN_SETTING_KEY)
+        .maybeSingle();
+      const raw = (settingRow as { setting_value?: unknown } | null)?.setting_value;
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        const r = raw as Record<string, unknown>;
+        if (typeof r.ran_at === "string") {
+          lastRunSummary = {
+            ran_at: r.ran_at,
+            scanned: Number(r.scanned) || 0,
+            dispatched: Number(r.dispatched) || 0,
+            skipped: Number(r.skipped) || 0,
+            failures: Number(r.failures) || 0,
+            disabled: r.disabled === true,
+          };
+        }
+      }
+    } catch {
+      // organization_settings is optional — silently fall through.
+    }
+  }
+
+  // Disabled orgs are expected to have no recent inquiries, so freshness
+  // alarms based on `claim_status_inquiries` would be misleading. Short-
+  // circuit to a non-alarming `disabled` status, using the persisted
+  // last-run timestamp (when the cron last visited and skipped this org)
+  // as `lastRunAt`. Without this, the Billing Defaults page would render
+  // both the "disabled" tile AND the red "looks broken" banner.
+  if (lastRunSummary?.disabled) {
+    return {
+      status: "disabled",
+      lastRunAt: lastRunSummary.ran_at,
+      hoursSinceLastRun: null,
+      thresholdHours,
+      message:
+        "Payer auto-check is disabled for this organization. The scheduled cron is visiting and intentionally skipping it.",
+      lastRunSummary,
+    };
+  }
+
   if (!lastRunAt) {
     return {
       status: "never_run",
@@ -82,6 +149,7 @@ export async function getClaimStatusAutoCheckHeartbeat(
       thresholdHours,
       message:
         "Nightly payer auto-check has never produced an inquiry. Confirm the Supabase pg_cron job is scheduled and the CRON_SECRET matches the deployment.",
+      lastRunSummary,
     };
   }
 
@@ -93,6 +161,7 @@ export async function getClaimStatusAutoCheckHeartbeat(
       hoursSinceLastRun: null,
       thresholdHours,
       message: `Last auto-check timestamp is unparseable (${lastRunAt}).`,
+      lastRunSummary,
     };
   }
   const hoursSinceLastRun = (now.getTime() - parsed) / (1000 * 60 * 60);
@@ -105,6 +174,7 @@ export async function getClaimStatusAutoCheckHeartbeat(
       hoursSinceLastRun: rounded,
       thresholdHours,
       message: `Nightly payer auto-check has not run in ${rounded}h (threshold ${thresholdHours}h). Check the Supabase pg_cron schedule, the CRON_SECRET, and the deployment URL.`,
+      lastRunSummary,
     };
   }
 
@@ -114,5 +184,6 @@ export async function getClaimStatusAutoCheckHeartbeat(
     hoursSinceLastRun: rounded,
     thresholdHours,
     message: `Last auto-check ran ${rounded}h ago.`,
+    lastRunSummary,
   };
 }

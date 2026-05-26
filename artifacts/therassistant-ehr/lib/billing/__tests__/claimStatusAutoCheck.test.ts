@@ -17,7 +17,7 @@ import { runClaimStatusAutoCheck } from "../claimStatusAutoCheck";
 
 interface Op {
   table: string;
-  kind: "insert" | "update" | "select";
+  kind: "insert" | "update" | "select" | "upsert";
   payload?: Record<string, unknown>;
   filters: Array<{ col: string; val: unknown }>;
 }
@@ -155,6 +155,12 @@ function makeFakeSupabase(rows: FakeRows) {
       ctx.action = { kind: "update", payload };
       return proxy;
     };
+    proxy.upsert = (payload: Record<string, unknown>) => {
+      // Record upsert as its own op so tests can assert on the last-run
+      // summary persistence path. The fake returns null/success.
+      ops.push({ table, kind: "upsert", payload, filters: [...filters] });
+      return Promise.resolve({ data: null, error: null });
+    };
     return proxy;
   }
 
@@ -269,6 +275,63 @@ describe("runClaimStatusAutoCheck", () => {
       (o) => o.table === "professional_claims" && o.kind === "select",
     );
     assert.equal(claimSelects.length, 0, "disabled scanner should short-circuit before SELECT");
+  });
+
+  it("persists a per-org last-run summary into organization_settings after a successful run", async () => {
+    const { supabase, ops } = makeFakeSupabase({
+      professional_claims: [OLD_CLAIM],
+      payer_profiles: { payer_name: "Demo HMO", availity_payer_id: "DEMO01" },
+      insurance_policies: { subscriber_id: "MBR-1", policy_number: "POL-1" },
+      claim_status_inquiries_recent: [],
+    });
+
+    await runClaimStatusAutoCheck(supabase as never, {
+      organizationId: ORG,
+      ageDays: 3,
+      recheckIntervalDays: 2,
+    });
+
+    const upserts = ops.filter(
+      (o) =>
+        o.table === "organization_settings" &&
+        o.kind === "upsert" &&
+        (o.payload as { setting_key?: string })?.setting_key ===
+          "payer_status.auto_check_last_run",
+    );
+    assert.equal(upserts.length, 1, "expected one last-run summary upsert");
+    const summary = (upserts[0].payload as { setting_value: Record<string, unknown> })
+      .setting_value;
+    assert.equal(summary.scanned, 1);
+    assert.equal(summary.dispatched, 1);
+    assert.equal(summary.skipped, 0);
+    assert.equal(summary.disabled, false);
+    assert.equal(typeof summary.ran_at, "string");
+  });
+
+  it("persists a disabled last-run summary when the feature is off", async () => {
+    const { supabase, ops } = makeFakeSupabase({
+      professional_claims: [OLD_CLAIM],
+      claim_status_inquiries_recent: [],
+      organization_settings: {
+        "payer_status.auto_check_enabled": false,
+      },
+    });
+
+    await runClaimStatusAutoCheck(supabase as never, { organizationId: ORG });
+
+    const upserts = ops.filter(
+      (o) =>
+        o.table === "organization_settings" &&
+        o.kind === "upsert" &&
+        (o.payload as { setting_key?: string })?.setting_key ===
+          "payer_status.auto_check_last_run",
+    );
+    assert.equal(upserts.length, 1);
+    const summary = (upserts[0].payload as { setting_value: Record<string, unknown> })
+      .setting_value;
+    assert.equal(summary.disabled, true);
+    assert.equal(summary.scanned, 0);
+    assert.equal(summary.dispatched, 0);
   });
 
   it("treats payer_status.auto_check_age_days=0 as the off-sentinel", async () => {

@@ -53,12 +53,22 @@ type PayerStatusAutoCheck = {
   auto_recheck_interval_days: number;
 };
 
+type AutoCheckLastRunSummary = {
+  ran_at: string;
+  scanned: number;
+  dispatched: number;
+  skipped: number;
+  failures: number;
+  disabled: boolean;
+};
+
 type AutoCheckHeartbeat = {
-  status: "ok" | "stale" | "never_run";
+  status: "ok" | "stale" | "never_run" | "disabled";
   lastRunAt: string | null;
   hoursSinceLastRun: number | null;
   thresholdHours: number;
   message: string;
+  lastRunSummary?: AutoCheckLastRunSummary | null;
 };
 
 const INITIAL: BillingDefaults = {
@@ -376,7 +386,12 @@ export default function BillingDefaultsClient() {
               how aggressively the scheduled job re-checks claims sitting in
               the Payer Received queue.
             </p>
-            {autoCheckHeartbeat && autoCheckHeartbeat.status !== "ok" && (
+            {autoCheckHeartbeat && (
+              <AutoCheckLastRunTile heartbeat={autoCheckHeartbeat} />
+            )}
+            {autoCheckHeartbeat &&
+              autoCheckHeartbeat.status !== "ok" &&
+              autoCheckHeartbeat.status !== "disabled" && (
               <div
                 className="alert-panel"
                 role="alert"
@@ -515,5 +530,74 @@ export default function BillingDefaultsClient() {
         </>
       )}
     </main>
+  );
+}
+
+function formatRelative(iso: string): string {
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return iso;
+  const diffMs = Date.now() - ts;
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+/**
+ * Surfaces the most recent cron-run snapshot so practices can see whether
+ * the nightly auto-check is actually firing on their settings. When the
+ * org has the feature switched off, says so explicitly (instead of
+ * looking like the cron is broken).
+ */
+function AutoCheckLastRunTile({ heartbeat }: { heartbeat: AutoCheckHeartbeat }) {
+  const summary = heartbeat.lastRunSummary ?? null;
+  const baseStyle: React.CSSProperties = {
+    marginBottom: "var(--space-4)",
+    padding: "var(--space-3)",
+    borderRadius: "var(--radius-md, 6px)",
+    background: "var(--surface-subtle, #f8fafc)",
+    border: "1px solid var(--border-default, #e2e8f0)",
+    fontSize: "var(--text-sm)",
+  };
+
+  if (summary?.disabled) {
+    return (
+      <div data-testid="auto-check-last-run-tile" style={baseStyle}>
+        <div style={{ fontWeight: 600 }}>Payer auto-check is disabled for this organization.</div>
+        <div style={{ color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+          The scheduled cron last checked in {formatRelative(summary.ran_at)} and intentionally
+          skipped this org. Re-enable it above to resume auto-polling the Payer Received queue.
+        </div>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div data-testid="auto-check-last-run-tile" style={baseStyle}>
+        <div style={{ fontWeight: 600 }}>No recorded auto-check run yet for this organization.</div>
+        <div style={{ color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+          The next time the nightly cron runs, you&apos;ll see when it ran and what it did here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="auto-check-last-run-tile" style={baseStyle}>
+      <div style={{ fontWeight: 600 }}>
+        Last auto-check run: {formatRelative(summary.ran_at)}
+      </div>
+      <div style={{ color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+        Scanned {summary.scanned} · polled {summary.dispatched} · skipped {summary.skipped}
+        {summary.failures > 0 ? ` · failures ${summary.failures}` : ""} ·{" "}
+        <span title={new Date(summary.ran_at).toLocaleString()}>
+          {new Date(summary.ran_at).toLocaleString()}
+        </span>
+      </div>
+    </div>
   );
 }
