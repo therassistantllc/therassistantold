@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import UpdateCardRetryModal from "./UpdateCardRetryModal";
 import WorkqueueShell, {
   type ColumnDef,
   type DetailTab,
@@ -249,6 +250,7 @@ export default function PatientBillingClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [busyRow, setBusyRow] = useState<string | null>(null);
+  const [cardModalRow, setCardModalRow] = useState<Row | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -592,6 +594,14 @@ export default function PatientBillingClient() {
         disabled: (r) => busyRow === r.id || r.balance <= 0,
       },
       {
+        id: "update_card_retry",
+        label: "Update card & retry",
+        variant: "primary",
+        onClick: (r) => setCardModalRow(r),
+        disabled: (r) =>
+          busyRow === r.id || r.autopay_last_attempt_status !== "failed",
+      },
+      {
         id: "send_reminder",
         label: "Reminder",
         onClick: (r) => void runAction(r.id, "send_reminder"),
@@ -917,6 +927,13 @@ export default function PatientBillingClient() {
         disabled: row.balance <= 0,
       },
       {
+        id: "update_card_retry",
+        label: "Update card & retry",
+        variant: "primary",
+        onClick: () => setCardModalRow(row),
+        disabled: row.autopay_last_attempt_status !== "failed",
+      },
+      {
         id: "create_payment_plan",
         label: "Create payment plan",
         onClick: () => {
@@ -1043,6 +1060,21 @@ export default function PatientBillingClient() {
       detailTabs={detailTabs}
       detailActions={detailActions}
       message={message}
+      overlay={
+        cardModalRow ? (
+          <UpdateCardRetryModal
+            organizationId={organizationId}
+            row={cardModalRow}
+            onClose={() => setCardModalRow(null)}
+            onSuccess={(text) => {
+              setMessage({ tone: "success", text });
+              setCardModalRow(null);
+              void load();
+            }}
+            onError={(text) => setMessage({ tone: "error", text })}
+          />
+        ) : null
+      }
     />
   );
 }
