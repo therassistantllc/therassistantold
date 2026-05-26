@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import PayerStatusResponseModal from "./PayerStatusResponseModal";
+import { InlineSpinner } from "./InlineSpinner";
 
 type InquirySummary = {
   id: string | null;
@@ -187,7 +188,14 @@ export default function LatestPayerStatusResponse({
         cursor: checking ? "wait" : "pointer",
       }}
     >
-      {checking ? "Checking…" : "Check status now"}
+      {checking ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <InlineSpinner size={11} thickness={2} ariaLabel="Checking payer status" />
+          Checking…
+        </span>
+      ) : (
+        "Check status now"
+      )}
     </button>
   ) : null;
 

@@ -59,7 +59,7 @@ export interface ColumnDef<TRow> {
 
 export interface RowAction<TRow> {
   id: string;
-  label: string;
+  label: ReactNode | ((row: TRow) => ReactNode);
   onClick: (row: TRow) => void;
   variant?: "default" | "primary" | "danger" | "success";
   disabled?: (row: TRow) => boolean;
@@ -67,7 +67,7 @@ export interface RowAction<TRow> {
 
 export interface PrimaryAction {
   id: string;
-  label: string;
+  label: ReactNode;
   onClick: () => void;
   variant?: "default" | "primary" | "danger" | "success";
   disabled?: boolean;
@@ -738,7 +738,7 @@ export default function WorkqueueShell<TRow>(props: WorkqueueShellProps<TRow>) {
                                 disabled={a.disabled?.(row)}
                                 style={{ height: 28, padding: "0 10px", fontSize: 12 }}
                               >
-                                {a.label}
+                                {typeof a.label === "function" ? a.label(row) : a.label}
                               </button>
                             ))}
                           </div>

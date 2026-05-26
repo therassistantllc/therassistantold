@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import LatestPayerStatusResponse from "@/components/billing/LatestPayerStatusResponse";
 import Claim277caAckSummary from "@/components/billing/Claim277caAckSummary";
 import StatusCheckHistory from "@/components/billing/StatusCheckHistory";
+import { InlineSpinner } from "@/components/billing/InlineSpinner";
 import { DEFAULT_ORG_ID } from "@/lib/config";
 
 type Claim = {
@@ -280,7 +281,14 @@ export default function ClaimDetailClient({ claimId }: { claimId: string }) {
                   cursor: running ? "wait" : "pointer",
                 }}
               >
-                {running ? "Running…" : "Run claim status"}
+                {running ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <InlineSpinner size={11} thickness={2} ariaLabel="Running claim status check" />
+                    Running…
+                  </span>
+                ) : (
+                  "Run claim status"
+                )}
               </button>
             </div>
             {runError ? (

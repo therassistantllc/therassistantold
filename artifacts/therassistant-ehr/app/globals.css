@@ -1867,3 +1867,7 @@ textarea {
     display: none !important;
   }
 }
+
+@keyframes ta-spin {
+  to { transform: rotate(360deg); }
+}

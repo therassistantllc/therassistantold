@@ -17,6 +17,7 @@ import {
 } from "@/components/billing/ClaimDocumentUploads";
 import StatusCheckHistory from "@/components/billing/StatusCheckHistory";
 import { ResolvedDenialNoteCard } from "@/components/billing/ResolvedDenialNoteCard";
+import { InlineSpinner } from "@/components/billing/InlineSpinner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -958,6 +959,9 @@ export default function NoResponseClient() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkHoldOpen, setBulkHoldOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
+  const [statusCheckPending, setStatusCheckPending] = useState<Set<string>>(
+    () => new Set(),
+  );
   const docUploads = useClaimDocumentUploads(organizationId);
 
   const load = useCallback(async () => {
@@ -1210,18 +1214,33 @@ export default function NoResponseClient() {
   // ── Row actions (spec-exact labels) ───────────────────────────────────────
   const handleRunStatus = useCallback(
     async (r: Row) => {
-      const result = await runClaimStatus(r, organizationId);
-      setToast(
-        result.success
-          ? `Claim status request sent for ${r.claim_number ?? r.id}.`
-          : `Claim status failed: ${result.error}`,
-      );
-      if (result.success) {
-        setBumpKey((k) => k + 1);
-        void load();
+      if (statusCheckPending.has(r.id)) return;
+      setStatusCheckPending((prev) => {
+        const next = new Set(prev);
+        next.add(r.id);
+        return next;
+      });
+      try {
+        const result = await runClaimStatus(r, organizationId);
+        setToast(
+          result.success
+            ? `Claim status request sent for ${r.claim_number ?? r.id}.`
+            : `Claim status failed: ${result.error}`,
+        );
+        if (result.success) {
+          setBumpKey((k) => k + 1);
+          void load();
+        }
+      } finally {
+        setStatusCheckPending((prev) => {
+          if (!prev.has(r.id)) return prev;
+          const next = new Set(prev);
+          next.delete(r.id);
+          return next;
+        });
       }
     },
-    [organizationId, load],
+    [organizationId, load, statusCheckPending],
   );
 
   const handleResubmit = useCallback(
@@ -1253,14 +1272,27 @@ export default function NoResponseClient() {
 
   const rowActions: RowAction<Row>[] = useMemo(
     () => [
-      { id: "status", label: "Run claim status", onClick: (r) => void handleRunStatus(r) },
+      {
+        id: "status",
+        label: (r: Row) =>
+          statusCheckPending.has(r.id) ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <InlineSpinner size={10} thickness={2} ariaLabel="Running claim status check" />
+              Running…
+            </span>
+          ) : (
+            "Run claim status"
+          ),
+        onClick: (r) => void handleRunStatus(r),
+        disabled: (r) => statusCheckPending.has(r.id),
+      },
       { id: "call", label: "Call payer", onClick: (r) => setCallRow(r) },
       { id: "note", label: "Add follow-up note", onClick: (r) => setNoteRow(r) },
       { id: "resubmit", label: "Resubmit", variant: "primary", onClick: (r) => void handleResubmit(r) },
       { id: "escalate", label: "Escalate", variant: "danger", onClick: (r) => void handleEscalate(r) },
       { id: "hold", label: "Place on hold", onClick: (r) => setHoldRow(r) },
     ],
-    [handleRunStatus, handleResubmit, handleEscalate],
+    [handleRunStatus, handleResubmit, handleEscalate, statusCheckPending],
   );
 
   const selectedRow = useMemo(
@@ -1390,8 +1422,16 @@ export default function NoResponseClient() {
     ? [
         {
           id: "status",
-          label: "Run claim status",
+          label: statusCheckPending.has(selectedRow.id) ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <InlineSpinner size={11} thickness={2} ariaLabel="Running claim status check" />
+              Running…
+            </span>
+          ) : (
+            "Run claim status"
+          ),
           onClick: () => void handleRunStatus(selectedRow),
+          disabled: statusCheckPending.has(selectedRow.id),
         },
         { id: "call", label: "Call payer", onClick: () => setCallRow(selectedRow) },
         { id: "note", label: "Add follow-up note", onClick: () => setNoteRow(selectedRow) },
