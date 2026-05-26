@@ -45,6 +45,8 @@ type Row = {
   autopay_last_attempt_at: string | null;
   autopay_last_attempt_status: "succeeded" | "failed" | null;
   autopay_last_attempt_error: string | null;
+  autopay_next_retry_at: string | null;
+  autopay_retries_exhausted: boolean;
   last_payment_at: string | null;
   last_payment_amount: number | null;
   next_follow_up_at: string | null;
@@ -191,6 +193,20 @@ function statusBadge(s: Row["status"]): ReactNode {
   );
 }
 
+function formatRetryEta(nextIso: string | null): string {
+  if (!nextIso) return "";
+  const ms = new Date(nextIso).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return "";
+  if (ms <= 0) return "due now";
+  const hours = ms / 3_600_000;
+  if (hours < 24) {
+    const h = Math.max(1, Math.round(hours));
+    return `in ${h} hour${h === 1 ? "" : "s"}`;
+  }
+  const d = Math.round(hours / 24);
+  return `in ${d} day${d === 1 ? "" : "s"}`;
+}
+
 function autopayBadge(r: Row): ReactNode {
   const failed = r.autopay_last_attempt_status === "failed";
   const onLabel =
@@ -208,26 +224,61 @@ function autopayBadge(r: Row): ReactNode {
     ? new Date(r.autopay_last_attempt_at).toLocaleString()
     : null;
   const title = when ? `${reason} (${when})` : reason;
-  return (
-    <span
-      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-      title={title}
-    >
-      {onLabel}
+
+  // Surface the next auto-retry (Task #731) so billers can tell at a
+  // glance whether the system will retry on its own or the row needs
+  // hands-on follow-up.
+  let retryLine: ReactNode = null;
+  if (r.autopay_retries_exhausted) {
+    retryLine = (
       <span
         style={{
-          background: "#fee2e2",
-          color: "#991b1b",
-          padding: "2px 8px",
-          borderRadius: 999,
           fontSize: 11,
+          color: "#991b1b",
           fontWeight: 600,
           whiteSpace: "nowrap",
-          cursor: "help",
         }}
+        title="The daily retry sweep has already used every retry for this invoice."
       >
-        Failed
+        Auto-retries exhausted — needs manual follow-up
       </span>
+    );
+  } else if (r.autopay_next_retry_at) {
+    const eta = formatRetryEta(r.autopay_next_retry_at);
+    const when = new Date(r.autopay_next_retry_at).toLocaleString();
+    retryLine = (
+      <span
+        style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}
+        title={`Auto-retry scheduled around ${when}`}
+      >
+        Next auto-retry: {eta}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}
+      title={title}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {onLabel}
+        <span
+          style={{
+            background: "#fee2e2",
+            color: "#991b1b",
+            padding: "2px 8px",
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            cursor: "help",
+          }}
+        >
+          Failed
+        </span>
+      </span>
+      {retryLine}
     </span>
   );
 }

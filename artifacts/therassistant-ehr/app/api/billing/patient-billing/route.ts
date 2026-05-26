@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireBillingAccess } from "@/lib/billing/requireBillingAccess";
+import { DEFAULT_AUTOPAY_RETRY_BACKOFF_HOURS } from "@/lib/payments/autopayService";
 
 type DbRow = Record<string, unknown>;
 
@@ -70,6 +71,19 @@ export type PatientBillingRow = {
   autopay_last_attempt_at: string | null;
   autopay_last_attempt_status: "succeeded" | "failed" | null;
   autopay_last_attempt_error: string | null;
+  /**
+   * When the next automatic retry of a failed autopay will fire, derived
+   * from the same backoff schedule as `retryEligibleAutopayFailures`
+   * (Task #669). Null unless the latest attempt failed AND the invoice
+   * still has retries remaining.
+   */
+  autopay_next_retry_at: string | null;
+  /**
+   * True when the latest attempt failed AND the invoice has used up all
+   * retries in the backoff schedule — i.e. no more automatic retries
+   * will fire and a biller has to step in.
+   */
+  autopay_retries_exhausted: boolean;
   last_payment_at: string | null;
   last_payment_amount: number | null;
   next_follow_up_at: string | null;
@@ -564,6 +578,7 @@ export async function GET(request: Request) {
       let autopayLastAttemptAt: string | null = null;
       let autopayLastAttemptStatus: "succeeded" | "failed" | null = null;
       let autopayLastAttemptError: string | null = null;
+      let autopayLastAttemptInvoiceId: string | null = null;
       for (const ev of agg.communications) {
         if (
           ev.event_type === `${EVT}autopay_succeeded` ||
@@ -578,6 +593,52 @@ export async function GET(request: Request) {
               autopayLastAttemptStatus === "failed"
                 ? text((md as { error_message?: unknown }).error_message) || null
                 : null;
+            autopayLastAttemptInvoiceId =
+              text((md as { patient_invoice_id?: unknown }).patient_invoice_id) ||
+              null;
+          }
+        }
+      }
+
+      // Next auto-retry window (Task #731): reuse the same backoff
+      // schedule as `retryEligibleAutopayFailures` so billers see when
+      // the cron will retry on its own, or when retries are exhausted
+      // and they need to step in manually. Only meaningful when the
+      // latest attempt failed and we can tie it back to a specific
+      // invoice via event_metadata.patient_invoice_id (newer rows).
+      let autopayNextRetryAt: string | null = null;
+      let autopayRetriesExhausted = false;
+      if (
+        autopayLastAttemptStatus === "failed" &&
+        autopayLastAttemptAt &&
+        autopayLastAttemptInvoiceId
+      ) {
+        const backoff = DEFAULT_AUTOPAY_RETRY_BACKOFF_HOURS;
+        const maxAttempts = backoff.length + 1; // original + N retries
+        const attemptCount = agg.communications.filter((c) => {
+          if (
+            c.event_type !== `${EVT}autopay_succeeded` &&
+            c.event_type !== `${EVT}autopay_failed`
+          ) {
+            return false;
+          }
+          const mid = text(
+            (c.metadata as { patient_invoice_id?: unknown } | null)
+              ?.patient_invoice_id,
+          );
+          return mid === autopayLastAttemptInvoiceId;
+        }).length;
+        if (attemptCount >= maxAttempts) {
+          autopayRetriesExhausted = true;
+        } else if (attemptCount >= 1) {
+          const hours = backoff[attemptCount - 1];
+          if (typeof hours === "number" && Number.isFinite(hours)) {
+            const lastMs = new Date(autopayLastAttemptAt).getTime();
+            if (Number.isFinite(lastMs)) {
+              autopayNextRetryAt = new Date(
+                lastMs + hours * 3600 * 1000,
+              ).toISOString();
+            }
           }
         }
       }
@@ -634,6 +695,8 @@ export async function GET(request: Request) {
         autopay_last_attempt_at: autopayLastAttemptAt,
         autopay_last_attempt_status: autopayLastAttemptStatus,
         autopay_last_attempt_error: autopayLastAttemptError,
+        autopay_next_retry_at: autopayNextRetryAt,
+        autopay_retries_exhausted: autopayRetriesExhausted,
         last_payment_at: lastPayment?.paid_at ?? null,
         last_payment_amount: lastPayment?.amount ?? null,
         next_follow_up_at: nextFollowUpAt,

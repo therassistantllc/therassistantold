@@ -303,3 +303,80 @@ test("priority filter narrows by row.priority", async () => {
   const items = await fetchItems(`priority=${p}`);
   assert.ok(items.every((i) => i.priority === p));
 });
+
+test("autopay_next_retry_at is derived from backoff after a single failure", async () => {
+  // Seed one autopay failure 2h ago for client-A's invoice. With the
+  // default 24/72/168 backoff schedule, attempt 1 → next retry = +24h.
+  const failedAt = new Date(Date.now() - 2 * 3_600_000).toISOString();
+  tables.audit_logs.push({
+    id: "aud-fail-1",
+    patient_id: "client-A",
+    event_type: "patient_billing_autopay_failed",
+    event_summary: "fail",
+    event_metadata: { patient_invoice_id: "inv-A", error_message: "declined" },
+    created_at: failedAt,
+    user_id: null,
+    organization_id: ORG,
+  });
+  const items = await fetchItems("");
+  const a = items.find((i) => i.client_id === "client-A") as Record<
+    string,
+    unknown
+  >;
+  assert.equal(a.autopay_last_attempt_status, "failed");
+  assert.equal(a.autopay_retries_exhausted, false);
+  const next = new Date(String(a.autopay_next_retry_at)).getTime();
+  const expected = new Date(failedAt).getTime() + 24 * 3_600_000;
+  // Allow a 1s tolerance for clock jitter between seed time and route run.
+  assert.ok(Math.abs(next - expected) < 1000);
+});
+
+test("autopay_retries_exhausted flips after the full backoff is used", async () => {
+  // Original failure + 3 retry failures = 4 attempts total = backoff
+  // schedule used up. Route should mark exhausted and stop emitting a
+  // next-retry timestamp.
+  const base = Date.now();
+  for (let i = 0; i < 4; i += 1) {
+    tables.audit_logs.push({
+      id: `aud-fail-${i}`,
+      patient_id: "client-A",
+      event_type: "patient_billing_autopay_failed",
+      event_summary: "fail",
+      event_metadata: {
+        patient_invoice_id: "inv-A",
+        error_message: "declined",
+      },
+      created_at: new Date(base - (10 - i) * 3_600_000).toISOString(),
+      user_id: null,
+      organization_id: ORG,
+    });
+  }
+  const items = await fetchItems("");
+  const a = items.find((i) => i.client_id === "client-A") as Record<
+    string,
+    unknown
+  >;
+  assert.equal(a.autopay_last_attempt_status, "failed");
+  assert.equal(a.autopay_retries_exhausted, true);
+  assert.equal(a.autopay_next_retry_at, null);
+});
+
+test("autopay retry fields stay null when the latest attempt succeeded", async () => {
+  tables.audit_logs.push({
+    id: "aud-ok",
+    patient_id: "client-A",
+    event_type: "patient_billing_autopay_succeeded",
+    event_summary: "ok",
+    event_metadata: { patient_invoice_id: "inv-A" },
+    created_at: new Date().toISOString(),
+    user_id: null,
+    organization_id: ORG,
+  });
+  const items = await fetchItems("");
+  const a = items.find((i) => i.client_id === "client-A") as Record<
+    string,
+    unknown
+  >;
+  assert.equal(a.autopay_next_retry_at, null);
+  assert.equal(a.autopay_retries_exhausted, false);
+});
