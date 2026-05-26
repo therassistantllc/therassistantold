@@ -22,7 +22,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("patient_journal_entries")
     .select(
-      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
     )
     .eq("organization_id", session.organizationId)
     .eq("client_id", session.clientId)
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       tags,
     })
     .select(
-      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
     )
     .single();
   if (error || !data) {

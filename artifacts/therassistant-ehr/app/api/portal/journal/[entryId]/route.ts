@@ -21,7 +21,7 @@ async function loadOwnedEntry(
   const { data } = await supabase
     .from("patient_journal_entries")
     .select(
-      "id, entry_type, body, tags, audio_storage_bucket, audio_storage_path, audio_mime_type, audio_duration_seconds, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_bucket, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
     )
     .eq("id", entryId)
     .eq("organization_id", organizationId)
@@ -75,7 +75,7 @@ export async function PATCH(
     .eq("organization_id", session.organizationId)
     .eq("client_id", session.clientId)
     .select(
-      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
     )
     .single();
   if (updateErr || !data) {

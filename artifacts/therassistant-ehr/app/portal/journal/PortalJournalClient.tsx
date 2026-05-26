@@ -533,6 +533,27 @@ function EntryPreview({ entry }: { entry: JournalEntry }) {
             <span className="muted">No audio attached</span>
           )}
           {b.caption ? <div style={{ marginTop: 4 }}>{String(b.caption)}</div> : null}
+          {entry.audioTranscript ? (
+            <div
+              style={{
+                marginTop: 6,
+                padding: 8,
+                background: "var(--surface-2, #f8fafc)",
+                borderLeft: "3px solid var(--accent, #6366f1)",
+                fontSize: 14,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                Auto-transcript
+              </div>
+              {entry.audioTranscript}
+            </div>
+          ) : entry.hasAudio ? (
+            <div className="muted" style={{ marginTop: 6, fontSize: 12, fontStyle: "italic" }}>
+              Transcript not available yet — it usually appears within a minute.
+            </div>
+          ) : null}
         </div>
       );
   }

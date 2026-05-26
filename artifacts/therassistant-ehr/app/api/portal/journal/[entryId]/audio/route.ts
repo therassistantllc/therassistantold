@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import { getPortalSession } from "@/lib/portal/session";
 import { JOURNAL_AUDIO_BUCKET } from "@/lib/portal/journal";
+import { transcribeJournalAudio } from "@/lib/portal/transcribeAudio";
 
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 const SIGNED_TTL_SECONDS = 60 * 10;
@@ -119,6 +120,8 @@ export async function POST(
     audio_mime_type: mime,
     audio_duration_seconds:
       duration !== null && Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null,
+    // Reset any prior transcript — the file just changed.
+    audio_transcript: null,
     updated_at: new Date().toISOString(),
   };
   const { error: dbErr } = await supabase
@@ -130,6 +133,37 @@ export async function POST(
   if (dbErr) {
     return NextResponse.json({ success: false, error: dbErr.message }, { status: 500 });
   }
+
+  // Kick off transcription in the background. We deliberately do not await
+  // this — the upload response returns immediately so the patient sees the
+  // entry as saved; clinicians (and the patient on refresh) see the
+  // transcript appear once the model call finishes. Errors are swallowed so
+  // a failing transcription never blocks the audio upload itself.
+  void (async () => {
+    try {
+      const text = await transcribeJournalAudio({ bytes: buf, contentType: mime });
+      if (!text) return;
+      await supabase
+        .from("patient_journal_entries")
+        .update({
+          audio_transcript: text,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", entryId)
+        .eq("organization_id", session.organizationId)
+        .eq("client_id", session.clientId)
+        // Only stamp if the same upload is still the current audio. If the
+        // patient re-recorded in the meantime, audio_storage_path will have
+        // changed and we'd be writing a stale transcript.
+        .eq("audio_storage_path", path);
+    } catch (err) {
+      console.warn(
+        "journal audio: background transcription failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  })();
+
   return NextResponse.json({ success: true });
 }
 

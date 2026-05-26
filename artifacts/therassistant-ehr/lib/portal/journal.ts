@@ -22,6 +22,7 @@ export type JournalEntry = {
   hasAudio: boolean;
   audioMimeType: string | null;
   audioDurationSeconds: number | null;
+  audioTranscript: string | null;
   importedIntoNoteId: string | null;
   importedIntoField: SoapField | null;
   importedAt: string | null;
@@ -40,6 +41,10 @@ export function mapJournalRow(row: Record<string, unknown>): JournalEntry {
     audioMimeType: (row.audio_mime_type as string | null) ?? null,
     audioDurationSeconds:
       typeof row.audio_duration_seconds === "number" ? row.audio_duration_seconds : null,
+    audioTranscript:
+      typeof row.audio_transcript === "string" && row.audio_transcript.trim().length > 0
+        ? (row.audio_transcript as string)
+        : null,
     importedIntoNoteId: (row.imported_into_note_id as string | null) ?? null,
     importedIntoField: (row.imported_into_field as SoapField | null) ?? null,
     importedAt: (row.imported_at as string | null) ?? null,
@@ -119,6 +124,15 @@ export function renderEntryAsText(entry: JournalEntry, audioLinkHref?: string | 
     }
     case "voice_note": {
       const caption = String(entry.body.caption ?? "").trim();
+      const transcript = (entry.audioTranscript ?? "").trim();
+      const footnote = audioLinkHref
+        ? `[Voice note audio: ${audioLinkHref}]`
+        : "[Voice note — audio available in chart]";
+      if (transcript) {
+        const captionPart = caption ? `Caption: ${caption}\n` : "";
+        return `${captionPart}Voice note transcript:\n${transcript}\n\n${footnote}`;
+      }
+      // No transcript yet (still processing, or transcription unavailable).
       const linkPart = audioLinkHref
         ? `[Voice note — listen: ${audioLinkHref}]`
         : "[Voice note — listen in chart]";
