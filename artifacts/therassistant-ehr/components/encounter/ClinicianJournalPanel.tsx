@@ -68,6 +68,7 @@ export default function ClinicianJournalPanel({
   const [filterType, setFilterType] = useState<"all" | EntryType>("all");
   const [pickerField, setPickerField] = useState<Record<string, SoapField>>({});
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,6 +123,29 @@ export default function ClinicianJournalPanel({
     }
     return Array.from(buckets.entries());
   }, [visible]);
+
+  async function handleReview(entry: JournalEntry) {
+    if (entry.reviewedAt) return;
+    setReviewingId(entry.id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/clients/${encodeURIComponent(clientId)}/journal/${entry.id}/review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ organizationId }),
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Failed to mark as reviewed");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to mark as reviewed");
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   async function handleImport(entry: JournalEntry) {
     if (!onImport) return;
@@ -198,6 +222,14 @@ export default function ClinicianJournalPanel({
                       Imported{entry.importedIntoField ? ` → ${entry.importedIntoField}` : ""}
                     </span>
                   ) : null}
+                  {entry.reviewedAt ? (
+                    <span
+                      className="status status-blue"
+                      title={`Reviewed${entry.reviewedByName ? ` by ${entry.reviewedByName}` : ""} on ${formatDateTime(entry.reviewedAt)}`}
+                    >
+                      Reviewed{entry.reviewedByName ? ` · ${entry.reviewedByName}` : ""}
+                    </span>
+                  ) : null}
                 </div>
                 <EntrySummary
                   entry={entry}
@@ -235,6 +267,19 @@ export default function ClinicianJournalPanel({
                     disabled={importingId === entry.id}
                   >
                     {importingId === entry.id ? "Importing…" : "Import"}
+                  </button>
+                </div>
+              ) : null}
+              {!entry.importedIntoNoteId && !entry.reviewedAt ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => handleReview(entry)}
+                    disabled={reviewingId === entry.id}
+                    title="Acknowledge this entry without pulling it into the note"
+                  >
+                    {reviewingId === entry.id ? "Marking…" : "Mark as reviewed"}
                   </button>
                 </div>
               ) : null}

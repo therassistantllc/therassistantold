@@ -26,6 +26,9 @@ export type JournalEntry = {
   importedIntoNoteId: string | null;
   importedIntoField: SoapField | null;
   importedAt: string | null;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedByName: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -48,6 +51,9 @@ export function mapJournalRow(row: Record<string, unknown>): JournalEntry {
     importedIntoNoteId: (row.imported_into_note_id as string | null) ?? null,
     importedIntoField: (row.imported_into_field as SoapField | null) ?? null,
     importedAt: (row.imported_at as string | null) ?? null,
+    reviewedAt: (row.reviewed_at as string | null) ?? null,
+    reviewedByUserId: (row.reviewed_by_user_id as string | null) ?? null,
+    reviewedByName: (row.reviewed_by_name as string | null) ?? null,
     createdAt: (row.created_at as string | null) ?? null,
     updatedAt: (row.updated_at as string | null) ?? null,
   };

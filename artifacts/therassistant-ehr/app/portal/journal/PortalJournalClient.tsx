@@ -9,6 +9,17 @@ import {
   entryTypeLabel,
 } from "@/lib/portal/journal";
 
+function formatReviewedDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -470,6 +481,16 @@ export default function PortalJournalClient() {
                     {entry.importedIntoNoteId ? (
                       <span className="status status-green" title="A clinician has imported this entry into your visit note">
                         Imported into note
+                      </span>
+                    ) : null}
+                    {entry.reviewedAt && !entry.importedIntoNoteId ? (
+                      <span
+                        className="status status-blue"
+                        title="Your care team saw this entry"
+                      >
+                        Reviewed
+                        {entry.reviewedByName ? ` by ${entry.reviewedByName}` : ""}
+                        {" "}on {formatReviewedDate(entry.reviewedAt)}
                       </span>
                     ) : null}
                   </div>

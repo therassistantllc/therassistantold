@@ -94,7 +94,7 @@ export async function GET(
   let query = supabase
     .from("patient_journal_entries")
     .select(
-      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, reviewed_at, reviewed_by_user_id, created_at, updated_at",
     )
     .eq("organization_id", organizationId)
     .eq("client_id", clientId)
@@ -108,9 +108,49 @@ export async function GET(
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+  const rows = (data ?? []) as Row[];
+  const reviewerNames = await resolveReviewerNames(supabase, organizationId, rows);
+  for (const r of rows) {
+    const uid = value(r.reviewed_by_user_id);
+    if (uid && reviewerNames.has(uid)) r.reviewed_by_name = reviewerNames.get(uid);
+  }
   return NextResponse.json({
     success: true,
     since: since || null,
-    entries: ((data ?? []) as Row[]).map(mapJournalRow),
+    entries: rows.map(mapJournalRow),
   });
+}
+
+/**
+ * Look up display names for the staff who reviewed each entry.
+ * `reviewed_by_user_id` is the auth user id; staff_profiles links via
+ * `auth_user_id`. Returns "First Last" for each known reviewer.
+ */
+async function resolveReviewerNames(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  organizationId: string,
+  rows: Row[],
+): Promise<Map<string, string>> {
+  const ids = Array.from(
+    new Set(
+      rows
+        .map((r) => value(r.reviewed_by_user_id))
+        .filter((v) => v.length > 0),
+    ),
+  );
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data } = await supabase
+    .from("staff_profiles")
+    .select("auth_user_id, first_name, last_name")
+    .eq("organization_id", organizationId)
+    .in("auth_user_id", ids);
+  for (const row of (data ?? []) as Row[]) {
+    const uid = value(row.auth_user_id);
+    if (!uid) continue;
+    const name = `${value(row.first_name)} ${value(row.last_name)}`.trim();
+    if (name) out.set(uid, name);
+  }
+  return out;
 }

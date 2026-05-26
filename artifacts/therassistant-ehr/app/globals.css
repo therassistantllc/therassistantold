@@ -484,6 +484,12 @@ textarea {
   color: var(--success);
 }
 
+.status-blue {
+  background: #e5edf7;
+  border-color: #aac4e3;
+  color: #1e4d8c;
+}
+
 .status-red,
 .status-pill.urgent {
   background: #faeaea;

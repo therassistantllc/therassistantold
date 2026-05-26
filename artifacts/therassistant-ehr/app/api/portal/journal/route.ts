@@ -22,7 +22,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("patient_journal_entries")
     .select(
-      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, created_at, updated_at",
+      "id, entry_type, body, tags, audio_storage_path, audio_mime_type, audio_duration_seconds, audio_transcript, imported_into_note_id, imported_into_field, imported_at, reviewed_at, reviewed_by_user_id, created_at, updated_at",
     )
     .eq("organization_id", session.organizationId)
     .eq("client_id", session.clientId)
@@ -31,9 +31,37 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+  const rows = (data ?? []) as Row[];
+  // Resolve "Reviewed by <clinician>" labels. The portal needs the clinician's
+  // display name (not a uuid). We look it up via staff_profiles.auth_user_id.
+  const reviewerIds = Array.from(
+    new Set(
+      rows
+        .map((r) => String(r.reviewed_by_user_id ?? "").trim())
+        .filter((v) => v.length > 0),
+    ),
+  );
+  const nameById = new Map<string, string>();
+  if (reviewerIds.length > 0) {
+    const { data: staff } = await supabase
+      .from("staff_profiles")
+      .select("auth_user_id, first_name, last_name")
+      .eq("organization_id", session.organizationId)
+      .in("auth_user_id", reviewerIds);
+    for (const s of (staff ?? []) as Row[]) {
+      const uid = String(s.auth_user_id ?? "").trim();
+      if (!uid) continue;
+      const name = `${String(s.first_name ?? "").trim()} ${String(s.last_name ?? "").trim()}`.trim();
+      if (name) nameById.set(uid, name);
+    }
+  }
+  for (const r of rows) {
+    const uid = String(r.reviewed_by_user_id ?? "").trim();
+    if (uid && nameById.has(uid)) r.reviewed_by_name = nameById.get(uid);
+  }
   return NextResponse.json({
     success: true,
-    entries: ((data ?? []) as Row[]).map(mapJournalRow),
+    entries: rows.map(mapJournalRow),
   });
 }
 
