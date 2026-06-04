@@ -179,7 +179,7 @@ async function run() {
     "eligibility_requests",
     {
       organization_id: orgId,
-      patient_id: client.id,
+      client_id: client.id,
       service_type_code: "98",
       service_type_description: "Professional Services",
       request_mode: "mock",

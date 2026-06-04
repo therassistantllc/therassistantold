@@ -2423,7 +2423,7 @@ ALTER TABLE "public"."edi_transactions" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."eligibility_requests" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "organization_id" "uuid",
-    "patient_id" "uuid",
+    "client_id" "uuid",
     "payer_configuration_id" "uuid",
     "payer_id" "text",
     "payer_name" "text",
@@ -6380,7 +6380,7 @@ CREATE INDEX "idx_eligibility_requests_organization_id" ON "public"."eligibility
 
 
 
-CREATE INDEX "idx_eligibility_requests_patient_id" ON "public"."eligibility_requests" USING "btree" ("patient_id");
+CREATE INDEX "idx_eligibility_requests_client_id" ON "public"."eligibility_requests" USING "btree" ("client_id");
 
 
 
@@ -7667,6 +7667,10 @@ ALTER TABLE ONLY "public"."eligibility_checks"
 
 ALTER TABLE ONLY "public"."eligibility_requests"
     ADD CONSTRAINT "eligibility_requests_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."eligibility_requests"
+    ADD CONSTRAINT "eligibility_requests_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE SET NULL;
 
 
 

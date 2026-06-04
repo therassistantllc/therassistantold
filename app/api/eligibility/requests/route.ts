@@ -12,7 +12,7 @@ function parseLimit(value: string | null): number {
 export async function GET(req: NextRequest) {
   try {
     const organizationId = req.nextUrl.searchParams.get("organization_id");
-    const patientId = req.nextUrl.searchParams.get("patient_id");
+    const clientId = req.nextUrl.searchParams.get("client_id") ?? req.nextUrl.searchParams.get("patient_id");
     const payerId = req.nextUrl.searchParams.get("payer_id");
     const status = req.nextUrl.searchParams.get("status");
     const eligibilityStatus = req.nextUrl.searchParams.get("eligibility_status");
@@ -36,15 +36,15 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("eligibility_requests")
       .select(
-        "id,organization_id,patient_id,payer_id,payer_name,subscriber_id,subscriber_first_name,subscriber_last_name,subscriber_dob,patient_first_name,patient_last_name,patient_dob,service_type_code,service_type_description,request_mode,status,eligibility_status,copay_amount,deductible_remaining,effective_date,termination_date,created_at,availity_transaction_id",
+        "id,organization_id,client_id,payer_id,payer_name,subscriber_id,subscriber_first_name,subscriber_last_name,subscriber_dob,patient_first_name,patient_last_name,patient_dob,service_type_code,service_type_description,request_mode,status,eligibility_status,copay_amount,deductible_remaining,effective_date,termination_date,created_at,availity_transaction_id",
         { count: "exact" }
       )
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (patientId) {
-      query = query.eq("patient_id", patientId);
+    if (clientId) {
+      query = query.eq("client_id", clientId);
     }
     if (payerId) {
       query = query.eq("payer_id", payerId);
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       count: count || 0,
-      requests: data ?? [],
+      requests: (data ?? []).map((row) => ({ ...row, patient_id: row.client_id ?? null })),
     });
   } catch {
     return NextResponse.json(
