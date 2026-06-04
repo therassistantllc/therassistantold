@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     const { data: claims, error: claimsError } = await supabase
       .from("professional_claims")
-      .select("id, total_charge_amount")
+      .select("id, total_charge")
       .eq("organization_id", organizationId)
       .eq("claim_status", "ready_for_batch")
       .is("archived_at", null)
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "No ready_for_batch claims found" }, { status: 422 });
     }
 
-    const totalChargeAmount = readyClaims.reduce((sum, claim) => sum + money(claim.total_charge_amount), 0);
+    const totalChargeAmount = readyClaims.reduce((sum, claim) => sum + money(claim.total_charge), 0);
     const now = new Date().toISOString();
 
     const { data: batch, error: batchError } = await supabase

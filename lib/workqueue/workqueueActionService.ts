@@ -153,7 +153,7 @@ export async function assignWorkqueueItem(input: AssignWorkqueueInput): Promise<
     .from("workqueue_items")
     .update({
       assigned_to_user_id: input.assignedToUserId,
-      status: item.status === "open" ? "in_progress" : item.status,
+      status: item.status === "open" || item.status === "deferred" ? "in_progress" : item.status,
       updated_at: new Date().toISOString(),
     })
     .eq("organization_id", input.organizationId)
@@ -172,7 +172,7 @@ export async function assignWorkqueueItem(input: AssignWorkqueueInput): Promise<
   return {
     ok: true,
     workqueueItemId: input.workqueueItemId,
-    status: item.status === "open" ? "in_progress" : item.status,
+    status: item.status === "open" || item.status === "deferred" ? "in_progress" : item.status,
     errors: [],
   };
 }
@@ -197,6 +197,7 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
   const { error } = await supabase
     .from("workqueue_items")
     .update({
+      status: "deferred",
       deferred_until: deferredDate.toISOString(),
       defer_reason: input.deferReason ?? input.comment ?? null,
       updated_at: new Date().toISOString(),
@@ -227,7 +228,7 @@ export async function deferWorkqueueItem(input: DeferWorkqueueInput): Promise<Wo
     description: input.deferReason ?? input.comment ?? `Deferred until ${deferredDate.toISOString()}`,
   });
 
-  return { ok: true, workqueueItemId: input.workqueueItemId, status: item.status, errors: [] };
+  return { ok: true, workqueueItemId: input.workqueueItemId, status: "deferred", errors: [] };
 }
 
 export async function resolveWorkqueueItem(input: WorkqueueActionInput): Promise<WorkqueueActionResult> {

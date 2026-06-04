@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     const { data: claims } = claimIds.length
       ? await supabase
           .from("professional_claims")
-          .select("id, patient_id, claim_number, claim_status, total_charge_amount, updated_at")
+          .select("id, patient_id, claim_number, claim_status, total_charge, updated_at")
           .eq("organization_id", organizationId)
           .in("id", claimIds)
           .is("archived_at", null)
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
             dateOfBirth: client?.date_of_birth ?? null,
             claimNumber: claim.claim_number,
             status: claim.claim_status,
-            totalChargeAmount: money(claim.total_charge_amount),
+            totalChargeAmount: money(claim.total_charge),
             updatedAt: claim.updated_at,
           };
         }),

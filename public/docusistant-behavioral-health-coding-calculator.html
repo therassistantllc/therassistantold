@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DOCUSISTANT™ by Therassistant® — Behavioral Health Coding Calculator</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --ink: #111827;
+      --muted: #5f6877;
+      --line: #dfe3ea;
+      --soft: #f9fafb;
+      --ok: #10b981;
+      --ok2: #059669;
+      --warn: #b91c1c;
+      --warnbg: #fff1f2;
+      --accent: #eef2ff;
+      --accentText: #3730a3;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 24px auto;
+      max-width: 1180px;
+      padding: 0 20px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12pt;
+      line-height: 1.45;
+    }
+
+    h1, h2, h3 { margin: 0 0 6px; }
+    h1 { font-size: 20pt; }
+    p { margin: 0 0 10px; }
+    p.lead, .desc, .note, .units { color: var(--muted); }
+    .desc { font-size: 10pt; }
+    .note, .units { font-size: 9pt; }
+
+    header.app {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accentText);
+      font-size: 10pt;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .block {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 14px 0;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+    }
+
+    .subblock {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .section {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 13pt;
+    }
+
+    .label {
+      display: block;
+      margin: 8px 0 4px;
+      font-weight: 700;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+
+    .full { grid-column: 1 / -1; }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label.blockchk, label.inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    input[type="checkbox"], select { accent-color: var(--ok); }
+
+    input[type="text"], input[type="date"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+    }
+
+    input[type="checkbox"] { width: auto; }
+    input[type="number"] { max-width: 180px; }
+    textarea { min-height: 110px; resize: vertical; }
+
+    hr.sep {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 14px 0;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      background: var(--ok);
+      color: #fff;
+      cursor: pointer;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12pt;
+      font-weight: 700;
+    }
+
+    button:hover { background: var(--ok2); }
+    button.secondary { background: #6b7280; }
+    button.secondary:hover { background: #4b5563; }
+
+    .service-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .service-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    #result {
+      white-space: pre-wrap;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 16px;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+    }
+
+    #result.error {
+      border-color: #fecaca;
+      background: var(--warnbg);
+      color: var(--warn);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #soapNote {
+      display: none;
+      width: 100%;
+      min-height: 300px;
+      margin-top: 12px;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+    }
+
+    footer.app {
+      margin: 28px 0 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 10pt;
+    }
+
+    @media (max-width: 760px) {
+      body { padding: 0 12px; }
+      header.app { flex-direction: column; }
+      .form-grid { grid-template-columns: 1fr; }
+      .full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app">
+    <div>
+      <h1>DOCUSISTANT™ by Therassistant®</h1>
+      <p class="lead">Streamlined documentation & coding for behavioral health providers.</p>
+    </div>
+    <span class="badge">Two-Column Clinical Form</span>
+  </header>
+
+  <div class="block">
+    <span class="section">Overview</span>
+    <p class="desc">Enter what you did today. On <strong>Calculate</strong>, DOCUSISTANT validates time, generates a codes list, and builds an editable SOAP note from your structured entries. Fields are optional unless needed for the selected service.</p>
+  </div>
+
+  <form id="encounterForm" novalidate>
+    <div class="form-grid">
+      <section class="block">
+        <span class="section">Patient & Encounter Information</span>
+        <label class="label" for="ptName">Patient Name</label>
+        <input type="text" id="ptName" placeholder="Full legal name (optional)" />
+
+        <label class="label" for="ptDOB">Date of Birth</label>
+        <input type="date" id="ptDOB" />
+
+        <label class="label" for="dos">Date of Service</label>
+        <input type="date" id="dos" />
+
+        <label class="label" for="totalMinutes">Total Encounter Time (minutes)</label>
+        <input type="number" id="totalMinutes" min="0" step="15" placeholder="e.g., 60" />
+        <div class="note">Selected time-based services must sum to this total. Untimed services, including screening and treatment plan review, are excluded.</div>
+      </section>
+
+      <section class="block">
+        <span class="section">Standardized Screening</span>
+        <label class="label" for="screeningSelect">Did you complete standardized screening(s)?</label>
+        <select id="screeningSelect">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+        <div class="note">Examples: PHQ-9, GAD-7, C-SSRS, AUDIT-C, DAST-10. Screening (H0002) is untimed.</div>
+
+        <div id="docScreening" class="subblock" style="display:none;">
+          <span class="section">Documentation — Standardized Screening (H0002)</span>
+          <p class="desc">Add a row for each tool used. Results populate the SOAP Objective section.</p>
+          <button type="button" id="addScreeningBtn">+ Add screening</button>
+          <div id="screeningList" class="stack" style="margin-top:10px;"></div>
+        </div>
+      </section>
+
+      <section class="block full">
+        <span class="section">Problem Type & Assessment Focus</span>
+        <div class="form-grid">
+          <div>
+            <label class="label" for="assessmentFocus">Is today’s assessment focus mental health, substance use, or both?</label>
+            <select id="assessmentFocus">
+              <option value="">Select focus</option>
+              <option value="mh">Mental health</option>
+              <option value="sud">Substance use</option>
+              <option value="both">Both mental health and substance use</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="problemCourse">Problem course</label>
+            <select id="problemCourse">
+              <option value="">Select course</option>
+              <option value="new">New problem / initial presenting issue</option>
+              <option value="existing-stable">Existing problem — stable/routine review</option>
+              <option value="existing-exacerbated">Existing problem — exacerbated by new stressors</option>
+            </select>
+            <div class="note">New or exacerbated problems may support focused assessment codes when documentation supports medical necessity.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="docAssessment" class="block full" style="display:none;">
+        <span class="section">Combined Assessment Documentation</span>
+        <p class="desc">This section combines overlapping mental health and substance use documentation requirements so shared information is entered once.</p>
+
+        <div class="form-grid">
+          <div>
+            <label class="label" for="chiefConcern">Chief concern (patient’s words)</label>
+            <input type="text" id="chiefConcern" placeholder="e.g., 'My anxiety and alcohol use got worse after stress at work.'" />
+          </div>
+          <div>
+            <label class="label" for="historyType">History type</label>
+            <select id="historyType">
+              <option value="">Select type</option>
+              <option>Initial assessment</option>
+              <option>Follow-up assessment</option>
+              <option>Crisis-focused assessment</option>
+              <option>Routine review</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="label" for="historyDetail">Relevant history / presenting pattern</label>
+        <textarea id="historyDetail" placeholder="Onset, duration, triggers, prior treatment, response to care, co-occurring medical/behavioral factors, supports, and barriers."></textarea>
+
+        <div id="sudSpecificBlock" class="subblock" style="display:none;">
+          <span class="section">Substance Use Details</span>
+          <label class="label" for="sudPattern">Substance use pattern</label>
+          <textarea id="sudPattern" placeholder="Substance(s), frequency, quantity, route, last use, withdrawal history, overdose history, cravings, recovery supports, and relapse risks."></textarea>
+        </div>
+
+        <div class="subblock">
+          <span class="section">Mental Status Exam (MSE)</span>
+          <label class="inline"><input type="checkbox" id="mseAllNormal" /> All normal (auto-fill)</label>
+          <div class="form-grid" style="margin-top:8px;">
+            <select id="mseAppearance"><option value="">Appearance</option><option>Neat, appropriate grooming</option><option>Disheveled</option><option>Poor hygiene</option></select>
+            <select id="mseBehavior"><option value="">Behavior</option><option>Calm/cooperative</option><option>Agitated</option><option>Guarded</option></select>
+            <select id="mseSpeech"><option value="">Speech</option><option>Normal rate/volume</option><option>Rapid/pressured</option><option>Slow</option><option>Soft</option></select>
+            <select id="mseMood"><option value="">Mood</option><option>Euthymic</option><option>Anxious</option><option>Depressed</option><option>Irritable</option></select>
+            <select id="mseAffect"><option value="">Affect</option><option>Full/appropriate</option><option>Restricted</option><option>Blunted</option><option>Labile</option></select>
+            <select id="mseThoughtProcess"><option value="">Thought process</option><option>Linear/goal-directed</option><option>Circumstantial</option><option>Tangential</option><option>Flight of ideas</option></select>
+            <select id="mseThoughtContent"><option value="">Thought content</option><option>No SI/HI/psychosis</option><option>SI passive</option><option>SI active without plan</option><option>SI with plan</option><option>HI</option><option>Psychotic features</option></select>
+            <select id="mseCognition"><option value="">Orientation/Cognition</option><option>Alert & oriented ×4</option><option>Oriented ×3</option><option>Impaired attention</option><option>Impaired memory</option></select>
+            <select id="mseInsight"><option value="">Insight</option><option>Good</option><option>Fair</option><option>Poor</option></select>
+            <select id="mseJudgment"><option value="">Judgment</option><option>Good</option><option>Fair</option><option>Poor</option></select>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div id="mhDiagnosisBlock" style="display:none;">
+            <label class="label" for="mhDiagnosis">Mental health diagnosis (ICD-10)</label>
+            <input type="text" id="mhDiagnosis" placeholder="e.g., F41.1 Generalized Anxiety Disorder" />
+          </div>
+          <div id="sudDiagnosisBlock" style="display:none;">
+            <label class="label" for="sudDiagnosis">Substance use diagnosis (ICD-10)</label>
+            <input type="text" id="sudDiagnosis" placeholder="e.g., F10.20 Alcohol use disorder, severe" />
+          </div>
+          <div>
+            <label class="label" for="dxStatus">Diagnosis status</label>
+            <select id="dxStatus"><option value="">Status</option><option>Unchanged</option><option>Improved</option><option>Worsened</option><option>New diagnosis</option></select>
+          </div>
+          <div>
+            <label class="label" for="funcSeverity">Level of functioning — severity</label>
+            <select id="funcSeverity"><option value="">Severity</option><option>Mild</option><option>Moderate</option><option>Severe</option></select>
+          </div>
+        </div>
+
+        <label class="label">Impacted functional domains</label>
+        <div class="form-grid">
+          <label class="blockchk"><input type="checkbox" id="funcWork" /> Work/School</label>
+          <label class="blockchk"><input type="checkbox" id="funcADL" /> ADLs</label>
+          <label class="blockchk"><input type="checkbox" id="funcSocial" /> Social/Family</label>
+          <label class="blockchk"><input type="checkbox" id="funcLegal" /> Legal</label>
+        </div>
+
+        <label class="label">Treatment needs</label>
+        <div class="form-grid">
+          <label class="blockchk"><input type="checkbox" id="needTherapy" /> Psychotherapy</label>
+          <label class="blockchk"><input type="checkbox" id="needSkills" /> Skills training</label>
+          <label class="blockchk"><input type="checkbox" id="needCM" /> Case management</label>
+          <label class="blockchk"><input type="checkbox" id="needMed" /> Medication management / MAT consult</label>
+          <label class="blockchk"><input type="checkbox" id="needCrisis" /> Crisis/safety planning</label>
+          <label class="blockchk"><input type="checkbox" id="needReferral" /> Referral or higher level of care</label>
+        </div>
+
+        <label class="label">Medical necessity — select all that apply</label>
+        <div class="form-grid">
+          <label class="blockchk"><input type="checkbox" id="mnImpair" /> Functional impairment</label>
+          <label class="blockchk"><input type="checkbox" id="mnRisk" /> Risk factors / safety concerns</label>
+          <label class="blockchk"><input type="checkbox" id="mnComplex" /> Clinical complexity</label>
+          <label class="blockchk"><input type="checkbox" id="mnFailure" /> Insufficient response to lower-intensity care</label>
+        </div>
+        <label class="label" for="mnText">Medical necessity — brief justification</label>
+        <textarea id="mnText" placeholder="Tie symptoms, risks, impairments, and service intensity/duration to the clinical need."></textarea>
+      </section>
+
+      <section class="block">
+        <span class="section">Psychotherapy</span>
+        <label class="label" for="psychotherapySelect">Did you provide individual psychotherapy?</label>
+        <select id="psychotherapySelect"><option value="no">No</option><option value="yes">Yes</option></select>
+        <div id="psychotherapyTime" style="display:none;">
+          <label class="label" for="psychotherapyMins">Total minutes of individual psychotherapy</label>
+          <input type="number" id="psychotherapyMins" min="0" step="1" placeholder="e.g., 53" />
+          <div class="units">8–15=H0004, 16–38=90832, 39–52=90834, 53–72=90837, &gt;72=90834×2.</div>
+        </div>
+        <div id="docPsych" class="subblock" style="display:none;">
+          <span class="section">Documentation — Individual Psychotherapy</span>
+          <textarea id="docPsychNotes" placeholder="Techniques; goals; client response; homework; medical necessity for extended time when applicable."></textarea>
+        </div>
+      </section>
+
+      <section class="block">
+        <span class="section">Treatment Plan Development/Review (H0032)</span>
+        <label class="label" for="planSelect">Was the treatment plan reviewed or updated today?</label>
+        <select id="planSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+        <div id="docPlan" class="subblock" style="display:none;">
+          <label class="label" for="planReviewType">Review type</label>
+          <select id="planReviewType"><option value="">Select type</option><option>Initial plan</option><option>Interim update</option><option>Annual review</option><option>Discharge planning</option></select>
+          <label class="label" for="planNextSteps">Goals, interventions, consent, progress, and next steps</label>
+          <textarea id="planNextSteps" placeholder="Goals addressed, objective changes, interventions, frequency/level of care, member involvement/consent, progress, referrals, and follow-up timing."></textarea>
+        </div>
+      </section>
+
+      <section class="block full">
+        <span class="section">Additional Services</span>
+        <p class="desc">Group, crisis, skills, psychosocial rehabilitation, outreach/prevention, and case management are grouped here at the bottom of the form.</p>
+        <div class="form-grid">
+          <div class="service-card">
+            <div class="service-title">Group Services</div>
+            <label class="label" for="groupSUDSelect">SUD group counseling provided?</label>
+            <select id="groupSUDSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="groupSUDTime" style="display:none;">
+              <label class="label" for="groupSUDMinutes">SUD group minutes</label>
+              <input type="number" id="groupSUDMinutes" min="0" step="15" placeholder="e.g., 30" />
+              <div class="units">15-minute increments (H0005).</div>
+              <textarea id="docGroupSUDNotes" placeholder="Topic; goals; group size; participation; skills; plan."></textarea>
+            </div>
+            <label class="label" for="groupMHSelect">MH group psychotherapy provided?</label>
+            <select id="groupMHSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="groupMHTime" style="display:none;">
+              <label class="label" for="groupMHMinutes">MH group minutes</label>
+              <input type="number" id="groupMHMinutes" min="0" step="15" placeholder="e.g., 60" />
+              <div class="units">Counts toward total; billing per session (90853).</div>
+              <textarea id="docGroupMHNotes" placeholder="Topic; modality; size; participation; progress; assignments."></textarea>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <div class="service-title">Crisis Intervention</div>
+            <label class="label" for="crisisSelect">Did you provide crisis intervention?</label>
+            <select id="crisisSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="crisisTime" style="display:none;">
+              <label class="label" for="crisisMinutes">Crisis minutes</label>
+              <input type="number" id="crisisMinutes" min="0" step="15" placeholder="e.g., 30" />
+              <div class="units">15-minute increments (H2011).</div>
+              <textarea id="docCrisisNotes" placeholder="Precipitating event; risk assessment; de-escalation; safety plan; coordination; outcome."></textarea>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <div class="service-title">Skills Training & Development</div>
+            <label class="label" for="skillsSelect">Did you provide skills training?</label>
+            <select id="skillsSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="skillsTime" style="display:none;">
+              <label class="label" for="skillsMinutes">Skills minutes</label>
+              <input type="number" id="skillsMinutes" min="0" step="15" placeholder="e.g., 60" />
+              <div class="units">15-minute increments (H2014).</div>
+              <textarea id="docSkillsNotes" placeholder="Skill targeted; teach/model/practice; client response; homework; outcomes."></textarea>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <div class="service-title">Psychosocial Rehabilitation</div>
+            <label class="label" for="psrSelect">Did you provide psychosocial rehabilitation?</label>
+            <select id="psrSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="psrTime" style="display:none;">
+              <label class="label" for="psrMinutes">PSR minutes</label>
+              <input type="number" id="psrMinutes" min="0" step="15" placeholder="e.g., 30" />
+              <div class="units">15-minute increments (H2017).</div>
+              <textarea id="docPSRNotes" placeholder="Functional domains; activities; performance; barriers; plan."></textarea>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <div class="service-title">Outreach & Prevention</div>
+            <label class="label" for="outreachSelect">Outreach provided?</label>
+            <select id="outreachSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="outreachTime" style="display:none;">
+              <label class="label" for="outreachMinutes">Outreach minutes</label>
+              <input type="number" id="outreachMinutes" min="0" step="15" placeholder="e.g., 15" />
+              <div class="units">15-minute increments (H0023).</div>
+              <textarea id="docOutreachNotes" placeholder="Need/goal; contact method; coordination; outcome."></textarea>
+            </div>
+            <label class="label" for="preventionSelect">Prevention education provided?</label>
+            <select id="preventionSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="preventionTime" style="display:none;">
+              <label class="label" for="preventionMinutes">Prevention minutes</label>
+              <input type="number" id="preventionMinutes" min="0" step="15" placeholder="e.g., 30" />
+              <div class="units">15-minute increments (H0025).</div>
+              <textarea id="docPreventionNotes" placeholder="Audience; topic; activities; outcomes; resources."></textarea>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <div class="service-title">Case Management</div>
+            <label class="label" for="caseMgmtSelect">Did you provide case management?</label>
+            <select id="caseMgmtSelect"><option value="no">No</option><option value="yes">Yes</option></select>
+            <div id="caseMgmtTypes" style="display:none;">
+              <label class="label">Case management focus</label>
+              <div class="stack">
+                <label class="blockchk"><input type="checkbox" id="cmMH" /> Mental Health</label>
+                <label class="blockchk"><input type="checkbox" id="cmSUD" /> Substance Use</label>
+              </div>
+              <div id="cmMHBlock" style="display:none;">
+                <label class="label" for="cmMHMinutes">MH case management minutes (T1017)</label>
+                <input type="number" id="cmMHMinutes" min="0" step="15" placeholder="e.g., 30" />
+                <textarea id="docCMMHNotes" placeholder="Needs addressed; parties contacted; coordination performed; outcome; barriers/next steps."></textarea>
+              </div>
+              <div id="cmSUDBlock" style="display:none;">
+                <label class="label" for="cmSUDMinutes">SUD case management minutes (H0006)</label>
+                <input type="number" id="cmSUDMinutes" min="0" step="15" placeholder="e.g., 15" />
+                <textarea id="docCMSUDNotes" placeholder="SUD needs; linkage/referrals; benefits/auth; coordination; outcome; next steps."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="actions">
+      <button type="submit">Calculate Codes + Generate SOAP Note</button>
+      <button type="button" class="secondary" id="clearBtn">Clear</button>
+      <button type="button" class="secondary" id="copyCodesBtn">Copy Codes</button>
+      <button type="button" class="secondary" id="copyNoteBtn">Copy Note</button>
+    </div>
+  </form>
+
+  <div id="result"></div>
+  <textarea id="soapNote"></textarea>
+
+  <template id="screeningRowTpl">
+    <div class="subblock" data-row>
+      <div class="form-grid">
+        <select data-tool>
+          <option value="">Tool</option>
+          <option>PHQ-9</option>
+          <option>GAD-7</option>
+          <option>AUDIT-C</option>
+          <option>DAST-10</option>
+          <option>CAGE-AID</option>
+          <option>C-SSRS</option>
+          <option>PCL-5</option>
+          <option>CRAFFT</option>
+          <option>Other</option>
+        </select>
+        <input type="text" data-other placeholder="If Other, specify" style="display:none;" />
+        <input type="number" min="0" step="1" data-score placeholder="Score (if applicable)" />
+        <select data-severity>
+          <option value="">Severity / Interpretation</option>
+          <option>Negative</option>
+          <option>Mild</option>
+          <option>Moderate</option>
+          <option>Moderately severe</option>
+          <option>Severe</option>
+          <option>High risk</option>
+        </select>
+        <select data-admin>
+          <option value="">Administered by</option>
+          <option>Self-report</option>
+          <option>Clinician-administered</option>
+        </select>
+      </div>
+      <div class="form-grid" style="margin-top:8px;">
+        <label class="blockchk"><input type="checkbox" data-risk-si /> SI endorsed</label>
+        <label class="blockchk"><input type="checkbox" data-risk-hi /> HI endorsed</label>
+        <label class="blockchk"><input type="checkbox" data-risk-unsafe /> Safety concerns</label>
+        <label class="blockchk"><input type="checkbox" data-referral /> Referral indicated</label>
+      </div>
+      <label class="label">Notes (optional)</label>
+      <textarea data-notes placeholder="Item-level flags, safety steps, brief interpretation"></textarea>
+      <div class="row" style="justify-content:flex-end; margin-top:6px;">
+        <button type="button" data-remove class="secondary">Remove</button>
+      </div>
+    </div>
+  </template>
+
+  <footer class="app">DOCUSISTANT™ by Therassistant® — All Rights Reserved.</footer>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const show = (el, on = true) => { if (el) el.style.display = on ? 'block' : 'none'; };
+    const units15 = (m) => Math.floor((Number(m) || 0) / 15);
+    const isMult15 = (m) => (Number(m) || 0) % 15 === 0;
+
+    function ensurePeriod(txt) {
+      const s = (txt || '').trim();
+      if (!s) return '';
+      return /[.!?]$/.test(s) ? s : `${s}.`;
+    }
+
+    function joinAnd(arr) {
+      const a = (arr || []).filter(Boolean);
+      if (a.length === 0) return '';
+      if (a.length === 1) return a[0];
+      if (a.length === 2) return `${a[0]} and ${a[1]}`;
+      return `${a.slice(0, -1).join(', ')}, and ${a[a.length - 1]}`;
+    }
+
+    function psychotherapyLabel(mins) {
+      const m = Number(mins) || 0;
+      if (m >= 8 && m <= 15) return 'H0004 – Individual Psychotherapy (8–15 min)';
+      if (m >= 16 && m <= 38) return '90832 – Psychotherapy, 30 minutes';
+      if (m >= 39 && m <= 52) return '90834 – Psychotherapy, 45 minutes';
+      if (m >= 53 && m <= 72) return '90837 – Psychotherapy, 60 minutes';
+      if (m > 72) return '90834 × 2 units';
+      return 'Individual Psychotherapy – time below 8 minutes (not billable)';
+    }
+
+    function toggleSelect(selectId, blockId) {
+      const select = document.getElementById(selectId);
+      const block = document.getElementById(blockId);
+      select?.addEventListener('change', () => show(block, select.value === 'yes'));
+    }
+
+    function selectedFocuses() {
+      const value = $('#assessmentFocus')?.value || '';
+      return { mh: value === 'mh' || value === 'both', sud: value === 'sud' || value === 'both' };
+    }
+
+    function refreshAssessment() {
+      const { mh, sud } = selectedFocuses();
+      const hasFocus = mh || sud;
+      show($('#docAssessment'), hasFocus);
+      show($('#mhDiagnosisBlock'), mh);
+      show($('#sudDiagnosisBlock'), sud);
+      show($('#sudSpecificBlock'), sud);
+    }
+
+    $('#assessmentFocus')?.addEventListener('change', refreshAssessment);
+
+    toggleSelect('screeningSelect', 'docScreening');
+    toggleSelect('psychotherapySelect', 'psychotherapyTime');
+    $('#psychotherapySelect')?.addEventListener('change', () => show($('#docPsych'), $('#psychotherapySelect').value === 'yes'));
+    toggleSelect('planSelect', 'docPlan');
+
+    ['groupSUD', 'groupMH', 'crisis', 'skills', 'psr', 'outreach', 'prevention'].forEach((prefix) => {
+      toggleSelect(`${prefix}Select`, `${prefix}Time`);
+    });
+
+    $('#caseMgmtSelect')?.addEventListener('change', () => {
+      const yes = $('#caseMgmtSelect').value === 'yes';
+      show($('#caseMgmtTypes'), yes);
+      show($('#cmMHBlock'), yes && $('#cmMH')?.checked);
+      show($('#cmSUDBlock'), yes && $('#cmSUD')?.checked);
+    });
+    $('#cmMH')?.addEventListener('change', () => show($('#cmMHBlock'), $('#cmMH').checked));
+    $('#cmSUD')?.addEventListener('change', () => show($('#cmSUDBlock'), $('#cmSUD').checked));
+
+    $('#addScreeningBtn')?.addEventListener('click', () => {
+      const node = $('#screeningRowTpl').content.cloneNode(true);
+      const row = node.querySelector('[data-row]');
+      const tool = row.querySelector('[data-tool]');
+      const other = row.querySelector('[data-other]');
+      tool.addEventListener('change', () => {
+        const isOther = tool.value === 'Other';
+        other.style.display = isOther ? 'block' : 'none';
+        if (!isOther) other.value = '';
+      });
+      row.querySelector('[data-remove]').addEventListener('click', () => row.remove());
+      $('#screeningList').appendChild(node);
+    });
+
+    function readScreenings() {
+      return Array.from($('#screeningList').querySelectorAll('[data-row]')).map((row) => {
+        const tool = row.querySelector('[data-tool]').value || '';
+        const other = row.querySelector('[data-other]').value.trim();
+        return {
+          tool: tool === 'Other' && other ? other : tool,
+          score: row.querySelector('[data-score]').value,
+          sev: row.querySelector('[data-severity]').value,
+          admin: row.querySelector('[data-admin]').value,
+          riskSI: row.querySelector('[data-risk-si]').checked,
+          riskHI: row.querySelector('[data-risk-hi]').checked,
+          riskUnsafe: row.querySelector('[data-risk-unsafe]').checked,
+          referral: row.querySelector('[data-referral]').checked,
+          notes: row.querySelector('[data-notes]').value.trim()
+        };
+      }).filter((s) => s.tool);
+    }
+
+    const mseFields = ['Appearance', 'Behavior', 'Speech', 'Mood', 'Affect', 'ThoughtProcess', 'ThoughtContent', 'Cognition', 'Insight', 'Judgment'];
+    const mseNormal = {
+      Appearance: 'Neat, appropriate grooming',
+      Behavior: 'Calm/cooperative',
+      Speech: 'Normal rate/volume',
+      Mood: 'Euthymic',
+      Affect: 'Full/appropriate',
+      ThoughtProcess: 'Linear/goal-directed',
+      ThoughtContent: 'No SI/HI/psychosis',
+      Cognition: 'Alert & oriented ×4',
+      Insight: 'Good',
+      Judgment: 'Good'
+    };
+
+    $('#mseAllNormal')?.addEventListener('change', () => {
+      mseFields.forEach((field) => {
+        const el = document.getElementById(`mse${field}`);
+        if (!el) return;
+        if ($('#mseAllNormal').checked) el.value = mseNormal[field] || '';
+        el.disabled = $('#mseAllNormal').checked;
+      });
+    });
+
+    function buildMSEText() {
+      if ($('#mseAllNormal')?.checked) {
+        return 'appearance neat and appropriately groomed; behavior calm and cooperative; speech normal in rate and volume; mood euthymic with full and appropriate affect; thought process linear and goal-directed; thought content without SI/HI or psychotic features; cognition alert and oriented ×4; insight good; judgment good';
+      }
+      return mseFields.map((field) => {
+        const el = document.getElementById(`mse${field}`);
+        if (!el?.value) return '';
+        return `${field.replace(/([A-Z])/g, ' $1').trim().toLowerCase()}: ${el.value}`;
+      }).filter(Boolean).join('; ');
+    }
+
+    function checkedLabels(items) {
+      return items.filter((item) => document.getElementById(item.id)?.checked).map((item) => item.label);
+    }
+
+    function addTextIfVisible(arr, blockId, textId, label) {
+      const block = document.getElementById(blockId);
+      const text = (document.getElementById(textId)?.value || '').trim();
+      if (block && block.style.display !== 'none' && text) arr.push(ensurePeriod(`${label}: ${text}`));
+    }
+
+    function buildSOAPNote(codes) {
+      const { mh, sud } = selectedFocuses();
+      const header = [
+        $('#ptName')?.value ? `Patient: ${$('#ptName').value}` : null,
+        $('#ptDOB')?.value ? `DOB: ${$('#ptDOB').value}` : null,
+        $('#dos')?.value ? `Date of service: ${$('#dos').value}` : null,
+        $('#totalMinutes')?.value ? `Encounter time: ${$('#totalMinutes').value} minutes` : null
+      ].filter(Boolean).join('  |  ');
+
+      const S = [];
+      const focusText = mh && sud ? 'mental health and substance use' : mh ? 'mental health' : sud ? 'substance use' : '';
+      if ($('#chiefConcern')?.value) S.push(ensurePeriod(`The patient reports the following chief concern related to ${focusText}: ${$('#chiefConcern').value}`));
+      if ($('#historyType')?.value || $('#historyDetail')?.value) S.push(ensurePeriod(`History of present illness: ${[$('#historyType')?.value, $('#historyDetail')?.value].filter(Boolean).join(' — ')}`));
+      if (sud && $('#sudPattern')?.value) S.push(ensurePeriod(`Substance use pattern: ${$('#sudPattern').value}`));
+
+      const O = [];
+      const mse = buildMSEText();
+      if (mse) O.push(ensurePeriod(`Mental Status Exam shows ${mse}`));
+      if ($('#screeningSelect')?.value === 'yes') {
+        const screenings = readScreenings();
+        if (screenings.length) {
+          screenings.forEach((s) => {
+            const parts = [];
+            if (s.tool) parts.push(`${s.tool} administered`);
+            if (s.admin) parts.push(`via ${s.admin.toLowerCase()}`);
+            if (s.score) parts.push(`score ${s.score}`);
+            if (s.sev) parts.push(`interpreted as ${s.sev.toLowerCase()}`);
+            const risks = [];
+            if (s.riskSI) risks.push('suicidal ideation');
+            if (s.riskHI) risks.push('homicidal ideation');
+            if (s.riskUnsafe) risks.push('safety concerns');
+            if (risks.length) parts.push(`risk flags included ${joinAnd(risks)}`);
+            if (s.referral) parts.push('referral indicated');
+            O.push(ensurePeriod(parts.join(', ')));
+            if (s.notes) O.push(ensurePeriod(`Additional screening notes: ${s.notes}`));
+          });
+        } else {
+          O.push('A standardized screening was completed, but details were not entered.');
+        }
+      }
+
+      const A = [];
+      const dxParts = [];
+      if (mh && $('#mhDiagnosis')?.value) dxParts.push(`mental health: ${$('#mhDiagnosis').value}`);
+      if (sud && $('#sudDiagnosis')?.value) dxParts.push(`substance use: ${$('#sudDiagnosis').value}`);
+      if (dxParts.length || $('#dxStatus')?.value) A.push(ensurePeriod(`Diagnosis summary is ${dxParts.join('; ')}${$('#dxStatus')?.value ? `; status is ${$('#dxStatus').value.toLowerCase()}` : ''}`));
+
+      const domains = checkedLabels([
+        { id: 'funcWork', label: 'work/school' },
+        { id: 'funcADL', label: 'activities of daily living' },
+        { id: 'funcSocial', label: 'social/family' },
+        { id: 'funcLegal', label: 'legal' }
+      ]);
+      if (domains.length || $('#funcSeverity')?.value) A.push(ensurePeriod(`Functioning is impacted in ${joinAnd(domains)}${$('#funcSeverity')?.value ? ` with ${$('#funcSeverity').value.toLowerCase()} severity` : ''}`));
+
+      const needs = checkedLabels([
+        { id: 'needTherapy', label: 'psychotherapy' },
+        { id: 'needSkills', label: 'skills training' },
+        { id: 'needCM', label: 'case management' },
+        { id: 'needMed', label: 'medication management/MAT consult' },
+        { id: 'needCrisis', label: 'crisis/safety planning' },
+        { id: 'needReferral', label: 'referral or higher level of care' }
+      ]);
+      if (needs.length) A.push(ensurePeriod(`Identified treatment needs include ${joinAnd(needs)}`));
+
+      const mnFlags = checkedLabels([
+        { id: 'mnImpair', label: 'functional impairment' },
+        { id: 'mnRisk', label: 'risk factors / safety concerns' },
+        { id: 'mnComplex', label: 'clinical complexity' },
+        { id: 'mnFailure', label: 'insufficient response to lower-intensity care' }
+      ]);
+      if (mnFlags.length || $('#mnText')?.value) A.push(ensurePeriod(`${mnFlags.length ? `Medical necessity is supported by ${joinAnd(mnFlags)}` : 'Medical necessity was documented'}${$('#mnText')?.value ? `. ${$('#mnText').value}` : ''}`));
+
+      addTextIfVisible(A, 'docPsych', 'docPsychNotes', 'Psychotherapy provided');
+      addTextIfVisible(A, 'groupSUDTime', 'docGroupSUDNotes', 'SUD group counseling details');
+      addTextIfVisible(A, 'groupMHTime', 'docGroupMHNotes', 'MH group psychotherapy details');
+      addTextIfVisible(A, 'crisisTime', 'docCrisisNotes', 'Crisis intervention details');
+      addTextIfVisible(A, 'skillsTime', 'docSkillsNotes', 'Skills training details');
+      addTextIfVisible(A, 'psrTime', 'docPSRNotes', 'Psychosocial rehabilitation details');
+      addTextIfVisible(A, 'outreachTime', 'docOutreachNotes', 'Outreach details');
+      addTextIfVisible(A, 'preventionTime', 'docPreventionNotes', 'Prevention education details');
+      addTextIfVisible(A, 'cmMHBlock', 'docCMMHNotes', 'Case management (mental health) details');
+      addTextIfVisible(A, 'cmSUDBlock', 'docCMSUDNotes', 'Case management (substance use) details');
+
+      const P = [];
+      if ($('#docPlan')?.style.display !== 'none') {
+        if ($('#planReviewType')?.value) P.push(ensurePeriod(`Treatment plan review type: ${$('#planReviewType').value}`));
+        if ($('#planNextSteps')?.value) P.push(ensurePeriod(`Treatment plan updates and next steps: ${$('#planNextSteps').value}`));
+      }
+      if ($('#psychotherapySelect')?.value === 'yes') P.push('Psychotherapy will continue per the treatment plan.');
+      if ($('#skillsSelect')?.value === 'yes') P.push('The patient will practice assigned skills between sessions.');
+      if ($('#crisisSelect')?.value === 'yes') P.push('Safety plan and risk monitoring will continue; higher level of care will be considered if clinically indicated.');
+
+      return [
+        header,
+        '',
+        'S: ' + (S.length ? S.join(' ') : 'No subjective information was entered.'),
+        '',
+        'O: ' + (O.length ? O.join(' ') : 'No objective findings were entered.'),
+        '',
+        'A: ' + (A.length ? A.join(' ') : 'No assessment information was entered.'),
+        '',
+        'P: ' + (P.length ? P.join(' ') : 'No plan information was entered.'),
+        '',
+        'Billing Summary:',
+        '• ' + (codes.length ? codes.join('\n• ') : '—')
+      ].join('\n');
+    }
+
+    function addTimeItem(items, selectId, minsId, label, allowAny = false) {
+      if (document.getElementById(selectId)?.value !== 'yes') return;
+      items.push({ label, mins: Number(document.getElementById(minsId)?.value || 0), allowAny });
+    }
+
+    $('#encounterForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const out = $('#result');
+      const note = $('#soapNote');
+      out.classList.remove('error');
+      out.textContent = '';
+      note.value = '';
+      note.style.display = 'none';
+
+      const timeItems = [];
+      addTimeItem(timeItems, 'psychotherapySelect', 'psychotherapyMins', 'Individual psychotherapy', true);
+      addTimeItem(timeItems, 'groupSUDSelect', 'groupSUDMinutes', 'SUD group counseling');
+      addTimeItem(timeItems, 'groupMHSelect', 'groupMHMinutes', 'MH group psychotherapy');
+      addTimeItem(timeItems, 'crisisSelect', 'crisisMinutes', 'Crisis intervention');
+      addTimeItem(timeItems, 'skillsSelect', 'skillsMinutes', 'Skills training & development');
+      addTimeItem(timeItems, 'psrSelect', 'psrMinutes', 'Psychosocial rehabilitation');
+      addTimeItem(timeItems, 'outreachSelect', 'outreachMinutes', 'Outreach');
+      addTimeItem(timeItems, 'preventionSelect', 'preventionMinutes', 'Prevention education');
+      if ($('#caseMgmtSelect')?.value === 'yes' && $('#cmMH')?.checked) addTimeItem(timeItems, 'caseMgmtSelect', 'cmMHMinutes', 'Case management – Mental Health');
+      if ($('#caseMgmtSelect')?.value === 'yes' && $('#cmSUD')?.checked) addTimeItem(timeItems, 'caseMgmtSelect', 'cmSUDMinutes', 'Case management – Substance Use');
+
+      const bad = timeItems.filter((item) => !item.allowAny && item.mins > 0 && !isMult15(item.mins));
+      if (bad.length) {
+        out.classList.add('error');
+        out.textContent = 'All time entries except individual psychotherapy must be in 15-minute increments.\n\nIssues:\n- ' + bad.map((b) => `${b.label}: ${b.mins} min`).join('\n- ');
+        return;
+      }
+
+      const total = Number($('#totalMinutes')?.value || 0);
+      const sum = timeItems.reduce((acc, item) => acc + (Number(item.mins) || 0), 0);
+      if (timeItems.length && total <= 0) {
+        out.classList.add('error');
+        out.textContent = 'Total encounter time must be greater than 0 when time-based services are selected.';
+        return;
+      }
+      if (sum !== total) {
+        out.classList.add('error');
+        out.textContent = `Time mismatch.\n\nTotal encounter time: ${total} min\nSum of selected time-based services: ${sum} min\n\nBreakdown:\n` + timeItems.map((item) => `• ${item.label}: ${item.mins} min`).join('\n');
+        return;
+      }
+      if ($('#screeningSelect')?.value === 'yes' && readScreenings().length === 0) {
+        out.classList.add('error');
+        out.textContent = 'Screening = Yes, but no screening rows were added. Click “+ Add screening” and enter at least one tool, or set Screening to No.';
+        return;
+      }
+
+      const codes = [];
+      const { mh, sud } = selectedFocuses();
+      const assessmentBillable = $('#problemCourse')?.value === 'new' || $('#problemCourse')?.value === 'existing-exacerbated';
+      if (assessmentBillable) {
+        if (mh) codes.push('H0031 – Mental Health Assessment');
+        if (sud) codes.push('H0001 – Substance Use (Re)Assessment');
+      }
+      if ($('#screeningSelect')?.value === 'yes') codes.push('H0002 – Behavioral Health Screening');
+      if ($('#psychotherapySelect')?.value === 'yes') codes.push(psychotherapyLabel($('#psychotherapyMins')?.value));
+      const pushUnits = (label, minsId, code) => {
+        const mins = Number(document.getElementById(minsId)?.value || 0);
+        if (mins > 0) codes.push(`${code} – ${label} (${units15(mins)} × 15 min)`);
+      };
+      pushUnits('SUD Group Counseling', 'groupSUDMinutes', 'H0005');
+      if ($('#groupMHSelect')?.value === 'yes') codes.push('90853 – Group Psychotherapy (per session)');
+      pushUnits('Crisis Intervention', 'crisisMinutes', 'H2011');
+      pushUnits('Skills Training & Development', 'skillsMinutes', 'H2014');
+      pushUnits('Psychosocial Rehabilitation', 'psrMinutes', 'H2017');
+      pushUnits('Behavioral Health Outreach', 'outreachMinutes', 'H0023');
+      pushUnits('Behavioral Health Prevention Education', 'preventionMinutes', 'H0025');
+      if ($('#caseMgmtSelect')?.value === 'yes' && $('#cmMH')?.checked) pushUnits('Case Management (MH)', 'cmMHMinutes', 'T1017');
+      if ($('#caseMgmtSelect')?.value === 'yes' && $('#cmSUD')?.checked) pushUnits('Case Management (SUD)', 'cmSUDMinutes', 'H0006');
+      if ($('#planSelect')?.value === 'yes') codes.push('H0032 – Treatment Plan Development/Review (untimed)');
+
+      out.textContent = codes.length ? codes.join('\n') : 'No billable services selected.';
+      note.value = buildSOAPNote(codes);
+      note.style.display = 'block';
+    });
+
+    $('#clearBtn')?.addEventListener('click', () => {
+      $('#encounterForm').reset();
+      ['docScreening', 'docAssessment', 'sudSpecificBlock', 'mhDiagnosisBlock', 'sudDiagnosisBlock', 'psychotherapyTime', 'docPsych', 'docPlan', 'groupSUDTime', 'groupMHTime', 'crisisTime', 'skillsTime', 'psrTime', 'outreachTime', 'preventionTime', 'caseMgmtTypes', 'cmMHBlock', 'cmSUDBlock'].forEach((id) => show(document.getElementById(id), false));
+      $('#screeningList').innerHTML = '';
+      $('#result').classList.remove('error');
+      $('#result').textContent = '';
+      $('#soapNote').style.display = 'none';
+      $('#soapNote').value = '';
+      mseFields.forEach((field) => { const el = document.getElementById(`mse${field}`); if (el) el.disabled = false; });
+    });
+
+    $('#copyCodesBtn')?.addEventListener('click', () => {
+      const text = ($('#result')?.textContent || '').trim();
+      if (text && !$('#result')?.classList.contains('error')) navigator.clipboard.writeText(text);
+    });
+
+    $('#copyNoteBtn')?.addEventListener('click', () => {
+      const text = ($('#soapNote')?.value || '').trim();
+      if (text) navigator.clipboard.writeText(text);
+    });
+  </script>
+</body>
+</html>
