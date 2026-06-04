@@ -7389,6 +7389,7 @@ export type Database = {
           billing_notes: string | null
           claim_number: string | null
           claim_status: string
+          client_id: string | null
           created_at: string
           days_in_ar: number | null
           denial_reason_code: string | null
@@ -7399,6 +7400,7 @@ export type Database = {
           id: string
           last_billed_date: string | null
           last_validated_at: string | null
+          legacy_claim_id: string | null
           organization_id: string
           patient_account_number: string | null
           patient_id: string | null
@@ -7421,6 +7423,7 @@ export type Database = {
           billing_notes?: string | null
           claim_number?: string | null
           claim_status?: string
+          client_id?: string | null
           created_at?: string
           days_in_ar?: number | null
           denial_reason_code?: string | null
@@ -7431,6 +7434,7 @@ export type Database = {
           id?: string
           last_billed_date?: string | null
           last_validated_at?: string | null
+          legacy_claim_id?: string | null
           organization_id: string
           patient_account_number?: string | null
           patient_id?: string | null
@@ -7453,6 +7457,7 @@ export type Database = {
           billing_notes?: string | null
           claim_number?: string | null
           claim_status?: string
+          client_id?: string | null
           created_at?: string
           days_in_ar?: number | null
           denial_reason_code?: string | null
@@ -7463,6 +7468,7 @@ export type Database = {
           id?: string
           last_billed_date?: string | null
           last_validated_at?: string | null
+          legacy_claim_id?: string | null
           organization_id?: string
           patient_account_number?: string | null
           patient_id?: string | null
@@ -10090,6 +10096,9 @@ export type Database = {
         | "insurance_policy"
         | "workqueue_item"
         | "mailroom_item"
+        | "professional_claim"
+        | "vcc_payment"
+        | "patient_checkin"
       support_ticket_status:
         | "open"
         | "pending"
@@ -10105,6 +10114,7 @@ export type Database = {
         | "blocked"
         | "resolved"
         | "closed"
+        | "deferred"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -10340,6 +10350,9 @@ export const Constants = {
         "insurance_policy",
         "workqueue_item",
         "mailroom_item",
+        "professional_claim",
+        "vcc_payment",
+        "patient_checkin",
       ],
       support_ticket_status: [
         "open",
@@ -10357,6 +10370,7 @@ export const Constants = {
         "blocked",
         "resolved",
         "closed",
+        "deferred",
       ],
     },
   },

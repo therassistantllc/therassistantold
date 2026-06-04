@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-async function countRows(table: string, filters: Record<string, string>) {
-  const supabase = createServerSupabaseAdminClient();
-  if (!supabase) throw new Error("Database connection not available");
+type SupabaseAdminClient = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
 
+async function countRows(supabase: SupabaseAdminClient, table: string, filters: Record<string, string>) {
   let query = supabase.from(table).select("id", { count: "exact", head: true });
   for (const [field, value] of Object.entries(filters)) {
     query = query.eq(field, value);
@@ -15,10 +14,7 @@ async function countRows(table: string, filters: Record<string, string>) {
   return count ?? 0;
 }
 
-async function countWorkqueue(organizationId: string, workType: string) {
-  const supabase = createServerSupabaseAdminClient();
-  if (!supabase) throw new Error("Database connection not available");
-
+async function countWorkqueue(supabase: SupabaseAdminClient, organizationId: string, workType: string) {
   const { count, error } = await supabase
     .from("workqueue_items")
     .select("id", { count: "exact", head: true })
@@ -31,6 +27,22 @@ async function countWorkqueue(organizationId: string, workType: string) {
   return count ?? 0;
 }
 
+async function countByValues(
+  supabase: SupabaseAdminClient,
+  values: string[],
+  table: string,
+  organizationId: string,
+  field: string,
+) {
+  const entries = await Promise.all(
+    values.map(async (value) => [
+      value,
+      await countRows(supabase, table, { organization_id: organizationId, [field]: value }),
+    ] as const),
+  );
+  return Object.fromEntries(entries) as Record<string, number>;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -38,6 +50,11 @@ export async function GET(request: Request) {
 
     if (!organizationId) {
       return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
+    }
+
+    const supabase = createServerSupabaseAdminClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: "Database connection not available" }, { status: 500 });
     }
 
     const claimStatuses = [
@@ -70,61 +87,22 @@ export async function GET(request: Request) {
     const eraPostingStatuses = ["ready", "posted", "blocked", "skipped"];
     const invoiceStatuses = ["draft", "open", "sent", "paid", "voided", "collections"];
 
-    const claimCounts: Record<string, number> = {};
-    for (const status of claimStatuses) {
-      claimCounts[status] = await countRows("professional_claims", {
-        organization_id: organizationId,
-        claim_status: status,
-      });
-    }
+    const [claimCounts, batchCounts, eraImportCounts, eraMatchCounts, eraPostingCounts, patientInvoiceCounts, workqueueEntries] =
+      await Promise.all([
+        countByValues(supabase, claimStatuses, "professional_claims", organizationId, "claim_status"),
+        countByValues(supabase, batchStatuses, "edi_batches", organizationId, "status"),
+        countByValues(supabase, eraImportStatuses, "era_import_batches", organizationId, "import_status"),
+        countByValues(supabase, eraMatchStatuses, "era_claim_payments", organizationId, "claim_match_status"),
+        countByValues(supabase, eraPostingStatuses, "era_claim_payments", organizationId, "posting_status"),
+        countByValues(supabase, invoiceStatuses, "patient_invoices", organizationId, "invoice_status"),
+        Promise.all(
+          ["no_response", "clearinghouse_rejection", "payer_rejection", "denied", "eligibility_needed", "payment_posting_needed"].map(
+            async (workType) => [workType, await countWorkqueue(supabase, organizationId, workType)] as const,
+          ),
+        ),
+      ]);
 
-    const batchCounts: Record<string, number> = {};
-    for (const status of batchStatuses) {
-      batchCounts[status] = await countRows("edi_batches", {
-        organization_id: organizationId,
-        status,
-      });
-    }
-
-    const eraImportCounts: Record<string, number> = {};
-    for (const status of eraImportStatuses) {
-      eraImportCounts[status] = await countRows("era_import_batches", {
-        organization_id: organizationId,
-        import_status: status,
-      });
-    }
-
-    const eraMatchCounts: Record<string, number> = {};
-    for (const status of eraMatchStatuses) {
-      eraMatchCounts[status] = await countRows("era_claim_payments", {
-        organization_id: organizationId,
-        claim_match_status: status,
-      });
-    }
-
-    const eraPostingCounts: Record<string, number> = {};
-    for (const status of eraPostingStatuses) {
-      eraPostingCounts[status] = await countRows("era_claim_payments", {
-        organization_id: organizationId,
-        posting_status: status,
-      });
-    }
-
-    const patientInvoiceCounts: Record<string, number> = {};
-    for (const status of invoiceStatuses) {
-      patientInvoiceCounts[status] = await countRows("patient_invoices", {
-        organization_id: organizationId,
-        invoice_status: status,
-      });
-    }
-
-    const workqueueCounts = {
-      no_response: await countWorkqueue(organizationId, "no_response"),
-      clearinghouse_rejection: await countWorkqueue(organizationId, "clearinghouse_rejection"),
-      payer_rejection: await countWorkqueue(organizationId, "payer_rejection"),
-      eligibility_needed: await countWorkqueue(organizationId, "eligibility_needed"),
-      payment_posting_needed: await countWorkqueue(organizationId, "payment_posting_needed"),
-    };
+    const workqueueCounts = Object.fromEntries(workqueueEntries) as Record<string, number>;
 
     return NextResponse.json({
       success: true,
@@ -141,12 +119,14 @@ export async function GET(request: Request) {
           claimCounts.validation_failed +
           claimCounts.rejected_oa +
           claimCounts.rejected_payer +
+          claimCounts.denied +
           eraMatchCounts.unmatched +
           eraMatchCounts.ambiguous +
           eraPostingCounts.blocked +
           workqueueCounts.no_response +
           workqueueCounts.clearinghouse_rejection +
-          workqueueCounts.payer_rejection,
+          workqueueCounts.payer_rejection +
+          workqueueCounts.denied,
         readyToSend: claimCounts.ready_for_batch,
         waitingForResponse: claimCounts.submitted + claimCounts.accepted_oa,
         payerAccepted: claimCounts.accepted_payer,

@@ -247,7 +247,10 @@ CREATE TYPE "public"."source_object_type" AS ENUM (
     'client',
     'insurance_policy',
     'workqueue_item',
-    'mailroom_item'
+    'mailroom_item',
+    'professional_claim',
+    'vcc_payment',
+    'patient_checkin'
 );
 
 
@@ -294,7 +297,8 @@ CREATE TYPE "public"."workqueue_status" AS ENUM (
     'in_progress',
     'blocked',
     'resolved',
-    'closed'
+    'closed',
+    'deferred'
 );
 
 
@@ -3728,6 +3732,8 @@ CREATE TABLE IF NOT EXISTS "public"."professional_claims" (
     "appointment_id" "uuid",
     "payer_profile_id" "uuid",
     "claim_number" "text",
+    "client_id" "uuid",
+    "legacy_claim_id" "uuid",
     "patient_account_number" "text",
     "claim_status" "text" DEFAULT 'draft'::"text" NOT NULL,
     "total_charge" numeric(12,2) DEFAULT 0 NOT NULL,
@@ -6696,12 +6702,18 @@ CREATE INDEX "idx_professional_claims_claim_status" ON "public"."professional_cl
 
 
 
+CREATE INDEX "idx_professional_claims_client_id" ON "public"."professional_claims" USING "btree" ("client_id") WHERE ("client_id" IS NOT NULL);
+
+
 CREATE INDEX "idx_professional_claims_encounter_id" ON "public"."professional_claims" USING "btree" ("encounter_id") WHERE ("encounter_id" IS NOT NULL);
 
 
 
 CREATE INDEX "idx_professional_claims_organization_id" ON "public"."professional_claims" USING "btree" ("organization_id");
 
+
+
+CREATE INDEX "idx_professional_claims_legacy_claim_id" ON "public"."professional_claims" USING "btree" ("legacy_claim_id") WHERE ("legacy_claim_id" IS NOT NULL);
 
 
 CREATE INDEX "idx_professional_claims_patient_id" ON "public"."professional_claims" USING "btree" ("patient_id");

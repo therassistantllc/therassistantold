@@ -146,7 +146,8 @@ export default function WorkqueueClient() {
   }
 
   async function checkClaimStatus(item: WorkqueueItem) {
-    if (!item.claimId || !item.clientId) return;
+    const claimId = item.professionalClaimId || item.claimId;
+    if (!claimId || !item.clientId) return;
     setClaimStatusChecking(true);
     setClaimStatusResult(null);
     try {
@@ -156,7 +157,7 @@ export default function WorkqueueClient() {
         body: JSON.stringify({
           organizationId,
           clientId: item.clientId,
-          claimId: item.claimId,
+          claimId,
           request: null,
         }),
       });
@@ -287,7 +288,7 @@ export default function WorkqueueClient() {
                 <p><strong>Description:</strong> {selected.description || "—"}</p>
                 <p><strong>Created:</strong> {formatDate(selected.createdAt)}</p>
                 <p><strong>Updated:</strong> {formatDate(selected.updatedAt)}</p>
-                <p><strong>Claim ID:</strong> {selected.claimId || "—"}</p>
+                <p><strong>Legacy Claim ID:</strong> {selected.claimId || "—"}</p>
                 <p><strong>Professional Claim:</strong>{" "}
                   {selected.professionalClaimId
                     ? <Link className="inline-link" href={`/billing/charge-capture?organizationId=${organizationId}`}>{selected.professionalClaimId}</Link>
@@ -300,7 +301,7 @@ export default function WorkqueueClient() {
               <div className="section-actions">
                 {selected.clientId ? <Link className="button button-secondary" href={`/clients/${selected.clientId}`}>Open Chart</Link> : null}
                 {selected.encounterId ? <Link className="button button-secondary" href={`/encounters/${selected.encounterId}`}>Open Encounter</Link> : null}
-                {selected.claimId && selected.clientId ? (
+                {(selected.professionalClaimId || selected.claimId) && selected.clientId ? (
                   <button
                     className="button button-secondary"
                     type="button"

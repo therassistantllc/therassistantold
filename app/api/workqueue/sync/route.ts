@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DbRow = Record<string, any>;
+type DbRow = Record<string, unknown>;
 type SupabaseAdminClient = NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
 
 function generateUuid() {
@@ -14,13 +13,14 @@ function buildWorkqueueItem(input: {
   organization_id: string | null;
   title: string;
   work_type: string;
-  priority: "low" | "medium" | "high" | "urgent";
+  priority: "low" | "normal" | "high" | "urgent";
   source_object_type: string;
   source_object_id: string;
   client_id?: string | null;
   appointment_id?: string | null;
   encounter_id?: string | null;
   claim_id?: string | null;
+  professional_claim_id?: string | null;
   description?: string | null;
   context_payload?: Record<string, unknown>;
   now: string;
@@ -39,21 +39,25 @@ function buildWorkqueueItem(input: {
     appointment_id: input.appointment_id ?? null,
     encounter_id: input.encounter_id ?? null,
     claim_id: input.claim_id ?? null,
+    professional_claim_id: input.professional_claim_id ?? null,
     context_payload: input.context_payload ?? {},
     created_at: input.now,
     updated_at: input.now,
   };
 }
 
-async function hasExistingItem(supabase: SupabaseAdminClient, sourceId: string, workType: string) {
-  const { data, error } = await supabase
+async function hasExistingItem(supabase: SupabaseAdminClient, organizationId: string | null, sourceId: string, workType: string) {
+  let query = supabase
     .from("workqueue_items")
     .select("id")
     .eq("source_object_id", sourceId)
     .eq("work_type", workType)
-    .in("status", ["open", "in_progress", "blocked"])
-    .is("archived_at", null)
-    .maybeSingle();
+    .in("status", ["open", "in_progress", "blocked", "deferred"])
+    .is("archived_at", null);
+
+  if (organizationId) query = query.eq("organization_id", organizationId);
+
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error) throw error;
   return !!data;
@@ -65,7 +69,7 @@ async function insertWorkqueueItem(supabase: SupabaseAdminClient, itemsCreated: 
   if (data) itemsCreated.push(data);
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabaseAdminClient = createServerSupabaseAdminClient();
     if (!supabaseAdminClient) {
@@ -73,20 +77,31 @@ export async function POST() {
     }
     const supabase = supabaseAdminClient;
 
+    const url = new URL(request.url);
+    let organizationId = url.searchParams.get("organizationId") || process.env.NEXT_PUBLIC_ORGANIZATION_ID || "";
+    try {
+      const body = await request.json();
+      organizationId = typeof body?.organizationId === "string" && body.organizationId ? body.organizationId : organizationId;
+    } catch {
+      // Body is optional for this sync endpoint.
+    }
+
     const now = new Date().toISOString();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const itemsCreated: DbRow[] = [];
 
-    const { data: eligibilityChecks, error: eligibilityError } = await supabase
+    let eligibilityQuery = supabase
       .from("eligibility_checks")
       .select("id, appointment_id, client_id, organization_id, eligibility_status, checked_at")
       .or(`eligibility_status.eq.not_checked,checked_at.lt.${thirtyDaysAgo}`)
       .is("archived_at", null);
+    if (organizationId) eligibilityQuery = eligibilityQuery.eq("organization_id", organizationId);
+    const { data: eligibilityChecks, error: eligibilityError } = await eligibilityQuery;
 
     if (eligibilityError) throw eligibilityError;
 
     for (const check of eligibilityChecks ?? []) {
-      if (await hasExistingItem(supabase, check.id, "eligibility_needed")) continue;
+      if (await hasExistingItem(supabase, check.organization_id, check.id, "eligibility_needed")) continue;
       const eligibilityStatus = check.eligibility_status ?? "stale";
 
       await insertWorkqueueItem(
@@ -96,7 +111,7 @@ export async function POST() {
           organization_id: check.organization_id,
           title: `Eligibility check needed - ${eligibilityStatus}`,
           work_type: "eligibility_needed",
-          priority: "medium",
+          priority: "normal",
           source_object_type: "eligibility_check",
           source_object_id: check.id,
           client_id: check.client_id,
@@ -107,11 +122,13 @@ export async function POST() {
       );
     }
 
-    const { data: encountersWithoutClaims, error: encounterError } = await supabase
+    let encounterQuery = supabase
       .from("encounters")
       .select("id, client_id, organization_id, encounter_status")
       .eq("encounter_status", "signed")
       .is("archived_at", null);
+    if (organizationId) encounterQuery = encounterQuery.eq("organization_id", organizationId);
+    const { data: encountersWithoutClaims, error: encounterError } = await encounterQuery;
 
     if (encounterError) throw encounterError;
 
@@ -123,7 +140,7 @@ export async function POST() {
         .maybeSingle();
 
       if (claimLookupError) throw claimLookupError;
-      if (claim || (await hasExistingItem(supabase, encounter.id, "ready_to_bill"))) continue;
+      if (claim || (await hasExistingItem(supabase, encounter.organization_id, encounter.id, "ready_to_bill"))) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -142,16 +159,18 @@ export async function POST() {
       );
     }
 
-    const { data: claimsWithoutResponse, error: noResponseError } = await supabase
+    let noResponseQuery = supabase
       .from("professional_claims")
-      .select("id, client_id, encounter_id, claim_number, organization_id, claim_status, updated_at")
+      .select("id, patient_id, client_id, encounter_id, claim_number, organization_id, claim_status, updated_at")
       .eq("claim_status", "submitted")
       .lt("updated_at", thirtyDaysAgo);
+    if (organizationId) noResponseQuery = noResponseQuery.eq("organization_id", organizationId);
+    const { data: claimsWithoutResponse, error: noResponseError } = await noResponseQuery;
 
     if (noResponseError) throw noResponseError;
 
     for (const claim of claimsWithoutResponse ?? []) {
-      if (await hasExistingItem(supabase, claim.id, "no_response")) continue;
+      if (await hasExistingItem(supabase, claim.organization_id, claim.id, "no_response")) continue;
 
       const { data: recentInquiry, error: inquiryError } = await supabase
         .from("claim_status_inquiries")
@@ -173,26 +192,29 @@ export async function POST() {
             : "Claim submitted over 30 days ago - claim status inquiry needed",
           work_type: "no_response",
           priority: "high",
-          source_object_type: "claim",
+          source_object_type: "professional_claim",
           source_object_id: claim.id,
-          client_id: claim.client_id,
+          client_id: claim.client_id ?? claim.patient_id,
           encounter_id: claim.encounter_id,
-          claim_id: claim.id,
+          professional_claim_id: claim.id,
           context_payload: { claim_number: claim.claim_number, has_claim_status_inquiry: Boolean(recentInquiry) },
           now,
         }),
       );
     }
 
-    const { data: deniedClaims, error: deniedError } = await supabase
+    let deniedQuery = supabase
       .from("professional_claims")
-      .select("id, client_id, encounter_id, claim_number, organization_id, claim_status")
-      .in("claim_status", ["denied", "rejected"]);
+      .select("id, patient_id, client_id, encounter_id, claim_number, organization_id, claim_status")
+      .in("claim_status", ["denied", "rejected_oa", "rejected_payer"]);
+    if (organizationId) deniedQuery = deniedQuery.eq("organization_id", organizationId);
+    const { data: deniedClaims, error: deniedError } = await deniedQuery;
 
     if (deniedError) throw deniedError;
 
     for (const claim of deniedClaims ?? []) {
-      if (await hasExistingItem(supabase, claim.id, "denial_followup")) continue;
+      const workType = claim.claim_status === "rejected_oa" ? "clearinghouse_rejection" : claim.claim_status === "rejected_payer" ? "payer_rejection" : "denied";
+      if (await hasExistingItem(supabase, claim.organization_id, claim.id, workType)) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -200,24 +222,26 @@ export async function POST() {
         buildWorkqueueItem({
           organization_id: claim.organization_id,
           title: `Claim ${claim.claim_status} - needs review`,
-          work_type: "denial_followup",
+          work_type: workType,
           priority: "high",
-          source_object_type: "claim",
+          source_object_type: "professional_claim",
           source_object_id: claim.id,
-          client_id: claim.client_id,
+          client_id: claim.client_id ?? claim.patient_id,
           encounter_id: claim.encounter_id,
-          claim_id: claim.id,
+          professional_claim_id: claim.id,
           context_payload: { claim_number: claim.claim_number, claim_status: claim.claim_status },
           now,
         }),
       );
     }
 
-    const { data: paymentImports, error: paymentImportError } = await supabase
+    let paymentImportQuery = supabase
       .from("payment_import_items")
       .select("id, client_id, claim_id, organization_id")
       .eq("posting_ready", true)
       .is("archived_at", null);
+    if (organizationId) paymentImportQuery = paymentImportQuery.eq("organization_id", organizationId);
+    const { data: paymentImports, error: paymentImportError } = await paymentImportQuery;
 
     if (paymentImportError) throw paymentImportError;
 
@@ -229,7 +253,7 @@ export async function POST() {
         .maybeSingle();
 
       if (postingError) throw postingError;
-      if (posting || (await hasExistingItem(supabase, paymentItem.id, "payment_posting_needed"))) continue;
+      if (posting || (await hasExistingItem(supabase, paymentItem.organization_id, paymentItem.id, "payment_posting_needed"))) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -238,7 +262,7 @@ export async function POST() {
           organization_id: paymentItem.organization_id,
           title: "Payment ready to post",
           work_type: "payment_posting_needed",
-          priority: "medium",
+          priority: "normal",
           source_object_type: "payment_import_item",
           source_object_id: paymentItem.id,
           client_id: paymentItem.client_id,
@@ -248,16 +272,18 @@ export async function POST() {
       );
     }
 
-    const { data: mailroomItems, error: mailroomError } = await supabase
+    let mailroomQuery = supabase
       .from("mailroom_items")
       .select("id, organization_id, client_id")
       .eq("status", "needs_review")
       .is("archived_at", null);
+    if (organizationId) mailroomQuery = mailroomQuery.eq("organization_id", organizationId);
+    const { data: mailroomItems, error: mailroomError } = await mailroomQuery;
 
     if (mailroomError) throw mailroomError;
 
     for (const item of mailroomItems ?? []) {
-      if (await hasExistingItem(supabase, item.id, "mailroom")) continue;
+      if (await hasExistingItem(supabase, item.organization_id, item.id, "mailroom")) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -266,7 +292,7 @@ export async function POST() {
           organization_id: item.organization_id,
           title: "Document needs review and filing",
           work_type: "mailroom",
-          priority: "medium",
+          priority: "normal",
           source_object_type: "mailroom_item",
           source_object_id: item.id,
           client_id: item.client_id,
@@ -275,16 +301,18 @@ export async function POST() {
       );
     }
 
-    const { data: vccPayments, error: vccError } = await supabase
+    let vccQuery = supabase
       .from("vcc_payments")
       .select("id, organization_id, client_id, claim_id")
       .eq("status", "pending")
       .is("archived_at", null);
+    if (organizationId) vccQuery = vccQuery.eq("organization_id", organizationId);
+    const { data: vccPayments, error: vccError } = await vccQuery;
 
     if (vccError) throw vccError;
 
     for (const vcc of vccPayments ?? []) {
-      if (await hasExistingItem(supabase, vcc.id, "vcc_processing")) continue;
+      if (await hasExistingItem(supabase, vcc.organization_id, vcc.id, "vcc_processing")) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -303,16 +331,18 @@ export async function POST() {
       );
     }
 
-    const { data: checkins, error: checkinError } = await supabase
+    let checkinQuery = supabase
       .from("patient_checkins")
       .select("id, organization_id, client_id, appointment_id")
       .eq("status", "submitted")
       .is("archived_at", null);
+    if (organizationId) checkinQuery = checkinQuery.eq("organization_id", organizationId);
+    const { data: checkins, error: checkinError } = await checkinQuery;
 
     if (checkinError) throw checkinError;
 
     for (const checkin of checkins ?? []) {
-      if (await hasExistingItem(supabase, checkin.id, "checkin_review")) continue;
+      if (await hasExistingItem(supabase, checkin.organization_id, checkin.id, "checkin_review")) continue;
 
       await insertWorkqueueItem(
         supabase,
@@ -321,7 +351,7 @@ export async function POST() {
           organization_id: checkin.organization_id,
           title: "Client check-in submitted - needs review",
           work_type: "checkin_review",
-          priority: "medium",
+          priority: "normal",
           source_object_type: "patient_checkin",
           source_object_id: checkin.id,
           client_id: checkin.client_id,

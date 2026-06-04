@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
     const { data: chargeRows, error: chargeError } = await supabase
       .from("charge_capture_items")
-      .select("id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, total_charge, diagnosis_codes, service_lines, blocker_reasons, updated_at")
+      .select("id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, total_charge, diagnosis_codes, service_lines, blocker_reasons, claim_id, updated_at")
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .neq("charge_status", "voided")
@@ -39,31 +39,65 @@ export async function GET(request: Request) {
 
     const clientIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.client_id)).filter(Boolean))];
     const encounterIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.encounter_id)).filter(Boolean))];
+    const linkedClaimIds = [...new Set((chargeRows ?? []).map((row: DbRow) => text(row.claim_id)).filter(Boolean))];
 
     const { data: clients } = clientIds.length
       ? await supabase.from("clients").select("id, first_name, last_name, date_of_birth").in("id", clientIds)
       : { data: [] as DbRow[] };
 
-    const { data: claims } = encounterIds.length
-      ? await supabase
-          .from("professional_claims")
-          .select("id, patient_id, appointment_id, claim_number, claim_status, total_charge_amount, created_at, updated_at")
-          .eq("organization_id", organizationId)
-          .in("patient_id", clientIds)
-          .neq("claim_status", "voided")
-          .order("updated_at", { ascending: false })
-      : { data: [] as DbRow[] };
+    const claimQueries = await Promise.all([
+      linkedClaimIds.length
+        ? supabase
+            .from("professional_claims")
+            .select("id, patient_id, client_id, encounter_id, appointment_id, claim_number, claim_status, total_charge, created_at, updated_at")
+            .eq("organization_id", organizationId)
+            .in("id", linkedClaimIds)
+            .neq("claim_status", "voided")
+        : Promise.resolve({ data: [] as DbRow[], error: null }),
+      encounterIds.length
+        ? supabase
+            .from("professional_claims")
+            .select("id, patient_id, client_id, encounter_id, appointment_id, claim_number, claim_status, total_charge, created_at, updated_at")
+            .eq("organization_id", organizationId)
+            .in("encounter_id", encounterIds)
+            .neq("claim_status", "voided")
+        : Promise.resolve({ data: [] as DbRow[], error: null }),
+      clientIds.length
+        ? supabase
+            .from("professional_claims")
+            .select("id, patient_id, client_id, encounter_id, appointment_id, claim_number, claim_status, total_charge, created_at, updated_at")
+            .eq("organization_id", organizationId)
+            .in("patient_id", clientIds)
+            .neq("claim_status", "voided")
+            .order("updated_at", { ascending: false })
+        : Promise.resolve({ data: [] as DbRow[], error: null }),
+    ]);
 
+    for (const result of claimQueries) {
+      if (result.error) throw result.error;
+    }
+
+    const claims = claimQueries.flatMap((result) => result.data ?? []);
     const clientById = new Map<string, DbRow>((clients ?? []).map((client: DbRow) => [text(client.id), client]));
+    const claimsById = new Map<string, DbRow>();
+    const claimsByEncounter = new Map<string, DbRow>();
     const claimsByPatientAppointment = new Map<string, DbRow>();
-    for (const claim of claims ?? []) {
-      const key = `${text(claim.patient_id)}:${text(claim.appointment_id)}`;
-      if (!claimsByPatientAppointment.has(key)) claimsByPatientAppointment.set(key, claim);
+    for (const claim of claims) {
+      const claimId = text(claim.id);
+      if (claimId && !claimsById.has(claimId)) claimsById.set(claimId, claim);
+      const encounterId = text(claim.encounter_id);
+      if (encounterId && !claimsByEncounter.has(encounterId)) claimsByEncounter.set(encounterId, claim);
+      const patientId = text(claim.client_id) || text(claim.patient_id);
+      const key = `${patientId}:${text(claim.appointment_id)}`;
+      if (patientId && !claimsByPatientAppointment.has(key)) claimsByPatientAppointment.set(key, claim);
     }
 
     const items = (chargeRows ?? []).map((charge: DbRow) => {
       const client = clientById.get(text(charge.client_id));
-      const claim = claimsByPatientAppointment.get(`${text(charge.client_id)}:${text(charge.appointment_id)}`) ?? null;
+      const claim = claimsById.get(text(charge.claim_id))
+        ?? claimsByEncounter.get(text(charge.encounter_id))
+        ?? claimsByPatientAppointment.get(`${text(charge.client_id)}:${text(charge.appointment_id)}`)
+        ?? null;
       const patientName = client ? [client.first_name, client.last_name].map(text).filter(Boolean).join(" ") : "Unknown patient";
       return {
         chargeCaptureId: text(charge.id),
@@ -83,7 +117,7 @@ export async function GET(request: Request) {
               id: text(claim.id),
               claimNumber: claim.claim_number ?? null,
               status: claim.claim_status ?? null,
-              totalChargeAmount: money(claim.total_charge_amount),
+              totalChargeAmount: money(claim.total_charge),
               updatedAt: claim.updated_at ?? null,
             }
           : null,

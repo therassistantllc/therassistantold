@@ -60,7 +60,7 @@ export async function createClaimDraftFromChargeCapture(
 
   const { data: charge, error: chargeError } = await supabase
     .from("charge_capture_items")
-    .select("id, organization_id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, diagnosis_codes, service_lines, place_of_service")
+    .select("id, organization_id, encounter_id, client_id, provider_id, appointment_id, insurance_policy_id, charge_status, service_date, diagnosis_codes, service_lines, place_of_service, claim_id")
     .eq("organization_id", input.organizationId)
     .eq("id", input.chargeCaptureId)
     .is("archived_at", null)
@@ -74,17 +74,43 @@ export async function createClaimDraftFromChargeCapture(
     return { ok: false, claimId: null, errors: [{ field: "charge_status", message: "Charge capture item is not ready for claim creation" }] };
   }
 
-  const { data: existingClaim } = await supabase
-    .from("professional_claims")
-    .select("id")
-    .eq("organization_id", input.organizationId)
-    .eq("appointment_id", charge.appointment_id)
-    .eq("patient_id", charge.client_id)
-    .neq("claim_status", "voided")
-    .limit(1)
-    .maybeSingle();
+  if (charge.claim_id) {
+    const readiness = await validateProfessionalClaimReadiness(String(charge.claim_id), input.organizationId);
+    return { ok: readiness.ok, claimId: String(charge.claim_id), errors: readiness.errors };
+  }
+
+  let existingClaim: { id: string } | null = null;
+  if (charge.encounter_id) {
+    const { data } = await supabase
+      .from("professional_claims")
+      .select("id")
+      .eq("organization_id", input.organizationId)
+      .eq("encounter_id", charge.encounter_id)
+      .neq("claim_status", "voided")
+      .limit(1)
+      .maybeSingle();
+    existingClaim = data ? { id: String(data.id) } : null;
+  }
+
+  if (!existingClaim && charge.appointment_id) {
+    const { data } = await supabase
+      .from("professional_claims")
+      .select("id")
+      .eq("organization_id", input.organizationId)
+      .eq("appointment_id", charge.appointment_id)
+      .eq("patient_id", charge.client_id)
+      .neq("claim_status", "voided")
+      .limit(1)
+      .maybeSingle();
+    existingClaim = data ? { id: String(data.id) } : null;
+  }
 
   if (existingClaim?.id) {
+    await supabase
+      .from("charge_capture_items")
+      .update({ claim_id: existingClaim.id, charge_status: "claim_created", claim_created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("organization_id", input.organizationId)
+      .eq("id", input.chargeCaptureId);
     const readiness = await validateProfessionalClaimReadiness(String(existingClaim.id), input.organizationId);
     return { ok: readiness.ok, claimId: String(existingClaim.id), errors: readiness.errors };
   }
@@ -103,6 +129,7 @@ export async function createClaimDraftFromChargeCapture(
     clientId: String(charge.client_id),
     policyId: charge.insurance_policy_id ? String(charge.insurance_policy_id) : null,
     appointmentId: charge.appointment_id ? String(charge.appointment_id) : null,
+    encounterId: charge.encounter_id ? String(charge.encounter_id) : null,
     placeOfService: text(charge.place_of_service) || null,
     diagnosisCodes: readTextArray(charge.diagnosis_codes),
     serviceLines: serviceLinesFromCharge(charge as DbRow, providerResolution.renderingProviderNpi),
@@ -115,7 +142,12 @@ export async function createClaimDraftFromChargeCapture(
 
   await supabase
     .from("charge_capture_items")
-    .update({ charge_status: "claim_created", updated_at: new Date().toISOString() })
+    .update({
+      charge_status: "claim_created",
+      claim_id: draft.claimId,
+      claim_created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq("organization_id", input.organizationId)
     .eq("id", input.chargeCaptureId);
 
