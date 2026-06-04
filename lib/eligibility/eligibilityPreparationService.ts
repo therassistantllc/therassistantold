@@ -13,6 +13,8 @@ type RequestMode = "mock" | "demo" | "production";
 
 export interface PrepareEligibilityRequestInput {
   organization_id?: string | null;
+  /** Canonical client identifier. patient_id is accepted as a legacy API alias. */
+  client_id?: string | null;
   patient_id?: string | null;
   payer_configuration_id?: string | null;
   payer_id?: string | null;
@@ -56,7 +58,7 @@ type JsonLike =
   | JsonLike[]
   | { [key: string]: JsonLike };
 
-const SENSITIVE_KEY_PATTERN = /(authorization|token|secret|password|api[_-]?key|client[_-]?id|client[_-]?secret|bearer)/i;
+const SENSITIVE_KEY_PATTERN = /(authorization|token|secret|password|api[_-]?key|bearer)/i;
 
 function sanitizeValue(value: unknown): JsonLike {
   if (value === null || value === undefined) {
@@ -156,6 +158,7 @@ export async function prepareEligibilityRequest(
   const isMock = requestMode === "mock";
 
   let organizationId = input.organization_id ?? null;
+  const clientId = input.client_id ?? input.patient_id ?? null;
   let payerConfigurationId = input.payer_configuration_id ?? null;
   let payerId = input.payer_id ?? null;
   let payerName = input.payer_name ?? null;
@@ -187,7 +190,7 @@ export async function prepareEligibilityRequest(
 
   const safeRequestPayload = sanitizeValue({
     organization_id: organizationId,
-    patient_id: input.patient_id ?? null,
+    client_id: clientId,
     payer_configuration_id: payerConfigurationId,
     payer_id: payerId,
     payer_name: payerName,
@@ -208,7 +211,7 @@ export async function prepareEligibilityRequest(
     .from("eligibility_requests")
     .insert({
       organization_id: organizationId,
-      patient_id: input.patient_id ?? null,
+      client_id: clientId,
       payer_configuration_id: payerConfigurationId,
       payer_id: payerId,
       payer_name: payerName,
@@ -262,7 +265,7 @@ export async function prepareEligibilityRequest(
 
   const transactionId = await createAvailityTransactionLog({
     organizationId: organizationId ?? undefined,
-    patientId: input.patient_id ?? undefined,
+    patientId: clientId ?? undefined,
     payerId: payerId ?? undefined,
     payerName: payerName ?? undefined,
     transactionType: "eligibility_270",

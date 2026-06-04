@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const result = await prepareEligibilityRequest({
       organization_id: body.organization_id,
-      patient_id: body.patient_id ?? null,
+      client_id: body.client_id ?? body.patient_id ?? null,
       payer_configuration_id: body.payer_configuration_id ?? null,
       payer_id: body.payer_id ?? null,
       payer_name: body.payer_name ?? null,

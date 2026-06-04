@@ -4,7 +4,9 @@ import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 export interface GetLatestEligibilityInput {
   organization_id: string;
-  patient_id: string;
+  /** Canonical client identifier. patient_id is accepted as a legacy API alias. */
+  client_id?: string | null;
+  patient_id?: string | null;
   payer_id?: string | null;
 }
 
@@ -91,7 +93,9 @@ function deriveDisplayStatus(
 export async function getLatestEligibilityForPatient(
   input: GetLatestEligibilityInput
 ): Promise<LatestEligibilityResult> {
-  if (!input.organization_id || !input.patient_id) {
+  const clientId = input.client_id ?? input.patient_id ?? null;
+
+  if (!input.organization_id || !clientId) {
     return baseNotChecked();
   }
 
@@ -106,7 +110,7 @@ export async function getLatestEligibilityForPatient(
       "id,eligibility_status,status,payer_id,payer_name,copay_amount,deductible_remaining,effective_date,termination_date,service_type_code,service_type_description,created_at"
     )
     .eq("organization_id", input.organization_id)
-    .eq("patient_id", input.patient_id)
+    .eq("client_id", clientId)
     .eq("status", "completed")
     .order("created_at", { ascending: false })
     .limit(1);

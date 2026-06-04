@@ -3672,7 +3672,7 @@ export type Database = {
           organization_id: string | null
           patient_dob: string | null
           patient_first_name: string | null
-          patient_id: string | null
+          client_id: string | null
           patient_last_name: string | null
           payer_configuration_id: string | null
           payer_id: string | null
@@ -3705,7 +3705,7 @@ export type Database = {
           organization_id?: string | null
           patient_dob?: string | null
           patient_first_name?: string | null
-          patient_id?: string | null
+          client_id?: string | null
           patient_last_name?: string | null
           payer_configuration_id?: string | null
           payer_id?: string | null
@@ -3738,7 +3738,7 @@ export type Database = {
           organization_id?: string | null
           patient_dob?: string | null
           patient_first_name?: string | null
-          patient_id?: string | null
+          client_id?: string | null
           patient_last_name?: string | null
           payer_configuration_id?: string | null
           payer_id?: string | null
@@ -3758,6 +3758,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "eligibility_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "eligibility_requests_appointment_id_fkey"
             columns: ["appointment_id"]

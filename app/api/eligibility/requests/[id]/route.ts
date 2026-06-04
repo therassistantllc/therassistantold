@@ -22,7 +22,7 @@ export async function GET(
     const { data: requestRow, error: requestError } = await supabase
       .from("eligibility_requests")
       .select(
-        "id,organization_id,patient_id,payer_id,payer_name,subscriber_id,subscriber_first_name,subscriber_last_name,subscriber_dob,patient_first_name,patient_last_name,patient_dob,service_type_code,service_type_description,request_mode,status,eligibility_status,copay_amount,deductible_remaining,effective_date,termination_date,created_at,availity_transaction_id,request_payload_safe,response_payload_safe"
+        "id,organization_id,client_id,payer_id,payer_name,subscriber_id,subscriber_first_name,subscriber_last_name,subscriber_dob,patient_first_name,patient_last_name,patient_dob,service_type_code,service_type_description,request_mode,status,eligibility_status,copay_amount,deductible_remaining,effective_date,termination_date,created_at,availity_transaction_id,request_payload_safe,response_payload_safe"
       )
       .eq("id", id)
       .maybeSingle();
@@ -59,7 +59,7 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
-      request: requestRow,
+      request: { ...requestRow, patient_id: requestRow.client_id ?? null },
       transaction,
     });
   } catch {
