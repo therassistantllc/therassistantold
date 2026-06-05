@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Charge Capture", href: "/billing/charge-capture", match: ["/billing/charge-capture", "/billing/claim-readiness"] },
       { label: "Claim Submission", href: "/billing/claim-submission", match: ["/billing/claim-submission", "/billing/837p-batches"] },
       { label: "837P Batches", href: "/billing/837p-batches" },
+      { label: "Posted Payments", href: "/billing/payments/posted", match: ["/billing/payments"] },
       { label: "Workqueue", href: "/billing/workqueue", match: ["/billing/workqueue", "/workqueue"] },
       { label: "Reports", href: "/billing/reports" },
     ],

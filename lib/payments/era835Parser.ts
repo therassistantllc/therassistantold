@@ -21,6 +21,11 @@ export type Era835ClaimPayment = {
   clp04PaymentAmount: number;
   clp05PatientResponsibility: number;
   payerClaimControlNumber: string | null;
+  patientFirstName: string | null;
+  patientLastName: string | null;
+  patientMiddleName: string | null;
+  patientMemberId: string | null;
+  patientDateOfBirth: string | null;
   casAdjustments: Era835CasAdjustment[];
   serviceLines: Era835ServiceLine[];
   rawSegments: string[];
@@ -126,6 +131,11 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
         clp04PaymentAmount: toNumber(elements[4]),
         clp05PatientResponsibility: toNumber(elements[5]),
         payerClaimControlNumber: clean(elements[7]) || null,
+        patientFirstName: null,
+        patientLastName: null,
+        patientMiddleName: null,
+        patientMemberId: null,
+        patientDateOfBirth: null,
         casAdjustments: [],
         serviceLines: [],
         rawSegments: [segment],
@@ -135,6 +145,20 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
 
     if (!currentClaim) continue;
     currentClaim.rawSegments.push(segment);
+
+    if (segmentId === "NM1" && ["QC", "IL"].includes(clean(elements[1]))) {
+      currentClaim.patientLastName = clean(elements[3]) || currentClaim.patientLastName;
+      currentClaim.patientFirstName = clean(elements[4]) || currentClaim.patientFirstName;
+      currentClaim.patientMiddleName = clean(elements[5]) || currentClaim.patientMiddleName;
+      currentClaim.patientMemberId = clean(elements[9]) || currentClaim.patientMemberId;
+      continue;
+    }
+
+    if (segmentId === "DMG") {
+      const dob = clean(elements[2]);
+      currentClaim.patientDateOfBirth = /^\d{8}$/.test(dob) ? `${dob.slice(0, 4)}-${dob.slice(4, 6)}-${dob.slice(6, 8)}` : currentClaim.patientDateOfBirth;
+      continue;
+    }
 
     if (segmentId === "CAS") {
       const adjustments = parseCas(elements);
@@ -158,7 +182,10 @@ export function parseEra835(rawContent: string): Era835ParsedFile {
 
     if (currentServiceLine) {
       currentServiceLine.rawSegments.push(segment);
-      if (segmentId === "DTM" && elements[1] === "472") currentServiceLine.serviceDate = clean(elements[2]) || null;
+      if (segmentId === "DTM" && elements[1] === "472") {
+        const rawDate = clean(elements[2]);
+        currentServiceLine.serviceDate = /^\d{8}$/.test(rawDate) ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : rawDate || null;
+      }
     }
   }
 

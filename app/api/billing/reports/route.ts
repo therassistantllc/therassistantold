@@ -93,12 +93,11 @@ export async function GET(request: Request) {
       .lt("updated_at", periodEnd);
 
     const { data: payments } = await supabase
-      .from("patient_invoice_payments")
-      .select("id, amount")
+      .from("rcm_posted_payments")
+      .select("id, amount, payment_type")
       .eq("organization_id", organizationId)
-      .gte("paid_at", periodStart)
-      .lt("paid_at", periodEnd)
-      .is("archived_at", null);
+      .gte("posted_at", periodStart)
+      .lt("posted_at", periodEnd);
 
     const { data: openInvoices } = await supabase
       .from("patient_invoices")
