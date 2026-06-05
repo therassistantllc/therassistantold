@@ -34,6 +34,11 @@ const BILLING_TILES: BillingTile[] = [
     description: "Generate and track 837P submission lifecycle through clearinghouse responses.",
   },
   {
+    title: "Posted Payments",
+    href: "/billing/payments/posted",
+    description: "Review posted ERA payments, adjustments, patient responsibility, and patient payments.",
+  },
+  {
     title: "Workqueue",
     href: "/billing/workqueue",
     description: "Triage routed billing tasks, denials, and follow-up actions.",

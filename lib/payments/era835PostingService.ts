@@ -22,6 +22,7 @@ type EraClaimPaymentRow = {
   clp04_payment_amount: number;
   clp05_patient_responsibility: number;
   cas_adjustments: Array<{ groupCode?: string; reasonCode?: string; amount?: number }>;
+  service_lines?: Array<{ procedureCode?: string | null; serviceDate?: string | null; paidAmount?: number; chargeAmount?: number }>;
   claim_match_status: string;
   posting_status: string;
 };
@@ -115,7 +116,7 @@ export async function postEra835Batch(input: PostEra835BatchInput): Promise<Post
 
   const { data: payments, error: paymentError } = await supabase
     .from("era_claim_payments")
-    .select("id, professional_claim_id, client_id, clp01_claim_control_number, clp03_total_charge, clp04_payment_amount, clp05_patient_responsibility, cas_adjustments, claim_match_status, posting_status")
+    .select("id, professional_claim_id, client_id, clp01_claim_control_number, clp03_total_charge, clp04_payment_amount, clp05_patient_responsibility, cas_adjustments, service_lines, claim_match_status, posting_status")
     .eq("organization_id", input.organizationId)
     .eq("era_import_batch_id", input.eraImportBatchId)
     .is("archived_at", null);
@@ -137,8 +138,23 @@ export async function postEra835Batch(input: PostEra835BatchInput): Promise<Post
 
   for (const payment of (payments ?? []) as EraClaimPaymentRow[]) {
     try {
-      if (payment.claim_match_status !== "matched" || !payment.professional_claim_id) {
+      const blockers: Array<{ field: string; message: string }> = [];
+      if (payment.claim_match_status !== "matched" || !payment.professional_claim_id) blockers.push({ field: "claim", message: "ERA payment is not matched to a professional claim" });
+      if (!payment.client_id) blockers.push({ field: "patient", message: "ERA payment is not linked to a patient" });
+      if (!payment.service_lines?.length) blockers.push({ field: "service_line", message: "ERA payment has no service lines" });
+      for (const [index, line] of (payment.service_lines ?? []).entries()) {
+        if (!line.procedureCode) blockers.push({ field: `service_lines[${index}].procedureCode`, message: "Service line is missing CPT/HCPCS" });
+        if (!line.serviceDate) blockers.push({ field: `service_lines[${index}].serviceDate`, message: "Service line is missing DOS" });
+      }
+
+      if (blockers.length) {
         blockedClaims += 1;
+        await supabase
+          .from("era_claim_payments")
+          .update({ posting_status: "blocked", match_blockers: blockers, updated_at: new Date().toISOString() })
+          .eq("id", payment.id)
+          .eq("organization_id", input.organizationId);
+        errors.push({ field: payment.clp01_claim_control_number, message: blockers.map((blocker) => `${blocker.field}: ${blocker.message}`).join("; ") });
         continue;
       }
 
@@ -187,7 +203,7 @@ export async function postEra835Batch(input: PostEra835BatchInput): Promise<Post
 
       await supabase
         .from("era_claim_payments")
-        .update({ posting_status: "posted", updated_at: new Date().toISOString() })
+        .update({ posting_status: "posted", match_blockers: [], posted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", payment.id)
         .eq("organization_id", input.organizationId);
 
