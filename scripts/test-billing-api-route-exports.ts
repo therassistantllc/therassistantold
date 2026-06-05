@@ -42,6 +42,26 @@ const routes: RouteExpectation[] = [
     path: "../app/api/billing/workflow-dashboard/route",
     expectedExports: ["GET"],
   },
+  {
+    label: "Billing payment claim search API",
+    path: "../app/api/billing/payments/claim-search/route",
+    expectedExports: ["GET"],
+  },
+  {
+    label: "Billing ERA payment batch detail API",
+    path: "../app/api/billing/payments/era-batches/route",
+    expectedExports: ["GET"],
+  },
+  {
+    label: "Billing ERA payment manual match API",
+    path: "../app/api/billing/payments/era-match/route",
+    expectedExports: ["POST"],
+  },
+  {
+    label: "Billing posted payments API",
+    path: "../app/api/billing/payments/posted/route",
+    expectedExports: ["GET"],
+  },
 ];
 
 async function main() {
