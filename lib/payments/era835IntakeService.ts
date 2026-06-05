@@ -42,6 +42,22 @@ function sumPatientResponsibility(claims: Era835ClaimPayment[]) {
   return claims.reduce((sum, claim) => sum + claim.clp05PatientResponsibility, 0);
 }
 
+function parsedPatientName(claim: Era835ClaimPayment) {
+  return [claim.patientFirstName, claim.patientMiddleName, claim.patientLastName].filter(Boolean).join(" ") || null;
+}
+
+function postingBlockers(match: ClaimMatch | null, claim: Era835ClaimPayment) {
+  const blockers: Array<{ field: string; message: string }> = [];
+  if (!match?.patient_id && !parsedPatientName(claim)) blockers.push({ field: "patient", message: "ERA row is missing both a matched patient and parsed patient name" });
+  if (!match?.id) blockers.push({ field: "claim", message: "No unique professional claim matched CLP01 or patient account number" });
+  if (!claim.serviceLines.length) blockers.push({ field: "service_line", message: "ERA row has no service lines to post" });
+  for (const [index, line] of claim.serviceLines.entries()) {
+    if (!line.procedureCode) blockers.push({ field: `service_lines[${index}].procedureCode`, message: "Service line is missing CPT/HCPCS" });
+    if (!line.serviceDate) blockers.push({ field: `service_lines[${index}].serviceDate`, message: "Service line is missing date of service" });
+  }
+  return blockers;
+}
+
 export async function intakeEra835(input: IntakeEra835Input): Promise<IntakeEra835Result> {
   const supabase = createServerSupabaseAdminClient();
   if (!supabase) {
@@ -110,11 +126,19 @@ export async function intakeEra835(input: IntakeEra835Input): Promise<IntakeEra8
       if (match) matchedClaims += 1;
       else unmatchedClaims += 1;
 
+      const blockers = postingBlockers(match, claim);
       const { error: claimPaymentError } = await supabase.from("era_claim_payments").insert({
         organization_id: input.organizationId,
         era_import_batch_id: batchId,
         professional_claim_id: match?.id ?? null,
         client_id: match?.patient_id ?? null,
+        parsed_patient_first_name: claim.patientFirstName,
+        parsed_patient_last_name: claim.patientLastName,
+        parsed_patient_middle_name: claim.patientMiddleName,
+        parsed_patient_member_id: claim.patientMemberId,
+        parsed_patient_date_of_birth: claim.patientDateOfBirth,
+        parsed_patient_name: parsedPatientName(claim),
+        match_blockers: blockers,
         clp01_claim_control_number: claim.clp01ClaimControlNumber,
         clp02_claim_status_code: claim.clp02ClaimStatusCode,
         clp03_total_charge: claim.clp03TotalCharge,
@@ -122,7 +146,7 @@ export async function intakeEra835(input: IntakeEra835Input): Promise<IntakeEra8
         clp05_patient_responsibility: claim.clp05PatientResponsibility,
         payer_claim_control_number: claim.payerClaimControlNumber,
         claim_match_status: match ? "matched" : "unmatched",
-        posting_status: match ? "ready" : "blocked",
+        posting_status: blockers.length === 0 ? "ready" : "blocked",
         cas_adjustments: claim.casAdjustments,
         service_lines: claim.serviceLines,
         raw_segments: claim.rawSegments,
